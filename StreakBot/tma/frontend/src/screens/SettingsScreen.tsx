@@ -1,7 +1,7 @@
 /**
- * Экран «Настройки» в стиле iOS Settings. Подтягивает и сохраняет те же настройки,
- * что задаются через /settings бота (кроме привычек): время утреннего и вечернего
- * уведомлений и часовой пояс. Изменения сразу уходят на сервер (PUT /settings).
+ * Экран «Настройки» в стиле iOS Settings: часовой пояс пользователя, от которого
+ * зависит, какой день считается сегодняшним. Изменения сразу уходят на сервер
+ * (PUT /settings).
  */
 
 import { useState } from "react";
@@ -11,19 +11,12 @@ import { ListGroup } from "../components/ListGroup";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
-import { TimeInput } from "../components/TimeInput";
 import { useMeta } from "../hooks/useMeta";
 import { useSettings } from "../hooks/useSettings";
 import { STRINGS } from "../strings";
 import type { SettingsUpdate } from "../types/settings";
 import type { TimezoneOption } from "../types/meta";
 import styles from "./SettingsScreen.module.css";
-
-/** «HH:00» из числа часов (24 → 00:00). */
-function hourLabel(hour: number): string {
-  const normalized = hour % 24;
-  return `${String(normalized).padStart(2, "0")}:00`;
-}
 
 export function SettingsScreen() {
   const { settings, status, errorMessage, reload, save } = useSettings();
@@ -61,12 +54,6 @@ export function SettingsScreen() {
       );
     }
 
-    const morningRange = meta?.morning_range ?? [4, 12];
-    const eveningRange = meta?.evening_range ?? [16, 24];
-    const notificationsFooter =
-      `Утреннее — с ${hourLabel(morningRange[0])} до ${hourLabel(morningRange[1])}; ` +
-      `вечернее — с ${hourLabel(eveningRange[0])} до 00:00.`;
-
     // Варианты пояса: смещения из бэкенда + текущий пояс, если его нет в списке.
     const baseOffsets: TimezoneOption[] = meta?.timezone_offsets ?? [];
     const current = settings.timezone_offset;
@@ -77,26 +64,6 @@ export function SettingsScreen() {
 
     return (
       <>
-        <ListGroup header={STRINGS.settingsNotifications} footer={notificationsFooter}>
-          <ListItem label={STRINGS.settingsMorning}>
-            <TimeInput
-              ariaLabel={STRINGS.settingsMorning}
-              value={settings.morning_time ?? ""}
-              min={hourLabel(morningRange[0])}
-              max={hourLabel(morningRange[1])}
-              onChange={(value) => value && applyPatch({ morning_time: value })}
-            />
-          </ListItem>
-          <ListItem label={STRINGS.settingsEvening}>
-            <TimeInput
-              ariaLabel={STRINGS.settingsEvening}
-              value={settings.evening_time ?? ""}
-              min={hourLabel(eveningRange[0])}
-              onChange={(value) => value && applyPatch({ evening_time: value })}
-            />
-          </ListItem>
-        </ListGroup>
-
         <ListGroup header={STRINGS.settingsTimezone} footer={STRINGS.settingsTimezoneFooter}>
           <ListItem label={STRINGS.settingsTimezoneRow}>
             <select

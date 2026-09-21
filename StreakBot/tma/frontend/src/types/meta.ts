@@ -1,4 +1,4 @@
-/** Справочные данные для форм (дни недели, диапазоны, часовые пояса). */
+/** Справочные данные для форм (дни недели, лимит названия, часовые пояса). */
 
 export interface Weekday {
   code: string;
@@ -13,10 +13,6 @@ export interface TimezoneOption {
 
 export interface Meta {
   weekdays: Weekday[];
-  /** Допустимый диапазон утреннего времени, часы [от, до]. */
-  morning_range: [number, number];
-  /** Допустимый диапазон вечернего времени, часы [от, до]. */
-  evening_range: [number, number];
   name_max_length: number;
   timezone_offsets: TimezoneOption[];
 }

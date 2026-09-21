@@ -33,12 +33,10 @@ export interface HabitResponse {
 /** Частота выполнения привычки. */
 export type FrequencyType = "daily" | "specific_days";
 
-/** Тело запроса POST /tasks — создание привычки (параметры как в боте /add). */
+/** Тело запроса POST /tasks — создание привычки. */
 export interface HabitCreate {
   name: string;
   frequency_type: FrequencyType;
   /** Коды дней недели (mon..sun) для specific_days; для daily игнорируется. */
   days: string[];
-  /** Время напоминания «ЧЧ:ММ» или null. */
-  reminder_time: string | null;
 }

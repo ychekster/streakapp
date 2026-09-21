@@ -22,7 +22,7 @@ export async function toggleHabit(taskId: number): Promise<Habit> {
   return data.habit;
 }
 
-/** Создать новую привычку (как /add в боте); вернуть созданную привычку. */
+/** Создать новую привычку; вернуть созданную привычку. */
 export async function createHabit(payload: HabitCreate): Promise<Habit> {
   const data = await apiRequest<HabitResponse>("/tasks", {
     method: "POST",

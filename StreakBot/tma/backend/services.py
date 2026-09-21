@@ -1,8 +1,8 @@
-"""Прикладная логика API поверх репозитория бота.
+"""Прикладная логика API поверх репозитория.
 
-Доступ к данным идёт только через `Repository` — SQL здесь не пишется, логика
-бота не дублируется. Этот слой лишь собирает из задач и их логов форму ответа
-(`Habit`) и применяет переключение отметки за сегодня.
+Доступ к данным идёт только через `Repository` — SQL здесь не пишется. Этот слой
+собирает из задач и их логов форму ответа (`Habit`), применяет переключение
+отметки за сегодня и работает с настройками пользователя.
 """
 
 from __future__ import annotations
@@ -11,13 +11,11 @@ from datetime import date, datetime, timedelta
 
 import pytz
 
-from bot.constants import EVENING_RANGE, MORNING_RANGE, WEEKDAYS
-from bot.database.models import Task, TaskStatus, User
-from bot.database.repository import Repository
-from bot.utils.validators import format_timezone_display, utc_label
 from tma.backend import validation
-from tma.backend.constants import GRID_DAYS, HABIT_NAME_MAX_LENGTH
+from tma.backend.constants import GRID_DAYS, HABIT_NAME_MAX_LENGTH, WEEKDAYS
 from tma.backend.errors import ApiError
+from tma.backend.models import Task, TaskStatus, User
+from tma.backend.repository import Repository
 from tma.backend.schemas import (
     Habit,
     HabitCreate,
@@ -27,12 +25,13 @@ from tma.backend.schemas import (
     TimezoneOption,
     Weekday,
 )
+from tma.backend.timezones import format_timezone_display, utc_label
 
 
 def resolve_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
     """Часовой пояс пользователя (UTC как фолбэк при пустом/неизвестном значении).
 
-    Повторяет поведение бота: «сегодня» считается в личном поясе пользователя.
+    «Сегодня» считается в личном поясе пользователя.
     """
     try:
         return pytz.timezone(timezone_name) if timezone_name else pytz.utc
@@ -41,15 +40,14 @@ def resolve_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
 
 
 def user_today(user: User) -> date:
-    """Текущая дата в часовом поясе пользователя (как у бота)."""
+    """Текущая дата в часовом поясе пользователя."""
     return datetime.now(resolve_timezone(user.timezone)).date()
 
 
 async def build_history(repo: Repository, task_id: int, today: date) -> list[bool]:
     """История выполнения задачи за последние `GRID_DAYS` дней (старое → сегодня).
 
-    True — в этот день есть лог со статусом `done`, иначе False. Та же логика
-    «закрашен = done», что и в PNG-баннерах бота, но окно — полгода (182 дня) вместо 30.
+    True — в этот день есть лог со статусом `done`, иначе False.
     """
     logs = await repo.get_logs_for_task(task_id)
     done_dates = {log.scheduled_date for log in logs if log.status == TaskStatus.done}
@@ -101,18 +99,14 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
 
 
 async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
-    """Создать привычку (как /add в боте) и вернуть её в форме `Habit`.
+    """Создать привычку и вернуть её в форме `Habit`.
 
-    Параметры валидируются теми же правилами, что и в боте; имя не должно дублировать
-    существующую активную привычку. Время напоминания сохраняется в БД; джоба
-    напоминания подхватится планировщиком бота при следующем перезапуске
-    (планировщик живёт в процессе бота и восстанавливает джобы из БД).
+    Имя не должно дублировать существующую активную привычку (без учёта регистра).
     """
     name = validation.validate_name(payload.name)
     frequency_type, days = validation.validate_frequency(
         payload.frequency_type, payload.days
     )
-    reminder_time = validation.validate_reminder(payload.reminder_time)
 
     if await repo.task_name_exists(user.telegram_id, name):
         raise ApiError(409, "duplicate_name", "Привычка с таким названием уже есть")
@@ -122,7 +116,6 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
         name=name,
         frequency_type=frequency_type,
         days=days,
-        reminder_time=reminder_time,
     )
     today = user_today(user)
     due_ids = await _due_today_ids(repo, user, today)
@@ -130,11 +123,9 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
 
 
 def serialize_settings(user: User) -> SettingsResponse:
-    """Собрать ответ настроек: время уведомлений и часовой пояс (с подписями)."""
+    """Собрать ответ настроек: часовой пояс (с подписями)."""
     has_timezone = bool(user.timezone)
     return SettingsResponse(
-        morning_time=user.morning_time.strftime("%H:%M") if user.morning_time else None,
-        evening_time=user.evening_time.strftime("%H:%M") if user.evening_time else None,
         timezone=user.timezone,
         timezone_display=format_timezone_display(user.timezone) if has_timezone else None,
         timezone_offset=utc_label(user.timezone) if has_timezone else None,
@@ -144,26 +135,19 @@ def serialize_settings(user: User) -> SettingsResponse:
 async def update_settings(
     repo: Repository, user: User, payload: SettingsUpdate
 ) -> SettingsResponse:
-    """Обновить переданные настройки (время/пояс) и вернуть актуальное состояние.
+    """Обновить переданные настройки и вернуть актуальное состояние.
 
-    Меняются только непустые поля. Значения валидируются правилами бота. Изменения
-    сохраняются в БД; перепланирование уведомлений делает планировщик бота при
-    следующем перезапуске (он пересоздаёт джобы из настроек в БД).
+    Меняются только непустые поля.
     """
-    if payload.morning_time is not None:
-        await repo.set_morning_time(user, validation.validate_morning_time(payload.morning_time))
-    if payload.evening_time is not None:
-        await repo.set_evening_time(user, validation.validate_evening_time(payload.evening_time))
     if payload.timezone is not None:
         await repo.set_timezone(user, validation.resolve_timezone(payload.timezone))
     return serialize_settings(user)
 
 
 def build_meta() -> MetaResponse:
-    """Справочные данные для форм: дни недели, диапазоны времени, варианты поясов.
+    """Справочные данные для форм: дни недели, лимит названия, варианты поясов.
 
-    Берутся из констант бота, поэтому совпадают с правилами /add и /settings.
-    Часовые пояса — целочисленные смещения UTC-12…UTC+14 (как принимает бот).
+    Часовые пояса — целочисленные смещения UTC-12…UTC+14.
     """
     weekdays = [Weekday(code=code, short=short, full=full) for code, short, full in WEEKDAYS]
     offsets: list[TimezoneOption] = []
@@ -172,8 +156,6 @@ def build_meta() -> MetaResponse:
         offsets.append(TimezoneOption(value=label, label=label))
     return MetaResponse(
         weekdays=weekdays,
-        morning_range=list(MORNING_RANGE),
-        evening_range=list(EVENING_RANGE),
         name_max_length=HABIT_NAME_MAX_LENGTH,
         timezone_offsets=offsets,
     )

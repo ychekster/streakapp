@@ -1,4 +1,4 @@
-"""Конфигурация приложения.
+"""Конфигурация бота.
 
 Все настройки загружаются из `.env` через pydantic-settings.
 Никаких секретов и магических значений в коде — только здесь.
@@ -22,23 +22,17 @@ class Config(BaseSettings):
         extra="ignore",
     )
 
-    # Токен бота от @BotFather. Единственная обязательная переменная.
+    # Токен бота от @BotFather.
     bot_token: str = Field(..., alias="BOT_TOKEN")
 
-    # Строка подключения к БД (обязательно async-драйвер: aiosqlite / asyncpg).
-    database_url: str = Field(
-        default="sqlite+aiosqlite:///./streakbot.db",
-        alias="DATABASE_URL",
-    )
+    # Публичный URL Telegram Mini App (фронтенд из tma/). Бот существует только для
+    # того, чтобы открывать приложение, поэтому переменная обязательна. URL должен
+    # быть HTTPS (требование Telegram WebApp).
+    tma_url: str = Field(..., alias="TMA_URL")
 
     # Параметры логирования.
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_file: str = Field(default="logs/bot.log", alias="LOG_FILE")
-
-    # Публичный URL Telegram Mini App (фронтенд из tma/). Если задан — в главном
-    # меню появляется кнопка для открытия мини-приложения; если пуст — меню как
-    # раньше, без кнопки. URL должен быть HTTPS (требование Telegram WebApp).
-    tma_url: str | None = Field(default=None, alias="TMA_URL")
 
 
 @lru_cache

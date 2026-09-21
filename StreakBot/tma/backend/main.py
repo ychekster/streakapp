@@ -6,8 +6,8 @@
     # или с автоперезагрузкой при разработке:
     uvicorn tma.backend.main:app --reload --port 8000
 
-Последовательность старта: настройки → подключение к общей БД → CORS →
-обработчики ошибок → роутеры.
+Последовательность старта: настройки → подключение к БД и создание таблиц →
+CORS → обработчики ошибок → роутеры.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = load_settings()
     app.state.settings = settings
     app.state.database = Database(settings.database_url)
+    await app.state.database.create_tables()
     logger.info("TMA API started (database connected)")
     try:
         yield

@@ -1,6 +1,6 @@
 """Pydantic-схемы ответов API (контракт с фронтендом).
 
-Схемы намеренно отделены от ORM-моделей бота: модели описывают хранение, схемы —
+Схемы намеренно отделены от ORM-моделей: модели описывают хранение, схемы —
 форму ответа. Так контракт API не зависит от внутренней структуры таблиц.
 """
 
@@ -53,7 +53,7 @@ ToggleResponse = HabitResponse
 
 
 class HabitCreate(BaseModel):
-    """Запрос `POST /tasks` — создание привычки (параметры как в боте /add)."""
+    """Запрос `POST /tasks` — создание привычки."""
 
     name: str = Field(..., description="Название привычки")
     frequency_type: Literal["daily", "specific_days"] = Field(
@@ -63,16 +63,11 @@ class HabitCreate(BaseModel):
         default_factory=list,
         description="Коды дней недели (mon..sun) для specific_days; для daily игнорируется",
     )
-    reminder_time: str | None = Field(
-        default=None, description="Необязательное время напоминания «ЧЧ:ММ»"
-    )
 
 
 class SettingsResponse(BaseModel):
     """Текущие настройки пользователя (для `GET/PUT /settings`)."""
 
-    morning_time: str | None = Field(None, description="Утреннее уведомление «ЧЧ:ММ»")
-    evening_time: str | None = Field(None, description="Вечернее уведомление «ЧЧ:ММ»")
     timezone: str | None = Field(None, description="Часовой пояс (IANA)")
     timezone_display: str | None = Field(None, description="Человекочитаемый пояс, напр. «Москва (UTC+3)»")
     timezone_offset: str | None = Field(None, description="Смещение пояса, напр. «UTC+3»")
@@ -81,8 +76,6 @@ class SettingsResponse(BaseModel):
 class SettingsUpdate(BaseModel):
     """Запрос `PUT /settings` — частичное обновление (передаются только меняемые поля)."""
 
-    morning_time: str | None = Field(None, description="Новое утреннее время «ЧЧ:ММ»")
-    evening_time: str | None = Field(None, description="Новое вечернее время «ЧЧ:ММ»")
     timezone: str | None = Field(None, description="Новый пояс: «UTC±N» или имя IANA")
 
 
@@ -102,10 +95,8 @@ class TimezoneOption(BaseModel):
 
 
 class MetaResponse(BaseModel):
-    """Справочные данные для форм (как в боте): дни недели, диапазоны времени, пояса."""
+    """Справочные данные для форм: дни недели, лимит названия, часовые пояса."""
 
     weekdays: list[Weekday]
-    morning_range: list[int] = Field(..., description="Допустимый диапазон утра, часы [от, до]")
-    evening_range: list[int] = Field(..., description="Допустимый диапазон вечера, часы [от, до]")
     name_max_length: int
     timezone_offsets: list[TimezoneOption]

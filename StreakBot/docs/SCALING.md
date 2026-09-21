@@ -1,7 +1,8 @@
 # Переход с SQLite на PostgreSQL
 
 Благодаря SQLAlchemy и async-драйверам смена СУБД не требует изменений в коде —
-только конфигурации и зависимостей.
+только конфигурации и зависимостей. С базой данных работает только API-сервер
+(`tma/backend`); бот к ней не обращается.
 
 ## Шаги
 
@@ -10,12 +11,12 @@
    DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/streakbot
    ```
 
-2. **Добавить драйвер** в `requirements.txt` и установить:
+2. **Добавить драйвер** в `tma/backend/requirements.txt` и установить:
    ```
    asyncpg>=0.29.0
    ```
    ```bash
-   pip install -r requirements.txt
+   pip install -r tma/backend/requirements.txt
    ```
 
 3. **Создать базу данных** в PostgreSQL:
@@ -23,14 +24,14 @@
    CREATE DATABASE streakbot;
    ```
 
-4. **Применить миграции**:
+4. **Применить миграции** (из корня репозитория):
    ```bash
    alembic upgrade head
    ```
 
-5. **Запустить бота**:
+5. **Запустить API**:
    ```bash
-   python -m bot.main
+   python -m tma.backend.main
    ```
 
 Больше ничего менять не нужно — SQLAlchemy абстрагирует диалект СУБД, а весь
@@ -42,7 +43,5 @@
   PostgreSQL.
 - Enum'ы хранятся как `VARCHAR` (`native_enum=False`), что переносимо между
   диалектами.
-- Для продакшена с несколькими воркерами стоит заменить `MemoryStorage` (FSM)
-  на персистентное хранилище, например `RedisStorage`, и вынести APScheduler
-  jobstore в БД/Redis, чтобы задания планировщика переживали рестарт без
-  пересоздания.
+- API не хранит состояния в памяти процесса, поэтому его можно запускать в
+  несколько воркеров (`uvicorn --workers N`) поверх PostgreSQL.

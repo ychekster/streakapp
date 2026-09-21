@@ -2,52 +2,27 @@
 
 Запуск: ``python -m bot.main`` (после заполнения .env).
 
-Последовательность: конфиг → логирование → БД и таблицы → планировщик →
-Bot/Dispatcher → middlewares → роутеры → восстановление jobs → polling.
+Бот умеет только одно — отвечать на /start приветствием с кнопкой запуска
+Mini App. Вся работа с привычками идёт в приложении (см. tma/), поэтому у бота
+нет ни базы данных, ни планировщика, ни других команд.
+
+Последовательность: конфиг → логирование → Bot/Dispatcher → роутер /start →
+меню бота (кнопка Mini App, без списка команд) → polling.
 """
 
 from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import date, datetime
 from pathlib import Path
 
-import pytz
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import (
-    BotCommand,
-    ErrorEvent,
-    MenuButtonDefault,
-    MenuButtonWebApp,
-    WebAppInfo,
-)
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiogram.types import ErrorEvent, MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
 from bot.config import Config, load_config
-from bot.constants import BTN_OPEN_APP, TEXTS
-from bot.database.base import build_session_factory, create_tables, init_engine
-from bot.handlers import (
-    add_task,
-    cancel,
-    delete_task,
-    edit_task,
-    onboarding,
-    settings,
-    start,
-    stats,
-    tasks,
-    today,
-)
-from bot.middlewares.activity import ActivityMiddleware
-from bot.middlewares.database import DatabaseMiddleware
-from bot.middlewares.registration import RegistrationMiddleware
-from bot.services.scheduler import SchedulerService
-from bot.utils.validators import escape_md
+from bot.constants import BTN_OPEN_APP
+from bot.handlers import start
 
 
 def setup_logging(config: Config) -> None:
@@ -66,78 +41,31 @@ def setup_logging(config: Config) -> None:
     )
 
 
-def register_routers(dp: Dispatcher) -> None:
-    """Подключить роутеры в порядке приоритета.
-
-    `cancel` — первым (перехватывает /cancel в любом состоянии). `onboarding`
-    идёт перед `start`, чтобы во время регистрации команды (кроме /start, который
-    онбординг намеренно пропускает) перехватывались и приводили к повтору шага.
-    """
-    dp.include_router(cancel.router)
-    dp.include_router(onboarding.router)
-    dp.include_router(start.router)
-    dp.include_router(add_task.router)
-    dp.include_router(today.router)
-    dp.include_router(delete_task.router)
-    dp.include_router(edit_task.router)
-    dp.include_router(stats.router)
-    dp.include_router(tasks.router)
-    dp.include_router(settings.router)
-
-
 def register_error_handler(dp: Dispatcher) -> None:
-    """Глобальный обработчик ошибок: логировать и не показывать трейс пользователю."""
+    """Глобальный обработчик ошибок: записать исключение в лог."""
 
     @dp.errors()
     async def on_error(event: ErrorEvent) -> bool:
         logger.opt(exception=event.exception).error(
             "Unhandled error while processing update: {}", event.exception
         )
-        update = event.update
-        try:
-            if update.message is not None:
-                await update.message.answer(escape_md(TEXTS["internal_error"]))
-            elif update.callback_query is not None:
-                await update.callback_query.answer(
-                    TEXTS["internal_error"], show_alert=True
-                )
-        except Exception:  # noqa: BLE001 — уведомление не критично
-            pass
         return True
 
 
-async def set_bot_commands(bot: Bot) -> None:
-    """Зарегистрировать меню команд бота в Telegram (не критично при сбое)."""
-    commands = [
-        BotCommand(command="tasks", description="Задачи: все и на сегодня"),
-        BotCommand(command="today", description="Отметить задачи на сегодня"),
-        BotCommand(command="add", description="Добавить задачу"),
-        BotCommand(command="edit", description="Редактировать задачу"),
-        BotCommand(command="delete", description="Удалить задачу"),
-        BotCommand(command="stats", description="Статистика и стрики"),
-        BotCommand(command="settings", description="Настройки"),
-        BotCommand(command="help", description="Список команд"),
-        BotCommand(command="cancel", description="Отменить текущее действие"),
-    ]
-    try:
-        await bot.set_my_commands(commands)
-    except Exception as exc:  # noqa: BLE001 — меню команд не критично для работы
-        logger.warning("Could not set bot commands: {}", exc)
+async def setup_bot_menu(bot: Bot, tma_url: str) -> None:
+    """Кнопка Mini App слева от поля ввода и пустой список команд.
 
-
-async def set_menu_button(bot: Bot, tma_url: str | None) -> None:
-    """Кнопка Mini App слева от поля ввода — URL из TMA_URL (.env), без BotFather.
-
-    Если TMA_URL пуст — вернуть стандартную кнопку меню команд (не критично при сбое).
+    Список команд, зарегистрированный прежними версиями бота, хранится на стороне
+    Telegram — его нужно явно удалить, иначе пользователи продолжат видеть
+    несуществующие команды. Сбой здесь не критичен для работы бота.
     """
-    if tma_url:
-        menu_button = MenuButtonWebApp(text=BTN_OPEN_APP, web_app=WebAppInfo(url=tma_url))
-    else:
-        menu_button = MenuButtonDefault()
     try:
-        await bot.set_chat_menu_button(menu_button=menu_button)
-    except Exception as exc:  # noqa: BLE001 — кнопка меню не критична для работы
-        logger.warning("Could not set menu button: {}", exc)
+        await bot.delete_my_commands()
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(text=BTN_OPEN_APP, web_app=WebAppInfo(url=tma_url))
+        )
+    except Exception as exc:  # noqa: BLE001 — меню не критично для работы
+        logger.warning("Could not set up bot menu: {}", exc)
 
 
 async def main() -> None:
@@ -146,57 +74,22 @@ async def main() -> None:
     setup_logging(config)
     logger.info("Starting StreakBot...")
 
-    # БД: движок, фабрика сессий, таблицы.
-    engine = init_engine(config.database_url)
-    session_factory = build_session_factory(engine)
-    await create_tables(engine)
+    bot = Bot(token=config.bot_token)
+    dp = Dispatcher()
 
-    # Bot, Dispatcher, планировщик.
-    bot = Bot(
-        token=config.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2),
-    )
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
-
-    # Время последней активности пользователей (in-memory): используется
-    # планировщиком для откладывания дайджеста при недавней активности.
-    activity: dict[int, datetime] = {}
-    # Факт отправки дайджеста за сегодня: (user_id, 'morning'|'evening') -> дата.
-    # Защищает от повторной отправки при смене настроек времени/пояса.
-    digest_sent: dict[tuple[int, str], date] = {}
-
-    scheduler = AsyncIOScheduler(timezone=pytz.utc)
-    scheduler_service = SchedulerService(
-        scheduler, bot, session_factory, storage, activity, digest_sent
-    )
-
-    # Проброс зависимостей в хендлеры через workflow_data.
+    # Проброс конфига в хендлеры через workflow_data.
     dp["config"] = config
-    dp["scheduler"] = scheduler_service
 
-    # Middlewares (outer на уровне update): активность → сессия → регистрация.
-    dp.update.outer_middleware(ActivityMiddleware(activity))
-    dp.update.outer_middleware(DatabaseMiddleware(session_factory))
-    dp.update.outer_middleware(RegistrationMiddleware())
-
-    register_routers(dp)
+    dp.include_router(start.router)
     register_error_handler(dp)
 
-    # Планировщик: старт и восстановление jobs для зарегистрированных юзеров.
-    scheduler_service.start()
-    await scheduler_service.restore_jobs()
-
-    await set_bot_commands(bot)
-    await set_menu_button(bot, config.tma_url)
+    await setup_bot_menu(bot, config.tma_url)
     logger.info("StreakBot is up and polling")
 
     try:
         await dp.start_polling(bot)
     finally:
-        await scheduler_service.shutdown()
         await bot.session.close()
-        await engine.dispose()
         logger.info("StreakBot stopped")
 
 

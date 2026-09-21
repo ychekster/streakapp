@@ -1,15 +1,6 @@
-# 3.28+ — поддержка поля InlineKeyboardButton.style (цветные кнопки, Bot API 9.4).
+# Зависимости бота (только /start с кнопкой Mini App).
+# Зависимости API-сервера и миграций — в tma/backend/requirements.txt.
 aiogram>=3.28,<4.0
-SQLAlchemy>=2.0,<2.1
-aiosqlite>=0.19.0
-alembic>=1.13.0
-APScheduler>=3.10,<4.0
-python-dotenv>=1.0.0
 pydantic>=2.5,<3.0
 pydantic-settings>=2.1.0
-pytz>=2024.1
-timezonefinder>=6.2.0
-geopy>=2.4.0
 loguru>=0.7.0
-# Генерация PNG-картинок статистики (/stats) поверх готового шаблона.
-Pillow>=10.0.0

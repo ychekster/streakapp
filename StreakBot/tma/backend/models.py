@@ -1,13 +1,13 @@
 """ORM-модели: User, Task, TaskLog.
 
-Стрик нигде не хранится как поле — он вычисляется динамически в
-`services/streak.py` по записям TaskLog. Это исключает рассинхронизацию данных.
+Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
+TaskLog (см. `services.build_history`). Это исключает рассинхронизацию данных.
 """
 
 from __future__ import annotations
 
 import enum
-from datetime import date, datetime, time
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
@@ -18,13 +18,14 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Time,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from bot.database.base import Base
+
+class Base(DeclarativeBase):
+    """Общий декларативный базовый класс для всех ORM-моделей."""
 
 
 class FrequencyType(str, enum.Enum):
@@ -35,16 +36,20 @@ class FrequencyType(str, enum.Enum):
 
 
 class TaskStatus(str, enum.Enum):
-    """Статус выполнения задачи на конкретную дату."""
+    """Статус выполнения задачи на конкретную дату.
 
-    pending = "pending"   # создана, ещё не отмечена
+    Приложение ставит только `pending` и `done`. `skipped` и `missed` проставлял
+    прежний бот — они остаются в enum, чтобы читались исторические записи.
+    """
+
+    pending = "pending"   # создана, ещё не отмечена (или отметку сняли)
     done = "done"         # пользователь отметил выполнение
-    skipped = "skipped"   # пользователь отметил «не выполнено»
-    missed = "missed"     # не отмечена по истечении grace period
+    skipped = "skipped"   # историческое: пользователь отметил «не выполнено»
+    missed = "missed"     # историческое: не отмечена до конца дня
 
 
 class User(Base):
-    """Пользователь Telegram и его настройки уведомлений."""
+    """Пользователь Telegram и его часовой пояс."""
 
     __tablename__ = "users"
 
@@ -52,12 +57,8 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
-    morning_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    evening_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # Пояс определяет, какой день считается «сегодня». None — UTC.
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
-
-    is_registered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -87,8 +88,6 @@ class Task(Base):
     )
     # Для specific_days: строка вида "mon,wed,fri".
     days: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Опциональное время отдельного напоминания.
-    reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

@@ -1,7 +1,8 @@
 """Окружение Alembic (async).
 
-URL подключения берётся из .env через `bot.config.load_config`, метаданные —
-из `bot.database.base.Base`. Поддерживаются offline- и online-режимы.
+URL подключения берётся из .env через `tma.backend.config.load_settings`,
+метаданные — из `tma.backend.models.Base`. Поддерживаются offline- и
+online-режимы.
 """
 
 from __future__ import annotations
@@ -13,10 +14,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
-# Импортируем модели, чтобы они зарегистрировались в Base.metadata.
-from bot.config import load_config
-from bot.database import models  # noqa: F401
-from bot.database.base import Base
+# Импорт модуля моделей регистрирует все таблицы в Base.metadata.
+from tma.backend.config import load_settings
+from tma.backend.models import Base
 
 config = context.config
 
@@ -26,7 +26,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Реальный URL из .env.
-DB_URL = load_config().database_url
+DB_URL = load_settings().database_url
 config.set_main_option("sqlalchemy.url", DB_URL)
 
 

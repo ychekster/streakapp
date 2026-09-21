@@ -18,7 +18,6 @@ export type ApiErrorCode =
   | "network_error"
   | "invalid_init_data"
   | "missing_init_data"
-  | "user_not_found"
   | "task_not_found"
   | "validation_error"
   | "internal_error"

@@ -1,5 +1,5 @@
 /**
- * Вся пользовательская копия интерфейса в одном месте (как TEXTS у бота).
+ * Вся пользовательская копия интерфейса в одном месте.
  * Ни одной строки-сообщения прямо в компонентах.
  */
 export const STRINGS = {
@@ -29,9 +29,6 @@ export const STRINGS = {
   settingsTitle: "Настройки",
   settingsLoading: "Загрузка настроек…",
   settingsLoadingEmoji: "⏳",
-  settingsNotifications: "Уведомления",
-  settingsMorning: "Утреннее",
-  settingsEvening: "Вечернее",
   settingsTimezone: "Часовой пояс",
   settingsTimezoneRow: "Пояс",
   settingsTimezoneNone: "Не выбран",
@@ -47,8 +44,4 @@ export const STRINGS = {
   createDaily: "Каждый день",
   createSpecificDays: "По дням",
   createDays: "Дни недели",
-  createReminder: "Напоминание",
-  createReminderRow: "Напоминание",
-  createReminderTime: "Время",
-  createReminderFooter: "Бот напомнит выполнить привычку в указанное время.",
 } as const;

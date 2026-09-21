@@ -1,28 +1,17 @@
 """Валидация входных данных форм TMA.
 
-Переиспользует валидаторы и константы бота (`bot.utils.validators`,
-`bot.constants`), чтобы правила совпадали с теми, что действуют при создании
-привычки и смене настроек через бота. Каждая функция возвращает разобранное
-доменное значение или поднимает `ApiError` (единый формат ошибки API).
+Каждая функция возвращает разобранное доменное значение или поднимает `ApiError`
+(единый формат ошибки API).
 """
 
 from __future__ import annotations
 
-from datetime import time
-
 import pytz
 
-from bot.constants import EVENING_RANGE, MORNING_RANGE, WEEKDAYS
-from bot.database.models import FrequencyType
-from bot.utils.validators import (
-    is_evening_time_valid,
-    is_morning_time_valid,
-    looks_like_utc,
-    parse_time,
-    parse_utc_offset,
-)
-from tma.backend.constants import HABIT_NAME_MAX_LENGTH
+from tma.backend.constants import HABIT_NAME_MAX_LENGTH, WEEKDAYS
 from tma.backend.errors import ApiError
+from tma.backend.models import FrequencyType
+from tma.backend.timezones import looks_like_utc, parse_utc_offset
 
 # Допустимые коды дней недели и их канонический порядок (пн → вс).
 _WEEKDAY_CODES: set[str] = {code for code, _, _ in WEEKDAYS}
@@ -60,51 +49,11 @@ def validate_frequency(
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
 
 
-def validate_reminder(reminder_time: str | None) -> time | None:
-    """Разобрать необязательное время напоминания (None/пусто — без напоминания)."""
-    if not reminder_time:
-        return None
-    parsed = parse_time(reminder_time)
-    if parsed is None:
-        raise ApiError(422, "invalid_time", "Время в формате ЧЧ:ММ, например 09:00")
-    return parsed
-
-
-def validate_morning_time(text: str) -> time:
-    """Разобрать и проверить утреннее время (в диапазоне MORNING_RANGE)."""
-    parsed = parse_time(text)
-    if parsed is None:
-        raise ApiError(422, "invalid_time", "Время в формате ЧЧ:ММ")
-    if not is_morning_time_valid(parsed):
-        start, end = MORNING_RANGE
-        raise ApiError(
-            422,
-            "time_out_of_range",
-            f"Утреннее уведомление — от {start:02d}:00 до {end:02d}:00",
-        )
-    return parsed
-
-
-def validate_evening_time(text: str) -> time:
-    """Разобрать и проверить вечернее время (в диапазоне EVENING_RANGE)."""
-    parsed = parse_time(text)
-    if parsed is None:
-        raise ApiError(422, "invalid_time", "Время в формате ЧЧ:ММ")
-    if not is_evening_time_valid(parsed):
-        start = EVENING_RANGE[0]
-        raise ApiError(
-            422,
-            "time_out_of_range",
-            f"Вечернее уведомление — от {start:02d}:00 до 00:00",
-        )
-    return parsed
-
-
 def resolve_timezone(value: str) -> str:
     """Привести ввод часового пояса к строке IANA.
 
-    Принимает смещение «UTC±N» (как в боте) или готовое имя зоны IANA. Возвращает
-    строку зоны для сохранения, иначе поднимает `ApiError`.
+    Принимает смещение «UTC±N» или готовое имя зоны IANA. Возвращает строку зоны
+    для сохранения, иначе поднимает `ApiError`.
     """
     text = value.strip()
     if looks_like_utc(text):
