@@ -3,7 +3,8 @@
  * и начальные значения.
  *
  * Крупный заголовок «Новая привычка» («Редактирование») стоит так же, как «Привычки» и
- * «Настройки»; под ним — секции в стиле экрана привычки:
+ * «Настройки»; под ним — секции в стиле экрана привычки, но с заголовками как в эталоне:
+ * с заглавной буквы (не капсом) и со сдвигом до конца скругления карточки:
  *  - Информация — название;
  *  - Частота — каждый день или по дням; «по дням» добавляет выбор дней недели;
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
@@ -152,7 +153,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       enterAnimation
     >
       <div className={styles.form} style={habitColorStyle(color)}>
-        <Section title={STRINGS.formInfoHeading}>
+        <Section variant="form" title={STRINGS.formInfoHeading}>
           <Card>
             <ListItem>
               <input
@@ -175,7 +176,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           </Card>
         </Section>
 
-        <Section title={STRINGS.formFrequencyHeading}>
+        <Section variant="form" title={STRINGS.formFrequencyHeading}>
           <Card>
             <ListItem label={STRINGS.formRepeat}>
               <MenuSelect<FrequencyType>
@@ -193,7 +194,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           </Card>
         </Section>
 
-        <Section title={STRINGS.formReminderHeading}>
+        <Section variant="form" title={STRINGS.formReminderHeading}>
           <Card>
             <ListItem label={STRINGS.formReminderToggle}>
               <Switch
@@ -214,7 +215,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           </Card>
         </Section>
 
-        <Section title={STRINGS.formThemeHeading}>
+        <Section variant="form" title={STRINGS.formThemeHeading}>
           <Card>
             <ColorPicker value={color} onChange={setColor} label={STRINGS.formThemeHeading} />
           </Card>

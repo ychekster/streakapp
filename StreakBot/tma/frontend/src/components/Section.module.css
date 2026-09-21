@@ -2,14 +2,24 @@
   margin-top: var(--space-section-gap);
 }
 
-/* Заголовок секции: капсом, приглушённый, вровень с краем карточки. */
+/* Заголовок секции: приглушённый; вид — модификатор ниже. */
 .heading {
   margin-bottom: var(--space-subheading-bottom);
   font-size: var(--font-size-section-heading);
   font-weight: 600;
   line-height: 1.2;
-  text-transform: uppercase;
   color: var(--color-text-secondary);
+}
+
+/* Экран привычки: капсом, вровень с краем карточки. */
+.screen {
+  text-transform: uppercase;
+}
+
+/* Форма привычки: как написан (с заглавной буквы), начинается там, где кончается
+   скругление угла карточки. */
+.form {
+  padding: 0 var(--radius-card);
 }
 
 /* Белая карточка секции. Подсветка нажатия рядов не выходит за скругление. */

@@ -8,12 +8,14 @@
   margin-top: var(--space-section-gap);
 }
 
+/* Шрифт — как у заголовков секций формы привычки (Section, вариант form). */
 .subheading {
   margin-bottom: var(--space-subheading-bottom);
   /* Выравниваем по контенту карточки (её горизонтальный отступ). */
   padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-secondary);
+  font-size: var(--font-size-section-heading);
   font-weight: 600;
+  line-height: 1.2;
   color: var(--color-text-secondary);
 }
 
