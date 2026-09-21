@@ -3,15 +3,14 @@
  * filter, чтобы fixed-потомок (заголовок Б) позиционировался относительно вьюпорта.
  * Класс `.collapsed` переключается из JS при пересечении порога скролла.
  *
- * Эффект под шапкой — прогрессивный блюр (.effect и его слои). Геометрия и маски слоёв
- * вычисляются в CollapsingHeader.tsx (инлайн-стили), здесь — только позиционирование.
- * Заголовки лежат НАД ним по z-index (А=2, Б=11), поэтому остаются чёткими.
+ * Подложка шапки (.bar) — матовое стекло с линией-разделителем, проявляется вместе с Б.
+ * Заголовки лежат НАД ней по z-index (А=2, Б=11), поэтому остаются чёткими.
  */
 
 /* Заголовок А — точка А: крупный, слева сверху, в обычном потоке (скроллится вместе
    с контентом). В исходном состоянии выглядит ровно как прежний статичный заголовок. */
 .titleExpanded {
-  /* relative + z-index, чтобы заголовок А был НАД слоями блюра (.effect, z-index 1). */
+  /* relative + z-index, чтобы заголовок А был НАД подложкой шапки (.bar, z-index 1). */
   position: relative;
   z-index: 2;
   margin: 0 0 var(--space-title-bottom);
@@ -62,30 +61,42 @@
 }
 
 /*
- * ЭФФЕКТ ПОД ШАПКОЙ — прогрессивный блюр в стиле iOS / нативной шапки Telegram.
- * Фиксирован к вьюпорту, высотой до низа зоны затухания (точка Б + полоса). Содержит стопку
- * слоёв .blurLayer (backdrop-filter + касательная маска, заданы инлайном из JS) и .tint поверх
- * них. z-index 1 — ниже заголовков (А=2, Б=11), поэтому они не размываются.
+ * ПОДЛОЖКА ШАПКИ — как шапка «Чаты» в WhatsApp на iOS 26 (жёсткий край прокрутки): контент
+ * под ней равномерно размыт и сильно засветлён цветом фона, снизу — жёсткий край и тонкая
+ * линия в один физический пиксель. Фиксирована к вьюпорту от верха экрана до низа зоны
+ * кнопок Telegram. В исходном положении прозрачна; проявляется синхронно с заголовком Б.
+ * z-index 1 — ниже заголовков (А=2, Б=11), поэтому они не размываются.
  */
-.effect {
+.bar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1;
-  height: calc(var(--content-fade-pointb) + var(--content-blur-band));
+  height: var(--header-bar-bottom);
+  background: var(--header-bar-tint);
+  -webkit-backdrop-filter: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
+  backdrop-filter: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
+  opacity: 0;
   pointer-events: none;
+  will-change: opacity;
+  transition: opacity var(--header-anim);
 }
 
-/* Слой блюра: на всю зону. backdrop-filter и маска приходят инлайном (см. CollapsingHeader.tsx). */
-.blurLayer {
+/* Линия-разделитель по нижнему краю подложки: 1px, сжатый до одного физического пикселя.
+   scaleY, а не дробная высота — Chromium округляет дробную высоту до целого CSS-пикселя. */
+.bar::after {
+  content: "";
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--header-hairline-color);
+  transform: scaleY(var(--header-hairline-scale));
+  transform-origin: 0 100%;
 }
 
-/* Засветление: полупрозрачный цвет фона ПОВЕРХ блюра (последний потомок). Маска — инлайном. */
-.tint {
-  position: absolute;
-  inset: 0;
-  background: var(--content-fade-tint);
+.collapsed .bar {
+  opacity: 1;
 }

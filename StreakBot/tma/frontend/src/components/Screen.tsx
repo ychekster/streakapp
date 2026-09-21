@@ -17,8 +17,8 @@ export function Screen({ title, children }: ScreenProps) {
   return (
     <main className={styles.screen}>
       <CollapsingHeader title={title} />
-      {/* Контент в отдельной обёртке: на неё вешается маска затухания (заголовки — вне её,
-          чтобы свёрнутый заголовок Б оставался чётким). См. Screen.module.css. */}
+      {/* Контент в отдельной обёртке (заголовки — вне её): при прокрутке он уходит под
+          подложку шапки. См. Screen.module.css. */}
       <div className={styles.content}>{children}</div>
     </main>
   );
