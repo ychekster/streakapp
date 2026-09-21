@@ -23,48 +23,64 @@
   visibility: hidden;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bar {
-    transition: none;
-  }
-}
-
-/* Общий стиль liquid glass для таблетки и кнопки «+». */
+/* Общая стеклянная поверхность таблетки и кнопки «+». */
 .pill,
 .add {
   pointer-events: auto;
-  background-color: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  border: 0.5px solid var(--glass-border);
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--glass-shadow);
+  color: var(--glass-icon);
 }
 
+/* Две вкладки равной ширины (по самой широкой); подложка активной лежит под ними. */
 .pill {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   height: var(--tabbar-height);
-  padding: 0 6px;
-  gap: 2px;
-  border-radius: var(--tabbar-radius);
+  padding: var(--tabbar-inset);
+  border-radius: var(--radius-pill);
 }
 
+/* Серая подложка активной вкладки: ширина одной колонки, переезжает сдвигом. */
+.thumb {
+  position: absolute;
+  top: var(--tabbar-inset);
+  bottom: var(--tabbar-inset);
+  left: var(--tabbar-inset);
+  width: calc(50% - var(--tabbar-inset));
+  border-radius: var(--radius-pill);
+  background-color: var(--tabbar-thumb);
+  transition: transform var(--tabbar-anim);
+}
+
+.thumbSecond {
+  transform: translateX(100%);
+}
+
+/* relative — чтобы вкладка рисовалась поверх абсолютно позиционированной подложки. */
 .tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 76px;
-  padding: 0 14px;
-  border-radius: var(--tabbar-radius);
-  color: var(--glass-icon-muted);
-  font-size: 11px;
+  gap: var(--tabbar-label-gap);
+  min-width: var(--tabbar-tab-width);
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  color: inherit;
+  font-size: var(--tabbar-label-size);
   font-weight: 500;
-  transition: color var(--transition-fast);
+  line-height: var(--tabbar-label-line);
+  transition: opacity var(--transition-fast);
 }
 
 .tabActive {
-  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .tab:active {
@@ -72,12 +88,8 @@
 }
 
 .icon {
-  width: 24px;
-  height: 24px;
-}
-
-.tabLabel {
-  line-height: 1;
+  width: var(--tabbar-icon-size);
+  height: var(--tabbar-icon-size);
 }
 
 .add {
@@ -87,7 +99,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-accent);
   transition: transform var(--transition-fast);
 }
 
@@ -95,7 +106,9 @@
   transform: scale(0.92);
 }
 
-.plus {
-  width: 26px;
-  height: 26px;
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .thumb {
+    transition: none;
+  }
 }

@@ -1,8 +1,9 @@
 /**
- * Нижняя навигация в стиле iOS 26 (liquid glass): таблетка с двумя вкладками
- * («Привычки», «Настройки») и отдельная круглая кнопка «+» справа для создания
- * привычки. Зафиксирована внизу с учётом safe area; фон — полупрозрачное матовое
- * стекло (backdrop-filter). На вложенных экранах (экран привычки) уезжает вниз.
+ * Нижняя навигация в стиле таб-бара iOS 26: светлая стеклянная таблетка с двумя вкладками
+ * («Привычки», «Настройки») и отдельная круглая кнопка «+» справа из того же стекла.
+ * Активную вкладку отмечает серая подложка, которая переезжает между вкладками; иконки и
+ * подписи чёрные. Зафиксирована внизу с учётом safe area; на вложенных экранах (экран
+ * привычки) уезжает вниз.
  */
 
 import { STRINGS } from "../strings";
@@ -18,14 +19,37 @@ interface TabBarProps {
   onAdd: () => void;
 }
 
-function HabitsIcon() {
+// id маски выреза галочки; навигация на экране одна, поэтому id уникален.
+const CHECK_CUTOUT_ID = "tabbar-check-cutout";
+const CHECK_PATH = "M8.8 13.6L12 16.9l5.4-7.3";
+
+/** Галочка в круге: на активной вкладке — залитый круг с прорезанной галочкой. */
+function HabitsIcon({ filled }: { filled: boolean }) {
+  if (filled) {
+    return (
+      <svg className={styles.icon} viewBox="0 0 26 26" aria-hidden="true">
+        <mask id={CHECK_CUTOUT_ID}>
+          <rect width="26" height="26" fill="#fff" />
+          <path
+            d={CHECK_PATH}
+            fill="none"
+            stroke="#000"
+            strokeWidth="2.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </mask>
+        <circle cx="13" cy="13" r="11.65" fill="currentColor" mask={`url(#${CHECK_CUTOUT_ID})`} />
+      </svg>
+    );
+  }
   return (
-    <svg className={styles.icon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+    <svg className={styles.icon} viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <circle cx="13" cy="13" r="10.8" stroke="currentColor" strokeWidth="1.7" />
       <path
-        d="M8.4 12.4l2.4 2.4 4.8-5.2"
+        d={CHECK_PATH}
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="1.9"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -33,18 +57,32 @@ function HabitsIcon() {
   );
 }
 
+// Зуб шестерёнки (смотрит вверх): сужается к скруглённой вершине, у основания — плавный
+// переход в кольцо. 24 копии через каждые 15°.
+const GEAR_TOOTH =
+  "M11.75 2.4V1.98Q12.24 1.98 12.26 1.5L12.45 0.6A0.55 0.55 0 0 1 13.55 0.6L13.74 1.5Q13.76 1.98 14.25 1.98V2.4Z";
+const GEAR_TOOTH_ANGLES = Array.from({ length: 24 }, (_, i) => i * 15);
+
+/** Шестерёнка как у «Настроек» iOS: зубчатое кольцо и три спицы к втулке. */
 function SettingsIcon() {
   return (
-    <svg className={styles.icon} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.49.49 0 00.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z" />
+    <svg className={styles.icon} viewBox="0 0 26 26" fill="none" stroke="currentColor" aria-hidden="true">
+      <g fill="currentColor" stroke="none">
+        {GEAR_TOOTH_ANGLES.map((angle) => (
+          <path key={angle} d={GEAR_TOOTH} transform={`rotate(${angle} 13 13)`} />
+        ))}
+      </g>
+      <circle cx="13" cy="13" r="10.15" strokeWidth="1.9" />
+      <path d="M14.05 13H22.6M12.48 13.91L8.2 21.31M12.48 12.09L8.2 4.69" strokeWidth="1.55" />
+      <circle cx="13" cy="13" r="1.05" strokeWidth="0.9" />
     </svg>
   );
 }
 
 function PlusIcon() {
   return (
-    <svg className={styles.plus} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 6v12M6 12h12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <svg className={styles.icon} viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <path d="M13 6.5v13M6.5 13h13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -53,6 +91,10 @@ export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps)
   return (
     <nav className={`${styles.bar} ${hidden ? styles.hidden : ""}`} aria-hidden={hidden}>
       <div className={styles.pill} role="tablist">
+        <span
+          className={`${styles.thumb} ${active === "settings" ? styles.thumbSecond : ""}`}
+          aria-hidden="true"
+        />
         <button
           type="button"
           role="tab"
@@ -60,8 +102,8 @@ export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps)
           className={`${styles.tab} ${active === "habits" ? styles.tabActive : ""}`}
           onClick={() => onSelect("habits")}
         >
-          <HabitsIcon />
-          <span className={styles.tabLabel}>{STRINGS.tabHabits}</span>
+          <HabitsIcon filled={active === "habits"} />
+          <span>{STRINGS.tabHabits}</span>
         </button>
         <button
           type="button"
@@ -71,7 +113,7 @@ export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps)
           onClick={() => onSelect("settings")}
         >
           <SettingsIcon />
-          <span className={styles.tabLabel}>{STRINGS.tabSettings}</span>
+          <span>{STRINGS.tabSettings}</span>
         </button>
       </div>
       <button
