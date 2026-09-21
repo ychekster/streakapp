@@ -123,11 +123,14 @@
   --color-segment-track: rgba(118, 118, 128, 0.12);
   --color-segment-thumb: #ffffff;
   --color-row-press: rgba(0, 0, 0, 0.05);
-  --color-list-separator: rgba(60, 60, 67, 0.22); /* разделитель рядов списка iOS */
   --color-list-header: #8e8e93; /* подписи секций списка */
+  --color-list-row-icon: #ffffff; /* иконка в цветной плашке ряда */
   --color-danger-soft: rgba(255, 59, 48, 0.12);
   --space-list-gap: 24px; /* между секциями списка */
   --space-list-top: 8px; /* над первой секцией списка */
   --list-row-min-height: 44px;
   --list-row-pad-y: 11px;
+  --list-row-icon-size: 29px; /* плашка иконки ряда (размер из «Настроек» iOS) */
+  --list-row-icon-glyph: 18px; /* сама иконка */
+  --radius-list-row-icon: 7px;
 }

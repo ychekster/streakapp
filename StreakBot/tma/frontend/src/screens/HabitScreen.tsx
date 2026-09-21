@@ -1,6 +1,7 @@
 /**
- * Экран привычки: карточка с сеткой выполнения за последние 364 дня и основные
- * показатели — текущая и лучшая серии, всего выполнено, цель серии.
+ * Экран привычки: карточка с сеткой выполнения за последние 364 дня, основные
+ * показатели (текущая и лучшая серии, всего выполнено, цель серии) и настройки
+ * привычки (редактировать, удалить).
  *
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
  * Telegram заменена на «Назад», а нижняя навигация скрыта (см. App). Привычка берётся
@@ -10,7 +11,9 @@
 import { useEffect, useRef } from "react";
 
 import { HabitBlock } from "../components/HabitBlock";
+import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
+import { PencilIcon, TrashIcon } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
 import {
   CompletedIcon,
@@ -72,7 +75,7 @@ export function HabitScreen({ habit, onToggle, onBack }: HabitScreenProps) {
           <h2 ref={headingRef} className={styles.heading}>
             {STRINGS.habitHistoryHeading}
           </h2>
-          <div className={styles.card}>
+          <div className={`${styles.card} ${styles.habitCard}`}>
             <HabitBlock
               habit={habit}
               interactive={habit.scheduled_today}
@@ -105,6 +108,14 @@ export function HabitScreen({ habit, onToggle, onBack }: HabitScreenProps) {
               value={formatStreakGoal(habit, weekdays)}
               label={STRINGS.statStreakGoal}
             />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.heading}>{STRINGS.habitSettingsHeading}</h2>
+          <div className={`${styles.card} ${styles.listCard}`}>
+            <ListItem icon={<PencilIcon />} label={STRINGS.editHabit} />
+            <ListItem icon={<TrashIcon />} label={STRINGS.deleteHabit} destructive />
           </div>
         </section>
       </div>

@@ -47,6 +47,9 @@ export const STRINGS = {
   goalDaily: "Ежедневно",
   goalWorkdays: "Будни",
   goalWeekends: "Выходные",
+  habitSettingsHeading: "Настройки",
+  editHabit: "Редактировать привычку",
+  deleteHabit: "Удалить привычку",
 
   // --- Создание привычки ---
   createTitle: "Новая привычка",

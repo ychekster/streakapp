@@ -31,12 +31,21 @@
   color: var(--color-text-secondary);
 }
 
-/* Карточка привычки — как в списке: горизонтальный отступ здесь, вертикальный — у блока. */
+/* Белая карточка секции. */
 .card {
-  padding: 0 var(--space-card-padding);
   background-color: var(--color-card);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+
+/* Карточка привычки — как в списке: горизонтальный отступ здесь, вертикальный — у блока. */
+.habitCard {
+  padding: 0 var(--space-card-padding);
+}
+
+/* Карточка настроек: отступы задают сами ряды; подсветка нажатия не выходит за скругление. */
+.listCard {
+  overflow: hidden;
 }
 
 .stats {

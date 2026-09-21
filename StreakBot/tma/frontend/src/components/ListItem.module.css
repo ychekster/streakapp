@@ -17,15 +17,47 @@
   align-items: flex-start;
 }
 
-/* Разделитель между соседними рядами одной карточки, со сдвигом слева (стиль iOS). */
+/* Разделитель между соседними рядами одной карточки: от начала текста до правого
+   отступа карточки. */
 .row + .row::before {
   content: "";
   position: absolute;
   top: 0;
   left: var(--space-card-padding);
-  right: 0;
+  right: var(--space-card-padding);
   height: 1px;
-  background-color: var(--color-list-separator);
+  background-color: var(--color-separator);
+}
+
+/* У ряда с иконкой текст начинается после плашки — линия тоже. */
+.row.withIcon::before {
+  left: calc(var(--space-card-padding) * 2 + var(--list-row-icon-size));
+}
+
+/* Цветная плашка с белой иконкой (как в «Настройках» iOS). */
+.icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--list-row-icon-size);
+  height: var(--list-row-icon-size);
+  border-radius: var(--radius-list-row-icon);
+  background-color: var(--color-accent);
+  color: var(--color-list-row-icon);
+}
+
+.icon svg {
+  width: var(--list-row-icon-glyph);
+  height: var(--list-row-icon-glyph);
+}
+
+.destructive {
+  color: var(--color-danger);
+}
+
+.destructive .icon {
+  background-color: var(--color-danger);
 }
 
 .pressable {
