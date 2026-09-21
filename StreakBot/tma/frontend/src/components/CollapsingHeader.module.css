@@ -1,0 +1,91 @@
+/*
+ * Обёртка заголовка в потоке (на её месте — крупный заголовок А). Не задаёт transform/
+ * filter, чтобы fixed-потомок (заголовок Б) позиционировался относительно вьюпорта.
+ * Класс `.collapsed` переключается из JS при пересечении порога скролла.
+ *
+ * Эффект под шапкой — прогрессивный блюр (.effect и его слои). Геометрия и маски слоёв
+ * вычисляются в CollapsingHeader.tsx (инлайн-стили), здесь — только позиционирование.
+ * Заголовки лежат НАД ним по z-index (А=2, Б=11), поэтому остаются чёткими.
+ */
+
+/* Заголовок А — точка А: крупный, слева сверху, в обычном потоке (скроллится вместе
+   с контентом). В исходном состоянии выглядит ровно как прежний статичный заголовок. */
+.titleExpanded {
+  /* relative + z-index, чтобы заголовок А был НАД слоями блюра (.effect, z-index 1). */
+  position: relative;
+  z-index: 2;
+  margin: 0 0 var(--space-title-bottom);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-title);
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  transition: opacity var(--header-anim);
+  will-change: opacity;
+}
+
+/* При сворачивании А плавно растворяется (А продолжает уплывать вверх нативным скроллом). */
+.collapsed .titleExpanded {
+  opacity: 0;
+}
+
+/* Заголовок Б — точка Б: маленький, по центру, на уровне кнопок Telegram (под вырезом).
+   Зафиксирован. Скрыт по умолчанию: ниже своего места, размытый и прозрачный. */
+.titleCollapsed {
+  position: fixed;
+  z-index: 11;
+  top: calc(
+    var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
+    max(var(--app-content-safe-area-top, 0px), var(--header-collapsed-row-height)) / 2
+  );
+  left: 0;
+  right: 0;
+  display: block;
+  text-align: center;
+  font-size: var(--font-size-title-collapsed);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+  opacity: 0;
+  transform: translateY(calc(-50% + var(--collapsed-title-rise)));
+  filter: blur(var(--collapsed-title-blur));
+  pointer-events: none;
+  will-change: opacity, transform, filter;
+  transition: opacity var(--header-anim), transform var(--header-anim),
+    filter var(--header-anim);
+}
+
+/* Появление Б: всплывает снизу на своё место, размытие сходит на нет, проявляется. */
+.collapsed .titleCollapsed {
+  opacity: 1;
+  transform: translateY(-50%);
+  filter: blur(0);
+}
+
+/*
+ * ЭФФЕКТ ПОД ШАПКОЙ — прогрессивный блюр в стиле iOS / нативной шапки Telegram.
+ * Фиксирован к вьюпорту, высотой до низа зоны затухания (точка Б + полоса). Содержит стопку
+ * слоёв .blurLayer (backdrop-filter + касательная маска, заданы инлайном из JS) и .tint поверх
+ * них. z-index 1 — ниже заголовков (А=2, Б=11), поэтому они не размываются.
+ */
+.effect {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: calc(var(--content-fade-pointb) + var(--content-blur-band));
+  pointer-events: none;
+}
+
+/* Слой блюра: на всю зону. backdrop-filter и маска приходят инлайном (см. CollapsingHeader.tsx). */
+.blurLayer {
+  position: absolute;
+  inset: 0;
+}
+
+/* Засветление: полупрозрачный цвет фона ПОВЕРХ блюра (последний потомок). Маска — инлайном. */
+.tint {
+  position: absolute;
+  inset: 0;
+  background: var(--content-fade-tint);
+}

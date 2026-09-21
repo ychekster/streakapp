@@ -1,0 +1,21 @@
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-accent);
+  text-align: right;
+  text-align-last: right;
+  padding: 0;
+  max-width: 60vw;
+}
+
+.error {
+  margin: 14px 0 0;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
+}

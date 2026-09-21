@@ -1,0 +1,31 @@
+.group {
+  margin-top: var(--space-list-gap);
+}
+
+.group:first-child {
+  margin-top: var(--space-list-top);
+}
+
+.header {
+  margin: 0 0 7px;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  font-weight: 400;
+  color: var(--color-list-header);
+}
+
+.card {
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  /* Скрываем углы рядов/разделителей, выходящие за скругление карточки. */
+  overflow: hidden;
+}
+
+.footer {
+  margin: 7px 0 0;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}

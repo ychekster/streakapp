@@ -1,0 +1,114 @@
+/*
+ * Дизайн-токены приложения (стиль iOS 26 / Liquid Glass).
+ * Все числовые значения дизайна — цвета, размеры, отступы, скругления, тайминги —
+ * объявлены здесь и нигде в коде не хардкодятся.
+ */
+:root {
+  /* --- Цвета --- */
+  --color-background: #f2f2f7; /* системный светло-серый фон iOS */
+  --color-card: #ffffff;
+  --color-text-primary: #1c1c1e;
+  --color-text-secondary: #8e8e93;
+  --color-accent: #007aff; /* системный синий iOS */
+  /* Акцентный цвет с прозрачностью для пропущенных дней в сетке (~20%). */
+  --color-grid-empty: rgba(0, 122, 255, 0.2);
+  --color-grid-filled: var(--color-accent);
+  --color-check-icon: #ffffff;
+  --color-separator: rgba(60, 60, 67, 0.1); /* бледная линия-разделитель (малозаметная) */
+  --color-skeleton: #e5e5ea;
+  --color-skeleton-highlight: #f2f2f7;
+  --color-danger: #ff3b30;
+
+  /* --- Типографика --- */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-title: 34px;
+  --font-weight-title: 700;
+  --font-size-title-collapsed: 17px; /* размер заголовка в свёрнутом состоянии */
+  --font-size-habit-name: 17px;
+  --font-weight-habit-name: 600;
+  --font-size-body: 15px;
+  --font-size-secondary: 13px;
+
+  /* --- Скругления --- */
+  --radius-card: 16px;
+  --radius-pill: 999px;
+
+  /* --- Отступы --- */
+  --space-screen-x: 16px; /* горизонтальные поля экрана */
+  --space-screen-top: 12px;
+  --space-screen-bottom: 32px; /* нижний отступ, чтобы последняя привычка не прилипала к краю */
+  --space-card-gap: 12px; /* между элементами списка-заглушки */
+  --space-card-padding: 16px; /* внутри карточки и блока привычки */
+  --space-row-gap: 14px; /* между строкой названия и сеткой */
+  --space-title-bottom: 16px;
+  --space-section-gap: 24px; /* между секциями «на сегодня» и «не на сегодня» */
+  --space-subheading-bottom: 8px; /* под приглушённым подзаголовком секции */
+  /* Верхний отступ блока ниже линии-разделителя. Он больше нижнего (--space-card-padding),
+     поэтому между блоками чуть просторнее, а линия проходит выше середины зазора. */
+  --space-block-gap-below-line: 22px;
+
+  /* --- Кнопка отметки --- */
+  --check-size: 28px;
+  --check-stroke: 2px;
+
+  /* --- Сетка выполнения --- */
+  --grid-columns: 26;
+  --grid-rows: 7;
+  --grid-gap: 2px; /* зазор между кружками */
+  --grid-dot-radius: 50%; /* кружки */
+
+  /* --- Сворачивающийся заголовок --- */
+  --header-collapsed-row-height: 44px; /* высота строки заголовка, если панели Telegram нет */
+  /*
+   * Прогрессивный блюр контента под шапкой (CollapsingHeader) — как нативная шапка Telegram/iOS.
+   * Стопка ВЛОЖЕННЫХ слоёв backdrop-filter (мелкий радиус держится непрозрачным ниже крупного →
+   * переход всегда «размытие→размытие», без линии) с КАСАТЕЛЬНЫМИ масками (1−smootherstep, нулевая
+   * производная на концах → нет ребра). Радиусы/маски считаются в CollapsingHeader.tsx и сверены
+   * скриншотами с эталоном до совпадения. Отсюда — только геометрия зоны:
+   *   --content-fade-pointb — экранный Y нижнего края шапки (точка Б), максимум эффекта, из JS;
+   *   --content-blur-band   — высота плавного спада НИЖЕ точки Б (как у эталона, ~одна строка);
+   *   --content-fade-tint   — цвет лёгкого засветления поверх блюра.
+   * Выше точки Б эффект на максимуме, ниже P+band — отсутствует вовсе.
+   */
+  --content-fade-pointb: 0px;
+  --content-blur-band: 40px;
+  --content-fade-tint: rgba(242, 242, 247, 0.25);
+  --collapsed-title-rise: 8px; /* на сколько свёрнутый заголовок «всплывает» снизу при появлении */
+  --collapsed-title-blur: 4px; /* лёгкое размытие свёрнутого заголовка в начале появления */
+  --header-anim: 360ms ease; /* плавность кросс-фейда заголовков и подложки */
+
+  /* --- Анимации --- */
+  --transition-fast: 150ms ease;
+
+  /* --- Тени (мягкие, в духе iOS) --- */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* --- Liquid glass (нижняя навигация и кнопка «+») --- */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-blur: 24px;
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --glass-icon: #1c1c1e;
+  --glass-icon-muted: #8e8e93;
+
+  /* --- Нижняя навигация --- */
+  --tabbar-height: 56px; /* высота таблетки и кнопки «+» */
+  --tabbar-bottom: 12px; /* отступ от низа экрана (плюс safe area) */
+  --tabbar-gap: 10px; /* между таблеткой и кнопкой «+» */
+  --tabbar-radius: 999px; /* таблетка */
+
+  /* --- iOS-формы (настройки / создание привычки) --- */
+  --color-switch-on: #34c759; /* зелёный iOS */
+  --color-switch-off: rgba(120, 120, 128, 0.32);
+  --color-segment-track: rgba(118, 118, 128, 0.12);
+  --color-segment-thumb: #ffffff;
+  --color-row-press: rgba(0, 0, 0, 0.05);
+  --color-list-separator: rgba(60, 60, 67, 0.22); /* разделитель рядов списка iOS */
+  --color-list-header: #8e8e93; /* подписи секций списка */
+  --color-danger-soft: rgba(255, 59, 48, 0.12);
+  --space-list-gap: 24px; /* между секциями списка */
+  --space-list-top: 8px; /* над первой секцией списка */
+  --list-row-min-height: 44px;
+  --list-row-pad-y: 11px;
+}

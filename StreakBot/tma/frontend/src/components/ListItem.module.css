@@ -1,0 +1,53 @@
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-card-padding);
+  width: 100%;
+  min-height: var(--list-row-min-height);
+  padding: var(--list-row-pad-y) var(--space-card-padding);
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-primary);
+  text-align: left;
+  background: transparent;
+}
+
+.alignTop {
+  align-items: flex-start;
+}
+
+/* Разделитель между соседними рядами одной карточки, со сдвигом слева (стиль iOS). */
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-card-padding);
+  right: 0;
+  height: 1px;
+  background-color: var(--color-list-separator);
+}
+
+.pressable {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.pressable:active {
+  background-color: var(--color-row-press);
+}
+
+.label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.trailing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}

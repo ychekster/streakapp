@@ -1,0 +1,29 @@
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 12px var(--space-card-padding);
+}
+
+.day {
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background-color: var(--color-segment-track);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.day:active {
+  transform: scale(0.92);
+}
+
+.selected {
+  background-color: var(--color-accent);
+  color: #ffffff;
+}

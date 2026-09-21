@@ -1,0 +1,85 @@
+/* Контейнер навигации: по центру внизу, не перехватывает тапы мимо элементов. */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tabbar-gap);
+  padding: 0 var(--space-screen-x);
+  pointer-events: none;
+}
+
+/* Общий стиль liquid glass для таблетки и кнопки «+». */
+.pill,
+.add {
+  pointer-events: auto;
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.pill {
+  display: flex;
+  height: var(--tabbar-height);
+  padding: 0 6px;
+  gap: 2px;
+  border-radius: var(--tabbar-radius);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 76px;
+  padding: 0 14px;
+  border-radius: var(--tabbar-radius);
+  color: var(--glass-icon-muted);
+  font-size: 11px;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+
+.tabActive {
+  color: var(--color-accent);
+}
+
+.tab:active {
+  opacity: 0.6;
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+}
+
+.tabLabel {
+  line-height: 1;
+}
+
+.add {
+  width: var(--tabbar-height);
+  height: var(--tabbar-height);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  transition: transform var(--transition-fast);
+}
+
+.add:active {
+  transform: scale(0.92);
+}
+
+.plus {
+  width: 26px;
+  height: 26px;
+}

@@ -1,0 +1,32 @@
+/* Экран во всю высоту с учётом safe-area; снизу — место под нижнюю навигацию. */
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* Верх учитывает безопасные зоны Telegram (вырез + панель управления в фуллскрине). */
+  padding-top: calc(
+    var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
+    var(--app-content-safe-area-top, 0px) + var(--space-screen-top)
+  );
+  padding-right: calc(env(safe-area-inset-right) + var(--space-screen-x));
+  /* Низ: safe area + высота таблетки навигации + её отступ + запас, чтобы контент
+     прокручивался выше плавающей навигации. */
+  padding-bottom: calc(
+    var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
+    var(--tabbar-bottom) + var(--tabbar-height) + var(--space-screen-bottom)
+  );
+  padding-left: calc(env(safe-area-inset-left) + var(--space-screen-x));
+}
+
+/*
+ * Контейнер контента под шапкой. flex/column — чтобы состояния по центру (загрузка/ошибка/
+ * пусто) вели себя как раньше, когда были прямыми детьми .screen. Эффект под шапкой — только
+ * прогрессивный блюр (слои .effect в CollapsingHeader); затухания по непрозрачности тут нет.
+ */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}

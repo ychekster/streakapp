@@ -1,0 +1,53 @@
+/* Глобальные стили и сброс. Подключается первым в main.tsx (после variables.css). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* Скрыть полосу прокрутки: приложение скроллится без видимого скроллбара. */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* старый Edge/IE */
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* WebKit/Chromium — iOS и Android клиенты Telegram */
+}
+
+body {
+  font-family: var(--font-family);
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Запрет «оттягивания» страницы — приложение во весь экран. */
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  /* Убрать синюю подсветку нажатия на мобильных. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Контейнер растёт вместе с содержимым (min-height вместо фиксированной height:100%),
+   поэтому при прокрутке нижний отступ экрана не «съедается» и остаётся видимым. */
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
