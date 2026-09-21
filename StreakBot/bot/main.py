@@ -2,17 +2,18 @@
 
 Запуск: ``python -m bot.main`` (после заполнения .env).
 
-Бот умеет только одно — отвечать на /start приветствием с кнопкой запуска
-Mini App. Вся работа с привычками идёт в приложении (см. tma/), поэтому у бота
-нет ни базы данных, ни планировщика, ни других команд.
+Бот отвечает на /start приветствием с кнопкой запуска Mini App и присылает
+напоминания о привычках (bot/reminders.py). Вся работа с привычками идёт в
+приложении (см. tma/): базу данных ведёт API, бот только читает из неё напоминания.
 
 Последовательность: конфиг → логирование → Bot/Dispatcher → роутер /start →
-меню бота (кнопка Mini App, без списка команд) → polling.
+меню бота (кнопка Mini App, без списка команд) → цикл напоминаний → polling.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from loguru import logger
 from bot.config import Config, load_config
 from bot.constants import BTN_OPEN_APP
 from bot.handlers import start
+from bot.reminders import run_reminders
+from tma.backend.database import Database
 
 
 def setup_logging(config: Config) -> None:
@@ -84,11 +87,18 @@ async def main() -> None:
     register_error_handler(dp)
 
     await setup_bot_menu(bot, config.tma_url)
+
+    database = Database(config.database_url)
+    reminders = asyncio.create_task(run_reminders(bot, database))
     logger.info("StreakBot is up and polling")
 
     try:
         await dp.start_polling(bot)
     finally:
+        reminders.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reminders
+        await database.dispose()
         await bot.session.close()
         logger.info("StreakBot stopped")
 

@@ -1,0 +1,48 @@
+/* Поля карточки. Ряд обрезается по ним, а не по краю карточки — как в эталоне: кружок
+   у правого поля срезан, и видно, что ряд прокручивается. */
+.frame {
+  padding: var(--swatch-row-pad-y) var(--space-card-padding);
+}
+
+/* position: relative — чтобы offsetLeft кружков отсчитывался от ряда. */
+.row {
+  position: relative;
+  display: flex;
+  gap: var(--swatch-gap);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.swatch {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--swatch-size);
+  height: var(--swatch-size);
+  border-radius: 50%;
+  background-color: rgb(var(--habit-rgb));
+  transition: transform var(--transition-fast);
+}
+
+.swatch:active {
+  transform: scale(0.92);
+}
+
+/* Белая точка выбранного цвета: появляется, вырастая из центра. */
+.swatch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--swatch-dot-size);
+  height: var(--swatch-dot-size);
+  margin: calc(var(--swatch-dot-size) / -2) 0 0 calc(var(--swatch-dot-size) / -2);
+  border-radius: 50%;
+  background-color: var(--color-on-habit);
+  transform: scale(0);
+  transition: transform var(--transition-fast);
+}
+
+.selected::after {
+  transform: scale(1);
+}

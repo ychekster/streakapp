@@ -1,11 +1,11 @@
-/* Кнопка отметки: 28px, обводка 2px акцентным цветом; выполнено — залитый кружок с галочкой. */
+/* Кнопка отметки: 28px, обводка 2px цветом привычки; выполнено — залитый кружок с галочкой. */
 
 .button {
   flex-shrink: 0;
   width: var(--check-size);
   height: var(--check-size);
   border-radius: var(--radius-pill);
-  border: var(--check-stroke) solid var(--color-accent);
+  border: var(--check-stroke) solid rgb(var(--habit-rgb));
   background-color: transparent;
   display: inline-flex;
   align-items: center;
@@ -27,7 +27,7 @@
 }
 
 .done {
-  background-color: var(--color-accent);
+  background-color: rgb(var(--habit-rgb));
 }
 
 .check {

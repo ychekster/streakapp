@@ -1,0 +1,37 @@
+.track {
+  flex-shrink: 0;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  padding: var(--switch-inset);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-switch-off);
+  transition: background-color var(--switch-anim);
+}
+
+.on {
+  background-color: var(--color-switch-on);
+}
+
+.thumb {
+  display: block;
+  width: var(--switch-thumb-width);
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--switch-thumb-color);
+  box-shadow: var(--switch-thumb-shadow);
+  transition: transform var(--switch-anim);
+}
+
+/* Ползунок уезжает к правому краю дорожки. */
+.on .thumb {
+  transform: translateX(
+    calc(var(--switch-width) - var(--switch-thumb-width) - 2 * var(--switch-inset))
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .thumb {
+    transition: none;
+  }
+}

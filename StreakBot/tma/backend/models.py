@@ -7,7 +7,7 @@ TaskLog (см. `services.build_history`). Это исключает рассин
 from __future__ import annotations
 
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     BigInteger,
@@ -18,10 +18,13 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Time,
     UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from tma.backend.constants import DEFAULT_HABIT_COLOR, HABIT_COLOR_MAX_LENGTH
 
 
 class Base(DeclarativeBase):
@@ -88,6 +91,17 @@ class Task(Base):
     )
     # Для specific_days: строка вида "mon,wed,fri".
     days: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # Время напоминания в поясе пользователя; None — без напоминания. Напоминание
+    # присылает бот (bot/reminders.py) в запланированные дни, если привычка не выполнена.
+    reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # Цвет (тема) привычки — ключ палитры из constants.HABIT_COLORS.
+    color: Mapped[str] = mapped_column(
+        String(HABIT_COLOR_MAX_LENGTH),
+        default=DEFAULT_HABIT_COLOR,
+        server_default=DEFAULT_HABIT_COLOR,
+        nullable=False,
+    )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

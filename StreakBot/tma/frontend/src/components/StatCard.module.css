@@ -18,8 +18,8 @@
   width: var(--stat-icon-size);
   height: var(--stat-icon-size);
   border-radius: var(--radius-stat-icon);
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent);
+  background-color: rgba(var(--habit-rgb), var(--habit-soft-alpha));
+  color: rgb(var(--habit-rgb));
 }
 
 .icon svg {

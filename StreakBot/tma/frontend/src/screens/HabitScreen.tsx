@@ -1,23 +1,25 @@
 /**
  * Экран привычки: карточка с сеткой выполнения за последние 364 дня, основные
  * показатели (текущая и лучшая серии, всего выполнено, цель серии) и настройки
- * привычки (редактировать, удалить).
+ * привычки (редактировать, удалить). Весь экран окрашен в цвет привычки.
  *
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
  * Telegram заменена на «Назад», а нижняя навигация скрыта (см. App). Привычка берётся
- * из общего состояния, поэтому отметка здесь сразу видна и в списке.
+ * из общего состояния, поэтому отметка и изменения здесь сразу видны и в списке.
  *
- * «Удалить привычку» открывает диалог подтверждения; после удаления App возвращает к
- * списку. При ошибке диалог остаётся открытым и показывает её вместо пояснения.
+ * «Редактировать привычку» открывает форму привычки (см. HabitFormScreen). «Удалить
+ * привычку» открывает диалог подтверждения; после удаления App возвращает к списку.
+ * При ошибке диалог остаётся открытым и показывает её вместо пояснения.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { ApiRequestError } from "../api/client";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
+import { Card, Section } from "../components/Section";
 import { PencilIcon, TrashIcon } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
 import {
@@ -29,7 +31,8 @@ import {
 import { FALLBACK_WEEKDAYS, HISTORY_DAYS } from "../constants";
 import { useMeta } from "../hooks/useMeta";
 import { STRINGS } from "../strings";
-import { hapticNotification, showBackButton } from "../telegram/webapp";
+import { hapticNotification } from "../telegram/webapp";
+import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import type { Weekday } from "../types/meta";
 import styles from "./HabitScreen.module.css";
@@ -60,21 +63,28 @@ function formatStreakGoal(habit: Habit, weekdays: readonly Weekday[]): string {
 interface HabitScreenProps {
   habit: Habit;
   onToggle: (taskId: number) => void;
-  /** Вернуться к списку привычек (должна быть стабильной — см. эффект кнопки «Назад»). */
-  onBack: () => void;
+  /** Въехать при открытии. Нет — при возврате из формы редактирования: «назад» не должно
+   *  выглядеть как переход вперёд. */
+  animateEnter: boolean;
+  /** Открыть форму редактирования привычки. */
+  onEdit: (habit: Habit) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
   onDelete: (taskId: number) => Promise<void>;
 }
 
-export function HabitScreen({ habit, onToggle, onBack, onDelete }: HabitScreenProps) {
+export function HabitScreen({
+  habit,
+  onToggle,
+  animateEnter,
+  onEdit,
+  onDelete,
+}: HabitScreenProps) {
   const meta = useMeta();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => showBackButton(onBack), [onBack]);
 
   const weekdays = meta?.weekdays ?? FALLBACK_WEEKDAYS;
 
@@ -98,23 +108,19 @@ export function HabitScreen({ habit, onToggle, onBack, onDelete }: HabitScreenPr
 
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
-      <div className={styles.body}>
-        <section>
-          <h2 ref={headingRef} className={styles.heading}>
-            {STRINGS.habitHistoryHeading}
-          </h2>
-          <div className={`${styles.card} ${styles.habitCard}`}>
+      <div className={animateEnter ? styles.enter : undefined} style={habitColorStyle(habit.color)}>
+        <Section title={STRINGS.habitHistoryHeading} headingRef={headingRef}>
+          <Card padded>
             <HabitBlock
               habit={habit}
               interactive={habit.scheduled_today}
               gridDays={HISTORY_DAYS}
               onToggle={onToggle}
             />
-          </div>
-        </section>
+          </Card>
+        </Section>
 
-        <section className={styles.section}>
-          <h2 className={styles.heading}>{STRINGS.habitMainHeading}</h2>
+        <Section title={STRINGS.habitMainHeading}>
           <div className={styles.stats}>
             <StatCard
               icon={<FlameIcon />}
@@ -137,20 +143,23 @@ export function HabitScreen({ habit, onToggle, onBack, onDelete }: HabitScreenPr
               label={STRINGS.statStreakGoal}
             />
           </div>
-        </section>
+        </Section>
 
-        <section className={styles.section}>
-          <h2 className={styles.heading}>{STRINGS.habitSettingsHeading}</h2>
-          <div className={`${styles.card} ${styles.listCard}`}>
-            <ListItem icon={<PencilIcon />} label={STRINGS.editHabit} />
+        <Section title={STRINGS.habitSettingsHeading}>
+          <Card>
+            <ListItem
+              icon={<PencilIcon />}
+              label={STRINGS.editHabit}
+              onPress={() => onEdit(habit)}
+            />
             <ListItem
               icon={<TrashIcon />}
               label={STRINGS.deleteHabit}
               destructive
               onPress={askToDelete}
             />
-          </div>
-        </section>
+          </Card>
+        </Section>
       </div>
 
       <ConfirmDialog

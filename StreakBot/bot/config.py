@@ -30,6 +30,13 @@ class Config(BaseSettings):
     # быть HTTPS (требование Telegram WebApp).
     tma_url: str = Field(..., alias="TMA_URL")
 
+    # Строка подключения к БД API (та же, что у tma/backend): бот читает из неё
+    # напоминания о привычках. Путь SQLite относительный — запускать из корня репозитория.
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./streakbot.db",
+        alias="DATABASE_URL",
+    )
+
     # Параметры логирования.
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_file: str = Field(default="logs/bot.log", alias="LOG_FILE")

@@ -1,5 +1,10 @@
 /** Типы данных привычек — зеркалят схемы ответа API (tma/backend/schemas.py). */
 
+import type { HABIT_COLORS } from "../constants";
+
+/** Цвет (тема) привычки — ключ палитры. */
+export type HabitColor = (typeof HABIT_COLORS)[number];
+
 export interface Habit {
   /** Идентификатор задачи. */
   id: number;
@@ -31,6 +36,10 @@ export interface Habit {
   best_streak: number;
   /** Сколько раз привычка выполнена за всё время. */
   total_done: number;
+  /** Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания. */
+  reminder_time: string | null;
+  /** Цвет (тема) привычки. */
+  color: HabitColor;
 }
 
 /** Ответ GET /tasks. */
@@ -38,7 +47,7 @@ export interface HabitsResponse {
   habits: Habit[];
 }
 
-/** Ответ с одной привычкой (создание POST /tasks, переключение .../toggle). */
+/** Ответ с одной привычкой (создание, изменение, переключение отметки). */
 export interface HabitResponse {
   habit: Habit;
 }
@@ -46,10 +55,13 @@ export interface HabitResponse {
 /** Частота выполнения привычки. */
 export type FrequencyType = "daily" | "specific_days";
 
-/** Тело запроса POST /tasks — создание привычки. */
-export interface HabitCreate {
+/** Тело запроса POST /tasks (создание) и PUT /tasks/{id} (изменение) — поля формы привычки. */
+export interface HabitInput {
   name: string;
   frequency_type: FrequencyType;
   /** Коды дней недели (mon..sun) для specific_days; для daily игнорируется. */
   days: string[];
+  /** Время напоминания «ЧЧ:ММ»; null — без напоминания. */
+  reminder_time: string | null;
+  color: HabitColor;
 }

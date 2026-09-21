@@ -2,6 +2,7 @@
 
     GET    /tasks                  — список привычек с историей выполнения
     POST   /tasks                  — создать привычку
+    PUT    /tasks/{task_id}        — изменить привычку
     DELETE /tasks/{task_id}        — удалить привычку
     POST   /tasks/{task_id}/toggle — отметить/снять отметку выполнения за сегодня
 
@@ -17,8 +18,14 @@ from tma.backend.dependencies import get_db_user, get_repository
 from tma.backend.errors import ApiError
 from tma.backend.models import User
 from tma.backend.repository import Repository
-from tma.backend.schemas import HabitCreate, HabitResponse, HabitsResponse, ToggleResponse
-from tma.backend.services import create_habit, list_habits, toggle_today
+from tma.backend.schemas import (
+    HabitCreate,
+    HabitResponse,
+    HabitsResponse,
+    HabitUpdate,
+    ToggleResponse,
+)
+from tma.backend.services import create_habit, list_habits, toggle_today, update_habit
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -41,6 +48,21 @@ async def create_task(
 ) -> HabitResponse:
     """Создать новую привычку и вернуть её."""
     habit = await create_habit(repo, db_user, payload)
+    return HabitResponse(habit=habit)
+
+
+@router.put("/{task_id}", response_model=HabitResponse)
+async def update_task(
+    payload: HabitUpdate,
+    task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
+    db_user: User = Depends(get_db_user),
+    repo: Repository = Depends(get_repository),
+) -> HabitResponse:
+    """Изменить привычку (название, частоту, напоминание, цвет) и вернуть её."""
+    task = await repo.get_active_task(task_id, db_user.telegram_id)
+    if task is None:
+        raise ApiError(404, "task_not_found", "Задача не найдена")
+    habit = await update_habit(repo, db_user, task, payload)
     return HabitResponse(habit=habit)
 
 

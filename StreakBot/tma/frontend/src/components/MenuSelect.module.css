@@ -1,0 +1,35 @@
+/* Подпись выбранного варианта и значок ⌃⌄. Цвет — приглушённый цвет правой части ряда
+   (ListItem .trailing). */
+.display {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-menu-chevron);
+  min-width: 0;
+}
+
+.value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: var(--menu-chevron-width);
+  height: var(--menu-chevron-height);
+}
+
+/* Невидимый нативный выбор на весь ряд. Размер шрифта ≥ 16px — иначе iOS увеличивает
+   страницу при фокусе. */
+.native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: var(--font-size-habit-name);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}

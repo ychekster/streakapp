@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from tma.backend.constants import DEFAULT_HABIT_COLOR
 from tma.backend.models import (
     FrequencyType,
     Task,
@@ -88,6 +90,8 @@ class Repository:
         name: str,
         frequency_type: FrequencyType,
         days: str | None = None,
+        reminder_time: time | None = None,
+        color: str = DEFAULT_HABIT_COLOR,
     ) -> Task:
         """Создать активную задачу."""
         task = Task(
@@ -95,22 +99,45 @@ class Repository:
             name=name,
             frequency_type=frequency_type,
             days=days,
+            reminder_time=reminder_time,
+            color=color,
             is_active=True,
         )
         self.session.add(task)
         await self.session.flush()
         return task
 
-    async def task_name_exists(self, user_id: int, name: str) -> bool:
+    async def update_task(
+        self,
+        task: Task,
+        name: str,
+        frequency_type: FrequencyType,
+        days: str | None,
+        reminder_time: time | None,
+        color: str,
+    ) -> None:
+        """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
+        task.name = name
+        task.frequency_type = frequency_type
+        task.days = days
+        task.reminder_time = reminder_time
+        task.color = color
+        await self.session.flush()
+
+    async def task_name_exists(
+        self, user_id: int, name: str, exclude_task_id: int | None = None
+    ) -> bool:
         """Есть ли у пользователя активная задача с таким именем (без учёта регистра).
 
-        Сравнение делается в Python: SQLite `lower()` не приводит к нижнему
-        регистру кириллицу, поэтому полагаться на него нельзя.
+        `exclude_task_id` — задача, которую не учитывать (при переименовании сама себе
+        не дубликат). Сравнение делается в Python: SQLite `lower()` не приводит к
+        нижнему регистру кириллицу, поэтому полагаться на него нельзя.
         """
         target = name.strip().lower()
-        result = await self.session.execute(
-            select(Task.name).where(Task.user_id == user_id, Task.is_active.is_(True))
-        )
+        query = select(Task.name).where(Task.user_id == user_id, Task.is_active.is_(True))
+        if exclude_task_id is not None:
+            query = query.where(Task.id != exclude_task_id)
+        result = await self.session.execute(query)
         return any((task_name or "").strip().lower() == target for task_name in result.scalars())
 
     async def get_active_task(self, task_id: int, user_id: int) -> Task | None:
@@ -138,6 +165,17 @@ class Repository:
         result = await self.session.execute(
             select(Task)
             .where(Task.user_id == user_id, Task.is_active.is_(True))
+            .order_by(Task.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_active_tasks_with_reminders(self) -> list[Task]:
+        """Активные задачи всех пользователей с напоминанием — вместе с владельцем
+        (его пояс нужен, чтобы понять, наступило ли время напоминания)."""
+        result = await self.session.execute(
+            select(Task)
+            .where(Task.is_active.is_(True), Task.reminder_time.is_not(None))
+            .options(selectinload(Task.user))
             .order_by(Task.id)
         )
         return list(result.scalars().all())

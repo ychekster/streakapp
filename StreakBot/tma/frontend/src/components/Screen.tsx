@@ -14,6 +14,8 @@ interface ScreenProps {
   titleAnchorRef?: RefObject<HTMLElement>;
   /** Видна ли нижняя навигация — под неё резервируется место снизу. */
   withTabBar?: boolean;
+  /** Экран «въезжает» при открытии (вложенный экран, открытый поверх вкладки). */
+  enterAnimation?: boolean;
   children: ReactNode;
 }
 
@@ -21,10 +23,18 @@ export function Screen({
   title,
   titleAnchorRef,
   withTabBar = true,
+  enterAnimation = false,
   children,
 }: ScreenProps) {
+  const className = [
+    styles.screen,
+    withTabBar ? styles.withTabBar : "",
+    enterAnimation ? styles.enter : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <main className={`${styles.screen} ${withTabBar ? styles.withTabBar : ""}`}>
+    <main className={className}>
       <CollapsingHeader title={title} anchorRef={titleAnchorRef} />
       {/* Контент в отдельной обёртке (заголовки — вне её): при прокрутке он уходит под
           подложку шапки. См. Screen.module.css. */}

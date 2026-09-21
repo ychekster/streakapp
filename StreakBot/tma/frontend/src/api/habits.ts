@@ -2,7 +2,7 @@
 
 import type {
   Habit,
-  HabitCreate,
+  HabitInput,
   HabitResponse,
   HabitsResponse,
 } from "../types/habit";
@@ -28,9 +28,18 @@ export async function deleteHabit(taskId: number): Promise<void> {
 }
 
 /** Создать новую привычку; вернуть созданную привычку. */
-export async function createHabit(payload: HabitCreate): Promise<Habit> {
+export async function createHabit(payload: HabitInput): Promise<Habit> {
   const data = await apiRequest<HabitResponse>("/tasks", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.habit;
+}
+
+/** Изменить привычку (все поля формы); вернуть обновлённую привычку. */
+export async function updateHabit(taskId: number, payload: HabitInput): Promise<Habit> {
+  const data = await apiRequest<HabitResponse>(`/tasks/${taskId}`, {
+    method: "PUT",
     body: JSON.stringify(payload),
   });
   return data.habit;

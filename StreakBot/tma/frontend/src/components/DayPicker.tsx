@@ -4,7 +4,7 @@ import type { Weekday } from "../types/meta";
 import styles from "./DayPicker.module.css";
 
 interface DayPickerProps {
-  weekdays: Weekday[];
+  weekdays: readonly Weekday[];
   selected: Set<string>;
   onToggle: (code: string) => void;
 }

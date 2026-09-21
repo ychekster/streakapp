@@ -34,7 +34,8 @@
   left: calc(var(--space-card-padding) * 2 + var(--list-row-icon-size));
 }
 
-/* Цветная плашка с белой иконкой (как в «Настройках» iOS). */
+/* Цветная плашка с белой иконкой (как в «Настройках» iOS). На экране привычки — её цвета,
+   в остальных местах — синяя (цвет привычки по умолчанию). */
 .icon {
   flex-shrink: 0;
   display: flex;
@@ -43,7 +44,7 @@
   width: var(--list-row-icon-size);
   height: var(--list-row-icon-size);
   border-radius: var(--radius-list-row-icon);
-  background-color: var(--color-accent);
+  background-color: rgb(var(--habit-rgb));
   color: var(--color-list-row-icon);
 }
 

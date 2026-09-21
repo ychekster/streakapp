@@ -1,0 +1,32 @@
+/* Ряды формы выше обычных рядов списка — как в эталоне (iOS 26). */
+.form {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Поле названия занимает весь ряд по высоте: нажатие в любом месте ряда ставит курсор.
+   Отрицательные поля «съедают» вертикальный отступ ряда, собственные — возвращают его. */
+.nameInput {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  margin: calc(-1 * var(--list-row-pad-y)) 0;
+  padding: var(--list-row-pad-y) 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-primary);
+}
+
+.nameInput::placeholder {
+  color: var(--color-placeholder);
+}
+
+.error {
+  margin-top: 14px;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
+}

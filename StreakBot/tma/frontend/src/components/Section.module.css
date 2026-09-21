@@ -1,0 +1,25 @@
+.section + .section {
+  margin-top: var(--space-section-gap);
+}
+
+/* Заголовок секции: капсом, приглушённый, вровень с краем карточки. */
+.heading {
+  margin-bottom: var(--space-subheading-bottom);
+  font-size: var(--font-size-section-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* Белая карточка секции. Подсветка нажатия рядов не выходит за скругление. */
+.card {
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.padded {
+  padding: 0 var(--space-card-padding);
+}

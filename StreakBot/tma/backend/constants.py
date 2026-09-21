@@ -19,6 +19,30 @@ INIT_DATA_AUTH_SCHEME = "tma"
 # Максимальная длина названия привычки (совпадает с длиной колонки tasks.name).
 HABIT_NAME_MAX_LENGTH = 100
 
+# Цвета (темы) привычки — ключи палитры фронтенда (`--palette-*` в
+# tma/frontend/src/styles/variables.css, список — HABIT_COLORS в constants.ts).
+# По умолчанию — синий: так выглядели все привычки до появления выбора цвета.
+HABIT_COLORS: tuple[str, ...] = (
+    "blue",
+    "lightblue",
+    "teal",
+    "green",
+    "yellow",
+    "orange",
+    "red",
+    "pink",
+    "purple",
+    "indigo",
+    "brown",
+    "graphite",
+)
+DEFAULT_HABIT_COLOR = "blue"
+# Длина колонки tasks.color (с запасом под будущие ключи палитры).
+HABIT_COLOR_MAX_LENGTH = 20
+
+# Время напоминания в API — «ЧЧ:ММ» в поясе пользователя (например, "09:00").
+REMINDER_TIME_FORMAT = "%H:%M"
+
 # Дни недели: код -> (короткая подпись, полная подпись). Порядок = порядок отображения.
 WEEKDAYS: tuple[tuple[str, str, str], ...] = (
     ("mon", "ПН", "Понедельник"),

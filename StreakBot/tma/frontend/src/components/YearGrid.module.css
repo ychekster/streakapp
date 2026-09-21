@@ -18,9 +18,10 @@
 }
 
 .filled {
-  background-color: var(--color-grid-filled);
+  background-color: rgb(var(--habit-rgb));
 }
 
+/* Пропущенный день — цвет привычки с прозрачностью. */
 .empty {
-  background-color: var(--color-grid-empty);
+  background-color: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
 }

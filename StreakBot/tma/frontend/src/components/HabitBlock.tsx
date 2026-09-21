@@ -1,5 +1,6 @@
 /**
- * Блок одной привычки внутри общей карточки: строка «название + кнопка отметки» и сетка точек.
+ * Блок одной привычки внутри общей карточки: строка «название + кнопка отметки» и сетка точек,
+ * окрашенные в цвет привычки.
  *
  * Если передан `onOpen`, весь блок, кроме кнопки отметки, открывает экран привычки: под
  * содержимым лежит невидимая кнопка на всю площадь блока, а содержимое пропускает нажатия
@@ -8,6 +9,7 @@
 
 import { GRID_DAYS } from "../constants";
 import { STRINGS } from "../strings";
+import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
 import { YearGrid } from "./YearGrid";
@@ -32,7 +34,10 @@ export function HabitBlock({
   onOpen,
 }: HabitBlockProps) {
   return (
-    <article className={`${styles.block} ${onOpen ? styles.openable : ""}`}>
+    <article
+      className={`${styles.block} ${onOpen ? styles.openable : ""}`}
+      style={habitColorStyle(habit.color)}
+    >
       {onOpen ? (
         <button
           type="button"

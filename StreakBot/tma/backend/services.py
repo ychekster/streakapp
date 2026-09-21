@@ -2,19 +2,26 @@
 
 Доступ к данным идёт только через `Repository` — SQL здесь не пишется. Этот слой
 собирает из задач и их логов форму ответа (`Habit`) вместе со статистикой серий,
-применяет переключение отметки за сегодня и работает с настройками пользователя.
+создаёт и изменяет привычки, применяет переключение отметки за сегодня, работает с
+настройками пользователя и определяет, чьи напоминания пора прислать (для бота).
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 
 import pytz
 
 from tma.backend import validation
-from tma.backend.constants import HABIT_NAME_MAX_LENGTH, HISTORY_DAYS, WEEKDAYS
+from tma.backend.constants import (
+    HABIT_NAME_MAX_LENGTH,
+    HISTORY_DAYS,
+    REMINDER_TIME_FORMAT,
+    WEEKDAYS,
+)
 from tma.backend.errors import ApiError
-from tma.backend.models import Task, TaskStatus, User
+from tma.backend.models import FrequencyType, Task, TaskStatus, User
 from tma.backend.repository import Repository
 from tma.backend.schedule import due_weekdays, is_due_on, task_days
 from tma.backend.schemas import (
@@ -99,6 +106,12 @@ async def build_habit(repo: Repository, task: Task, today: date) -> Habit:
         current_streak=current_streak,
         best_streak=best_streak,
         total_done=len(done_dates),
+        reminder_time=(
+            task.reminder_time.strftime(REMINDER_TIME_FORMAT)
+            if task.reminder_time is not None
+            else None
+        ),
+        color=task.color,
     )
 
 
@@ -122,26 +135,107 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     return await build_habit(repo, task, today)
 
 
-async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
-    """Создать привычку и вернуть её в форме `Habit`.
+@dataclass(frozen=True)
+class HabitFields:
+    """Проверенные поля формы привычки — в том виде, в каком их хранит `Task`."""
 
-    Имя не должно дублировать существующую активную привычку (без учёта регистра).
+    name: str
+    frequency_type: FrequencyType
+    days: str | None
+    reminder_time: time | None
+    color: str
+
+
+async def _validate_habit_fields(
+    repo: Repository, user: User, payload: HabitCreate, task_id: int | None = None
+) -> HabitFields:
+    """Проверить поля формы привычки (создание и изменение).
+
+    Имя не должно дублировать другую активную привычку пользователя (без учёта
+    регистра); `task_id` — изменяемая привычка, сама себе она не дубликат.
     """
     name = validation.validate_name(payload.name)
     frequency_type, days = validation.validate_frequency(
         payload.frequency_type, payload.days
     )
+    reminder_time = validation.validate_reminder_time(payload.reminder_time)
+    color = validation.validate_color(payload.color)
 
-    if await repo.task_name_exists(user.telegram_id, name):
+    if await repo.task_name_exists(user.telegram_id, name, exclude_task_id=task_id):
         raise ApiError(409, "duplicate_name", "Привычка с таким названием уже есть")
 
-    task = await repo.create_task(
-        user_id=user.telegram_id,
+    return HabitFields(
         name=name,
         frequency_type=frequency_type,
         days=days,
+        reminder_time=reminder_time,
+        color=color,
+    )
+
+
+async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
+    """Создать привычку и вернуть её в форме `Habit`."""
+    fields = await _validate_habit_fields(repo, user, payload)
+    task = await repo.create_task(
+        user_id=user.telegram_id,
+        name=fields.name,
+        frequency_type=fields.frequency_type,
+        days=fields.days,
+        reminder_time=fields.reminder_time,
+        color=fields.color,
     )
     return await build_habit(repo, task, user_today(user))
+
+
+async def update_habit(
+    repo: Repository, user: User, task: Task, payload: HabitCreate
+) -> Habit:
+    """Изменить привычку (все поля формы) и вернуть её в форме `Habit`.
+
+    История отметок не трогается: серии пересчитываются по новому расписанию.
+    """
+    fields = await _validate_habit_fields(repo, user, payload, task_id=task.id)
+    await repo.update_task(
+        task,
+        name=fields.name,
+        frequency_type=fields.frequency_type,
+        days=fields.days,
+        reminder_time=fields.reminder_time,
+        color=fields.color,
+    )
+    return await build_habit(repo, task, user_today(user))
+
+
+@dataclass(frozen=True)
+class DueReminder:
+    """Напоминание, которое пора прислать: кому и о какой привычке."""
+
+    task_id: int
+    user_id: int
+    habit_name: str
+
+
+async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
+    """Напоминания на минуту `moment` (datetime с поясом, обычно UTC).
+
+    Напоминание привычки наступило, если в поясе её владельца `moment` приходится
+    ровно на время напоминания. Приходит оно только в дни, на которые привычка
+    запланирована, и только пока она за этот день не отмечена выполненной.
+    """
+    due: list[DueReminder] = []
+    for task in await repo.get_active_tasks_with_reminders():
+        local = moment.astimezone(resolve_timezone(task.user.timezone))
+        reminder = task.reminder_time
+        if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
+            continue
+        day = local.date()
+        if not is_due_on(task, day):
+            continue
+        log = await repo.get_log(task.id, day)
+        if log is not None and log.status == TaskStatus.done:
+            continue
+        due.append(DueReminder(task_id=task.id, user_id=task.user_id, habit_name=task.name))
+    return due
 
 
 def serialize_settings(user: User) -> SettingsResponse:

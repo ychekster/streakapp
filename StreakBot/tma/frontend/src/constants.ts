@@ -28,3 +28,27 @@ export const FALLBACK_WEEKDAYS = [
   { code: "sat", short: "СБ", full: "Суббота" },
   { code: "sun", short: "ВС", full: "Воскресенье" },
 ] as const;
+
+/** Цвета (темы) привычки в порядке выбора. Значения — в CSS (`--palette-*` в
+ *  styles/variables.css); ключи совпадают с HABIT_COLORS на бэкенде
+ *  (tma/backend/constants.py). */
+export const HABIT_COLORS = [
+  "blue",
+  "lightblue",
+  "teal",
+  "green",
+  "yellow",
+  "orange",
+  "red",
+  "pink",
+  "purple",
+  "indigo",
+  "brown",
+  "graphite",
+] as const;
+
+/** Цвет новой привычки (им же выглядели все привычки до появления выбора цвета). */
+export const DEFAULT_HABIT_COLOR = "blue";
+
+/** Время, которое предлагается при включении напоминания. */
+export const DEFAULT_REMINDER_TIME = "09:00";

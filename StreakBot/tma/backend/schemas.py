@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from tma.backend.constants import HISTORY_DAYS
+from tma.backend.constants import DEFAULT_HABIT_COLOR, HISTORY_DAYS
 
 
 class Habit(BaseModel):
@@ -50,6 +50,11 @@ class Habit(BaseModel):
     )
     best_streak: int = Field(..., description="Лучшая серия за всё время")
     total_done: int = Field(..., description="Сколько раз привычка выполнена за всё время")
+    reminder_time: str | None = Field(
+        ...,
+        description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания",
+    )
+    color: str = Field(..., description="Цвет (тема) привычки — ключ палитры: blue, green, …")
 
 
 class HabitsResponse(BaseModel):
@@ -59,7 +64,7 @@ class HabitsResponse(BaseModel):
 
 
 class HabitResponse(BaseModel):
-    """Ответ с одной привычкой (создание `POST /tasks`, переключение `.../toggle`)."""
+    """Ответ с одной привычкой (создание, изменение, переключение отметки)."""
 
     habit: Habit
 
@@ -79,6 +84,14 @@ class HabitCreate(BaseModel):
         default_factory=list,
         description="Коды дней недели (mon..sun) для specific_days; для daily игнорируется",
     )
+    reminder_time: str | None = Field(
+        None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"
+    )
+    color: str = Field(DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры")
+
+
+class HabitUpdate(HabitCreate):
+    """Запрос `PUT /tasks/{task_id}` — изменение привычки (все поля формы, как при создании)."""
 
 
 class SettingsResponse(BaseModel):

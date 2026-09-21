@@ -1,14 +1,17 @@
+/* Отступы задаёт ряд ListItem, в котором стоит выбор. Кружки не крупнее --day-picker-size
+   и расставлены по всей ширине; на узком экране сжимаются, сохраняя зазор. */
 .days {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  padding: 12px var(--space-card-padding);
+  grid-template-columns: repeat(7, minmax(0, var(--day-picker-size)));
+  justify-content: space-between;
+  gap: var(--day-picker-gap);
+  width: 100%;
 }
 
 .day {
   aspect-ratio: 1 / 1;
   border-radius: 50%;
-  background-color: var(--color-segment-track);
+  background-color: var(--color-fill);
   color: var(--color-text-primary);
   font-size: var(--font-size-secondary);
   font-weight: 600;
@@ -23,7 +26,8 @@
   transform: scale(0.92);
 }
 
+/* Выбранный день — цвет привычки (в форме — выбранная тема). */
 .selected {
-  background-color: var(--color-accent);
-  color: #ffffff;
+  background-color: rgb(var(--habit-rgb));
+  color: var(--color-on-habit);
 }

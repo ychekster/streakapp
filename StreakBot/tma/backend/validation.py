@@ -6,9 +6,16 @@
 
 from __future__ import annotations
 
+from datetime import datetime, time
+
 import pytz
 
-from tma.backend.constants import HABIT_NAME_MAX_LENGTH, WEEKDAYS
+from tma.backend.constants import (
+    HABIT_COLORS,
+    HABIT_NAME_MAX_LENGTH,
+    REMINDER_TIME_FORMAT,
+    WEEKDAYS,
+)
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType
 from tma.backend.timezones import looks_like_utc, parse_utc_offset
@@ -47,6 +54,25 @@ def validate_frequency(
         ordered = ",".join(code for code in _WEEKDAY_ORDER if code in chosen)
         return FrequencyType.specific_days, ordered
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
+
+
+def validate_reminder_time(value: str | None) -> time | None:
+    """Разобрать время напоминания «ЧЧ:ММ»; None — привычка без напоминания."""
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value.strip(), REMINDER_TIME_FORMAT).time()
+    except ValueError as exc:
+        raise ApiError(
+            422, "invalid_reminder_time", "Укажите время напоминания в формате ЧЧ:ММ"
+        ) from exc
+
+
+def validate_color(value: str) -> str:
+    """Проверить, что цвет привычки — ключ палитры."""
+    if value not in HABIT_COLORS:
+        raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
+    return value
 
 
 def resolve_timezone(value: str) -> str:

@@ -10,15 +10,39 @@
   --color-text-primary: #1c1c1e;
   --color-text-secondary: #8e8e93;
   --color-accent: #007aff; /* системный синий iOS */
-  --color-accent-soft: rgba(0, 122, 255, 0.12); /* подложка иконок показателей */
-  /* Акцентный цвет с прозрачностью для пропущенных дней в сетке (~20%). */
-  --color-grid-empty: rgba(0, 122, 255, 0.2);
-  --color-grid-filled: var(--color-accent);
   --color-check-icon: #ffffff;
   --color-separator: rgba(60, 60, 67, 0.1); /* бледная линия-разделитель (малозаметная) */
   --color-skeleton: #e5e5ea;
   --color-skeleton-highlight: #f2f2f7;
   --color-danger: #ff3b30;
+
+  /*
+   * --- Цвет (тема) привычки ---
+   * Палитра выбора цвета — каналы R, G, B через запятую, чтобы из одного значения
+   * получались и сплошной цвет, и полупрозрачные оттенки: rgb(var(--habit-rgb)) и
+   * rgba(var(--habit-rgb), α). Ключи совпадают с HABIT_COLORS (constants.ts) и с
+   * бэкендом (tma/backend/constants.py).
+   */
+  --palette-blue: 0, 122, 255;
+  --palette-lightblue: 90, 200, 250;
+  --palette-teal: 20, 163, 168;
+  --palette-green: 52, 199, 89;
+  --palette-yellow: 255, 204, 0;
+  --palette-orange: 255, 149, 0;
+  --palette-red: 255, 59, 48;
+  --palette-pink: 242, 92, 162;
+  --palette-purple: 175, 82, 222;
+  --palette-indigo: 88, 86, 214;
+  --palette-brown: 162, 132, 94;
+  --palette-graphite: 110, 124, 146;
+  /* Цвет текущей привычки. Карточка и экран привычки переопределяют его своим цветом
+     (см. habitColorStyle в theme.ts); вне привычки — синий, как раньше. Компоненты
+     берут его напрямую (rgb(var(--habit-rgb))): производная переменная, объявленная
+     здесь, зафиксировала бы синий и не видела бы переопределения ниже по дереву. */
+  --habit-rgb: var(--palette-blue);
+  --habit-grid-empty-alpha: 0.2; /* пропущенные дни сетки */
+  --habit-soft-alpha: 0.12; /* подложка иконок показателей */
+  --color-on-habit: #ffffff; /* текст и значки поверх цвета привычки */
 
   /* --- Типографика --- */
   --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui,
@@ -143,8 +167,6 @@
   /* --- iOS-формы (настройки / создание привычки) --- */
   --color-switch-on: #34c759; /* зелёный iOS */
   --color-switch-off: rgba(120, 120, 128, 0.32);
-  --color-segment-track: rgba(118, 118, 128, 0.12);
-  --color-segment-thumb: #ffffff;
   --color-row-press: rgba(0, 0, 0, 0.05);
   --color-list-header: #8e8e93; /* подписи секций списка */
   --color-list-row-icon: #ffffff; /* иконка в цветной плашке ряда */
@@ -156,6 +178,35 @@
   --list-row-icon-size: 29px; /* плашка иконки ряда (размер из «Настроек» iOS) */
   --list-row-icon-glyph: 18px; /* сама иконка */
   --radius-list-row-icon: 7px;
+
+  /* --- Форма привычки (создание и редактирование; значения сняты со скриншота-эталона) --- */
+  --form-row-min-height: 50px; /* ряды формы выше обычных — как в эталоне (iOS 26) */
+  --color-placeholder: rgba(60, 60, 67, 0.3); /* плейсхолдер поля ввода (iOS) */
+  --color-fill: rgba(118, 118, 128, 0.12); /* серая заливка: таблетка времени, дни недели */
+  --menu-chevron-width: 11px; /* значок ⌃⌄ у значения с меню */
+  --menu-chevron-height: 16px;
+  --space-menu-chevron: 6px; /* между значением и значком ⌃⌄ */
+  --time-pill-pad-y: 6px;
+  --time-pill-pad-x: 12px;
+  --day-picker-size: 36px; /* кружок дня недели */
+  --day-picker-gap: 6px; /* наименьший зазор между кружками */
+  /* Переключатель iOS 26: вытянутая дорожка и ползунок-капсула. */
+  --switch-width: 64px;
+  --switch-height: 28px;
+  --switch-thumb-width: 38px;
+  --switch-inset: 2px;
+  --switch-thumb-color: #ffffff;
+  --switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.16), 0 1px 1px rgba(0, 0, 0, 0.1);
+  --switch-anim: 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* Выбор цвета: ряд кружков, прокручивается по горизонтали. */
+  --swatch-size: 30px;
+  --swatch-gap: 5px;
+  --swatch-row-pad-y: 14px;
+  --swatch-dot-size: 8px; /* белая точка в выбранном кружке */
+  /* Нижняя кнопка Telegram (MainButton), пока форма не заполнена. Только #RRGGBB —
+     Telegram не принимает прозрачность. */
+  --main-button-disabled-bg: #e3e3e8;
+  --main-button-disabled-text: #aeaeb2;
 
   /* --- Диалог подтверждения (алерт iOS 26; значения сняты со скриншота-эталона) --- */
   --dialog-backdrop: rgba(0, 0, 0, 0.2); /* экран под диалогом темнеет на 20% */

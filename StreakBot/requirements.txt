@@ -1,6 +1,10 @@
-# Зависимости бота (только /start с кнопкой Mini App).
-# Зависимости API-сервера и миграций — в tma/backend/requirements.txt.
+# Зависимости бота: /start с кнопкой Mini App и напоминания о привычках (читает БД
+# через слой данных tma/backend). Зависимости API-сервера и миграций — в
+# tma/backend/requirements.txt.
 aiogram>=3.28,<4.0
+SQLAlchemy>=2.0,<2.1
+aiosqlite>=0.19.0
+pytz>=2024.1
 pydantic>=2.5,<3.0
 pydantic-settings>=2.1.0
 loguru>=0.7.0

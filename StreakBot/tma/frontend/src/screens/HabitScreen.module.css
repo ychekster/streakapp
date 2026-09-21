@@ -1,6 +1,6 @@
-/* Содержимое экрана привычки. При открытии слегка въезжает справа с проявлением.
-   Шапка (fixed) — вне этой обёртки, поэтому transform анимации её не задевает. */
-.body {
+/* Содержимое экрана привычки. При открытии из списка слегка въезжает справа с
+   проявлением. Шапка (fixed) — вне этой обёртки, поэтому transform анимации её не задевает. */
+.enter {
   animation: habit-enter var(--screen-enter-anim);
 }
 
@@ -12,40 +12,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .body {
+  .enter {
     animation: none;
   }
-}
-
-.section {
-  margin-top: var(--space-section-gap);
-}
-
-/* Заголовок секции: капсом, приглушённый, вровень с краем карточки. */
-.heading {
-  margin-bottom: var(--space-subheading-bottom);
-  font-size: var(--font-size-section-heading);
-  font-weight: 600;
-  line-height: 1.2;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-/* Белая карточка секции. */
-.card {
-  background-color: var(--color-card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-}
-
-/* Карточка привычки — как в списке: горизонтальный отступ здесь, вертикальный — у блока. */
-.habitCard {
-  padding: 0 var(--space-card-padding);
-}
-
-/* Карточка настроек: отступы задают сами ряды; подсветка нажатия не выходит за скругление. */
-.listCard {
-  overflow: hidden;
 }
 
 .stats {

@@ -3,9 +3,10 @@
  *
  * SDK подключается скриптом в index.html. Здесь — только то, что реально нужно
  * приложению: получить initData для авторизации, раскрыть на весь экран (включая
- * полноэкранный режим на iPhone), прокинуть отступы безопасных зон в CSS и дать
- * тактильный отклик. Все обращения к SDK защищены проверками на наличие —
- * приложение не падает, если открыто вне Telegram или в старом клиенте.
+ * полноэкранный режим на iPhone), прокинуть отступы безопасных зон в CSS, управлять
+ * кнопками Telegram («Назад» и нижней MainButton) и дать тактильный отклик. Все
+ * обращения к SDK защищены проверками на наличие — приложение не падает, если открыто
+ * вне Telegram или в старом клиенте.
  */
 
 type HapticStyle = "light" | "medium" | "heavy" | "rigid" | "soft";
@@ -20,6 +21,25 @@ interface TelegramHapticFeedback {
 interface TelegramBackButton {
   show(): void;
   hide(): void;
+  onClick(handler: () => void): void;
+  offClick(handler: () => void): void;
+}
+
+/** Параметры нижней кнопки Telegram. Цвета — только «#RRGGBB». */
+interface BottomButtonParams {
+  text?: string;
+  color?: string;
+  text_color?: string;
+  is_active?: boolean;
+  is_visible?: boolean;
+}
+
+/** Нижняя кнопка Telegram (MainButton, Bot API 6.0+) — нативная, над клавиатурой. */
+interface TelegramBottomButton {
+  setParams(params: BottomButtonParams): void;
+  /** Спиннер в кнопке; `leaveActive: false` — кнопка неактивна, пока он крутится. */
+  showProgress(leaveActive?: boolean): void;
+  hideProgress(): void;
   onClick(handler: () => void): void;
   offClick(handler: () => void): void;
 }
@@ -39,6 +59,8 @@ interface TelegramWebApp {
   expand(): void;
   setBackgroundColor(color: string): void;
   setHeaderColor(color: string): void;
+  // Цвет полосы под нижней кнопкой — Bot API 7.10+.
+  setBottomBarColor?(color: string): void;
   // Полноэкранный режим и связанные методы — Bot API 8.0+ (могут отсутствовать).
   requestFullscreen?(): void;
   disableVerticalSwipes?(): void;
@@ -47,6 +69,7 @@ interface TelegramWebApp {
   contentSafeAreaInset?: SafeAreaInset;
   onEvent?(eventType: string, handler: () => void): void;
   BackButton?: TelegramBackButton;
+  MainButton?: TelegramBottomButton;
   HapticFeedback?: TelegramHapticFeedback;
 }
 
@@ -118,6 +141,8 @@ export function initTelegram(backgroundColor: string): void {
   try {
     webApp.setBackgroundColor(backgroundColor);
     webApp.setHeaderColor(backgroundColor);
+    // Полоса под нижней кнопкой (форма привычки) — в цвет фона, без светлой плашки.
+    webApp.setBottomBarColor?.(backgroundColor);
   } catch {
     // Старые клиенты могут не поддерживать выбор цвета — не критично.
   }
@@ -142,21 +167,75 @@ export function initTelegram(backgroundColor: string): void {
 }
 
 /**
- * Показать кнопку «Назад» Telegram вместо «Закрыть» (её же вызывает системный жест
- * «назад» на Android). Возвращает функцию, которая снимает обработчик и прячет
- * кнопку, — её удобно вернуть из эффекта как cleanup.
+ * Показать кнопку «Назад» Telegram вместо «Закрыть» или вернуть «Закрыть».
+ * Видимость и обработчик нажатия задаются отдельно: при переходе между вложенными
+ * экранами кнопка остаётся на месте, меняется только обработчик (см. useBackButton).
  */
-export function showBackButton(onBack: () => void): () => void {
+export function setBackButtonVisible(visible: boolean): void {
   const backButton = getWebApp()?.BackButton;
-  if (!backButton) {
-    return () => {};
+  if (visible) {
+    backButton?.show();
+  } else {
+    backButton?.hide();
   }
-  backButton.onClick(onBack);
-  backButton.show();
-  return () => {
-    backButton.offClick(onBack);
-    backButton.hide();
-  };
+}
+
+/**
+ * Подписаться на нажатие «Назад» (его же вызывает системный жест «назад» на Android).
+ * Возвращает функцию отписки — её удобно вернуть из эффекта как cleanup.
+ */
+export function onBackButtonClick(handler: () => void): () => void {
+  const backButton = getWebApp()?.BackButton;
+  backButton?.onClick(handler);
+  return () => backButton?.offClick(handler);
+}
+
+/** Состояние нижней кнопки Telegram. Цвета — «#RRGGBB». */
+export interface MainButtonState {
+  text: string;
+  color: string;
+  textColor: string;
+  /** Можно ли нажать. */
+  active: boolean;
+  /** Идёт действие: в кнопке спиннер, нажать нельзя. */
+  progress: boolean;
+}
+
+/** Показать нижнюю кнопку Telegram в заданном состоянии (или обновить показанную). */
+export function showMainButton(state: MainButtonState): void {
+  const mainButton = getWebApp()?.MainButton;
+  if (!mainButton) {
+    return;
+  }
+  // Спиннер — до параметров: hideProgress() в SDK снова делает кнопку активной, и заданная
+  // после него активность это исправляет. showProgress(false) сам делает её неактивной.
+  if (!state.progress) {
+    mainButton.hideProgress();
+  }
+  mainButton.setParams({
+    text: state.text,
+    color: state.color,
+    text_color: state.textColor,
+    is_active: state.active,
+    is_visible: true,
+  });
+  if (state.progress) {
+    mainButton.showProgress(false);
+  }
+}
+
+/** Спрятать нижнюю кнопку Telegram. */
+export function hideMainButton(): void {
+  const mainButton = getWebApp()?.MainButton;
+  mainButton?.hideProgress();
+  mainButton?.setParams({ is_visible: false });
+}
+
+/** Подписаться на нажатие нижней кнопки; возвращает функцию отписки. */
+export function onMainButtonClick(handler: () => void): () => void {
+  const mainButton = getWebApp()?.MainButton;
+  mainButton?.onClick(handler);
+  return () => mainButton?.offClick(handler);
 }
 
 /** Тактильный отклик на успешное/неуспешное действие (если поддерживается клиентом). */
