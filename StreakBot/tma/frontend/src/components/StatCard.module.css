@@ -1,0 +1,46 @@
+/* Белая карточка показателя. В ряду сетки карточки одной высоты; значение с подписью
+   прижаты к низу (margin-top: auto), если соседняя карточка выше. */
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-card-padding);
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.icon {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--stat-icon-size);
+  height: var(--stat-icon-size);
+  border-radius: var(--radius-stat-icon);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.icon svg {
+  width: var(--stat-icon-glyph);
+  height: var(--stat-icon-glyph);
+}
+
+.value {
+  margin-top: auto;
+  padding-top: var(--space-row-gap);
+  font-size: min(var(--font-size-stat-value), var(--font-size-stat-value-fluid));
+  font-weight: var(--font-weight-stat-value);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+  overflow-wrap: break-word;
+}
+
+.label {
+  margin-top: 4px;
+  font-size: var(--font-size-body);
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}

@@ -10,6 +10,7 @@
   --color-text-primary: #1c1c1e;
   --color-text-secondary: #8e8e93;
   --color-accent: #007aff; /* системный синий iOS */
+  --color-accent-soft: rgba(0, 122, 255, 0.12); /* подложка иконок показателей */
   /* Акцентный цвет с прозрачностью для пропущенных дней в сетке (~20%). */
   --color-grid-empty: rgba(0, 122, 255, 0.2);
   --color-grid-filled: var(--color-accent);
@@ -29,6 +30,7 @@
   --font-weight-habit-name: 600;
   --font-size-body: 15px;
   --font-size-secondary: 13px;
+  --font-size-section-heading: 17px; /* заголовки секций экрана привычки (капсом) */
 
   /* --- Скругления --- */
   --radius-card: 16px;
@@ -60,6 +62,7 @@
 
   /* --- Сворачивающийся заголовок --- */
   --header-collapsed-row-height: 44px; /* высота строки заголовка, если панели Telegram нет */
+  --header-collapsed-title-inset: 100px; /* поля свёрнутого заголовка: не заезжать на кнопки Telegram */
   /*
    * Подложка шапки в свёрнутом состоянии (CollapsingHeader .bar) — как шапка «Чаты» в WhatsApp
    * на iOS 26. Значения сняты по пикселям со скриншота-эталона: контент под шапкой равномерно
@@ -80,6 +83,9 @@
 
   /* --- Анимации --- */
   --transition-fast: 150ms ease;
+  /* Появление экрана привычки: лёгкий въезд справа с проявлением. */
+  --screen-enter-anim: 320ms cubic-bezier(0.32, 0.72, 0, 1);
+  --screen-enter-shift: 24px;
 
   /* --- Тени (мягкие, в духе iOS) --- */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -97,6 +103,19 @@
   --tabbar-bottom: 12px; /* отступ от низа экрана (плюс safe area) */
   --tabbar-gap: 10px; /* между таблеткой и кнопкой «+» */
   --tabbar-radius: 999px; /* таблетка */
+  --tabbar-anim: 320ms cubic-bezier(0.32, 0.72, 0, 1); /* скрытие/появление навигации */
+  --tabbar-hide-overshoot: 24px; /* запас при скрытии, чтобы за край ушла и тень */
+
+  /* --- Показатели привычки (экран привычки) --- */
+  --space-stat-gap: 10px; /* между карточками показателей */
+  --stat-icon-size: 40px; /* плашка иконки */
+  --stat-icon-glyph: 24px; /* сама иконка */
+  --radius-stat-icon: 10px;
+  --font-size-stat-value: 24px;
+  /* На узких экранах значение уменьшается вместе с шириной карточки, чтобы «Ежедневно»
+     помещалось в одну строку. */
+  --font-size-stat-value-fluid: 6vw;
+  --font-weight-stat-value: 700;
 
   /* --- iOS-формы (настройки / создание привычки) --- */
   --color-switch-on: #34c759; /* зелёный iOS */

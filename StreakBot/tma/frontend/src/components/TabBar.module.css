@@ -11,6 +11,22 @@
   gap: var(--tabbar-gap);
   padding: 0 var(--space-screen-x);
   pointer-events: none;
+  transition: transform var(--tabbar-anim), visibility var(--tabbar-anim);
+}
+
+/* Скрытая навигация уезжает за нижний край экрана вместе с тенью. visibility — чтобы её
+   кнопки нельзя было нажать или сфокусировать (переключается в конце анимации). */
+.hidden {
+  transform: translateY(
+    calc(100% + var(--tabbar-bottom) + env(safe-area-inset-bottom) + var(--tabbar-hide-overshoot))
+  );
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
 }
 
 /* Общий стиль liquid glass для таблетки и кнопки «+». */

@@ -16,6 +16,14 @@ interface TelegramHapticFeedback {
   notificationOccurred(type: HapticNotification): void;
 }
 
+/** Кнопка «Назад» в шапке Telegram (Bot API 6.1+): показанная, заменяет «Закрыть». */
+interface TelegramBackButton {
+  show(): void;
+  hide(): void;
+  onClick(handler: () => void): void;
+  offClick(handler: () => void): void;
+}
+
 /** Отступы безопасной зоны (вырез устройства или панель управления Telegram). */
 interface SafeAreaInset {
   top: number;
@@ -38,6 +46,7 @@ interface TelegramWebApp {
   safeAreaInset?: SafeAreaInset;
   contentSafeAreaInset?: SafeAreaInset;
   onEvent?(eventType: string, handler: () => void): void;
+  BackButton?: TelegramBackButton;
   HapticFeedback?: TelegramHapticFeedback;
 }
 
@@ -130,6 +139,24 @@ export function initTelegram(backgroundColor: string): void {
   webApp.onEvent?.("safeAreaChanged", refresh);
   webApp.onEvent?.("contentSafeAreaChanged", refresh);
   webApp.onEvent?.("fullscreenChanged", refresh);
+}
+
+/**
+ * Показать кнопку «Назад» Telegram вместо «Закрыть» (её же вызывает системный жест
+ * «назад» на Android). Возвращает функцию, которая снимает обработчик и прячет
+ * кнопку, — её удобно вернуть из эффекта как cleanup.
+ */
+export function showBackButton(onBack: () => void): () => void {
+  const backButton = getWebApp()?.BackButton;
+  if (!backButton) {
+    return () => {};
+  }
+  backButton.onClick(onBack);
+  backButton.show();
+  return () => {
+    backButton.offClick(onBack);
+    backButton.hide();
+  };
 }
 
 /** Тактильный отклик на успешное/неуспешное действие (если поддерживается клиентом). */

@@ -5,10 +5,37 @@
  * блоки разделяются тонкой линией (как в сгруппированных списках iOS).
  */
 .block {
+  /* Свой контекст наложения: кнопка открытия (z-index: -1) рисуется под содержимым
+     блока, но над фоном карточки. */
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-row-gap);
   padding: var(--space-card-padding) 0;
+}
+
+/* Зона нажатия «открыть привычку»: на всю площадь блока, включая горизонтальные поля
+   карточки, чтобы подсветка нажатия шла от края до края (как у рядов списка iOS). */
+.open {
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-1 * var(--space-card-padding));
+  transition: background-color var(--transition-fast);
+}
+
+.open:active {
+  background-color: var(--color-row-press);
+}
+
+/* Содержимое пропускает нажатия к кнопке открытия под ним. Кнопка отметки остаётся
+   самостоятельной зоной нажатия. */
+.openable > :not(.open) {
+  pointer-events: none;
+}
+
+.openable .header > button {
+  pointer-events: auto;
 }
 
 /* Соседние блоки: бледная линия-разделитель. Верхний отступ блока больше нижнего

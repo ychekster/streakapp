@@ -1,8 +1,8 @@
 """Прикладная логика API поверх репозитория.
 
 Доступ к данным идёт только через `Repository` — SQL здесь не пишется. Этот слой
-собирает из задач и их логов форму ответа (`Habit`), применяет переключение
-отметки за сегодня и работает с настройками пользователя.
+собирает из задач и их логов форму ответа (`Habit`) вместе со статистикой серий,
+применяет переключение отметки за сегодня и работает с настройками пользователя.
 """
 
 from __future__ import annotations
@@ -12,10 +12,11 @@ from datetime import date, datetime, timedelta
 import pytz
 
 from tma.backend import validation
-from tma.backend.constants import GRID_DAYS, HABIT_NAME_MAX_LENGTH, WEEKDAYS
+from tma.backend.constants import HABIT_NAME_MAX_LENGTH, HISTORY_DAYS, WEEKDAYS
 from tma.backend.errors import ApiError
 from tma.backend.models import Task, TaskStatus, User
 from tma.backend.repository import Repository
+from tma.backend.schedule import due_weekdays, is_due_on, task_days
 from tma.backend.schemas import (
     Habit,
     HabitCreate,
@@ -44,44 +45,68 @@ def user_today(user: User) -> date:
     return datetime.now(resolve_timezone(user.timezone)).date()
 
 
-async def build_history(repo: Repository, task_id: int, today: date) -> list[bool]:
-    """История выполнения задачи за последние `GRID_DAYS` дней (старое → сегодня).
+def build_history(done_dates: set[date], today: date) -> list[bool]:
+    """История выполнения за последние `HISTORY_DAYS` дней (старое → сегодня).
 
-    True — в этот день есть лог со статусом `done`, иначе False.
+    True — день есть среди выполненных, иначе False.
     """
-    logs = await repo.get_logs_for_task(task_id)
-    done_dates = {log.scheduled_date for log in logs if log.status == TaskStatus.done}
-    start = today - timedelta(days=GRID_DAYS - 1)
-    return [(start + timedelta(days=offset)) in done_dates for offset in range(GRID_DAYS)]
+    start = today - timedelta(days=HISTORY_DAYS - 1)
+    return [(start + timedelta(days=offset)) in done_dates for offset in range(HISTORY_DAYS)]
 
 
-async def build_habit(
-    repo: Repository, task: Task, today: date, scheduled_today: bool
-) -> Habit:
-    """Собрать схему `Habit`: название, отметка за сегодня, признак расписания и история."""
-    history = await build_history(repo, task.id, today)
-    # Последний элемент истории — сегодняшний день, поэтому он же определяет done_today.
+def compute_streaks(task: Task, done_dates: set[date], today: date) -> tuple[int, int]:
+    """Текущая и лучшая серии выполнения (в днях).
+
+    Серия — подряд идущие выполненные дни. Прерывает её только пропущенный
+    запланированный день: незапланированные дни (у привычек «по дням недели») серию
+    не рвут, а выполнение в такой день её продолжает. Сегодняшний день ещё не
+    закончился, поэтому пока он не отмечен, текущая серия тянется со вчерашнего.
+    """
+    if not done_dates:
+        return 0, 0
+    due = due_weekdays(task)
+    current = best = 0
+    day = min(done_dates)
+    while day <= today:
+        if day in done_dates:
+            current += 1
+            best = max(best, current)
+        elif day < today and day.weekday() in due:
+            current = 0
+        day += timedelta(days=1)
+    return current, best
+
+
+async def build_habit(repo: Repository, task: Task, today: date) -> Habit:
+    """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий."""
+    logs = await repo.get_logs_for_task(task.id)
+    # Отметки «из будущего» (возможны после смены часового пояса на более западный)
+    # не учитываются: ни в сетке, ни в сериях, ни в общем счётчике.
+    done_dates = {
+        log.scheduled_date
+        for log in logs
+        if log.status == TaskStatus.done and log.scheduled_date <= today
+    }
+    current_streak, best_streak = compute_streaks(task, done_dates, today)
     return Habit(
         id=task.id,
         name=task.name,
-        done_today=history[-1],
-        scheduled_today=scheduled_today,
-        history=history,
+        done_today=today in done_dates,
+        scheduled_today=is_due_on(task, today),
+        frequency_type=task.frequency_type.value,
+        days=task_days(task),
+        history=build_history(done_dates, today),
+        current_streak=current_streak,
+        best_streak=best_streak,
+        total_done=len(done_dates),
     )
 
 
-async def _due_today_ids(repo: Repository, user: User, today: date) -> set[int]:
-    """Id задач, запланированных на сегодня (по частоте/дням недели) — через репозиторий."""
-    due = await repo.get_tasks_due_on(user.telegram_id, today)
-    return {task.id for task in due}
-
-
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
-    """Все активные привычки пользователя с историей и признаком расписания (для `GET /tasks`)."""
+    """Все активные привычки пользователя с историей и статистикой (для `GET /tasks`)."""
     today = user_today(user)
     tasks = await repo.get_active_tasks(user.telegram_id)
-    due_ids = await _due_today_ids(repo, user, today)
-    return [await build_habit(repo, task, today, task.id in due_ids) for task in tasks]
+    return [await build_habit(repo, task, today) for task in tasks]
 
 
 async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
@@ -94,8 +119,7 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     log = await repo.get_or_create_log(task.id, user.telegram_id, today)
     target = TaskStatus.pending if log.status == TaskStatus.done else TaskStatus.done
     await repo.set_log_status(log, target)
-    due_ids = await _due_today_ids(repo, user, today)
-    return await build_habit(repo, task, today, task.id in due_ids)
+    return await build_habit(repo, task, today)
 
 
 async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
@@ -117,9 +141,7 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
         frequency_type=frequency_type,
         days=days,
     )
-    today = user_today(user)
-    due_ids = await _due_today_ids(repo, user, today)
-    return await build_habit(repo, task, today, task.id in due_ids)
+    return await build_habit(repo, task, user_today(user))
 
 
 def serialize_settings(user: User) -> SettingsResponse:

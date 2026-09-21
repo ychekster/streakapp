@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tma.backend.constants import WEEKDAYS
 from tma.backend.models import (
     FrequencyType,
     Task,
@@ -20,9 +19,6 @@ from tma.backend.models import (
     TaskStatus,
     User,
 )
-
-# Индекс «код дня недели -> позиция Python (Monday == 0)».
-_WEEKDAY_CODES: tuple[str, ...] = tuple(code for code, _, _ in WEEKDAYS)
 
 
 class Repository:
@@ -136,25 +132,6 @@ class Repository:
             .order_by(Task.id)
         )
         return list(result.scalars().all())
-
-    async def get_tasks_due_on(self, user_id: int, target_date: date) -> list[Task]:
-        """Вернуть активные задачи, запланированные на указанную дату.
-
-        Фильтрация по типу частоты выполняется в Python:
-        - daily         — всегда;
-        - specific_days — если код дня недели присутствует в task.days.
-        """
-        tasks = await self.get_active_tasks(user_id)
-        weekday_code = _WEEKDAY_CODES[target_date.weekday()]
-        due: list[Task] = []
-        for task in tasks:
-            if task.frequency_type == FrequencyType.daily:
-                due.append(task)
-            elif task.frequency_type == FrequencyType.specific_days:
-                selected = (task.days or "").split(",")
-                if weekday_code in selected:
-                    due.append(task)
-        return due
 
     # ------------------------------------------------------------------ #
     #  TaskLogs

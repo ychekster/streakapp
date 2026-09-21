@@ -5,15 +5,19 @@
  * Экраны рендерятся по одному (документ-скролл и сворачивающаяся шапка не должны
  * конфликтовать). Состояние привычек живёт здесь, поэтому переключение вкладок не
  * теряет данные, а создание привычки сразу обновляет список.
+ *
+ * Нажатие на привычку открывает её экран поверх вкладки «Привычки»: нижняя навигация
+ * на это время скрыта, вернуться — кнопкой «Назад» Telegram (см. HabitScreen).
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabKey } from "./components/TabBar";
 import { useHabits } from "./hooks/useHabits";
 import { useToggle } from "./hooks/useToggle";
 import { CreateHabitScreen } from "./screens/CreateHabitScreen";
+import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { STRINGS } from "./strings";
@@ -34,11 +38,29 @@ export function App() {
   const telegramAvailable = isTelegramAvailable();
   const [tab, setTab] = useState<TabKey>("habits");
   const [creating, setCreating] = useState(false);
+  const [openHabitId, setOpenHabitId] = useState<number | null>(null);
+  // Позиция прокрутки списка: при возврате с экрана привычки список там, где его оставили.
+  const listScrollY = useRef(0);
+
+  const openHabit = habits.find((habit) => habit.id === openHabitId);
+
+  const showHabit = useCallback((taskId: number) => {
+    listScrollY.current = window.scrollY;
+    setOpenHabitId(taskId);
+  }, []);
+
+  const hideHabit = useCallback(() => setOpenHabitId(null), []);
 
   // Разворачиваем приложение и красим фон один раз при монтировании.
   useEffect(() => {
     initTelegram(readBackgroundColor());
   }, []);
+
+  // Экран привычки открывается с начала, список — на сохранённой позиции. Layout-эффект:
+  // прокрутка ставится до отрисовки и до эффектов шапки, которые читают scrollY.
+  useLayoutEffect(() => {
+    window.scrollTo(0, openHabitId === null ? listScrollY.current : 0);
+  }, [openHabitId]);
 
   // Открыто вне Telegram — авторизоваться нечем, объясняем пользователю.
   if (!telegramAvailable) {
@@ -53,21 +75,35 @@ export function App() {
     );
   }
 
+  function renderScreen() {
+    if (openHabit) {
+      return <HabitScreen habit={openHabit} onToggle={toggle} onBack={hideHabit} />;
+    }
+    if (tab === "settings") {
+      return <SettingsScreen />;
+    }
+    return (
+      <HabitsScreen
+        habits={habits}
+        status={status}
+        errorMessage={errorMessage}
+        onToggle={toggle}
+        onOpen={showHabit}
+        onReload={reload}
+      />
+    );
+  }
+
   return (
     <>
-      {tab === "habits" ? (
-        <HabitsScreen
-          habits={habits}
-          status={status}
-          errorMessage={errorMessage}
-          onToggle={toggle}
-          onReload={reload}
-        />
-      ) : (
-        <SettingsScreen />
-      )}
+      {renderScreen()}
 
-      <TabBar active={tab} onSelect={setTab} onAdd={() => setCreating(true)} />
+      <TabBar
+        active={tab}
+        hidden={openHabit !== undefined}
+        onSelect={setTab}
+        onAdd={() => setCreating(true)}
+      />
 
       {creating ? (
         <CreateHabitScreen

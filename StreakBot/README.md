@@ -10,7 +10,7 @@
 |---|---|---|
 | Бот | `bot/` | `/start` → приветствие с кнопкой запуска Mini App; кнопка приложения в меню чата |
 | API | `tma/backend/` | FastAPI: авторизация по `initData`, привычки, настройки; владеет базой данных |
-| Фронтенд | `tma/frontend/` | React + TypeScript: экраны «Привычки» и «Настройки» |
+| Фронтенд | `tma/frontend/` | React + TypeScript: экраны «Привычки», «Настройки» и экран привычки со статистикой |
 
 Подробности о приложении — в [tma/README.md](tma/README.md), об архитектуре — в
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

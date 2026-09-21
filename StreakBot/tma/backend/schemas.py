@@ -10,11 +10,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from tma.backend.constants import GRID_DAYS
+from tma.backend.constants import HISTORY_DAYS
 
 
 class Habit(BaseModel):
-    """Привычка пользователя: история выполнения и признак расписания на сегодня."""
+    """Привычка пользователя: расписание, история выполнения и статистика серий."""
 
     id: int = Field(..., description="Идентификатор задачи")
     name: str = Field(..., description="Название привычки")
@@ -26,14 +26,30 @@ class Habit(BaseModel):
             "True — задачу можно отмечать; False — только просмотр прогресса."
         ),
     )
+    frequency_type: Literal["daily", "specific_days"] = Field(
+        ..., description="Каждый день или конкретные дни недели"
+    )
+    days: list[str] = Field(
+        ...,
+        description="Коды дней недели (mon..sun) для specific_days; для daily — пустой список",
+    )
     history: list[bool] = Field(
         ...,
         description=(
-            f"Выполнение за последние {GRID_DAYS} дней (старое → сегодня). "
+            f"Выполнение за последние {HISTORY_DAYS} дней (старое → сегодня). "
             "True — день выполнен (статус done), False — пропущен или нет данных. "
             "Индекс 0 — самый старый день, последний — сегодня."
         ),
     )
+    current_streak: int = Field(
+        ...,
+        description=(
+            "Текущая серия: подряд выполненные дни по сегодня включительно. "
+            "Неотмеченный сегодняшний день серию не прерывает — день ещё не закончился."
+        ),
+    )
+    best_streak: int = Field(..., description="Лучшая серия за всё время")
+    total_done: int = Field(..., description="Сколько раз привычка выполнена за всё время")
 
 
 class HabitsResponse(BaseModel):

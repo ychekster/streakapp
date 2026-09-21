@@ -1,0 +1,46 @@
+/* Содержимое экрана привычки. При открытии слегка въезжает справа с проявлением.
+   Шапка (fixed) — вне этой обёртки, поэтому transform анимации её не задевает. */
+.body {
+  animation: habit-enter var(--screen-enter-anim);
+}
+
+@keyframes habit-enter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--screen-enter-shift));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    animation: none;
+  }
+}
+
+.section {
+  margin-top: var(--space-section-gap);
+}
+
+/* Заголовок секции: капсом, приглушённый, вровень с краем карточки. */
+.heading {
+  margin-bottom: var(--space-subheading-bottom);
+  font-size: var(--font-size-section-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* Карточка привычки — как в списке: горизонтальный отступ здесь, вертикальный — у блока. */
+.card {
+  padding: 0 var(--space-card-padding);
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-stat-gap);
+}

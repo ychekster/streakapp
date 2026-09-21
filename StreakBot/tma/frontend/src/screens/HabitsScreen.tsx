@@ -13,6 +13,8 @@ interface HabitsScreenProps {
   status: HabitsStatus;
   errorMessage: string | null;
   onToggle: (taskId: number) => void;
+  /** Открыть экран привычки. */
+  onOpen: (taskId: number) => void;
   onReload: () => void;
 }
 
@@ -21,6 +23,7 @@ export function HabitsScreen({
   status,
   errorMessage,
   onToggle,
+  onOpen,
   onReload,
 }: HabitsScreenProps) {
   return <Screen title={STRINGS.screenTitle}>{renderContent()}</Screen>;
@@ -54,13 +57,19 @@ export function HabitsScreen({
     return (
       <>
         {scheduledHabits.length > 0 ? (
-          <HabitsSection habits={scheduledHabits} interactive onToggle={onToggle} />
+          <HabitsSection
+            habits={scheduledHabits}
+            interactive
+            onToggle={onToggle}
+            onOpen={onOpen}
+          />
         ) : null}
         {otherHabits.length > 0 ? (
           <HabitsSection
             habits={otherHabits}
             interactive={false}
             subheading={STRINGS.otherSubheading}
+            onOpen={onOpen}
           />
         ) : null}
       </>

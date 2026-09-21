@@ -2,7 +2,7 @@
  * Нижняя навигация в стиле iOS 26 (liquid glass): таблетка с двумя вкладками
  * («Привычки», «Настройки») и отдельная круглая кнопка «+» справа для создания
  * привычки. Зафиксирована внизу с учётом safe area; фон — полупрозрачное матовое
- * стекло (backdrop-filter).
+ * стекло (backdrop-filter). На вложенных экранах (экран привычки) уезжает вниз.
  */
 
 import { STRINGS } from "../strings";
@@ -12,6 +12,8 @@ export type TabKey = "habits" | "settings";
 
 interface TabBarProps {
   active: TabKey;
+  /** Скрыть навигацию (уезжает за нижний край экрана). */
+  hidden?: boolean;
   onSelect: (tab: TabKey) => void;
   onAdd: () => void;
 }
@@ -47,9 +49,9 @@ function PlusIcon() {
   );
 }
 
-export function TabBar({ active, onSelect, onAdd }: TabBarProps) {
+export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps) {
   return (
-    <nav className={styles.bar}>
+    <nav className={`${styles.bar} ${hidden ? styles.hidden : ""}`} aria-hidden={hidden}>
       <div className={styles.pill} role="tablist">
         <button
           type="button"

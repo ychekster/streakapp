@@ -35,6 +35,19 @@ export const STRINGS = {
   settingsTimezoneFooter:
     "От пояса зависит, какой день считается сегодняшним для отметок и стриков.",
 
+  // --- Экран привычки ---
+  openHabit: "Открыть привычку",
+  // Число дней совпадает с HISTORY_DAYS (constants.ts).
+  habitHistoryHeading: "Последние 364 дня",
+  habitMainHeading: "Основное",
+  statCurrentStreak: "Текущая серия",
+  statBestStreak: "Лучшая серия",
+  statTotalDone: "Всего выполнено",
+  statStreakGoal: "Цель серии",
+  goalDaily: "Ежедневно",
+  goalWorkdays: "Будни",
+  goalWeekends: "Выходные",
+
   // --- Создание привычки ---
   createTitle: "Новая привычка",
   createCancel: "Отмена",

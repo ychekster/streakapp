@@ -11,6 +11,8 @@ interface HabitsSectionProps {
   /** Приглушённый подзаголовок над карточкой (например, у секции «не на сегодня»). */
   subheading?: string;
   onToggle?: (taskId: number) => void;
+  /** Открыть экран привычки по нажатию на её блок. */
+  onOpen?: (taskId: number) => void;
 }
 
 export function HabitsSection({
@@ -18,6 +20,7 @@ export function HabitsSection({
   interactive,
   subheading,
   onToggle,
+  onOpen,
 }: HabitsSectionProps) {
   return (
     <section className={styles.section}>
@@ -29,6 +32,7 @@ export function HabitsSection({
             habit={habit}
             interactive={interactive}
             onToggle={onToggle}
+            onOpen={onOpen}
           />
         ))}
       </div>

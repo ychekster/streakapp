@@ -15,14 +15,20 @@
  * Подложка привязана к вьюпорту, поэтому отсюда нужны только две геометрические величины:
  * --header-bar-bottom (экранный Y нижнего края шапки) и --header-hairline-scale (сжатие линии
  * до одного физического пикселя), которые считает recompute.
+ *
+ * Экран без крупного заголовка (экран привычки) передаёт `anchorRef` — элемент в потоке,
+ * который играет роль А: порог считается по нему, а сам он не растворяется, а уходит под
+ * подложку вместе с контентом.
  */
 
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 import styles from "./CollapsingHeader.module.css";
 
 interface CollapsingHeaderProps {
   title: string;
+  /** Элемент в потоке вместо крупного заголовка А (тогда А не рендерится). */
+  anchorRef?: RefObject<HTMLElement>;
 }
 
 /** Прочитать числовое значение CSS-переменной (в px); 0, если не задана. */
@@ -40,13 +46,13 @@ function setRootPx(name: string, px: number): void {
 // Гистерезис порога (px), чтобы класс не «дёргался» при остановке ровно на границе.
 const COLLAPSE_HYSTERESIS = 8;
 
-export function CollapsingHeader({ title }: CollapsingHeaderProps) {
+export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
   const titleExpandedRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     const headerEl = headerRef.current;
-    const titleEl = titleExpandedRef.current;
+    const titleEl = anchorRef ? anchorRef.current : titleExpandedRef.current;
     if (!headerEl || !titleEl) {
       return;
     }
@@ -97,15 +103,17 @@ export function CollapsingHeader({ title }: CollapsingHeaderProps) {
       window.removeEventListener("resize", recompute);
       window.removeEventListener("app:insets", recompute);
     };
-  }, [title]);
+  }, [title, anchorRef]);
 
   return (
     <div ref={headerRef}>
       {/* Подложка шапки: матовое стекло + линия-разделитель (см. CollapsingHeader.module.css). */}
       <div className={styles.bar} aria-hidden="true" />
-      <h1 ref={titleExpandedRef} className={styles.titleExpanded}>
-        {title}
-      </h1>
+      {anchorRef ? null : (
+        <h1 ref={titleExpandedRef} className={styles.titleExpanded}>
+          {title}
+        </h1>
+      )}
       <span className={styles.titleCollapsed} aria-hidden="true">
         {title}
       </span>

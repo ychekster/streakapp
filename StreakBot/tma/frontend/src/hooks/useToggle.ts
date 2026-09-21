@@ -25,7 +25,18 @@ function withToggledHabit(habits: Habit[], taskId: number): Habit[] {
     if (nextHistory.length > 0) {
       nextHistory[nextHistory.length - 1] = nextDone;
     }
-    return { ...habit, done_today: nextDone, history: nextHistory };
+    // Сегодняшняя отметка добавляет (или убирает) ровно один день к текущей серии и
+    // к общему счётчику. Лучшую серию при снятии отметки уточнит ответ сервера.
+    const delta = nextDone ? 1 : -1;
+    const nextStreak = Math.max(0, habit.current_streak + delta);
+    return {
+      ...habit,
+      done_today: nextDone,
+      history: nextHistory,
+      current_streak: nextStreak,
+      best_streak: Math.max(habit.best_streak, nextStreak),
+      total_done: Math.max(0, habit.total_done + delta),
+    };
   });
 }
 

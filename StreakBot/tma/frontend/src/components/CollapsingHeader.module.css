@@ -39,6 +39,11 @@
   left: 0;
   right: 0;
   display: block;
+  /* Длинный заголовок (название привычки) не заезжает на кнопки Telegram по краям. */
+  padding: 0 var(--header-collapsed-title-inset);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   text-align: center;
   font-size: var(--font-size-title-collapsed);
   font-weight: 600;

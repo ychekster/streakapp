@@ -11,13 +11,19 @@
     var(--app-content-safe-area-top, 0px) + var(--space-screen-top)
   );
   padding-right: calc(env(safe-area-inset-right) + var(--space-screen-x));
-  /* Низ: safe area + высота таблетки навигации + её отступ + запас, чтобы контент
-     прокручивался выше плавающей навигации. */
+  padding-bottom: calc(
+    var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) + var(--space-screen-bottom)
+  );
+  padding-left: calc(env(safe-area-inset-left) + var(--space-screen-x));
+}
+
+/* С нижней навигацией низ дополнительно резервирует высоту таблетки и её отступ, чтобы
+   контент прокручивался выше плавающей навигации. */
+.withTabBar {
   padding-bottom: calc(
     var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
     var(--tabbar-bottom) + var(--tabbar-height) + var(--space-screen-bottom)
   );
-  padding-left: calc(env(safe-area-inset-left) + var(--space-screen-x));
 }
 
 /*
