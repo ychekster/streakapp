@@ -18,16 +18,22 @@ export const SKELETON_HABIT_COUNT = 3;
 /** Максимальная длина названия привычки по умолчанию (пока не загружены метаданные). */
 export const DEFAULT_NAME_MAX_LENGTH = 100;
 
-/** Дни недели на случай, если метаданные ещё не загрузились (совпадают с бэкендом). */
-export const FALLBACK_WEEKDAYS = [
-  { code: "mon", short: "ПН", full: "Понедельник" },
-  { code: "tue", short: "ВТ", full: "Вторник" },
-  { code: "wed", short: "СР", full: "Среда" },
-  { code: "thu", short: "ЧТ", full: "Четверг" },
-  { code: "fri", short: "ПТ", full: "Пятница" },
-  { code: "sat", short: "СБ", full: "Суббота" },
-  { code: "sun", short: "ВС", full: "Воскресенье" },
-] as const;
+/** Коды дней недели в порядке недели — как их хранит бэкенд (WEEKDAYS в
+ *  tma/backend/constants.py). Подписи дней — в strings.ts. */
+export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
+/** Языки интерфейса; совпадают с LANGUAGES на бэкенде. */
+export const LANGUAGES = ["ru", "en"] as const;
+
+/** Язык, если он неизвестен (так же решает бэкенд для нового пользователя). */
+export const DEFAULT_LANGUAGE = "ru";
+
+/** Темы оформления: светлая, тёмная, адаптивная (как в системе); совпадают с THEMES
+ *  на бэкенде. */
+export const THEMES = ["light", "dark", "system"] as const;
+
+/** Тема, пока настройки не загружены и не запомнены (так приложение выглядело всегда). */
+export const DEFAULT_THEME = "light";
 
 /** Цвета (темы) привычки в порядке выбора. Значения — в CSS (`--palette-*` в
  *  styles/variables.css); ключи совпадают с HABIT_COLORS на бэкенде

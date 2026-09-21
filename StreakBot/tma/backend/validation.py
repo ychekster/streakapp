@@ -13,16 +13,14 @@ import pytz
 from tma.backend.constants import (
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
+    LANGUAGES,
     REMINDER_TIME_FORMAT,
+    THEMES,
     WEEKDAYS,
 )
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType
 from tma.backend.timezones import looks_like_utc, parse_utc_offset
-
-# Допустимые коды дней недели и их канонический порядок (пн → вс).
-_WEEKDAY_CODES: set[str] = {code for code, _, _ in WEEKDAYS}
-_WEEKDAY_ORDER: tuple[str, ...] = tuple(code for code, _, _ in WEEKDAYS)
 
 
 def validate_name(name: str) -> str:
@@ -48,10 +46,10 @@ def validate_frequency(
     if frequency_type == "daily":
         return FrequencyType.daily, None
     if frequency_type == "specific_days":
-        chosen = {code for code in days if code in _WEEKDAY_CODES}
+        chosen = {code for code in days if code in WEEKDAYS}
         if not chosen:
             raise ApiError(422, "invalid_days", "Выберите хотя бы один день недели")
-        ordered = ",".join(code for code in _WEEKDAY_ORDER if code in chosen)
+        ordered = ",".join(code for code in WEEKDAYS if code in chosen)
         return FrequencyType.specific_days, ordered
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
 
@@ -72,6 +70,20 @@ def validate_color(value: str) -> str:
     """Проверить, что цвет привычки — ключ палитры."""
     if value not in HABIT_COLORS:
         raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
+    return value
+
+
+def validate_language(value: str) -> str:
+    """Проверить язык интерфейса."""
+    if value not in LANGUAGES:
+        raise ApiError(422, "invalid_language", "Неизвестный язык")
+    return value
+
+
+def validate_theme(value: str) -> str:
+    """Проверить тему оформления."""
+    if value not in THEMES:
+        raise ApiError(422, "invalid_theme", "Неизвестная тема оформления")
     return value
 
 

@@ -7,6 +7,7 @@
  * полупрозрачный — пропущен/нет данных. Кружки масштабируются под ширину карточки.
  */
 
+import { useStrings } from "../preferences";
 import styles from "./YearGrid.module.css";
 
 interface YearGridProps {
@@ -15,12 +16,9 @@ interface YearGridProps {
 }
 
 export function YearGrid({ history }: YearGridProps) {
+  const strings = useStrings();
   return (
-    <div
-      className={styles.grid}
-      role="img"
-      aria-label="Годовая история выполнения"
-    >
+    <div className={styles.grid} role="img" aria-label={strings.habitHistoryLabel}>
       {history.map((done, index) => (
         <span
           key={index}

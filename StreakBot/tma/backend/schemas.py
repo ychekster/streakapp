@@ -18,11 +18,17 @@ class Habit(BaseModel):
 
     id: int = Field(..., description="Идентификатор задачи")
     name: str = Field(..., description="Название привычки")
-    done_today: bool = Field(..., description="Отмечена ли задача выполненной сегодня")
+    done_today: bool = Field(
+        ...,
+        description=(
+            "Отмечена ли задача выполненной «сегодня» — в день отметки: сегодня, а в "
+            "режиме «Отмечать за вчера» — вчера"
+        ),
+    )
     scheduled_today: bool = Field(
         ...,
         description=(
-            "Запланирована ли задача на сегодня (по частоте/дням недели). "
+            "Запланирована ли задача на день отметки (по частоте/дням недели). "
             "True — задачу можно отмечать; False — только просмотр прогресса."
         ),
     )
@@ -36,9 +42,9 @@ class Habit(BaseModel):
     history: list[bool] = Field(
         ...,
         description=(
-            f"Выполнение за последние {HISTORY_DAYS} дней (старое → сегодня). "
+            f"Выполнение за последние {HISTORY_DAYS} дней (старое → день отметки). "
             "True — день выполнен (статус done), False — пропущен или нет данных. "
-            "Индекс 0 — самый старый день, последний — сегодня."
+            "Индекс 0 — самый старый день, последний — день отметки."
         ),
     )
     current_streak: int = Field(
@@ -98,34 +104,43 @@ class SettingsResponse(BaseModel):
     """Текущие настройки пользователя (для `GET/PUT /settings`)."""
 
     timezone: str | None = Field(None, description="Часовой пояс (IANA)")
-    timezone_display: str | None = Field(None, description="Человекочитаемый пояс, напр. «Москва (UTC+3)»")
+    timezone_display: str | None = Field(
+        None,
+        description="Пояс на языке интерфейса: город («Москва») или смещение («UTC+3»)",
+    )
     timezone_offset: str | None = Field(None, description="Смещение пояса, напр. «UTC+3»")
+    language: str = Field(..., description="Язык интерфейса: ru, en")
+    theme: str = Field(..., description="Тема оформления: light, dark или system (как в системе)")
+    mark_yesterday: bool = Field(
+        ..., description="«Отмечать за вчера»: отметки ставятся за вчерашний день"
+    )
 
 
 class SettingsUpdate(BaseModel):
     """Запрос `PUT /settings` — частичное обновление (передаются только меняемые поля)."""
 
-    timezone: str | None = Field(None, description="Новый пояс: «UTC±N» или имя IANA")
+    timezone: str | None = Field(None, description="Новый пояс: имя IANA или «UTC±N»")
+    language: str | None = Field(None, description="Язык интерфейса: ru, en")
+    theme: str | None = Field(None, description="Тема оформления: light, dark, system")
+    mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
 
 
-class Weekday(BaseModel):
-    """День недели для выбора частоты привычки."""
+class TimezoneEntry(BaseModel):
+    """Часовой пояс в каталоге для выбора в настройках."""
 
-    code: str
-    short: str
-    full: str
+    id: str = Field(..., description="Зона IANA, напр. «Europe/Moscow»")
+    city: str = Field(..., description="Город на языке интерфейса")
+    country: str = Field(..., description="Страна на языке интерфейса")
+    offset: str = Field(..., description="Текущее смещение, напр. «UTC+3»")
 
 
-class TimezoneOption(BaseModel):
-    """Вариант часового пояса для выбора в настройках."""
+class TimezonesResponse(BaseModel):
+    """Ответ `GET /meta/timezones` — каталог поясов, с запада на восток."""
 
-    value: str
-    label: str
+    timezones: list[TimezoneEntry]
 
 
 class MetaResponse(BaseModel):
-    """Справочные данные для форм: дни недели, лимит названия, часовые пояса."""
+    """Справочные данные для форм: лимит длины названия привычки."""
 
-    weekdays: list[Weekday]
     name_max_length: int
-    timezone_offsets: list[TimezoneOption]

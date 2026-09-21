@@ -1,5 +1,7 @@
-/** Круглая кнопка отметки выполнения за сегодня (пустой кружок ↔ заполненный с галочкой). */
+/** Круглая кнопка отметки выполнения за день отметки (пустой кружок ↔ заполненный с
+ *  галочкой). */
 
+import { useStrings } from "../preferences";
 import styles from "./CheckButton.module.css";
 
 interface CheckButtonProps {
@@ -17,6 +19,7 @@ export function CheckButton({
   onToggle,
   disabled = false,
 }: CheckButtonProps) {
+  const strings = useStrings();
   return (
     <button
       type="button"
@@ -28,10 +31,12 @@ export function CheckButton({
       aria-pressed={done}
       aria-label={
         disabled
-          ? `${habitName}: ${done ? "выполнено" : "сегодня не запланировано"}`
+          ? done
+            ? strings.checkDone(habitName)
+            : strings.checkNotScheduled(habitName)
           : done
-            ? `Снять отметку: ${habitName}`
-            : `Отметить выполнено: ${habitName}`
+            ? strings.checkUnmark(habitName)
+            : strings.checkMark(habitName)
       }
     >
       {/* Галочка появляется только в выполненном состоянии. */}

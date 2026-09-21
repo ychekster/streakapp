@@ -3,7 +3,8 @@
 Время напоминания пользователь задаёт в Mini App, хранит его API (`tasks.reminder_time`,
 в поясе пользователя). Раз в минуту бот спрашивает у базы, чьё время наступило
 (`tma.backend.services.due_reminders`): напоминание приходит только в запланированные
-дни и только пока привычка за этот день не отмечена.
+дни и только пока привычка за этот день не отмечена. Текст — на языке, выбранном в
+приложении.
 
 Опрос базы, а не расписание в памяти: привычки меняет другой процесс (API), и так
 изменения подхватываются сразу, без синхронизации. Каждая минута обрабатывается один
@@ -21,7 +22,8 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError, TelegramRetryAfter
 from loguru import logger
 
-from bot.constants import REMINDER_TEXT
+from bot.constants import REMINDER_TEXTS
+from tma.backend.constants import DEFAULT_LANGUAGE
 from tma.backend.database import Database
 from tma.backend.repository import Repository
 from tma.backend.services import DueReminder, due_reminders
@@ -71,7 +73,8 @@ async def _send_due(bot: Bot, database: Database, minute: datetime) -> None:
 
 async def _send(bot: Bot, reminder: DueReminder) -> None:
     """Отправить одно напоминание; сбой доставки логируется и не мешает остальным."""
-    text = REMINDER_TEXT.format(name=reminder.habit_name)
+    template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
+    text = template.format(name=reminder.habit_name)
     try:
         try:
             await bot.send_message(chat_id=reminder.user_id, text=text)

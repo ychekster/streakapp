@@ -1,17 +1,7 @@
-.group {
+/* Между группами — отступ как в «Настройках» iOS 26 (первая стоит под заголовком экрана,
+   как карточка привычек). */
+.group + .group {
   margin-top: var(--space-list-gap);
-}
-
-.group:first-child {
-  margin-top: var(--space-list-top);
-}
-
-.header {
-  margin: 0 0 7px;
-  padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-secondary);
-  font-weight: 400;
-  color: var(--color-list-header);
 }
 
 .card {
@@ -22,10 +12,11 @@
   overflow: hidden;
 }
 
+/* Подпись под карточкой начинается вровень с текстом рядов без иконки. */
 .footer {
-  margin: 7px 0 0;
+  margin-top: var(--space-list-footer-top);
   padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-list-footer);
   color: var(--color-text-secondary);
-  line-height: 1.35;
 }

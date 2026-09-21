@@ -1,19 +1,19 @@
-.select {
-  appearance: none;
-  -webkit-appearance: none;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: var(--font-size-habit-name);
-  color: var(--color-accent);
-  text-align: right;
-  text-align-last: right;
-  padding: 0;
-  max-width: 60vw;
+/* Ряды настроек выше обычных рядов списка — как в «Настройках» iOS 26 (и в форме
+   привычки). */
+.settings {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Значение справа (выбранный пояс) обрезается многоточием, если не помещается. */
+.value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .error {
-  margin: 14px 0 0;
+  margin-top: var(--space-list-footer-top);
   padding: 0 var(--space-card-padding);
   font-size: var(--font-size-secondary);
   color: var(--color-danger);

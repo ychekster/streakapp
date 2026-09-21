@@ -2,8 +2,13 @@
  * Дизайн-токены приложения (стиль iOS 26 / Liquid Glass).
  * Все числовые значения дизайна — цвета, размеры, отступы, скругления, тайминги —
  * объявлены здесь и нигде в коде не хардкодятся.
+ *
+ * Здесь — светлая тема. Тёмная (в конце файла) переопределяет только цвета; какая
+ * тема на экране, App ставит атрибутом data-theme на <html>.
  */
 :root {
+  color-scheme: light; /* системные меню, выбор времени, клавиатура — в тон теме */
+
   /* --- Цвета --- */
   --color-background: #f2f2f7; /* системный светло-серый фон iOS */
   --color-card: #ffffff;
@@ -126,7 +131,7 @@
   --glass-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95), /* блик по верхней кромке */
     0 0 0 0.5px rgba(0, 0, 0, 0.14), /* ободок */
     0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-  --glass-icon: #000000; /* иконки и подписи — чёрные в обоих состояниях */
+  --glass-icon: #000000; /* иконки и подписи — одного цвета в обоих состояниях вкладки */
 
   /* --- Нижняя навигация --- */
   --tabbar-height: 62px; /* высота таблетки и кнопки «+» */
@@ -168,16 +173,31 @@
   --color-switch-on: #34c759; /* зелёный iOS */
   --color-switch-off: rgba(120, 120, 128, 0.32);
   --color-row-press: rgba(0, 0, 0, 0.05);
-  --color-list-header: #8e8e93; /* подписи секций списка */
   --color-list-row-icon: #ffffff; /* иконка в цветной плашке ряда */
   --color-danger-soft: rgba(255, 59, 48, 0.12);
-  --space-list-gap: 24px; /* между секциями списка */
-  --space-list-top: 8px; /* над первой секцией списка */
   --list-row-min-height: 44px;
   --list-row-pad-y: 11px;
   --list-row-icon-size: 29px; /* плашка иконки ряда (размер из «Настроек» iOS) */
   --list-row-icon-glyph: 18px; /* сама иконка */
   --radius-list-row-icon: 7px;
+
+  /* --- Экран «Настройки» (значения сняты со скриншота-эталона «Настроек» iOS 26) --- */
+  --space-list-gap: 35px; /* между карточками-группами */
+  --space-list-footer-top: 8px; /* от карточки до пояснения под ней */
+  --line-height-list-footer: 1.37;
+  --disclosure-width: 8px; /* значок › у ряда, открывающего вложенный экран */
+  --disclosure-height: 14px;
+  --list-check-size: 16px; /* галочка выбранного варианта (часовой пояс) */
+  --color-search-clear: rgba(60, 60, 67, 0.36); /* кружок крестика в поле поиска */
+  --search-height: 40px;
+  --search-pad-x: 12px;
+  --search-gap: 6px; /* между лупой и текстом */
+  --search-icon-size: 17px;
+  --search-clear-size: 18px;
+  /* Документы (политика конфиденциальности, условия использования). */
+  --line-height-document: 1.45;
+  --space-document-section-gap: 20px;
+  --space-document-heading-bottom: 6px;
 
   /* --- Форма привычки (создание и редактирование; значения сняты со скриншота-эталона) --- */
   --form-row-min-height: 50px; /* ряды формы выше обычных — как в эталоне (iOS 26) */
@@ -230,4 +250,72 @@
   --dialog-anim: 260ms cubic-bezier(0.32, 0.72, 0, 1); /* появление */
   --dialog-anim-out: 180ms ease; /* исчезновение */
   --dialog-enter-scale: 1.12; /* диалог появляется чуть крупнее и «оседает» */
+}
+
+/*
+ * Тёмная тема — как тёмное оформление iOS: чёрный фон, тёмно-серые карточки без тени,
+ * белый текст, системные цвета в тёмном варианте. Переопределяются только цвета,
+ * размеры и отступы — общие. Цвета привычек и кнопки Telegram (MainButton) берутся из
+ * тех же токенов, поэтому тоже меняются вместе с темой.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-background: #000000;
+  --color-card: #1c1c1e;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #98989f;
+  --color-accent: #0a84ff;
+  --color-separator: rgba(84, 84, 88, 0.45);
+  --color-skeleton: #2c2c2e;
+  --color-skeleton-highlight: #3a3a3c;
+  --color-danger: #ff453a;
+
+  /* Палитра привычек: тёмные варианты системных цветов iOS — ярче на тёмном фоне. */
+  --palette-blue: 10, 132, 255;
+  --palette-lightblue: 100, 210, 255;
+  --palette-teal: 48, 190, 196;
+  --palette-green: 48, 209, 88;
+  --palette-yellow: 255, 214, 10;
+  --palette-orange: 255, 159, 10;
+  --palette-red: 255, 69, 58;
+  --palette-pink: 252, 106, 176;
+  --palette-purple: 191, 90, 242;
+  --palette-indigo: 94, 92, 230;
+  --palette-brown: 172, 142, 104;
+  --palette-graphite: 132, 146, 168;
+  --habit-grid-empty-alpha: 0.24;
+  --habit-soft-alpha: 0.2;
+
+  --header-bar-tint: rgba(0, 0, 0, 0.8); /* --color-background на 80% */
+  --header-hairline-color: rgba(255, 255, 255, 0.15);
+
+  --shadow-card: none;
+
+  /* Тёмное матовое стекло нижней навигации: светлый блик по кромке и светлый ободок. */
+  --glass-fill: linear-gradient(180deg, rgba(58, 58, 60, 0.86), rgba(44, 44, 46, 0.8));
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --glass-icon: #ffffff;
+  --tabbar-thumb: rgba(255, 255, 255, 0.14);
+
+  --color-switch-on: #30d158;
+  --color-switch-off: rgba(120, 120, 128, 0.36);
+  --color-row-press: rgba(255, 255, 255, 0.08);
+  --color-danger-soft: rgba(255, 69, 58, 0.16);
+  --color-placeholder: rgba(235, 235, 245, 0.3);
+  --color-fill: rgba(118, 118, 128, 0.24);
+  --color-search-clear: rgba(235, 235, 245, 0.45);
+  --main-button-disabled-bg: #2c2c2e;
+  --main-button-disabled-text: #6d6d72;
+
+  /* Диалог подтверждения — тёмное матовое стекло. */
+  --dialog-backdrop: rgba(0, 0, 0, 0.45);
+  --dialog-bg: rgba(44, 44, 46, 0.88);
+  --dialog-border: rgba(255, 255, 255, 0.12);
+  --dialog-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --dialog-button-bg: rgba(120, 120, 128, 0.32);
+  --dialog-button-bg-pressed: rgba(120, 120, 128, 0.48);
+  --color-dialog-message: rgba(235, 235, 245, 0.7);
 }

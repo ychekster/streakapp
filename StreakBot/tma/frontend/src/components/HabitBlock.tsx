@@ -8,7 +8,7 @@
  */
 
 import { GRID_DAYS } from "../constants";
-import { STRINGS } from "../strings";
+import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
@@ -33,6 +33,7 @@ export function HabitBlock({
   onToggle,
   onOpen,
 }: HabitBlockProps) {
+  const strings = useStrings();
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -42,7 +43,7 @@ export function HabitBlock({
         <button
           type="button"
           className={styles.open}
-          aria-label={`${STRINGS.openHabit}: ${habit.name}`}
+          aria-label={`${strings.openHabit}: ${habit.name}`}
           onClick={() => onOpen(habit.id)}
         />
       ) : null}

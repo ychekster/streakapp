@@ -1,0 +1,6 @@
+/* Цвет — приглушённый цвет правой части ряда (ListItem .trailing). */
+.chevron {
+  flex-shrink: 0;
+  width: var(--disclosure-width);
+  height: var(--disclosure-height);
+}

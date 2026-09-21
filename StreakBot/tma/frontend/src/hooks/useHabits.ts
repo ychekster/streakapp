@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchHabits } from "../api/habits";
-import { ApiRequestError } from "../api/client";
 import type { Habit } from "../types/habit";
 
 export type HabitsStatus = "loading" | "ready" | "error";
@@ -17,33 +16,40 @@ export type HabitsStatus = "loading" | "ready" | "error";
 interface UseHabitsResult {
   habits: Habit[];
   status: HabitsStatus;
-  /** Текст ошибки для показа пользователю (только при status === "error"). */
-  errorMessage: string | null;
+  /** Ошибка загрузки (только при status === "error"). */
+  error: unknown;
   /** Прямой доступ к стейту для оптимистичных обновлений (используется useToggle). */
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
   /** Перезагрузить список (например, по кнопке «Повторить»). */
   reload: () => void;
+  /** Тихо обновить список, без скелетона: после смены пояса или режима «Отмечать за
+   *  вчера» сервер считает день отметки иначе. Не вышло — остаётся прежний список. */
+  refresh: () => void;
 }
 
 export function useHabits(): UseHabitsResult {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [status, setStatus] = useState<HabitsStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
-    setErrorMessage(null);
+    setError(null);
     try {
-      const loaded = await fetchHabits();
-      setHabits(loaded);
+      setHabits(await fetchHabits());
       setStatus("ready");
-    } catch (error) {
-      const message =
-        error instanceof ApiRequestError
-          ? error.message
-          : "Не удалось загрузить привычки";
-      setErrorMessage(message);
+    } catch (caught) {
+      setError(caught);
       setStatus("error");
+    }
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      setHabits(await fetchHabits());
+      setStatus("ready");
+    } catch {
+      // Список обновится при следующем открытии приложения.
     }
   }, []);
 
@@ -51,5 +57,5 @@ export function useHabits(): UseHabitsResult {
     void load();
   }, [load]);
 
-  return { habits, status, errorMessage, setHabits, reload: () => void load() };
+  return { habits, status, error, setHabits, reload: () => void load(), refresh };
 }

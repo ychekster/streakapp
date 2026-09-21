@@ -14,7 +14,6 @@
 
 import { useRef, useState } from "react";
 
-import { ApiRequestError } from "../api/client";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
@@ -28,13 +27,13 @@ import {
   TargetIcon,
   TrophyIcon,
 } from "../components/StatIcons";
-import { FALLBACK_WEEKDAYS, HISTORY_DAYS } from "../constants";
-import { useMeta } from "../hooks/useMeta";
-import { STRINGS } from "../strings";
+import { HISTORY_DAYS, WEEKDAYS } from "../constants";
+import { describeError } from "../errors";
+import { useStrings } from "../preferences";
+import type { Strings } from "../strings";
 import { hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
-import type { Weekday } from "../types/meta";
 import styles from "./HabitScreen.module.css";
 
 // Наборы дней с собственной подписью (коды в порядке недели, как их хранит бэкенд).
@@ -42,22 +41,19 @@ const WORKDAYS_KEY = "mon,tue,wed,thu,fri";
 const WEEKENDS_KEY = "sat,sun";
 
 /** Подпись цели серии: «Ежедневно», «Будни», «Выходные» или дни («Пн, Ср, Пт»). */
-function formatStreakGoal(habit: Habit, weekdays: readonly Weekday[]): string {
-  const selected = weekdays.filter((day) => habit.days.includes(day.code));
-  if (habit.frequency_type === "daily" || selected.length === weekdays.length) {
-    return STRINGS.goalDaily;
+function formatStreakGoal(habit: Habit, strings: Strings): string {
+  const selected = WEEKDAYS.filter((code) => habit.days.includes(code));
+  if (habit.frequency_type === "daily" || selected.length === WEEKDAYS.length) {
+    return strings.goalDaily;
   }
-  const key = selected.map((day) => day.code).join(",");
+  const key = selected.join(",");
   if (key === WORKDAYS_KEY) {
-    return STRINGS.goalWorkdays;
+    return strings.goalWorkdays;
   }
   if (key === WEEKENDS_KEY) {
-    return STRINGS.goalWeekends;
+    return strings.goalWeekends;
   }
-  // Короткие подписи приходят капсом («ПН») — в тексте пишем «Пн».
-  return selected
-    .map((day) => day.short.charAt(0) + day.short.slice(1).toLowerCase())
-    .join(", ");
+  return selected.map((code) => strings.weekdays[code].abbr).join(", ");
 }
 
 interface HabitScreenProps {
@@ -79,14 +75,12 @@ export function HabitScreen({
   onEdit,
   onDelete,
 }: HabitScreenProps) {
-  const meta = useMeta();
+  const strings = useStrings();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const weekdays = meta?.weekdays ?? FALLBACK_WEEKDAYS;
 
   function askToDelete(): void {
     setDeleteError(null);
@@ -100,7 +94,7 @@ export function HabitScreen({
       // При успехе App закрывает этот экран — сбрасывать состояние не нужно.
       await onDelete(habit.id);
     } catch (error) {
-      setDeleteError(error instanceof ApiRequestError ? error.message : STRINGS.deleteFailed);
+      setDeleteError(describeError(strings, error, strings.deleteFailed));
       setDeleting(false);
       hapticNotification("error");
     }
@@ -109,7 +103,7 @@ export function HabitScreen({
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
       <div className={animateEnter ? styles.enter : undefined} style={habitColorStyle(habit.color)}>
-        <Section title={STRINGS.habitHistoryHeading} headingRef={headingRef}>
+        <Section title={strings.habitHistoryHeading} headingRef={headingRef}>
           <Card padded>
             <HabitBlock
               habit={habit}
@@ -120,41 +114,41 @@ export function HabitScreen({
           </Card>
         </Section>
 
-        <Section title={STRINGS.habitMainHeading}>
+        <Section title={strings.habitMainHeading}>
           <div className={styles.stats}>
             <StatCard
               icon={<FlameIcon />}
               value={habit.current_streak}
-              label={STRINGS.statCurrentStreak}
+              label={strings.statCurrentStreak}
             />
             <StatCard
               icon={<TrophyIcon />}
               value={habit.best_streak}
-              label={STRINGS.statBestStreak}
+              label={strings.statBestStreak}
             />
             <StatCard
               icon={<CompletedIcon />}
               value={habit.total_done}
-              label={STRINGS.statTotalDone}
+              label={strings.statTotalDone}
             />
             <StatCard
               icon={<TargetIcon />}
-              value={formatStreakGoal(habit, weekdays)}
-              label={STRINGS.statStreakGoal}
+              value={formatStreakGoal(habit, strings)}
+              label={strings.statStreakGoal}
             />
           </div>
         </Section>
 
-        <Section title={STRINGS.habitSettingsHeading}>
+        <Section title={strings.habitSettingsHeading}>
           <Card>
             <ListItem
               icon={<PencilIcon />}
-              label={STRINGS.editHabit}
+              label={strings.editHabit}
               onPress={() => onEdit(habit)}
             />
             <ListItem
               icon={<TrashIcon />}
-              label={STRINGS.deleteHabit}
+              label={strings.deleteHabit}
               destructive
               onPress={askToDelete}
             />
@@ -164,10 +158,10 @@ export function HabitScreen({
 
       <ConfirmDialog
         open={confirmingDelete}
-        title={STRINGS.deleteDialogTitle}
-        message={deleteError ?? STRINGS.deleteDialogMessage}
-        cancelLabel={STRINGS.deleteDialogCancel}
-        confirmLabel={STRINGS.deleteDialogConfirm}
+        title={strings.deleteDialogTitle}
+        message={deleteError ?? strings.deleteDialogMessage}
+        cancelLabel={strings.deleteDialogCancel}
+        confirmLabel={strings.deleteDialogConfirm}
         destructive
         busy={deleting}
         onCancel={() => setConfirmingDelete(false)}

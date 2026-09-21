@@ -20,11 +20,17 @@ from sqlalchemy import (
     String,
     Time,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from tma.backend.constants import DEFAULT_HABIT_COLOR, HABIT_COLOR_MAX_LENGTH
+from tma.backend.constants import (
+    DEFAULT_HABIT_COLOR,
+    DEFAULT_LANGUAGE,
+    DEFAULT_THEME,
+    HABIT_COLOR_MAX_LENGTH,
+)
 
 
 class Base(DeclarativeBase):
@@ -52,7 +58,7 @@ class TaskStatus(str, enum.Enum):
 
 
 class User(Base):
-    """Пользователь Telegram и его часовой пояс."""
+    """Пользователь Telegram и его настройки."""
 
     __tablename__ = "users"
 
@@ -62,6 +68,18 @@ class User(Base):
 
     # Пояс определяет, какой день считается «сегодня». None — UTC.
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Язык интерфейса (constants.LANGUAGES); на нём же бот пишет напоминания.
+    language: Mapped[str] = mapped_column(
+        String(8), default=DEFAULT_LANGUAGE, server_default=DEFAULT_LANGUAGE, nullable=False
+    )
+    # Тема оформления (constants.THEMES). Применяет её фронтенд.
+    theme: Mapped[str] = mapped_column(
+        String(16), default=DEFAULT_THEME, server_default=DEFAULT_THEME, nullable=False
+    )
+    # «Отмечать за вчера»: отметки ставятся за вчерашний день (см. services.user_today).
+    mark_yesterday: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

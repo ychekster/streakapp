@@ -18,6 +18,7 @@ from tma.backend.database import Database
 from tma.backend.errors import ApiError
 from tma.backend.models import User
 from tma.backend.repository import Repository
+from tma.backend.services import language_from_telegram
 
 
 def get_settings(request: Request) -> Settings:
@@ -81,9 +82,15 @@ async def get_db_user(
     user: TelegramUser = Depends(get_current_user),
     repo: Repository = Depends(get_repository),
 ) -> User:
-    """Запись текущего пользователя в БД; создаётся при первом открытии приложения.
+    """Запись текущего пользователя в БД; создаётся при первом открытии приложения
+    (с языком интерфейса по языку его Telegram).
 
     FastAPI кеширует зависимости в пределах запроса, поэтому `repo` здесь — тот же
     репозиторий (и та же сессия), что получает обработчик маршрута.
     """
-    return await repo.get_or_create_user(user.id, user.username, user.first_name)
+    return await repo.get_or_create_user(
+        user.id,
+        user.username,
+        user.first_name,
+        language=language_from_telegram(user.language_code),
+    )

@@ -1,29 +1,31 @@
-/** Выбор дней недели: ряд круглых переключателей (ПН…ВС). */
+/** Выбор дней недели: ряд круглых переключателей (ПН…ВС) на языке интерфейса. */
 
-import type { Weekday } from "../types/meta";
+import { WEEKDAYS } from "../constants";
+import { useStrings } from "../preferences";
 import styles from "./DayPicker.module.css";
 
 interface DayPickerProps {
-  weekdays: readonly Weekday[];
   selected: Set<string>;
   onToggle: (code: string) => void;
 }
 
-export function DayPicker({ weekdays, selected, onToggle }: DayPickerProps) {
+export function DayPicker({ selected, onToggle }: DayPickerProps) {
+  const strings = useStrings();
   return (
     <div className={styles.days}>
-      {weekdays.map((weekday) => {
-        const isSelected = selected.has(weekday.code);
+      {WEEKDAYS.map((code) => {
+        const isSelected = selected.has(code);
+        const day = strings.weekdays[code];
         return (
           <button
-            key={weekday.code}
+            key={code}
             type="button"
             aria-pressed={isSelected}
-            aria-label={weekday.full}
+            aria-label={day.full}
             className={`${styles.day} ${isSelected ? styles.selected : ""}`}
-            onClick={() => onToggle(weekday.code)}
+            onClick={() => onToggle(code)}
           >
-            {weekday.short}
+            {day.short}
           </button>
         );
       })}

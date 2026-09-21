@@ -13,12 +13,22 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const AUTH_SCHEME = "tma";
 
-/** Машинно-читаемые коды ошибок, которые UI может различать. */
+/** Машинно-читаемые коды ошибок, которые UI может различать. Пользователю показывается
+ *  не текст ответа сервера, а подпись кода на языке интерфейса (см. errors.ts). */
 export type ApiErrorCode =
   | "network_error"
   | "invalid_init_data"
   | "missing_init_data"
   | "task_not_found"
+  | "duplicate_name"
+  | "invalid_name"
+  | "invalid_days"
+  | "invalid_frequency"
+  | "invalid_reminder_time"
+  | "invalid_color"
+  | "invalid_timezone"
+  | "invalid_language"
+  | "invalid_theme"
   | "validation_error"
   | "internal_error"
   | "http_error";

@@ -1,18 +1,15 @@
-/** Справочные данные для форм (дни недели, лимит названия, часовые пояса). */
-
-export interface Weekday {
-  code: string;
-  short: string;
-  full: string;
-}
-
-export interface TimezoneOption {
-  value: string;
-  label: string;
-}
+/** Справочные данные: лимит названия привычки и каталог часовых поясов. */
 
 export interface Meta {
-  weekdays: Weekday[];
   name_max_length: number;
-  timezone_offsets: TimezoneOption[];
+}
+
+/** Часовой пояс в каталоге (GET /meta/timezones); названия — на языке интерфейса. */
+export interface TimezoneEntry {
+  /** Зона IANA, напр. «Europe/Moscow». */
+  id: string;
+  city: string;
+  country: string;
+  /** Текущее смещение, напр. «UTC+3». */
+  offset: string;
 }

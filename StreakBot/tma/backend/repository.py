@@ -42,11 +42,13 @@ class Repository:
         telegram_id: int,
         username: str | None,
         first_name: str | None,
+        language: str,
     ) -> User:
         """Вернуть пользователя, создав его при первом обращении.
 
         @username и имя синхронизируются с Telegram (могут меняться между
-        сессиями); если они не изменились, UPDATE не выполняется.
+        сессиями); если они не изменились, UPDATE не выполняется. `language` —
+        язык интерфейса нового пользователя; у существующего он не меняется.
 
         Безопасно к гонке: приложение при открытии может отправить несколько
         запросов параллельно. Вставку оборачиваем в SAVEPOINT и при конфликте
@@ -64,6 +66,7 @@ class Repository:
                     telegram_id=telegram_id,
                     username=username,
                     first_name=first_name,
+                    language=language,
                 )
                 self.session.add(user)
                 await self.session.flush()
@@ -75,9 +78,24 @@ class Repository:
                 raise
             return user
 
-    async def set_timezone(self, user: User, value: str) -> None:
-        """Установить часовой пояс пользователя."""
-        user.timezone = value
+    async def update_settings(
+        self,
+        user: User,
+        *,
+        timezone: str | None = None,
+        language: str | None = None,
+        theme: str | None = None,
+        mark_yesterday: bool | None = None,
+    ) -> None:
+        """Изменить настройки пользователя; None — оставить как есть."""
+        if timezone is not None:
+            user.timezone = timezone
+        if language is not None:
+            user.language = language
+        if theme is not None:
+            user.theme = theme
+        if mark_yesterday is not None:
+            user.mark_yesterday = mark_yesterday
         await self.session.flush()
 
     # ------------------------------------------------------------------ #

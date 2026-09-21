@@ -2,11 +2,12 @@
  * Тонкая типизированная обёртка над window.Telegram.WebApp.
  *
  * SDK подключается скриптом в index.html. Здесь — только то, что реально нужно
- * приложению: получить initData для авторизации, раскрыть на весь экран (включая
- * полноэкранный режим на iPhone), прокинуть отступы безопасных зон в CSS, управлять
- * кнопками Telegram («Назад» и нижней MainButton) и дать тактильный отклик. Все
- * обращения к SDK защищены проверками на наличие — приложение не падает, если открыто
- * вне Telegram или в старом клиенте.
+ * приложению: получить initData для авторизации и язык Telegram, раскрыть на весь
+ * экран (включая полноэкранный режим на iPhone), прокинуть отступы безопасных зон в
+ * CSS, красить фон и шапку Telegram под тему, следить за светлой/тёмной темой Telegram,
+ * управлять кнопками Telegram («Назад» и нижней MainButton) и дать тактильный отклик.
+ * Все обращения к SDK защищены проверками на наличие — приложение не падает, если
+ * открыто вне Telegram или в старом клиенте.
  */
 
 type HapticStyle = "light" | "medium" | "heavy" | "rigid" | "soft";
@@ -54,7 +55,11 @@ interface SafeAreaInset {
 
 interface TelegramWebApp {
   initData: string;
+  /** Неподписанная копия initData — только для оформления (язык), не для авторизации. */
+  initDataUnsafe?: { user?: { language_code?: string } };
   platform: string;
+  /** Светлая или тёмная тема Telegram сейчас; меняется с событием themeChanged. */
+  colorScheme?: "light" | "dark";
   ready(): void;
   expand(): void;
   setBackgroundColor(color: string): void;
@@ -68,6 +73,7 @@ interface TelegramWebApp {
   safeAreaInset?: SafeAreaInset;
   contentSafeAreaInset?: SafeAreaInset;
   onEvent?(eventType: string, handler: () => void): void;
+  offEvent?(eventType: string, handler: () => void): void;
   BackButton?: TelegramBackButton;
   MainButton?: TelegramBottomButton;
   HapticFeedback?: TelegramHapticFeedback;
@@ -98,6 +104,23 @@ export function getInitData(): string {
   return getWebApp()?.initData ?? "";
 }
 
+/** Код языка Telegram пользователя («ru», «en», …) или undefined вне Telegram. */
+export function getTelegramLanguageCode(): string | undefined {
+  return getWebApp()?.initDataUnsafe?.user?.language_code;
+}
+
+/** Светлая или тёмная тема Telegram сейчас; null вне Telegram или в старом клиенте. */
+export function getTelegramColorScheme(): "light" | "dark" | null {
+  return getWebApp()?.colorScheme ?? null;
+}
+
+/** Подписаться на смену темы Telegram; возвращает функцию отписки. */
+export function onTelegramThemeChanged(handler: () => void): () => void {
+  const webApp = getWebApp();
+  webApp?.onEvent?.("themeChanged", handler);
+  return () => webApp?.offEvent?.("themeChanged", handler);
+}
+
 /**
  * Прокинуть отступы безопасных зон Telegram в CSS-переменные:
  *  --app-safe-area-* — вырез устройства (чёлка, home indicator);
@@ -124,28 +147,36 @@ function applySafeAreaInsets(webApp: TelegramWebApp): void {
 }
 
 /**
- * Инициализация при запуске: сообщить готовность, раскрыть на весь экран,
- * подкрасить фон/шапку и прокинуть отступы безопасных зон.
+ * Покрасить фон, шапку и полосу под нижней кнопкой Telegram в цвет фона приложения.
+ * Вызывается при запуске и при каждой смене темы.
+ */
+export function setTelegramColors(backgroundColor: string): void {
+  const webApp = getWebApp();
+  try {
+    webApp?.setBackgroundColor(backgroundColor);
+    webApp?.setHeaderColor(backgroundColor);
+    // Полоса под нижней кнопкой (форма привычки) — в цвет фона, без светлой плашки.
+    webApp?.setBottomBarColor?.(backgroundColor);
+  } catch {
+    // Старые клиенты могут не поддерживать выбор цвета — не критично.
+  }
+}
+
+/**
+ * Инициализация при запуске: сообщить готовность, раскрыть на весь экран и прокинуть
+ * отступы безопасных зон (цвета Telegram ставит setTelegramColors).
  *
  * На iPhone `expand()` оставляет зазор сверху (приложение открывается «шторкой»),
  * поэтому дополнительно включаем полноэкранный режим (Bot API 8.0). На других
  * платформах поведение не меняем — там приложение и так раскрывается корректно.
  */
-export function initTelegram(backgroundColor: string): void {
+export function initTelegram(): void {
   const webApp = getWebApp();
   if (!webApp) {
     return;
   }
   webApp.ready();
   webApp.expand();
-  try {
-    webApp.setBackgroundColor(backgroundColor);
-    webApp.setHeaderColor(backgroundColor);
-    // Полоса под нижней кнопкой (форма привычки) — в цвет фона, без светлой плашки.
-    webApp.setBottomBarColor?.(backgroundColor);
-  } catch {
-    // Старые клиенты могут не поддерживать выбор цвета — не критично.
-  }
 
   if (webApp.platform === "ios" && typeof webApp.requestFullscreen === "function") {
     try {

@@ -8,6 +8,8 @@
 
 import type { ReactNode } from "react";
 
+import { habitColorStyle } from "../theme";
+import type { HabitColor } from "../types/habit";
 import styles from "./ListItem.module.css";
 
 interface ListItemProps {
@@ -15,6 +17,8 @@ interface ListItemProps {
   children?: ReactNode;
   /** Иконка в цветной плашке слева от подписи. */
   icon?: ReactNode;
+  /** Цвет плашки иконки — из палитры; без него — цвет привычки (синий вне привычки). */
+  iconColor?: HabitColor;
   /** Деструктивное действие (удаление): подпись и плашка иконки — красные. */
   destructive?: boolean;
   onPress?: () => void;
@@ -26,6 +30,7 @@ export function ListItem({
   label,
   children,
   icon,
+  iconColor,
   destructive = false,
   onPress,
   alignTop = false,
@@ -43,7 +48,11 @@ export function ListItem({
   const content = (
     <>
       {icon ? (
-        <span className={styles.icon} aria-hidden="true">
+        <span
+          className={styles.icon}
+          style={iconColor ? habitColorStyle(iconColor) : undefined}
+          aria-hidden="true"
+        >
           {icon}
         </span>
       ) : null}

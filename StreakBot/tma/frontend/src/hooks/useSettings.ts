@@ -1,43 +1,49 @@
 /**
  * Загрузка и сохранение настроек пользователя.
  *
- * `save` применяет частичное обновление: при успехе обновляет состояние и
- * возвращает свежие настройки, при ошибке — пробрасывает её, чтобы экран показал
- * причину рядом с полем (а состояние осталось прежним).
+ * Хук живёт в App: от настроек зависят язык и тема всего приложения. `save` применяет
+ * изменение сразу — переключатель, язык и тема откликаются без ожидания сервера, а для
+ * пояса `preview` подставляет подпись выбранного варианта, — и отправляет его на
+ * сервер. Ответ сервера заменяет состояние; при ошибке изменение откатывается, а
+ * причина лежит в `saveError` до следующего сохранения. Если пока летел запрос,
+ * пользователь изменил что-то ещё, ответ устаревшего запроса не применяется.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiRequestError } from "../api/client";
 import { fetchSettings, updateSettings } from "../api/settings";
 import type { Settings, SettingsUpdate } from "../types/settings";
 
 export type SettingsStatus = "loading" | "ready" | "error";
 
-interface UseSettingsResult {
+export interface UseSettingsResult {
   settings: Settings | null;
   status: SettingsStatus;
-  errorMessage: string | null;
+  /** Ошибка загрузки (только при status === "error"). */
+  error: unknown;
+  /** Ошибка последнего сохранения; сбрасывается, когда начинается следующее. */
+  saveError: unknown;
   reload: () => void;
-  save: (patch: SettingsUpdate) => Promise<Settings>;
+  /** Сохранить изменение; true — сервер его принял. */
+  save: (patch: SettingsUpdate, preview?: Partial<Settings>) => Promise<boolean>;
 }
 
 export function useSettings(): UseSettingsResult {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [status, setStatus] = useState<SettingsStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
+  // Номер последнего сохранения: ответы более ранних не применяются.
+  const latestSave = useRef(0);
 
   const load = useCallback(async () => {
     setStatus("loading");
-    setErrorMessage(null);
+    setError(null);
     try {
-      const loaded = await fetchSettings();
-      setSettings(loaded);
+      setSettings(await fetchSettings());
       setStatus("ready");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof ApiRequestError ? error.message : "Не удалось загрузить настройки",
-      );
+    } catch (caught) {
+      setError(caught);
       setStatus("error");
     }
   }, []);
@@ -46,11 +52,33 @@ export function useSettings(): UseSettingsResult {
     void load();
   }, [load]);
 
-  const save = useCallback(async (patch: SettingsUpdate): Promise<Settings> => {
-    const updated = await updateSettings(patch);
-    setSettings(updated);
-    return updated;
-  }, []);
+  const save = useCallback(
+    async (patch: SettingsUpdate, preview: Partial<Settings> = {}): Promise<boolean> => {
+      const request = ++latestSave.current;
+      setSaveError(null);
+      // Снимок для отката и мгновенное применение изменения.
+      let previous: Settings | null = null;
+      setSettings((current) => {
+        previous = current;
+        return current && { ...current, ...patch, ...preview };
+      });
 
-  return { settings, status, errorMessage, reload: () => void load(), save };
+      try {
+        const updated = await updateSettings(patch);
+        if (request === latestSave.current) {
+          setSettings(updated);
+        }
+        return true;
+      } catch (caught) {
+        if (request === latestSave.current) {
+          setSettings(previous);
+          setSaveError(caught);
+        }
+        return false;
+      }
+    },
+    [],
+  );
+
+  return { settings, status, error, saveError, reload: () => void load(), save };
 }

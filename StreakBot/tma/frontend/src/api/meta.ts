@@ -1,6 +1,7 @@
-/** Запрос справочных данных форм + модульный кеш (метаданные неизменны за сессию). */
+/** Запросы справочных данных + модульный кеш (данные неизменны за сессию). */
 
-import type { Meta } from "../types/meta";
+import type { Language } from "../types/settings";
+import type { Meta, TimezoneEntry } from "../types/meta";
 import { apiRequest } from "./client";
 
 let cached: Meta | null = null;
@@ -22,4 +23,26 @@ export function loadMeta(): Promise<Meta> {
       });
   }
   return inFlight;
+}
+
+// Каталоги поясов по языкам: названия городов и стран зависят от языка интерфейса.
+const timezones = new Map<Language, TimezoneEntry[]>();
+
+/** Уже загруженный каталог поясов на этом языке (или null). */
+export function cachedTimezones(language: Language): TimezoneEntry[] | null {
+  return timezones.get(language) ?? null;
+}
+
+/** Загрузить каталог часовых поясов на языке интерфейса (один раз за сессию на язык). */
+export async function loadTimezones(language: Language): Promise<TimezoneEntry[]> {
+  const known = timezones.get(language);
+  if (known) {
+    return known;
+  }
+  const data = await apiRequest<{ timezones: TimezoneEntry[] }>(
+    `/meta/timezones?language=${language}`,
+    { method: "GET" },
+  );
+  timezones.set(language, data.timezones);
+  return data.timezones;
 }

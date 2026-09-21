@@ -9,7 +9,7 @@
 import { useLayoutEffect, useRef } from "react";
 
 import { HABIT_COLORS } from "../constants";
-import { STRINGS } from "../strings";
+import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { HabitColor } from "../types/habit";
 import styles from "./ColorPicker.module.css";
@@ -22,6 +22,7 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ value, onChange, label }: ColorPickerProps) {
+  const strings = useStrings();
   const rowRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
@@ -46,7 +47,7 @@ export function ColorPicker({ value, onChange, label }: ColorPickerProps) {
               type="button"
               role="radio"
               aria-checked={selected}
-              aria-label={STRINGS.colorNames[color]}
+              aria-label={strings.colorNames[color]}
               className={`${styles.swatch} ${selected ? styles.selected : ""}`}
               style={habitColorStyle(color)}
               onClick={() => onChange(color)}

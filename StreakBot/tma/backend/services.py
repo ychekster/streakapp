@@ -15,10 +15,10 @@ import pytz
 
 from tma.backend import validation
 from tma.backend.constants import (
+    DEFAULT_LANGUAGE,
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
     REMINDER_TIME_FORMAT,
-    WEEKDAYS,
 )
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType, Task, TaskStatus, User
@@ -30,10 +30,10 @@ from tma.backend.schemas import (
     MetaResponse,
     SettingsResponse,
     SettingsUpdate,
-    TimezoneOption,
-    Weekday,
+    TimezoneEntry,
+    TimezonesResponse,
 )
-from tma.backend.timezones import format_timezone_display, utc_label
+from tma.backend.timezones import timezone_catalog, timezone_display, utc_label
 
 
 def resolve_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
@@ -48,8 +48,23 @@ def resolve_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
 
 
 def user_today(user: User) -> date:
-    """Текущая дата в часовом поясе пользователя."""
-    return datetime.now(resolve_timezone(user.timezone)).date()
+    """День отметки — «сегодня» приложения: текущая дата в поясе пользователя, а в
+    режиме «Отмечать за вчера» — вчерашняя.
+
+    От него считается всё: какой день отмечает кнопка, запланирована ли на него
+    привычка, где кончаются история и серии. Отметки за настоящее «сегодня» в режиме
+    «за вчера» не видны до завтра — тогда они станут вчерашними.
+    """
+    today = datetime.now(resolve_timezone(user.timezone)).date()
+    return today - timedelta(days=1) if user.mark_yesterday else today
+
+
+def language_from_telegram(language_code: str | None) -> str:
+    """Язык интерфейса нового пользователя по языку его Telegram: русский, если
+    Telegram на русском, иначе английский (нет данных — язык по умолчанию)."""
+    if not language_code:
+        return DEFAULT_LANGUAGE
+    return "ru" if language_code.lower().startswith("ru") else "en"
 
 
 def build_history(done_dates: set[date], today: date) -> list[bool]:
@@ -208,11 +223,12 @@ async def update_habit(
 
 @dataclass(frozen=True)
 class DueReminder:
-    """Напоминание, которое пора прислать: кому и о какой привычке."""
+    """Напоминание, которое пора прислать: кому, о какой привычке и на каком языке."""
 
     task_id: int
     user_id: int
     habit_name: str
+    language: str
 
 
 async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
@@ -220,7 +236,8 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
 
     Напоминание привычки наступило, если в поясе её владельца `moment` приходится
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
-    запланирована, и только пока она за этот день не отмечена выполненной.
+    запланирована, и только пока она за этот день не отмечена выполненной. Режим
+    «Отмечать за вчера» не влияет: напоминание — о сегодняшнем дне.
     """
     due: list[DueReminder] = []
     for task in await repo.get_active_tasks_with_reminders():
@@ -234,17 +251,29 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
         log = await repo.get_log(task.id, day)
         if log is not None and log.status == TaskStatus.done:
             continue
-        due.append(DueReminder(task_id=task.id, user_id=task.user_id, habit_name=task.name))
+        due.append(
+            DueReminder(
+                task_id=task.id,
+                user_id=task.user_id,
+                habit_name=task.name,
+                language=task.user.language,
+            )
+        )
     return due
 
 
 def serialize_settings(user: User) -> SettingsResponse:
-    """Собрать ответ настроек: часовой пояс (с подписями)."""
+    """Собрать ответ настроек; пояс подписан на языке пользователя."""
     has_timezone = bool(user.timezone)
     return SettingsResponse(
         timezone=user.timezone,
-        timezone_display=format_timezone_display(user.timezone) if has_timezone else None,
+        timezone_display=(
+            timezone_display(user.timezone, user.language) if has_timezone else None
+        ),
         timezone_offset=utc_label(user.timezone) if has_timezone else None,
+        language=user.language,
+        theme=user.theme,
+        mark_yesterday=user.mark_yesterday,
     )
 
 
@@ -255,23 +284,34 @@ async def update_settings(
 
     Меняются только непустые поля.
     """
-    if payload.timezone is not None:
-        await repo.set_timezone(user, validation.resolve_timezone(payload.timezone))
+    await repo.update_settings(
+        user,
+        timezone=(
+            validation.resolve_timezone(payload.timezone)
+            if payload.timezone is not None
+            else None
+        ),
+        language=(
+            validation.validate_language(payload.language)
+            if payload.language is not None
+            else None
+        ),
+        theme=validation.validate_theme(payload.theme) if payload.theme is not None else None,
+        mark_yesterday=payload.mark_yesterday,
+    )
     return serialize_settings(user)
 
 
 def build_meta() -> MetaResponse:
-    """Справочные данные для форм: дни недели, лимит названия, варианты поясов.
+    """Справочные данные для форм: лимит длины названия привычки."""
+    return MetaResponse(name_max_length=HABIT_NAME_MAX_LENGTH)
 
-    Часовые пояса — целочисленные смещения UTC-12…UTC+14.
-    """
-    weekdays = [Weekday(code=code, short=short, full=full) for code, short, full in WEEKDAYS]
-    offsets: list[TimezoneOption] = []
-    for hours in range(-12, 15):
-        label = f"UTC{'+' if hours >= 0 else '-'}{abs(hours)}"
-        offsets.append(TimezoneOption(value=label, label=label))
-    return MetaResponse(
-        weekdays=weekdays,
-        name_max_length=HABIT_NAME_MAX_LENGTH,
-        timezone_offsets=offsets,
+
+def build_timezones(language: str) -> TimezonesResponse:
+    """Каталог часовых поясов на языке интерфейса (для выбора в настройках)."""
+    return TimezonesResponse(
+        timezones=[
+            TimezoneEntry(id=entry.zone, city=entry.city, country=entry.country, offset=entry.offset)
+            for entry in timezone_catalog(language)
+        ]
     )

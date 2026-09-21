@@ -1,12 +1,13 @@
 /**
- * Нижняя навигация в стиле таб-бара iOS 26: светлая стеклянная таблетка с двумя вкладками
+ * Нижняя навигация в стиле таб-бара iOS 26: стеклянная таблетка с двумя вкладками
  * («Привычки», «Настройки») и отдельная круглая кнопка «+» справа из того же стекла.
- * Активную вкладку отмечает серая подложка, которая переезжает между вкладками; иконки и
- * подписи чёрные. Зафиксирована внизу с учётом safe area; на вложенных экранах (экран
- * привычки) уезжает вниз.
+ * Активную вкладку отмечает серая подложка, которая переезжает между вкладками. В
+ * светлой теме стекло светлое, а иконки и подписи чёрные; в тёмной — наоборот.
+ * Зафиксирована внизу с учётом safe area; на вложенных экранах (экран привычки) уезжает
+ * вниз.
  */
 
-import { STRINGS } from "../strings";
+import { useStrings } from "../preferences";
 import styles from "./TabBar.module.css";
 
 export type TabKey = "habits" | "settings";
@@ -88,6 +89,7 @@ function PlusIcon() {
 }
 
 export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps) {
+  const strings = useStrings();
   return (
     <nav className={`${styles.bar} ${hidden ? styles.hidden : ""}`} aria-hidden={hidden}>
       <div className={styles.pill} role="tablist">
@@ -103,7 +105,7 @@ export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps)
           onClick={() => onSelect("habits")}
         >
           <HabitsIcon filled={active === "habits"} />
-          <span>{STRINGS.tabHabits}</span>
+          <span>{strings.tabHabits}</span>
         </button>
         <button
           type="button"
@@ -113,13 +115,13 @@ export function TabBar({ active, hidden = false, onSelect, onAdd }: TabBarProps)
           onClick={() => onSelect("settings")}
         >
           <SettingsIcon />
-          <span>{STRINGS.tabSettings}</span>
+          <span>{strings.tabSettings}</span>
         </button>
       </div>
       <button
         type="button"
         className={styles.add}
-        aria-label={STRINGS.addHabit}
+        aria-label={strings.addHabit}
         onClick={onAdd}
       >
         <PlusIcon />

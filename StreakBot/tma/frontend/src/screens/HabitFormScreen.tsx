@@ -19,7 +19,6 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import { ApiRequestError } from "../api/client";
 import { createHabit, updateHabit } from "../api/habits";
 import { ColorPicker } from "../components/ColorPicker";
 import { DayPicker } from "../components/DayPicker";
@@ -33,20 +32,16 @@ import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_NAME_MAX_LENGTH,
   DEFAULT_REMINDER_TIME,
-  FALLBACK_WEEKDAYS,
+  WEEKDAYS,
 } from "../constants";
+import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
-import { STRINGS } from "../strings";
+import { useResolvedTheme, useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
 import { habitColorHex, habitColorStyle, readRootVariable } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import styles from "./HabitFormScreen.module.css";
-
-const FREQUENCY_OPTIONS = [
-  { value: "daily", label: STRINGS.formDaily },
-  { value: "specific_days", label: STRINGS.formSpecificDays },
-] as const;
 
 interface HabitFormScreenProps {
   /** Редактируемая привычка; null — создание новой. */
@@ -57,6 +52,8 @@ interface HabitFormScreenProps {
 
 export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const meta = useMeta();
+  const strings = useStrings();
+  const theme = useResolvedTheme();
   const [name, setName] = useState(habit?.name ?? "");
   const [frequency, setFrequency] = useState<FrequencyType>(
     habit?.frequency_type ?? "daily",
@@ -72,11 +69,15 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
 
-  const weekdays = meta?.weekdays ?? FALLBACK_WEEKDAYS;
   const nameMaxLength = meta?.name_max_length ?? DEFAULT_NAME_MAX_LENGTH;
   const valid = name.trim().length > 0 && (frequency === "daily" || days.size > 0);
+  const frequencyOptions = [
+    { value: "daily", label: strings.formDaily },
+    { value: "specific_days", label: strings.formSpecificDays },
+  ] as const;
 
-  // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»).
+  // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»); у
+  // тёмной темы они свои, поэтому при её смене перечитываются.
   const buttonColors = useMemo(
     () =>
       valid
@@ -85,12 +86,12 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
             color: readRootVariable("--main-button-disabled-bg"),
             textColor: readRootVariable("--main-button-disabled-text"),
           },
-    [valid, color],
+    [valid, color, theme],
   );
 
   useMainButton(
     {
-      text: habit ? STRINGS.formEditSubmit : STRINGS.formCreateSubmit,
+      text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
       ...buttonColors,
       active: valid,
       progress: submitting,
@@ -120,10 +121,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       name: name.trim(),
       frequency_type: frequency,
       // Дни — в порядке недели, как их показывает выбор.
-      days:
-        frequency === "specific_days"
-          ? weekdays.filter((day) => days.has(day.code)).map((day) => day.code)
-          : [],
+      days: frequency === "specific_days" ? WEEKDAYS.filter((code) => days.has(code)) : [],
       reminder_time: reminderOn ? reminderTime : null,
       color,
     };
@@ -131,11 +129,11 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       onSaved(habit ? await updateHabit(habit.id, input) : await createHabit(input));
     } catch (caught) {
       setError(
-        caught instanceof ApiRequestError
-          ? caught.message
-          : habit
-            ? STRINGS.formEditFailed
-            : STRINGS.formCreateFailed,
+        describeError(
+          strings,
+          caught,
+          habit ? strings.formEditFailed : strings.formCreateFailed,
+        ),
       );
       setSubmitting(false);
       hapticNotification("error");
@@ -148,19 +146,19 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
 
   return (
     <Screen
-      title={habit ? STRINGS.formEditTitle : STRINGS.formCreateTitle}
+      title={habit ? strings.formEditTitle : strings.formCreateTitle}
       withTabBar={false}
       enterAnimation
     >
       <div className={styles.form} style={habitColorStyle(color)}>
-        <Section variant="form" title={STRINGS.formInfoHeading}>
+        <Section variant="form" title={strings.formInfoHeading}>
           <Card>
             <ListItem>
               <input
                 className={styles.nameInput}
                 type="text"
-                placeholder={STRINGS.formNamePlaceholder}
-                aria-label={STRINGS.formNamePlaceholder}
+                placeholder={strings.formNamePlaceholder}
+                aria-label={strings.formNamePlaceholder}
                 maxLength={nameMaxLength}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -176,48 +174,48 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           </Card>
         </Section>
 
-        <Section variant="form" title={STRINGS.formFrequencyHeading}>
+        <Section variant="form" title={strings.formFrequencyHeading}>
           <Card>
-            <ListItem label={STRINGS.formRepeat}>
+            <ListItem label={strings.formRepeat}>
               <MenuSelect<FrequencyType>
-                options={FREQUENCY_OPTIONS}
+                options={frequencyOptions}
                 value={frequency}
                 onChange={setFrequency}
-                label={STRINGS.formRepeat}
+                label={strings.formRepeat}
               />
             </ListItem>
             {frequency === "specific_days" ? (
               <ListItem>
-                <DayPicker weekdays={weekdays} selected={days} onToggle={toggleDay} />
+                <DayPicker selected={days} onToggle={toggleDay} />
               </ListItem>
             ) : null}
           </Card>
         </Section>
 
-        <Section variant="form" title={STRINGS.formReminderHeading}>
+        <Section variant="form" title={strings.formReminderHeading}>
           <Card>
-            <ListItem label={STRINGS.formReminderToggle}>
+            <ListItem label={strings.formReminderToggle}>
               <Switch
                 checked={reminderOn}
                 onChange={setReminderOn}
-                label={STRINGS.formReminderToggle}
+                label={strings.formReminderToggle}
               />
             </ListItem>
             {reminderOn ? (
-              <ListItem label={STRINGS.formReminderTime}>
+              <ListItem label={strings.formReminderTime}>
                 <TimeField
                   value={reminderTime}
                   onChange={setReminderTime}
-                  label={STRINGS.formReminderTime}
+                  label={strings.formReminderTime}
                 />
               </ListItem>
             ) : null}
           </Card>
         </Section>
 
-        <Section variant="form" title={STRINGS.formThemeHeading}>
+        <Section variant="form" title={strings.formThemeHeading}>
           <Card>
-            <ColorPicker value={color} onChange={setColor} label={STRINGS.formThemeHeading} />
+            <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
           </Card>
         </Section>
 

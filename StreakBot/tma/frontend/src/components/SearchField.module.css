@@ -1,0 +1,65 @@
+/* Серая капсула поиска под заголовком экрана. Лупа и крестик — приглушённого цвета. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--search-gap);
+  height: var(--search-height);
+  margin-bottom: var(--space-title-bottom);
+  padding: 0 var(--search-pad-x);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill);
+  color: var(--color-text-secondary);
+}
+
+.icon {
+  flex-shrink: 0;
+  width: var(--search-icon-size);
+  height: var(--search-icon-size);
+}
+
+/* Размер шрифта ≥ 16px — иначе iOS увеличивает страницу при фокусе. */
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-primary);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+/* Свой крестик вместо системного у поля type="search". */
+.input::-webkit-search-cancel-button,
+.input::-webkit-search-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.clear {
+  flex-shrink: 0;
+  display: flex;
+  width: var(--search-clear-size);
+  height: var(--search-clear-size);
+  padding: 0;
+  color: var(--color-search-clear);
+}
+
+.clear svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cross {
+  stroke: var(--color-card);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}

@@ -1,17 +1,20 @@
-/** Экран «Привычки»: две секции (на сегодня — интерактивные, остальные — просмотр). */
+/** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр). */
 
 import { HabitsSection } from "../components/HabitsSection";
 import { Screen } from "../components/Screen";
 import { Skeleton } from "../components/Skeleton";
 import { StatusMessage } from "../components/StatusMessage";
+import { describeError } from "../errors";
 import type { HabitsStatus } from "../hooks/useHabits";
-import { STRINGS } from "../strings";
+import { useStrings } from "../preferences";
 import type { Habit } from "../types/habit";
 
 interface HabitsScreenProps {
   habits: Habit[];
   status: HabitsStatus;
-  errorMessage: string | null;
+  error: unknown;
+  /** Режим «Отмечать за вчера»: день отметки — вчера. */
+  markYesterday: boolean;
   onToggle: (taskId: number) => void;
   /** Открыть экран привычки. */
   onOpen: (taskId: number) => void;
@@ -21,12 +24,14 @@ interface HabitsScreenProps {
 export function HabitsScreen({
   habits,
   status,
-  errorMessage,
+  error,
+  markYesterday,
   onToggle,
   onOpen,
   onReload,
 }: HabitsScreenProps) {
-  return <Screen title={STRINGS.screenTitle}>{renderContent()}</Screen>;
+  const strings = useStrings();
+  return <Screen title={strings.screenTitle}>{renderContent()}</Screen>;
 
   function renderContent() {
     if (status === "loading") {
@@ -35,10 +40,10 @@ export function HabitsScreen({
     if (status === "error") {
       return (
         <StatusMessage
-          emoji={STRINGS.errorEmoji}
-          title={STRINGS.errorTitle}
-          description={errorMessage ?? undefined}
-          actionLabel={STRINGS.errorRetry}
+          emoji={strings.errorEmoji}
+          title={strings.errorTitle}
+          description={describeError(strings, error, strings.habitsLoadFailed)}
+          actionLabel={strings.errorRetry}
           onAction={onReload}
         />
       );
@@ -46,9 +51,9 @@ export function HabitsScreen({
     if (habits.length === 0) {
       return (
         <StatusMessage
-          emoji={STRINGS.emptyEmoji}
-          title={STRINGS.emptyTitle}
-          description={STRINGS.emptyDescription}
+          emoji={strings.emptyEmoji}
+          title={strings.emptyTitle}
+          description={strings.emptyDescription}
         />
       );
     }
@@ -68,7 +73,9 @@ export function HabitsScreen({
           <HabitsSection
             habits={otherHabits}
             interactive={false}
-            subheading={STRINGS.otherSubheading}
+            subheading={
+              markYesterday ? strings.otherSubheadingYesterday : strings.otherSubheadingToday
+            }
             onOpen={onOpen}
           />
         ) : null}

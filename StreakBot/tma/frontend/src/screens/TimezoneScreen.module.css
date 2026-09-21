@@ -1,0 +1,43 @@
+/* Ряды поясов той же высоты, что и ряды настроек. */
+.list {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* «Город, Страна» занимает всё место до смещения и обрезается многоточием. */
+.place {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Смещение и место под галочку: у всех рядов одной ширины, поэтому смещения стоят
+   ровным столбцом, а галочка не сдвигает смещение выбранного пояса. */
+.trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-menu-chevron);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.check {
+  display: flex;
+  width: var(--list-check-size);
+  height: var(--list-check-size);
+  color: var(--color-accent);
+}
+
+.check svg {
+  width: 100%;
+  height: 100%;
+}
+
+.empty {
+  padding: var(--space-section-gap) var(--space-card-padding);
+  text-align: center;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-secondary);
+}
