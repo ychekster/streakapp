@@ -56,5 +56,8 @@ export const HABIT_COLORS = [
 /** Цвет новой привычки (им же выглядели все привычки до появления выбора цвета). */
 export const DEFAULT_HABIT_COLOR = "blue";
 
+/** Максимальная длина отзыва (диалог «Написать отзыв» в настройках). */
+export const REVIEW_MAX_LENGTH = 2000;
+
 /** Время, которое предлагается при включении напоминания. */
 export const DEFAULT_REMINDER_TIME = "09:00";

@@ -4,17 +4,21 @@
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
  *     (светлая, тёмная или адаптивная — как в системе) — системными меню.
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
- *  3. Политика конфиденциальности и условия использования — открывают документы.
+ *  3. «Написать отзыв» — открывает диалог с полем для отзыва (см. ReviewDialog);
+ *     политика конфиденциальности и условия использования — открывают документы.
  *
  * Настройки хранит App (от них зависят язык и тема всего приложения): изменение
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
  * и под карточками появляется ошибка.
  */
 
+import { useState } from "react";
+
 import { Disclosure } from "../components/Disclosure";
 import { ListGroup } from "../components/ListGroup";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
+import { ReviewDialog } from "../components/ReviewDialog";
 import { Screen } from "../components/Screen";
 import {
   CalendarBackIcon,
@@ -23,6 +27,7 @@ import {
   GlobeIcon,
   PaletteIcon,
   ShieldIcon,
+  StarIcon,
 } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
 import { Switch } from "../components/Switch";
@@ -51,8 +56,14 @@ interface SettingsScreenProps {
 export function SettingsScreen({ state, onSave, onOpen }: SettingsScreenProps) {
   const strings = useStrings();
   const { settings, status, error, saveError, reload } = state;
+  const [reviewOpen, setReviewOpen] = useState(false);
 
-  return <Screen title={strings.settingsTitle}>{renderContent()}</Screen>;
+  return (
+    <Screen title={strings.settingsTitle}>
+      {renderContent()}
+      <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} />
+    </Screen>
+  );
 
   function renderContent() {
     if (status === "loading") {
@@ -124,6 +135,14 @@ export function SettingsScreen({ state, onSave, onOpen }: SettingsScreenProps) {
         </ListGroup>
 
         <ListGroup>
+          <ListItem
+            icon={<StarIcon />}
+            iconColor="red"
+            label={strings.settingsReview}
+            onPress={() => setReviewOpen(true)}
+          >
+            <Disclosure />
+          </ListItem>
           <ListItem
             icon={<ShieldIcon />}
             iconColor="indigo"

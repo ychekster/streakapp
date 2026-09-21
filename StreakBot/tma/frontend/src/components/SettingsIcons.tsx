@@ -81,6 +81,18 @@ export function CalendarBackIcon() {
   );
 }
 
+/** Написать отзыв: звезда. */
+export function StarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        {...STROKE}
+        d="M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8L12 3.8z"
+      />
+    </svg>
+  );
+}
+
 /** Политика конфиденциальности: щит. */
 export function ShieldIcon() {
   return (

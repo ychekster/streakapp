@@ -51,6 +51,11 @@
   margin-top: var(--dialog-actions-gap);
 }
 
+/* Одна кнопка — на всю ширину (алерт-сообщение). */
+.single {
+  grid-template-columns: 1fr;
+}
+
 .button {
   height: var(--dialog-button-height);
   padding: 0 12px;

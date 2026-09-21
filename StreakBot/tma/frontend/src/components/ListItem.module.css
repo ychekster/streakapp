@@ -29,9 +29,14 @@
   background-color: var(--color-separator);
 }
 
+/* Плашка иконки стоит чуть ближе к краю карточки, чем текст рядов без иконки. */
+.withIcon {
+  padding-left: var(--list-row-icon-inset);
+}
+
 /* У ряда с иконкой текст начинается после плашки — линия тоже. */
 .row.withIcon::before {
-  left: calc(var(--space-card-padding) * 2 + var(--list-row-icon-size));
+  left: calc(var(--list-row-icon-inset) + var(--list-row-icon-size) + var(--list-row-icon-gap));
 }
 
 /* Цветная плашка с белой иконкой (как в «Настройках» iOS). На экране привычки — её цвета,
@@ -47,6 +52,8 @@
   border-radius: var(--radius-list-row-icon);
   background-color: rgb(var(--habit-rgb));
   color: var(--color-list-row-icon);
+  /* Элементы ряда разделены отступом --space-card-padding; от плашки до подписи — меньше. */
+  margin-right: calc(var(--list-row-icon-gap) - var(--space-card-padding));
 }
 
 .icon svg {

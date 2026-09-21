@@ -55,6 +55,17 @@ const RU = {
   settingsMarkYesterday: "Отмечать за вчера",
   settingsMarkYesterdayFooter:
     "Отметки ставятся за вчерашний день, а не за сегодняшний. Удобно, если вы подводите итоги дня на следующее утро.",
+  settingsReview: "Написать отзыв",
+
+  // --- Диалог «Написать отзыв» ---
+  reviewTitle: "Написать отзыв",
+  reviewMessage: "Расскажите, что вам нравится и что можно сделать лучше.",
+  reviewPlaceholder: "Ваш отзыв",
+  reviewCancel: "Отменить",
+  reviewSend: "Отправить",
+  reviewThanksTitle: "Спасибо за отзыв!",
+  reviewThanksMessage: "Он поможет сделать приложение лучше.",
+  reviewThanksDone: "OK",
 
   // --- Выбор часового пояса ---
   timezoneTitle: "Часовой пояс",
@@ -194,6 +205,16 @@ const EN: Strings = {
   settingsMarkYesterday: "Mark as Yesterday",
   settingsMarkYesterdayFooter:
     "Habits are marked for the previous day instead of today. Handy if you review your day the next morning.",
+  settingsReview: "Write a Review",
+
+  reviewTitle: "Write a Review",
+  reviewMessage: "Tell us what you like and what could be better.",
+  reviewPlaceholder: "Your review",
+  reviewCancel: "Cancel",
+  reviewSend: "Send",
+  reviewThanksTitle: "Thanks for your review!",
+  reviewThanksMessage: "It helps us make the app better.",
+  reviewThanksDone: "OK",
 
   timezoneTitle: "Time Zone",
   timezoneSearch: "Search",
