@@ -133,4 +133,27 @@
   --list-row-icon-size: 29px; /* плашка иконки ряда (размер из «Настроек» iOS) */
   --list-row-icon-glyph: 18px; /* сама иконка */
   --radius-list-row-icon: 7px;
+
+  /* --- Диалог подтверждения (алерт iOS 26; значения сняты со скриншота-эталона) --- */
+  --dialog-backdrop: rgba(0, 0, 0, 0.2); /* экран под диалогом темнеет на 20% */
+  --dialog-bg: rgba(242, 242, 246, 0.86); /* светлое матовое стекло */
+  --dialog-blur: 20px;
+  --dialog-border: rgba(255, 255, 255, 0.7); /* светлая кромка стекла */
+  --dialog-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+  --dialog-width: 310px;
+  --dialog-margin-x: 32px; /* минимальные поля экрана на узких телефонах */
+  --dialog-radius: 32px;
+  --dialog-pad-top: 22px;
+  --dialog-actions-inset: 14px; /* поля кнопок от края диалога (и нижний отступ) */
+  --dialog-text-inset: 14px; /* текст отступает от края ещё на столько же */
+  --dialog-message-gap: 6px; /* между заголовком и пояснением */
+  --dialog-actions-gap: 20px; /* между пояснением и кнопками */
+  --dialog-button-height: 46px;
+  --dialog-button-gap: 8px;
+  --dialog-button-bg: rgba(120, 120, 128, 0.28);
+  --dialog-button-bg-pressed: rgba(120, 120, 128, 0.42);
+  --color-dialog-message: #5f6062;
+  --dialog-anim: 260ms cubic-bezier(0.32, 0.72, 0, 1); /* появление */
+  --dialog-anim-out: 180ms ease; /* исчезновение */
+  --dialog-enter-scale: 1.12; /* диалог появляется чуть крупнее и «оседает» */
 }

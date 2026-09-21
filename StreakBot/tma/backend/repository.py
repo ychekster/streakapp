@@ -124,6 +124,15 @@ class Repository:
         )
         return result.scalar_one_or_none()
 
+    async def soft_delete_task(self, task: Task) -> None:
+        """Мягкое удаление: пометить задачу неактивной.
+
+        Логи остаются в базе, но неактивная задача нигде не показывается, а её
+        название снова свободно для новой привычки.
+        """
+        task.is_active = False
+        await self.session.flush()
+
     async def get_active_tasks(self, user_id: int) -> list[Task]:
         """Вернуть все активные задачи пользователя, отсортированные по id."""
         result = await self.session.execute(

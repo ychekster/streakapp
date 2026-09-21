@@ -12,6 +12,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { ApiRequestError } from "./api/client";
+import { deleteHabit } from "./api/habits";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabKey } from "./components/TabBar";
 import { useHabits } from "./hooks/useHabits";
@@ -21,7 +23,7 @@ import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { STRINGS } from "./strings";
-import { initTelegram, isTelegramAvailable } from "./telegram/webapp";
+import { hapticNotification, initTelegram, isTelegramAvailable } from "./telegram/webapp";
 import styles from "./App.module.css";
 
 // Цвет фона берём из дизайн-токена (CSS-переменной), а не хардкодим в коде.
@@ -51,6 +53,24 @@ export function App() {
 
   const hideHabit = useCallback(() => setOpenHabitId(null), []);
 
+  // Удалить привычку, убрать её из списка и вернуться к нему. Если на сервере её уже
+  // нет (удалена с другого устройства), цель достигнута — считаем это успехом.
+  const deleteOpenHabit = useCallback(
+    async (taskId: number) => {
+      try {
+        await deleteHabit(taskId);
+      } catch (error) {
+        if (!(error instanceof ApiRequestError && error.code === "task_not_found")) {
+          throw error;
+        }
+      }
+      hapticNotification("success");
+      setOpenHabitId(null);
+      setHabits((current) => current.filter((habit) => habit.id !== taskId));
+    },
+    [setHabits],
+  );
+
   // Разворачиваем приложение и красим фон один раз при монтировании.
   useEffect(() => {
     initTelegram(readBackgroundColor());
@@ -77,7 +97,14 @@ export function App() {
 
   function renderScreen() {
     if (openHabit) {
-      return <HabitScreen habit={openHabit} onToggle={toggle} onBack={hideHabit} />;
+      return (
+        <HabitScreen
+          habit={openHabit}
+          onToggle={toggle}
+          onBack={hideHabit}
+          onDelete={deleteOpenHabit}
+        />
+      );
     }
     if (tab === "settings") {
       return <SettingsScreen />;

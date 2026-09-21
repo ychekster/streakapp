@@ -1,0 +1,117 @@
+/* Затемнение всего экрана; диалог — по центру. touch-action: none — жест по затемнению
+   не прокручивает страницу под диалогом. z-index выше нижней навигации и листа создания. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--dialog-margin-x);
+  background-color: var(--dialog-backdrop);
+  touch-action: none;
+  animation: backdrop-in var(--dialog-anim);
+}
+
+/* Карточка алерта: матовое светлое стекло с тонкой светлой кромкой. */
+.dialog {
+  width: 100%;
+  max-width: var(--dialog-width);
+  padding: var(--dialog-pad-top) var(--dialog-actions-inset) var(--dialog-actions-inset);
+  border: 0.5px solid var(--dialog-border);
+  border-radius: var(--dialog-radius);
+  background-color: var(--dialog-bg);
+  -webkit-backdrop-filter: blur(var(--dialog-blur)) saturate(180%);
+  backdrop-filter: blur(var(--dialog-blur)) saturate(180%);
+  box-shadow: var(--dialog-shadow);
+  animation: dialog-in var(--dialog-anim);
+}
+
+/* Текст отступает от края сильнее, чем кнопки (как в алерте iOS 26). */
+.title {
+  padding: 0 var(--dialog-text-inset);
+  font-size: var(--font-size-habit-name);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.message {
+  margin-top: var(--dialog-message-gap);
+  padding: 0 var(--dialog-text-inset);
+  font-size: var(--font-size-body);
+  line-height: 1.33;
+  color: var(--color-dialog-message);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--dialog-button-gap);
+  margin-top: var(--dialog-actions-gap);
+}
+
+.button {
+  height: var(--dialog-button-height);
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background-color: var(--dialog-button-bg);
+  font-size: var(--font-size-habit-name);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.button:active:not(:disabled) {
+  background-color: var(--dialog-button-bg-pressed);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.destructive {
+  color: var(--color-danger);
+}
+
+/* Закрытие: всё плавно гаснет, затем диалог убирается из DOM (onAnimationEnd). */
+.closing {
+  pointer-events: none;
+  animation: backdrop-out var(--dialog-anim-out) forwards;
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(var(--dialog-enter-scale));
+  }
+}
+
+@keyframes backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog {
+    animation: none;
+  }
+
+  .closing {
+    animation: none;
+    visibility: hidden;
+  }
+}

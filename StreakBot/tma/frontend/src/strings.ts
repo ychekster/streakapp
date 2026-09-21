@@ -50,6 +50,11 @@ export const STRINGS = {
   habitSettingsHeading: "Настройки",
   editHabit: "Редактировать привычку",
   deleteHabit: "Удалить привычку",
+  deleteDialogTitle: "Удалить привычку",
+  deleteDialogMessage: "Вы уверены, что хотите навсегда удалить эту привычку?",
+  deleteDialogCancel: "Отменить",
+  deleteDialogConfirm: "Удалить",
+  deleteFailed: "Не удалось удалить привычку. Попробуйте ещё раз.",
 
   // --- Создание привычки ---
   createTitle: "Новая привычка",

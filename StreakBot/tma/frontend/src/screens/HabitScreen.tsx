@@ -6,10 +6,15 @@
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
  * Telegram заменена на «Назад», а нижняя навигация скрыта (см. App). Привычка берётся
  * из общего состояния, поэтому отметка здесь сразу видна и в списке.
+ *
+ * «Удалить привычку» открывает диалог подтверждения; после удаления App возвращает к
+ * списку. При ошибке диалог остаётся открытым и показывает её вместо пояснения.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { ApiRequestError } from "../api/client";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
@@ -24,7 +29,7 @@ import {
 import { FALLBACK_WEEKDAYS, HISTORY_DAYS } from "../constants";
 import { useMeta } from "../hooks/useMeta";
 import { STRINGS } from "../strings";
-import { showBackButton } from "../telegram/webapp";
+import { hapticNotification, showBackButton } from "../telegram/webapp";
 import type { Habit } from "../types/habit";
 import type { Weekday } from "../types/meta";
 import styles from "./HabitScreen.module.css";
@@ -57,16 +62,39 @@ interface HabitScreenProps {
   onToggle: (taskId: number) => void;
   /** Вернуться к списку привычек (должна быть стабильной — см. эффект кнопки «Назад»). */
   onBack: () => void;
+  /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
+  onDelete: (taskId: number) => Promise<void>;
 }
 
-export function HabitScreen({ habit, onToggle, onBack }: HabitScreenProps) {
+export function HabitScreen({ habit, onToggle, onBack, onDelete }: HabitScreenProps) {
   const meta = useMeta();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => showBackButton(onBack), [onBack]);
 
   const weekdays = meta?.weekdays ?? FALLBACK_WEEKDAYS;
+
+  function askToDelete(): void {
+    setDeleteError(null);
+    setConfirmingDelete(true);
+  }
+
+  async function confirmDelete(): Promise<void> {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      // При успехе App закрывает этот экран — сбрасывать состояние не нужно.
+      await onDelete(habit.id);
+    } catch (error) {
+      setDeleteError(error instanceof ApiRequestError ? error.message : STRINGS.deleteFailed);
+      setDeleting(false);
+      hapticNotification("error");
+    }
+  }
 
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
@@ -115,10 +143,27 @@ export function HabitScreen({ habit, onToggle, onBack }: HabitScreenProps) {
           <h2 className={styles.heading}>{STRINGS.habitSettingsHeading}</h2>
           <div className={`${styles.card} ${styles.listCard}`}>
             <ListItem icon={<PencilIcon />} label={STRINGS.editHabit} />
-            <ListItem icon={<TrashIcon />} label={STRINGS.deleteHabit} destructive />
+            <ListItem
+              icon={<TrashIcon />}
+              label={STRINGS.deleteHabit}
+              destructive
+              onPress={askToDelete}
+            />
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={STRINGS.deleteDialogTitle}
+        message={deleteError ?? STRINGS.deleteDialogMessage}
+        cancelLabel={STRINGS.deleteDialogCancel}
+        confirmLabel={STRINGS.deleteDialogConfirm}
+        destructive
+        busy={deleting}
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={confirmDelete}
+      />
     </Screen>
   );
 }

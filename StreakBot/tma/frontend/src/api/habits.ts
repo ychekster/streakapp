@@ -22,6 +22,11 @@ export async function toggleHabit(taskId: number): Promise<Habit> {
   return data.habit;
 }
 
+/** Удалить привычку. */
+export async function deleteHabit(taskId: number): Promise<void> {
+  await apiRequest<null>(`/tasks/${taskId}`, { method: "DELETE" });
+}
+
 /** Создать новую привычку; вернуть созданную привычку. */
 export async function createHabit(payload: HabitCreate): Promise<Habit> {
   const data = await apiRequest<HabitResponse>("/tasks", {
