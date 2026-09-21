@@ -17,12 +17,11 @@
   padding-left: calc(env(safe-area-inset-left) + var(--space-screen-x));
 }
 
-/* С нижней навигацией низ дополнительно резервирует высоту таблетки и её отступ, чтобы
-   контент прокручивался выше плавающей навигации. */
+/* С нижней навигацией низ резервирует её отступ от края, высоту таблетки и зазор до
+   контента, чтобы последняя привычка прокручивалась выше плавающей навигации. */
 .withTabBar {
   padding-bottom: calc(
-    var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
-    var(--tabbar-bottom) + var(--tabbar-height) + var(--space-screen-bottom)
+    var(--tabbar-offset) + var(--tabbar-height) + var(--tabbar-content-gap)
   );
 }
 

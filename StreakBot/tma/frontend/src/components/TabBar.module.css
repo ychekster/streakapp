@@ -3,7 +3,7 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-bottom));
+  bottom: var(--tabbar-offset);
   z-index: 20;
   display: flex;
   align-items: center;
@@ -17,9 +17,7 @@
 /* Скрытая навигация уезжает за нижний край экрана вместе с тенью. visibility — чтобы её
    кнопки нельзя было нажать или сфокусировать (переключается в конце анимации). */
 .hidden {
-  transform: translateY(
-    calc(100% + var(--tabbar-bottom) + env(safe-area-inset-bottom) + var(--tabbar-hide-overshoot))
-  );
+  transform: translateY(calc(100% + var(--tabbar-offset) + var(--tabbar-hide-overshoot)));
   visibility: hidden;
 }
 
