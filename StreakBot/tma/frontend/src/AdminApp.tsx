@@ -1,74 +1,81 @@
 /**
  * Админ-панель — режим приложения, а не отдельное приложение: вход — рядом «Админ-панель»
  * в настройках (виден только администраторам), выход — «Вернуться в приложение» в её
- * настройках. На это время нижняя навигация приложения заменена своей, с четырьмя
- * вкладками: «Аналитика», «Люди», «Рассылка», «Настройки». Вся панель — на английском.
+ * настройках. На это время нижняя навигация приложения заменена своей, с пятью
+ * вкладками: «Аналитика», «Пользователи», «Отзывы», «Рассылка», «Настройки». Панель
+ * говорит на языке интерфейса; язык и тему можно сменить и в её настройках.
  *
- * Вложенные экраны «Людей» открываются стопкой поверх вкладки (нижняя навигация скрыта,
- * «Закрыть» Telegram заменена на «Назад», которая снимает верхний экран):
- *  - Пользователи → профиль пользователя → его отзыв → …;
+ * Профиль пользователя и отзыв открываются стопкой поверх вкладки (нижняя навигация
+ * скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает верхний экран):
+ *  - Пользователи → профиль → его отзыв → …;
  *  - Отзывы → отзыв → профиль автора → ….
  * При возврате экран открывается на той же позиции прокрутки.
  *
  * Состояние, которое должно пережить переходы, живёт здесь: аналитика выбранного
  * периода, списки пользователей (с запросом поиска) и отзывов, черновик и ход последней
- * рассылки. Действия в профиле и отзыве (блокировка, удаление, ответ) сразу видны в
- * списках — без повторной загрузки.
+ * рассылки. Списки загружаются при первом открытии вкладки и обновляются при повторном.
+ * Действия в профиле и отзыве (блокировка, удаление, ответ) сразу видны в списках — без
+ * повторной загрузки. Настройки (язык, тема) — общие с приложением: их хранит App.
  */
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { fetchAnalytics, fetchReviews, fetchUsers } from "./api/admin";
-import { ADMIN_STRINGS as S } from "./adminStrings";
+import { useAdminStrings } from "./adminStrings";
 import { TabBar, type TabItem } from "./components/TabBar";
-import { AnalyticsIcon, BroadcastIcon, PeopleIcon, SettingsIcon } from "./components/TabIcons";
+import {
+  AnalyticsIcon,
+  BroadcastIcon,
+  ReviewsIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "./components/TabIcons";
 import { ADMIN_SEARCH_DELAY_MS, DEFAULT_ANALYTICS_PERIOD } from "./constants";
 import { useBackButton } from "./hooks/useBackButton";
 import { useDebouncedValue } from "./hooks/useDebouncedValue";
 import { usePagedList } from "./hooks/usePagedList";
 import { useResource } from "./hooks/useResource";
+import type { UseSettingsResult } from "./hooks/useSettings";
 import { AdminAnalyticsScreen } from "./screens/AdminAnalyticsScreen";
-import { AdminBroadcastScreen, EMPTY_DRAFT, type BroadcastDraft } from "./screens/AdminBroadcastScreen";
-import { AdminPeopleScreen, type PeoplePage } from "./screens/AdminPeopleScreen";
+import {
+  AdminBroadcastScreen,
+  EMPTY_DRAFT,
+  type BroadcastDraft,
+} from "./screens/AdminBroadcastScreen";
 import { AdminReviewScreen } from "./screens/AdminReviewScreen";
 import { AdminReviewsScreen } from "./screens/AdminReviewsScreen";
 import { AdminSettingsScreen } from "./screens/AdminSettingsScreen";
 import { AdminUserScreen } from "./screens/AdminUserScreen";
 import { AdminUsersScreen } from "./screens/AdminUsersScreen";
 import type { AdminReview, AdminUserRef, Broadcast } from "./types/admin";
+import type { SettingsUpdate } from "./types/settings";
 
-type AdminTab = "analytics" | "people" | "broadcast" | "settings";
+type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 
-const TABS: readonly TabItem<AdminTab>[] = [
-  { key: "analytics", label: S.tabAnalytics, icon: (active) => <AnalyticsIcon filled={active} /> },
-  { key: "people", label: S.tabPeople, icon: (active) => <PeopleIcon filled={active} /> },
-  { key: "broadcast", label: S.tabBroadcast, icon: (active) => <BroadcastIcon filled={active} /> },
-  { key: "settings", label: S.tabSettings, icon: () => <SettingsIcon /> },
-];
-
-/** Вложенный экран вкладки «Люди»; `initial` — уже известное (строка списка). */
+/** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
-  | { kind: "users" }
-  | { kind: "reviews" }
   | { kind: "user"; id: number; initial: AdminUserRef | null }
   | { kind: "review"; id: number; initial: AdminReview | null };
 
 interface AdminAppProps {
+  /** Настройки пользователя (язык, тема) — общие с приложением. */
+  settings: UseSettingsResult;
+  onSaveSettings: (patch: SettingsUpdate) => void;
   /** Выйти из админ-панели в приложение. */
   onExit: () => void;
 }
 
-export function AdminApp({ onExit }: AdminAppProps) {
+export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
+  const strings = useAdminStrings();
   const [tab, setTab] = useState<AdminTab>("analytics");
   const [stack, setStack] = useState<AdminPage[]>([]);
-  // Позиции прокрутки экранов под открытыми вложенными: при возврате — там же.
+  // Позиции прокрутки экранов под открытыми: при возврате — там же.
   const scrollStack = useRef<number[]>([]);
   const pendingScroll = useRef<number | null>(null);
 
   const [period, setPeriod] = useState(DEFAULT_ANALYTICS_PERIOD);
   const analytics = useResource(() => fetchAnalytics(period), String(period));
 
-  // Списки загружаются при первом открытии, дальше — живут здесь.
   const [usersOpened, setUsersOpened] = useState(false);
   const [reviewsOpened, setReviewsOpened] = useState(false);
   const [query, setQuery] = useState("");
@@ -84,6 +91,29 @@ export function AdminApp({ onExit }: AdminAppProps) {
   const [draft, setDraft] = useState<BroadcastDraft>(EMPTY_DRAFT);
   const [lastBroadcast, setLastBroadcast] = useState<Broadcast | null>(null);
 
+  const tabs: TabItem<AdminTab>[] = useMemo(
+    () => [
+      {
+        key: "analytics",
+        label: strings.tabAnalytics,
+        icon: (active) => <AnalyticsIcon filled={active} />,
+      },
+      { key: "users", label: strings.tabUsers, icon: (active) => <UsersIcon filled={active} /> },
+      {
+        key: "reviews",
+        label: strings.tabReviews,
+        icon: (active) => <ReviewsIcon filled={active} />,
+      },
+      {
+        key: "broadcast",
+        label: strings.tabBroadcast,
+        icon: (active) => <BroadcastIcon filled={active} />,
+      },
+      { key: "settings", label: strings.tabSettings, icon: () => <SettingsIcon /> },
+    ],
+    [strings],
+  );
+
   const push = useCallback((page: AdminPage) => {
     scrollStack.current.push(window.scrollY);
     pendingScroll.current = 0;
@@ -97,40 +127,38 @@ export function AdminApp({ onExit }: AdminAppProps) {
 
   useBackButton(stack.length > 0 ? pop : null);
 
+  // Другая вкладка — с начала; её данные, если уже загружены, тихо обновляются (прежние
+  // видны, пока загружаются новые).
   function selectTab(next: AdminTab): void {
-    if (next === "analytics" && tab !== "analytics") {
-      analytics.reload(); // свежие числа, прежние видны, пока загружаются новые
+    if (next !== tab) {
+      if (next === "analytics") {
+        analytics.reload();
+      } else if (next === "users") {
+        if (usersOpened) {
+          users.reload();
+        }
+        setUsersOpened(true);
+      } else if (next === "reviews") {
+        if (reviewsOpened) {
+          reviews.reload();
+        }
+        setReviewsOpened(true);
+      }
     }
     pendingScroll.current = 0;
     setTab(next);
   }
 
-  function openPeoplePage(page: PeoplePage): void {
-    if (page === "users") {
-      if (usersOpened) {
-        users.reload();
-      }
-      setUsersOpened(true);
-    } else {
-      if (reviewsOpened) {
-        reviews.reload();
-      }
-      setReviewsOpened(true);
-    }
-    push({ kind: page });
-  }
-
-  // Удалённый пользователь пропадает из списков, а экран возвращается к списку, с
-  // которого начали.
+  // Удалённый пользователь пропадает из списков, а экран возвращается на вкладку.
   function forgetUser(telegramId: number): void {
     users.update((items) => items.filter((user) => user.telegram_id !== telegramId));
     reviews.update((items) => items.filter((review) => review.user.telegram_id !== telegramId));
-    pendingScroll.current = scrollStack.current[1] ?? 0;
-    scrollStack.current = scrollStack.current.slice(0, 1);
-    setStack((current) => current.slice(0, 1));
+    pendingScroll.current = scrollStack.current[0] ?? 0;
+    scrollStack.current = [];
+    setStack([]);
   }
 
-  // Вложенный экран открывается с начала, экран под ним — на сохранённой позиции.
+  // Открытый экран — с начала, экран под ним — на сохранённой позиции.
   useLayoutEffect(() => {
     if (pendingScroll.current !== null) {
       window.scrollTo(0, pendingScroll.current);
@@ -138,64 +166,48 @@ export function AdminApp({ onExit }: AdminAppProps) {
     }
   });
 
+  function openUser(user: AdminUserRef): void {
+    push({ kind: "user", id: user.telegram_id, initial: user });
+  }
+
+  function openReview(review: AdminReview): void {
+    push({ kind: "review", id: review.id, initial: review });
+  }
+
   function renderPage(page: AdminPage) {
-    switch (page.kind) {
-      case "users":
-        return (
-          <AdminUsersScreen
-            query={query}
-            onQueryChange={setQuery}
-            users={users}
-            onOpen={(telegramId) => {
-              const initial = users.items.find((user) => user.telegram_id === telegramId) ?? null;
-              push({ kind: "user", id: telegramId, initial });
-            }}
-          />
-        );
-      case "reviews":
-        return (
-          <AdminReviewsScreen
-            reviews={reviews}
-            onOpen={(reviewId) => {
-              const initial = reviews.items.find((review) => review.id === reviewId) ?? null;
-              push({ kind: "review", id: reviewId, initial });
-            }}
-          />
-        );
-      case "user":
-        return (
-          <AdminUserScreen
-            key={`user-${page.id}-${stack.length}`}
-            telegramId={page.id}
-            initial={page.initial}
-            onOpenReview={(review) => push({ kind: "review", id: review.id, initial: review })}
-            onChanged={(profile) =>
-              users.update((items) =>
-                items.map((user) =>
-                  user.telegram_id === profile.telegram_id
-                    ? { ...user, blocked: profile.blocked_at !== null }
-                    : user,
-                ),
-              )
-            }
-            onDeleted={forgetUser}
-          />
-        );
-      case "review":
-        return (
-          <AdminReviewScreen
-            key={`review-${page.id}-${stack.length}`}
-            reviewId={page.id}
-            initial={page.initial}
-            onOpenUser={(user) => push({ kind: "user", id: user.telegram_id, initial: user })}
-            onReplied={(updated) =>
-              reviews.update((items) =>
-                items.map((review) => (review.id === updated.id ? updated : review)),
-              )
-            }
-          />
-        );
+    if (page.kind === "user") {
+      return (
+        <AdminUserScreen
+          key={`user-${page.id}-${stack.length}`}
+          telegramId={page.id}
+          initial={page.initial}
+          onOpenReview={openReview}
+          onChanged={(profile) =>
+            users.update((items) =>
+              items.map((user) =>
+                user.telegram_id === profile.telegram_id
+                  ? { ...user, blocked: profile.blocked_at !== null }
+                  : user,
+              ),
+            )
+          }
+          onDeleted={forgetUser}
+        />
+      );
     }
+    return (
+      <AdminReviewScreen
+        key={`review-${page.id}-${stack.length}`}
+        reviewId={page.id}
+        initial={page.initial}
+        onOpenUser={openUser}
+        onReplied={(updated) =>
+          reviews.update((items) =>
+            items.map((review) => (review.id === updated.id ? updated : review)),
+          )
+        }
+      />
+    );
   }
 
   function renderTab() {
@@ -204,8 +216,17 @@ export function AdminApp({ onExit }: AdminAppProps) {
         return (
           <AdminAnalyticsScreen analytics={analytics} period={period} onPeriodChange={setPeriod} />
         );
-      case "people":
-        return <AdminPeopleScreen onOpen={openPeoplePage} />;
+      case "users":
+        return (
+          <AdminUsersScreen
+            query={query}
+            onQueryChange={setQuery}
+            users={users}
+            onOpen={openUser}
+          />
+        );
+      case "reviews":
+        return <AdminReviewsScreen reviews={reviews} onOpen={openReview} />;
       case "broadcast":
         return (
           <AdminBroadcastScreen
@@ -216,7 +237,9 @@ export function AdminApp({ onExit }: AdminAppProps) {
           />
         );
       case "settings":
-        return <AdminSettingsScreen onExit={onExit} />;
+        return (
+          <AdminSettingsScreen settings={settings} onSaveSettings={onSaveSettings} onExit={onExit} />
+        );
     }
   }
 
@@ -224,7 +247,7 @@ export function AdminApp({ onExit }: AdminAppProps) {
   return (
     <>
       {page ? renderPage(page) : renderTab()}
-      <TabBar tabs={TABS} active={tab} hidden={page !== undefined} onSelect={selectTab} />
+      <TabBar tabs={tabs} active={tab} hidden={page !== undefined} onSelect={selectTab} />
     </>
   );
 }

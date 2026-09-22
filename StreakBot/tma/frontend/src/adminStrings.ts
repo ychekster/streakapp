@@ -1,20 +1,300 @@
 /**
- * Вся копия админ-панели — только на английском (как и сама панель, независимо от языка
- * приложения). Ни одной строки-сообщения прямо в экранах админ-панели: они берут строки
- * отсюда, а ошибки API показывают по коду (describeAdminError).
+ * Вся копия админ-панели — на русском и английском, как и у приложения: панель говорит на
+ * языке интерфейса (его можно сменить и в её настройках). Ни одной строки-сообщения прямо
+ * в экранах админ-панели: они берут строки текущего языка через useAdminStrings(), а
+ * ошибки API показывают по коду (describeAdminError).
  */
 
 import { ApiRequestError, type ApiErrorCode } from "./api/client";
+import { useLanguage } from "./preferences";
 import type { UndeliveredReason } from "./types/admin";
+import type { Language } from "./types/settings";
 
-export const ADMIN_STRINGS = {
+/** Число по-русски: «1 234». */
+function ru(value: number): string {
+  return value.toLocaleString("ru-RU");
+}
+
+/** Число по-английски: «1,234». */
+function en(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+/** Форма слова после числа по-русски: 1 пользователь, 2 пользователя, 5 пользователей. */
+function plural(count: number, one: string, few: string, many: string): string {
+  const tens = count % 100;
+  const units = count % 10;
+  if (units === 1 && tens !== 11) {
+    return one;
+  }
+  if (units >= 2 && units <= 4 && (tens < 12 || tens > 14)) {
+    return few;
+  }
+  return many;
+}
+
+const RU = {
   // --- Нижняя навигация ---
+  tabAnalytics: "Аналитика",
+  tabUsers: "Пользователи",
+  tabReviews: "Отзывы",
+  tabBroadcast: "Рассылка",
+  tabSettings: "Настройки",
+
+  // --- Общие состояния и форматы ---
+  loadingEmoji: "⏳",
+  loading: "Загрузка…",
+  errorEmoji: "⚠️",
+  errorTitle: "Что-то пошло не так",
+  retry: "Повторить",
+  nothingFound: "Ничего не найдено",
+  loadMoreFailed: "Не удалось загрузить ещё.",
+  cancel: "Отменить",
+  never: "Никогда",
+  you: "Вы",
+  dateAtTime: (date: string, time: string) => `${date}, ${time}`,
+  kilobytes: "КБ",
+  megabytes: "МБ",
+
+  // --- Аналитика ---
+  analyticsTitle: "Аналитика",
+  analyticsLoadFailed: "Не удалось загрузить аналитику",
+  period: "Период",
+  periodNames: {
+    7: "Последние 7 дней",
+    30: "Последние 30 дней",
+    90: "Последние 90 дней",
+  } as Record<number, string>,
+  periodDays: (days: number) => `Последние ${days} ${plural(days, "день", "дня", "дней")}`,
+  usersHeading: "Пользователи",
+  statTotalUsers: "Всего пользователей",
+  statNewWeek: "Новые · 7 дней",
+  statNewMonth: "Новые · 30 дней",
+  statActiveNow: "Сейчас в приложении",
+  chartTotalUsers: "Всего пользователей",
+  chartTotalUsersNote: (added: number, period: string) =>
+    `+${ru(added)} ${plural(added, "новый пользователь", "новых пользователя", "новых пользователей")} · ${period}`,
+  activityHeading: "Активность",
+  statDau: "За день (DAU)",
+  statWau: "За неделю (WAU)",
+  statMau: "За месяц (MAU)",
+  statStickiness: "Возвращаемость (DAU/MAU)",
+  chartDau: "Активные за день",
+  chartDauNote: (period: string) => `В среднем за день · ${period}`,
+  audienceHeading: "Аудитория",
+  chartAudience: "Все пользователи",
+  audienceUsesApp: "Пользуются приложением",
+  audienceNeverOpened: "Не открывали приложение",
+  audienceBlockedBot: "Заблокировали бота",
+  audienceFooter:
+    "«Заблокировали бота» — в том числе те, кто не открывал приложение. Им не приходят напоминания и рассылки.",
+  habitsHeading: "Привычки",
+  statAverageHabits: "Привычек на пользователя",
+  statTotalHabits: "Активных привычек",
+  chartHabits: "Пользователи по числу привычек",
+  chartHabitsNote: "Открывавшие приложение",
+  habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
+  habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
+    const who = `${ru(users)} ${plural(users, "пользователь", "пользователя", "пользователей")}`;
+    if (openEnded) {
+      return `${who} с ${habits} и более привычками`;
+    }
+    if (habits === 0) {
+      return `${who} без привычек`;
+    }
+    return `${who} с ${habits} ${plural(habits, "привычкой", "привычками", "привычками")}`;
+  },
+  completionHeading: "Выполнение",
+  chartCompletion: "Доля выполнения по дням",
+  chartCompletionNote: (period: string) => `В среднем · ${period}`,
+  completionPoint: (completed: number, scheduled: number) =>
+    `${ru(completed)} из ${ru(scheduled)} запланированных`,
+  nothingScheduled: "Ничего не запланировано",
+  today: "Сегодня",
+  todaySoFar: "Сегодня, день ещё идёт",
+  showTable: "Показать таблицей",
+  showChart: "Показать графиком",
+  tableDate: "Дата",
+  tableValue: "Значение",
+  tableHabits: "Привычек",
+  tableUsers: "Пользователей",
+  tableGroup: "Группа",
+
+  // --- Пользователи ---
+  usersTitle: "Пользователи",
+  usersSearch: "Имя, @username или ID",
+  usersSearchClear: "Очистить",
+  usersLoadFailed: "Не удалось загрузить пользователей",
+  usersEmpty: "Пока нет пользователей",
+  blockedTag: "Заблокирован",
+  unnamedUser: (telegramId: number) => `Пользователь ${telegramId}`,
+
+  // --- Профиль пользователя ---
+  profileLoadFailed: "Не удалось загрузить пользователя",
+  profileHeading: "Профиль",
+  profileTelegramId: "Telegram ID",
+  profileUsername: "Username",
+  profileLanguage: "Язык",
+  profileTimezone: "Часовой пояс",
+  profileRegistered: "Регистрация",
+  profileOpenedApp: "Первое открытие",
+  profileLastActive: "Последний визит",
+  profileHabits: "Привычки",
+  profileStatus: "Статус",
+  statusActive: "Активен",
+  statusBlocked: "Заблокирован",
+  statusBotBlocked: "Заблокировал бота",
+  statusAdmin: "Администратор",
+  languageNames: { ru: "Русский", en: "Английский" } as Record<string, string>,
+  notSet: "Не выбран",
+  profileReviewsHeading: "Отзывы",
+  actionsHeading: "Действия",
+  sendMessage: "Написать сообщение",
+  blockUser: "Заблокировать",
+  unblockUser: "Разблокировать",
+  deleteUser: "Удалить пользователя",
+  adminNoActions:
+    "Администратора нельзя заблокировать или удалить. Сначала заберите права администратора в настройках.",
+  blockFailed: "Не удалось изменить блокировку. Попробуйте ещё раз.",
+
+  blockDialogTitle: "Заблокировать",
+  blockDialogMessage: (name: string) =>
+    `${name} не сможет пользоваться приложением и перестанет получать напоминания и рассылки. Разблокировать можно позже.`,
+  blockDialogConfirm: "Заблокировать",
+  deleteDialogTitle: "Удалить пользователя",
+  deleteDialogMessage: (name: string) =>
+    `Привычки, история и отзывы пользователя ${name} удалятся навсегда. Если пользователь снова откроет приложение, всё начнётся с чистого листа.`,
+  deleteDialogConfirm: "Удалить",
+  deleteFailed: "Не удалось удалить пользователя. Попробуйте ещё раз.",
+
+  messageDialogTitle: "Сообщение",
+  messageDialogMessage: (name: string) => `Бот пришлёт его пользователю ${name} в Telegram.`,
+  messagePlaceholder: "Сообщение",
+  send: "Отправить",
+  messageSentTitle: "Сообщение отправлено",
+  messageSentMessage: "Оно в чате пользователя с ботом.",
+  done: "OK",
+  messageFailed: "Не удалось отправить сообщение. Попробуйте ещё раз.",
+
+  // --- Отзывы ---
+  reviewsTitle: "Отзывы",
+  reviewsLoadFailed: "Не удалось загрузить отзывы",
+  reviewsEmpty: "Пока нет отзывов",
+  replied: "Есть ответ",
+  reviewTitle: "Отзыв",
+  reviewLoadFailed: "Не удалось загрузить отзыв",
+  reviewAuthorHeading: "От кого",
+  reviewHeading: "Отзыв",
+  reviewReplyHeading: "Ваш ответ",
+  reply: "Ответить",
+  replyAgain: "Ответить ещё раз",
+  replyDialogTitle: "Ответ на отзыв",
+  replyDialogMessage: "Бот пришлёт ответ автору в Telegram вместе с цитатой отзыва.",
+  replyPlaceholder: "Ваш ответ",
+  replySentTitle: "Ответ отправлен",
+  replySentMessage: "Он в чате автора с ботом.",
+  replyFailed: "Не удалось отправить ответ. Попробуйте ещё раз.",
+  sentOn: (date: string) => `Отправлено ${date}`,
+
+  // --- Рассылка ---
+  broadcastTitle: "Рассылка",
+  broadcastLoadFailed: "Не удалось загрузить получателей",
+  audienceSection: "Аудитория",
+  sendTo: "Кому",
+  segmentNames: {
+    all: "Все пользователи",
+    active_7d: "Активные за 7 дней",
+    active_30d: "Активные за 30 дней",
+    never_opened: "Не открывали приложение",
+  } as Record<string, string>,
+  recipients: (count: number) =>
+    `${ru(count)} ${plural(count, "получатель", "получателя", "получателей")}. Копия придёт вам первой, заблокировавшим бота рассылка не отправляется.`,
+  messageSection: "Сообщение",
+  broadcastPlaceholder: "Текст сообщения",
+  characters: (count: number, limit: number, caption: boolean) =>
+    `${ru(count)} / ${ru(limit)}${caption ? " · подпись" : ""}`,
+  mediaSection: "Фото или видео",
+  addMedia: "Добавить фото или видео",
+  removeMedia: "Убрать",
+  mediaFooter: "Фото JPEG, PNG или WebP до 10 МБ либо видео MP4 до 50 МБ. Текст станет подписью.",
+  mediaUnsupported: "Выберите фото JPEG, PNG или WebP либо видео MP4.",
+  mediaTooLarge: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ.",
+  sendBroadcast: "Отправить рассылку",
+  sendDialogTitle: "Отправить рассылку",
+  sendDialogMessage: (count: number, segment: string) =>
+    `Отправить сообщение ${ru(count)} ${plural(count, "получателю", "получателям", "получателям")} («${segment}»)? Копия придёт вам первой.`,
+  sendDialogConfirm: "Отправить",
+  broadcastFailed: "Не удалось отправить рассылку. Попробуйте ещё раз.",
+  lastBroadcast: "Последняя рассылка",
+  broadcastWaiting: "Ждём, когда бот начнёт рассылку…",
+  broadcastProgress: (sent: number, total: number) => `Отправка… ${ru(sent)} из ${ru(total)}`,
+  broadcastDone: "Разослано",
+  broadcastResult: (sent: number, failed: number) =>
+    `Доставлено: ${ru(sent)}${failed ? ` · не доставлено: ${ru(failed)}` : ""}`,
+  broadcastProgressLabel: "Ход рассылки",
+  broadcastTotal: (total: number) => `всего ${ru(total)}`,
+
+  // --- Настройки админ-панели ---
+  settingsTitle: "Настройки",
+  adminsHeading: "Администраторы",
+  adminsLoadFailed: "Не удалось загрузить администраторов",
+  adminsFooter:
+    "Администраторы видят «Админ-панель» в настройках. Нажмите на администратора, чтобы забрать права.",
+  addAdmin: "Добавить администратора",
+  addAdminTitle: "Новый администратор",
+  addAdminMessage:
+    "Введите Telegram ID пользователя. «Админ-панель» появится в его настройках при следующем открытии приложения.",
+  addAdminPlaceholder: "Telegram ID",
+  add: "Добавить",
+  addAdminFailed: "Не удалось добавить администратора. Попробуйте ещё раз.",
+  addAdminInvalid: "Введите Telegram ID — только цифры.",
+  removeAdminTitle: "Забрать права",
+  removeAdminMessage: (name: string) => `${name} больше не сможет открыть админ-панель.`,
+  removeAdminConfirm: "Забрать",
+  removeAdminFailed: "Не удалось забрать права. Попробуйте ещё раз.",
+  returnToApp: "Вернуться в приложение",
+
+  // --- Причины недоставки ---
+  undelivered: {
+    bot_blocked: "Не доставлено — пользователь заблокировал бота.",
+    chat_not_found: "Не доставлено — пользователь ни разу не запускал бота.",
+  } as Record<UndeliveredReason, string>,
+
+  // Ошибки API по кодам; кода нет в списке — текст про само действие.
+  apiErrors: {
+    network_error: "Нет связи с сервером",
+    invalid_init_data: "Не удалось подтвердить личность Telegram. Откройте приложение заново.",
+    missing_init_data: "Не удалось подтвердить личность Telegram. Откройте приложение заново.",
+    rate_limited: "Слишком много действий подряд — подождите пару секунд",
+    admin_required: "Вы больше не администратор",
+    user_not_found: "Этого пользователя больше нет",
+    user_is_admin: "Администратора нельзя заблокировать или удалить",
+    review_not_found: "Этого отзыва больше нет",
+    admin_exists: "Этот пользователь уже администратор",
+    admin_not_found: "Этот пользователь уже не администратор",
+    cannot_remove_self: "Себя убрать нельзя — попросите другого администратора",
+    invalid_message: "Введите сообщение (до 4 096 символов, подпись — до 1 024)",
+    invalid_segment: "Выберите, кому отправить рассылку",
+    invalid_media: "Telegram не сможет отправить этот файл — нужен JPEG, PNG, WebP или MP4",
+    media_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
+    payload_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
+    no_recipients: "В этой аудитории пока никого нет",
+    admin_chat_unavailable: "Сначала запустите бота — копия каждой рассылки приходит вам",
+    telegram_rejected: "Telegram не принял это сообщение",
+    telegram_busy: "Telegram просит подождать — попробуйте через минуту",
+    telegram_error: "Не удалось связаться с Telegram — попробуйте ещё раз",
+  } as Partial<Record<ApiErrorCode, string>>,
+};
+
+export type AdminStrings = typeof RU;
+
+const EN: AdminStrings = {
   tabAnalytics: "Analytics",
-  tabPeople: "People",
+  tabUsers: "Users",
+  tabReviews: "Reviews",
   tabBroadcast: "Broadcast",
   tabSettings: "Settings",
 
-  // --- Общие состояния ---
   loadingEmoji: "⏳",
   loading: "Loading…",
   errorEmoji: "⚠️",
@@ -25,12 +305,14 @@ export const ADMIN_STRINGS = {
   cancel: "Cancel",
   never: "Never",
   you: "You",
+  dateAtTime: (date: string, time: string) => `${date} at ${time}`,
+  kilobytes: "KB",
+  megabytes: "MB",
 
-  // --- Аналитика ---
   analyticsTitle: "Analytics",
   analyticsLoadFailed: "Couldn’t load analytics",
   period: "Period",
-  periodNames: { 7: "Last 7 Days", 30: "Last 30 Days", 90: "Last 90 Days" } as Record<number, string>,
+  periodNames: { 7: "Last 7 Days", 30: "Last 30 Days", 90: "Last 90 Days" },
   periodDays: (days: number) => `Last ${days} Days`,
   usersHeading: "Users",
   statTotalUsers: "Total users",
@@ -39,7 +321,7 @@ export const ADMIN_STRINGS = {
   statActiveNow: "Online now",
   chartTotalUsers: "Total users",
   chartTotalUsersNote: (added: number, period: string) =>
-    added === 1 ? `+1 new user · ${period}` : `+${added} new users · ${period}`,
+    `+${en(added)} new ${added === 1 ? "user" : "users"} · ${period}`,
   activityHeading: "Activity",
   statDau: "Daily active",
   statWau: "Weekly active",
@@ -60,15 +342,21 @@ export const ADMIN_STRINGS = {
   chartHabits: "Users by number of habits",
   chartHabitsNote: "People who opened the app",
   habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
-  habitsBucketUsers: (users: number, habits: number, openEnded: boolean) =>
-    `${users === 1 ? "1 user" : `${users} users`} with ${openEnded ? `${habits} or more` : habits} ${
-      habits === 1 && !openEnded ? "habit" : "habits"
-    }`,
+  habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
+    const who = `${en(users)} ${users === 1 ? "user" : "users"}`;
+    if (openEnded) {
+      return `${who} with ${habits} or more habits`;
+    }
+    if (habits === 0) {
+      return `${who} with no habits`;
+    }
+    return `${who} with ${habits} ${habits === 1 ? "habit" : "habits"}`;
+  },
   completionHeading: "Completion",
   chartCompletion: "Daily completion rate",
   chartCompletionNote: (period: string) => `Average · ${period}`,
   completionPoint: (completed: number, scheduled: number) =>
-    `${completed} of ${scheduled} scheduled`,
+    `${en(completed)} of ${en(scheduled)} scheduled`,
   nothingScheduled: "Nothing scheduled",
   today: "Today",
   todaySoFar: "Today so far",
@@ -79,14 +367,7 @@ export const ADMIN_STRINGS = {
   tableHabits: "Habits",
   tableUsers: "Users",
   tableGroup: "Group",
-  tableShare: "Share",
 
-  // --- Люди ---
-  peopleTitle: "People",
-  peopleUsers: "Users",
-  peopleReviews: "Reviews",
-
-  // --- Пользователи ---
   usersTitle: "Users",
   usersSearch: "Name, @username or ID",
   usersSearchClear: "Clear",
@@ -95,7 +376,6 @@ export const ADMIN_STRINGS = {
   blockedTag: "Blocked",
   unnamedUser: (telegramId: number) => `User ${telegramId}`,
 
-  // --- Профиль пользователя ---
   profileLoadFailed: "Couldn’t load this user",
   profileHeading: "Profile",
   profileTelegramId: "Telegram ID",
@@ -111,7 +391,7 @@ export const ADMIN_STRINGS = {
   statusBlocked: "Blocked",
   statusBotBlocked: "Blocked the bot",
   statusAdmin: "Admin",
-  languageNames: { ru: "Russian", en: "English" } as Record<string, string>,
+  languageNames: { ru: "Russian", en: "English" },
   notSet: "Not Set",
   profileReviewsHeading: "Reviews",
   actionsHeading: "Actions",
@@ -141,7 +421,6 @@ export const ADMIN_STRINGS = {
   done: "OK",
   messageFailed: "Couldn’t send the message. Please try again.",
 
-  // --- Отзывы ---
   reviewsTitle: "Reviews",
   reviewsLoadFailed: "Couldn’t load reviews",
   reviewsEmpty: "No reviews yet",
@@ -161,7 +440,6 @@ export const ADMIN_STRINGS = {
   replyFailed: "Couldn’t send the reply. Please try again.",
   sentOn: (date: string) => `Sent ${date}`,
 
-  // --- Рассылка ---
   broadcastTitle: "Broadcast",
   broadcastLoadFailed: "Couldn’t load audiences",
   audienceSection: "Audience",
@@ -171,15 +449,13 @@ export const ADMIN_STRINGS = {
     active_7d: "Active in Last 7 Days",
     active_30d: "Active in Last 30 Days",
     never_opened: "Never Opened the App",
-  } as Record<string, string>,
+  },
   recipients: (count: number) =>
-    `${count === 1 ? "1 recipient" : `${count.toLocaleString("en-US")} recipients`}. You get a copy first. People who blocked the bot are skipped.`,
+    `${en(count)} ${count === 1 ? "recipient" : "recipients"}. You get a copy first. People who blocked the bot are skipped.`,
   messageSection: "Message",
   broadcastPlaceholder: "Text of the message",
-  characters: (count: number, limit: number) =>
-    `${count.toLocaleString("en-US")} / ${limit.toLocaleString("en-US")}${
-      limit < 4096 ? " · caption" : ""
-    }`,
+  characters: (count: number, limit: number, caption: boolean) =>
+    `${en(count)} / ${en(limit)}${caption ? " · caption" : ""}`,
   mediaSection: "Photo or Video",
   addMedia: "Add Photo or Video",
   removeMedia: "Remove",
@@ -189,22 +465,18 @@ export const ADMIN_STRINGS = {
   sendBroadcast: "Send Broadcast",
   sendDialogTitle: "Send Broadcast",
   sendDialogMessage: (count: number, segment: string) =>
-    `Send this message to ${count === 1 ? "1 person" : `${count.toLocaleString("en-US")} people`} (${segment})? You’ll get a copy first.`,
+    `Send this message to ${en(count)} ${count === 1 ? "person" : "people"} (${segment})? You’ll get a copy first.`,
   sendDialogConfirm: "Send",
   broadcastFailed: "Couldn’t send the broadcast. Please try again.",
   lastBroadcast: "Last Broadcast",
   broadcastWaiting: "Waiting for the bot to start sending…",
-  broadcastProgress: (sent: number, total: number) =>
-    `Sending… ${sent.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`,
+  broadcastProgress: (sent: number, total: number) => `Sending… ${en(sent)} of ${en(total)}`,
   broadcastDone: "Sent",
   broadcastResult: (sent: number, failed: number) =>
-    `Delivered to ${sent.toLocaleString("en-US")}${
-      failed ? ` · ${failed.toLocaleString("en-US")} not delivered` : ""
-    }`,
+    `Delivered to ${en(sent)}${failed ? ` · ${en(failed)} not delivered` : ""}`,
   broadcastProgressLabel: "Broadcast progress",
-  broadcastTotal: (total: number) => `${total.toLocaleString("en-US")} total`,
+  broadcastTotal: (total: number) => `${en(total)} total`,
 
-  // --- Настройки админ-панели ---
   settingsTitle: "Settings",
   adminsHeading: "Admins",
   adminsLoadFailed: "Couldn’t load admins",
@@ -223,13 +495,11 @@ export const ADMIN_STRINGS = {
   removeAdminFailed: "Couldn’t remove the admin. Please try again.",
   returnToApp: "Return to App",
 
-  // --- Причины недоставки ---
   undelivered: {
     bot_blocked: "Not delivered — this person has blocked the bot.",
     chat_not_found: "Not delivered — this person has never started the bot.",
-  } as Record<UndeliveredReason, string>,
+  },
 
-  // Ошибки API по кодам; кода нет в списке — текст про само действие.
   apiErrors: {
     network_error: "No connection to the server",
     invalid_init_data: "Couldn’t verify your Telegram account. Please reopen the app.",
@@ -252,13 +522,25 @@ export const ADMIN_STRINGS = {
     telegram_rejected: "Telegram didn’t accept this message",
     telegram_busy: "Telegram asked us to slow down — try again in a minute",
     telegram_error: "Couldn’t reach Telegram — try again",
-  } as Partial<Record<ApiErrorCode, string>>,
+  },
 };
 
+/** Строки админ-панели по языкам. */
+export const ADMIN_STRINGS: Record<Language, AdminStrings> = { ru: RU, en: EN };
+
+/** Строки админ-панели на текущем языке интерфейса. */
+export function useAdminStrings(): AdminStrings {
+  return ADMIN_STRINGS[useLanguage()];
+}
+
 /** Текст ошибки для админ-панели: подпись кода ошибки API или `fallback`. */
-export function describeAdminError(error: unknown, fallback: string): string {
+export function describeAdminError(
+  strings: AdminStrings,
+  error: unknown,
+  fallback: string,
+): string {
   if (error instanceof ApiRequestError) {
-    return ADMIN_STRINGS.apiErrors[error.code] ?? fallback;
+    return strings.apiErrors[error.code] ?? fallback;
   }
   return fallback;
 }

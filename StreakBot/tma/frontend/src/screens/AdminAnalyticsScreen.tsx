@@ -17,8 +17,8 @@
 
 import { useState } from "react";
 
-import { ADMIN_STRINGS as S, describeAdminError } from "../adminStrings";
-import { formatCount, formatDay, formatDecimal, formatPercent } from "../adminFormat";
+import { useAdminFormat } from "../adminFormat";
+import { describeAdminError, useAdminStrings } from "../adminStrings";
 import {
   ChecklistIcon,
   MonthIcon,
@@ -44,7 +44,7 @@ import { StatusMessage } from "../components/StatusMessage";
 import { ANALYTICS_PERIODS } from "../constants";
 import type { Resource } from "../hooks/useResource";
 import { habitColorStyle } from "../theme";
-import type { Analytics, AnalyticsDay } from "../types/admin";
+import type { Analytics } from "../types/admin";
 import type { HabitColor } from "../types/habit";
 import styles from "./AdminAnalyticsScreen.module.css";
 
@@ -54,30 +54,34 @@ const ACTIVITY_COLOR: HabitColor = "indigo";
 const HABITS_COLOR: HabitColor = "purple";
 const COMPLETION_COLOR: HabitColor = "teal";
 
-const PERIOD_OPTIONS = ANALYTICS_PERIODS.map((days) => ({
-  value: String(days),
-  label: S.periodNames[days],
-}));
-
 interface AdminAnalyticsScreenProps {
   analytics: Resource<Analytics>;
   period: number;
   onPeriodChange: (period: number) => void;
 }
 
-export function AdminAnalyticsScreen({ analytics, period, onPeriodChange }: AdminAnalyticsScreenProps) {
+export function AdminAnalyticsScreen({
+  analytics,
+  period,
+  onPeriodChange,
+}: AdminAnalyticsScreenProps) {
+  const strings = useAdminStrings();
   const { data, status, error, refreshing, reload } = analytics;
+  const periodOptions = ANALYTICS_PERIODS.map((days) => ({
+    value: String(days),
+    label: strings.periodNames[days],
+  }));
 
   return (
-    <Screen title={S.analyticsTitle}>
+    <Screen title={strings.analyticsTitle}>
       <div className={styles.filters}>
         <ListGroup>
-          <ListItem label={S.period}>
+          <ListItem label={strings.period}>
             <MenuSelect
-              options={PERIOD_OPTIONS}
+              options={periodOptions}
               value={String(period)}
               onChange={(value) => onPeriodChange(Number(value))}
-              label={S.period}
+              label={strings.period}
             />
           </ListItem>
         </ListGroup>
@@ -90,16 +94,16 @@ export function AdminAnalyticsScreen({ analytics, period, onPeriodChange }: Admi
     if (status === "error" && !data) {
       return (
         <StatusMessage
-          emoji={S.errorEmoji}
-          title={S.errorTitle}
-          description={describeAdminError(error, S.analyticsLoadFailed)}
-          actionLabel={S.retry}
+          emoji={strings.errorEmoji}
+          title={strings.errorTitle}
+          description={describeAdminError(strings, error, strings.analyticsLoadFailed)}
+          actionLabel={strings.retry}
           onAction={reload}
         />
       );
     }
     if (!data) {
-      return <StatusMessage emoji={S.loadingEmoji} title={S.loading} />;
+      return <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />;
     }
     return (
       <div className={`${styles.sections} ${refreshing ? styles.refreshing : ""}`}>
@@ -109,15 +113,15 @@ export function AdminAnalyticsScreen({ analytics, period, onPeriodChange }: Admi
   }
 }
 
-/** Подписи дней оси X: последний — «Сегодня». */
-function dayLabels(days: AnalyticsDay[]): string[] {
-  return days.map((day, index) => (index === days.length - 1 ? S.today : formatDay(day.date)));
-}
-
 function Dashboard({ data }: { data: Analytics }) {
-  const periodName = S.periodNames[data.period_days] ?? S.periodDays(data.period_days);
-  const labels = dayLabels(data.days);
+  const strings = useAdminStrings();
+  const format = useAdminFormat();
+  const periodName = strings.periodNames[data.period_days] ?? strings.periodDays(data.period_days);
   const lastIndex = data.days.length - 1;
+  // Подписи дней оси X: последний — «Сегодня».
+  const labels = data.days.map((day, index) =>
+    index === lastIndex ? strings.today : format.day(day.date),
+  );
   const { users, activity, habits, audience } = data;
   const added = data.days.reduce((sum, day) => sum + day.new_users, 0);
   const averageDau = data.days.length
@@ -127,80 +131,114 @@ function Dashboard({ data }: { data: Analytics }) {
 
   return (
     <>
-      <Section title={S.usersHeading}>
+      <Section title={strings.usersHeading}>
         <div className={styles.group} style={habitColorStyle(USERS_COLOR)}>
           <div className={styles.stats}>
-            <StatCard icon={<UsersStatIcon />} value={formatCount(users.total)} label={S.statTotalUsers} />
-            <StatCard icon={<UserPlusIcon />} value={formatCount(users.new_week)} label={S.statNewWeek} />
-            <StatCard icon={<UserPlusIcon />} value={formatCount(users.new_month)} label={S.statNewMonth} />
-            <StatCard icon={<OnlineIcon />} value={formatCount(users.active_now)} label={S.statActiveNow} />
+            <StatCard
+              icon={<UsersStatIcon />}
+              value={format.count(users.total)}
+              label={strings.statTotalUsers}
+            />
+            <StatCard
+              icon={<UserPlusIcon />}
+              value={format.count(users.new_week)}
+              label={strings.statNewWeek}
+            />
+            <StatCard
+              icon={<UserPlusIcon />}
+              value={format.count(users.new_month)}
+              label={strings.statNewMonth}
+            />
+            <StatCard
+              icon={<OnlineIcon />}
+              value={format.count(users.active_now)}
+              label={strings.statActiveNow}
+            />
           </div>
           <TrendCard
-            title={S.chartTotalUsers}
-            summary={{ value: formatCount(users.total), note: S.chartTotalUsersNote(added, periodName) }}
+            title={strings.chartTotalUsers}
+            summary={{
+              value: format.count(users.total),
+              note: strings.chartTotalUsersNote(added, periodName),
+            }}
             values={data.days.map((day) => day.total_users)}
             labels={labels}
             readout={(index) => ({
-              value: formatCount(data.days[index].total_users),
-              note: `${labels[index]} · +${formatCount(data.days[index].new_users)}`,
+              value: format.count(data.days[index].total_users),
+              note: `${labels[index]} · +${format.count(data.days[index].new_users)}`,
             })}
-            formatTick={formatCount}
+            formatTick={format.count}
           />
         </div>
       </Section>
 
-      <Section title={S.activityHeading}>
+      <Section title={strings.activityHeading}>
         <div className={styles.group} style={habitColorStyle(ACTIVITY_COLOR)}>
           <div className={styles.stats}>
-            <StatCard icon={<SunIcon />} value={formatCount(activity.dau)} label={S.statDau} />
-            <StatCard icon={<WeekIcon />} value={formatCount(activity.wau)} label={S.statWau} />
-            <StatCard icon={<MonthIcon />} value={formatCount(activity.mau)} label={S.statMau} />
+            <StatCard icon={<SunIcon />} value={format.count(activity.dau)} label={strings.statDau} />
+            <StatCard
+              icon={<WeekIcon />}
+              value={format.count(activity.wau)}
+              label={strings.statWau}
+            />
+            <StatCard
+              icon={<MonthIcon />}
+              value={format.count(activity.mau)}
+              label={strings.statMau}
+            />
             <StatCard
               icon={<RepeatIcon />}
-              value={activity.mau ? formatPercent(activity.dau / activity.mau) : "—"}
-              label={S.statStickiness}
+              value={activity.mau ? format.percent(activity.dau / activity.mau) : "—"}
+              label={strings.statStickiness}
             />
           </div>
           <TrendCard
-            title={S.chartDau}
-            summary={{ value: formatDecimal(averageDau), note: S.chartDauNote(periodName) }}
+            title={strings.chartDau}
+            summary={{
+              value: format.decimal(averageDau),
+              note: strings.chartDauNote(periodName),
+            }}
             values={data.days.map((day) => day.active_users)}
             labels={labels}
             partialLast
             readout={(index) => ({
-              value: formatCount(data.days[index].active_users),
-              note: index === lastIndex ? S.todaySoFar : labels[index],
+              value: format.count(data.days[index].active_users),
+              note: index === lastIndex ? strings.todaySoFar : labels[index],
             })}
-            formatTick={formatCount}
+            formatTick={format.count}
           />
         </div>
       </Section>
 
-      <Section title={S.audienceHeading} footer={S.audienceFooter}>
+      <Section title={strings.audienceHeading} footer={strings.audienceFooter}>
         <AudienceCard audience={audience} total={users.total} />
       </Section>
 
-      <Section title={S.habitsHeading}>
+      <Section title={strings.habitsHeading}>
         <div className={styles.group} style={habitColorStyle(HABITS_COLOR)}>
           <div className={styles.stats}>
             <StatCard
               icon={<ChecklistIcon />}
-              value={formatDecimal(habits.average)}
-              label={S.statAverageHabits}
+              value={format.decimal(habits.average)}
+              label={strings.statAverageHabits}
             />
-            <StatCard icon={<StackIcon />} value={formatCount(habits.total)} label={S.statTotalHabits} />
+            <StatCard
+              icon={<StackIcon />}
+              value={format.count(habits.total)}
+              label={strings.statTotalHabits}
+            />
           </div>
           <HabitsCard distribution={habits.distribution} appUsers={appUsers} />
         </div>
       </Section>
 
-      <Section title={S.completionHeading}>
+      <Section title={strings.completionHeading}>
         <div className={styles.group} style={habitColorStyle(COMPLETION_COLOR)}>
           <TrendCard
-            title={S.chartCompletion}
+            title={strings.chartCompletion}
             summary={{
-              value: data.completion_rate === null ? "—" : formatPercent(data.completion_rate),
-              note: S.chartCompletionNote(periodName),
+              value: data.completion_rate === null ? "—" : format.percent(data.completion_rate),
+              note: strings.chartCompletionNote(periodName),
             }}
             values={data.days.map((day) => day.completion_rate)}
             labels={labels}
@@ -210,15 +248,15 @@ function Dashboard({ data }: { data: Analytics }) {
             partialLast
             readout={(index) => {
               const day = data.days[index];
-              const when = index === lastIndex ? S.todaySoFar : labels[index];
+              const when = index === lastIndex ? strings.todaySoFar : labels[index];
               return day.completion_rate === null
-                ? { value: "—", note: `${S.nothingScheduled} · ${when}` }
+                ? { value: "—", note: `${strings.nothingScheduled} · ${when}` }
                 : {
-                    value: formatPercent(day.completion_rate),
-                    note: `${S.completionPoint(day.completed, day.scheduled)} · ${when}`,
+                    value: format.percent(day.completion_rate),
+                    note: `${strings.completionPoint(day.completed, day.scheduled)} · ${when}`,
                   };
             }}
-            formatTick={formatPercent}
+            formatTick={format.percent}
           />
         </div>
       </Section>
@@ -254,10 +292,11 @@ function TrendCard({
   integer,
   partialLast,
 }: TrendCardProps) {
+  const strings = useAdminStrings();
   const [selected, setSelected] = useState<number | null>(null);
   const shown = selected === null ? summary : readout(selected);
   const table: ChartTable = {
-    columns: [S.tableDate, S.tableValue],
+    columns: [strings.tableDate, strings.tableValue],
     rows: labels.map((label, index) => [label, readout(index).value]),
   };
 
@@ -267,8 +306,8 @@ function TrendCard({
       value={shown.value}
       note={shown.note}
       table={table}
-      showTableLabel={S.showTable}
-      showChartLabel={S.showChart}
+      showTableLabel={strings.showTable}
+      showChartLabel={strings.showChart}
     >
       <LineChart
         values={values}
@@ -287,28 +326,32 @@ function TrendCard({
 }
 
 function AudienceCard({ audience, total }: { audience: Analytics["audience"]; total: number }) {
+  const strings = useAdminStrings();
+  const format = useAdminFormat();
   const segments = [
-    { label: S.audienceUsesApp, value: audience.uses_app, color: "--chart-cat-1" },
-    { label: S.audienceNeverOpened, value: audience.never_opened, color: "--chart-cat-2" },
-    { label: S.audienceBlockedBot, value: audience.blocked_bot, color: "--chart-cat-3" },
+    { label: strings.audienceUsesApp, value: audience.uses_app, color: "--chart-cat-1" },
+    { label: strings.audienceNeverOpened, value: audience.never_opened, color: "--chart-cat-2" },
+    { label: strings.audienceBlockedBot, value: audience.blocked_bot, color: "--chart-cat-3" },
   ];
   const table: ChartTable = {
-    columns: [S.tableGroup, S.tableUsers],
-    rows: segments.map((segment) => [segment.label, formatCount(segment.value)]),
+    columns: [strings.tableGroup, strings.tableUsers],
+    rows: segments.map((segment) => [segment.label, format.count(segment.value)]),
   };
   return (
     <ChartCard
-      title={S.chartAudience}
-      value={formatCount(total)}
+      title={strings.chartAudience}
+      value={format.count(total)}
       table={table}
-      showTableLabel={S.showTable}
-      showChartLabel={S.showChart}
+      showTableLabel={strings.showTable}
+      showChartLabel={strings.showChart}
     >
       <StackedBar
         segments={segments}
-        formatValue={formatCount}
-        formatShare={formatPercent}
-        label={segments.map((segment) => `${segment.label}: ${formatCount(segment.value)}`).join(", ")}
+        formatValue={format.count}
+        formatShare={format.percent}
+        label={segments
+          .map((segment) => `${segment.label}: ${format.count(segment.value)}`)
+          .join(", ")}
       />
     </ChartCard>
   );
@@ -321,32 +364,36 @@ function HabitsCard({
   distribution: Analytics["habits"]["distribution"];
   appUsers: number;
 }) {
+  const strings = useAdminStrings();
+  const format = useAdminFormat();
   const [selected, setSelected] = useState<number | null>(null);
   const describe = (index: number): string => {
     const bucket = distribution[index];
-    return S.habitsBucketUsers(bucket.users, bucket.habits, bucket.open_ended);
+    return strings.habitsBucketUsers(bucket.users, bucket.habits, bucket.open_ended);
   };
-  const labels = distribution.map((bucket) => S.habitsBucket(bucket.habits, bucket.open_ended));
+  const labels = distribution.map((bucket) =>
+    strings.habitsBucket(bucket.habits, bucket.open_ended),
+  );
   const table: ChartTable = {
-    columns: [S.tableHabits, S.tableUsers],
-    rows: distribution.map((bucket, index) => [labels[index], formatCount(bucket.users)]),
+    columns: [strings.tableHabits, strings.tableUsers],
+    rows: distribution.map((bucket, index) => [labels[index], format.count(bucket.users)]),
   };
   return (
     <ChartCard
-      title={S.chartHabits}
-      value={formatCount(selected === null ? appUsers : distribution[selected].users)}
-      note={selected === null ? S.chartHabitsNote : describe(selected)}
+      title={strings.chartHabits}
+      value={format.count(selected === null ? appUsers : distribution[selected].users)}
+      note={selected === null ? strings.chartHabitsNote : describe(selected)}
       table={table}
-      showTableLabel={S.showTable}
-      showChartLabel={S.showChart}
+      showTableLabel={strings.showTable}
+      showChartLabel={strings.showChart}
     >
       <ColumnChart
         values={distribution.map((bucket) => bucket.users)}
         labels={labels}
-        formatValue={formatCount}
+        formatValue={format.count}
         selected={selected}
         onSelect={setSelected}
-        label={S.chartHabits}
+        label={strings.chartHabits}
         describe={describe}
       />
     </ChartCard>

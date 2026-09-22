@@ -263,13 +263,6 @@ class AdminMessage(BaseModel):
     text: str
 
 
-class AdminCounts(BaseModel):
-    """Счётчики раздела «Люди»."""
-
-    users: int
-    reviews: int
-
-
 class AdminEntry(AdminUserRef):
     """Администратор в списке."""
 

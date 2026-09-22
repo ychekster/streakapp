@@ -3,7 +3,6 @@
 403 `admin_required`).
 
     GET    /admin/analytics?days=30          — аналитика: пользователи, активность, привычки
-    GET    /admin/counts                     — сколько пользователей и отзывов
     GET    /admin/users?q=&cursor=&limit=    — пользователи (поиск, страницы)
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
     PUT    /admin/users/{id}/block           — заблокировать / разблокировать
@@ -43,7 +42,6 @@ from tma.backend.models import User
 from tma.backend.repository import Repository, utc_now
 from tma.backend.schemas import (
     AdminBlockUpdate,
-    AdminCounts,
     AdminCreate,
     AdminMessage,
     AdminReviewResponse,
@@ -76,12 +74,6 @@ async def read_analytics(
     return await build_analytics(repo, days, utc_now())
 
 
-@router.get("/counts", response_model=AdminCounts)
-async def read_counts(repo: Repository = RepositoryDep) -> AdminCounts:
-    """Сколько пользователей и отзывов (раздел «Люди»)."""
-    return await service.people_counts(repo)
-
-
 # --------------------------------------------------------------------------- #
 #  Пользователи
 # --------------------------------------------------------------------------- #
@@ -102,22 +94,26 @@ async def read_users(
 
 @router.get("/users/{telegram_id}", response_model=AdminUserResponse)
 async def read_user(
-    telegram_id: int = _TelegramId, repo: Repository = RepositoryDep
+    telegram_id: int = _TelegramId,
+    admin: User = Depends(get_admin_user),
+    repo: Repository = RepositoryDep,
 ) -> AdminUserResponse:
-    """Профиль пользователя с его отзывами."""
-    return AdminUserResponse(user=await service.user_profile(repo, telegram_id))
+    """Профиль пользователя с его отзывами (пояс — на языке администратора)."""
+    profile = await service.user_profile(repo, telegram_id, admin.language)
+    return AdminUserResponse(user=profile)
 
 
 @router.put("/users/{telegram_id}/block", response_model=AdminUserResponse)
 async def block_user(
     payload: AdminBlockUpdate,
     telegram_id: int = _TelegramId,
+    admin: User = Depends(get_admin_user),
     repo: Repository = RepositoryDep,
 ) -> AdminUserResponse:
     """Заблокировать (`blocked: true`) или разблокировать пользователя. Администратора —
     нельзя (409 `user_is_admin`)."""
     return AdminUserResponse(
-        user=await service.set_user_blocked(repo, telegram_id, payload.blocked)
+        user=await service.set_user_blocked(repo, telegram_id, payload.blocked, admin.language)
     )
 
 

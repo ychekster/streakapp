@@ -508,10 +508,6 @@ class Repository:
             .where(Review.user_id == user_id, Review.created_at >= since)
         ) or 0
 
-    async def count_reviews(self) -> int:
-        """Всего отзывов."""
-        return await self.session.scalar(select(func.count()).select_from(Review)) or 0
-
     async def list_reviews(self, before_id: int | None, limit: int) -> list[Review]:
         """Отзывы всех пользователей, новые сначала, — вместе с автором. `before_id` —
         курсор страницы: id последнего отзыва предыдущей."""
@@ -567,10 +563,6 @@ class Repository:
             statement = statement.where(or_(*conditions))
         result = await self.session.execute(statement.offset(offset).limit(limit))
         return list(result.scalars().all())
-
-    async def count_users(self) -> int:
-        """Всего пользователей."""
-        return await self.session.scalar(select(func.count()).select_from(User)) or 0
 
     # ------------------------------------------------------------------ #
     #  Analytics

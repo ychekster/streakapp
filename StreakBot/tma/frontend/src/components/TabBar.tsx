@@ -5,12 +5,17 @@
  * иконки и подписи чёрные; в тёмной — наоборот. Зафиксирована внизу с учётом safe area;
  * на вложенных экранах уезжает вниз.
  *
- * Приложение показывает две вкладки («Привычки», «Настройки») и «+», админ-панель —
- * четыре вкладки без «+»: тогда таблетка занимает всю ширину, как таб-бар iOS с
- * несколькими вкладками.
+ * Приложение показывает две вкладки («Привычки», «Настройки») равной ширины и «+»,
+ * админ-панель — пять вкладок без «+»: тогда таблетка занимает всю ширину, а вкладки
+ * делят её по длине подписей (каждой — её подпись и поровну свободного места), чтобы
+ * длинная подпись («Пользователи») помещалась целиком. На совсем узком экране подпись
+ * обрезается многоточием.
+ *
+ * Подложка ставится по измеренному положению и ширине активной вкладки — поэтому
+ * вкладкам не обязательно быть одной ширины, а смена языка (другие подписи) её не сбивает.
  */
 
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { PlusIcon } from "./TabIcons";
 import styles from "./TabBar.module.css";
@@ -33,6 +38,12 @@ interface TabBarProps<K extends string> {
   addLabel?: string;
 }
 
+/** Положение подложки внутри таблетки, px. */
+interface Thumb {
+  x: number;
+  width: number;
+}
+
 export function TabBar<K extends string>({
   tabs,
   active,
@@ -41,20 +52,43 @@ export function TabBar<K extends string>({
   onAdd,
   addLabel,
 }: TabBarProps<K>) {
+  const pillRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<Thumb | null>(null);
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === active));
-  // Подложка — шириной одной вкладки и сдвинута на номер активной (см. .thumb).
-  const pillStyle = {
-    "--tab-count": tabs.length,
-    "--tab-index": activeIndex,
-  } as CSSProperties;
   const className = [styles.bar, hidden ? styles.hidden : "", onAdd ? "" : styles.wide]
     .filter(Boolean)
     .join(" ");
 
+  // Подложка — под активной вкладкой: её положение измеряется до отрисовки и заново при
+  // любом изменении размеров таблетки или вкладок (поворот экрана, другой язык).
+  useLayoutEffect(() => {
+    const pill = pillRef.current;
+    if (!pill) {
+      return;
+    }
+    const tabElements = [...pill.querySelectorAll<HTMLElement>("[role=tab]")];
+    const measure = (): void => {
+      const tab = tabElements[activeIndex];
+      if (tab) {
+        setThumb({ x: tab.offsetLeft, width: tab.offsetWidth });
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(pill);
+    tabElements.forEach((tab) => observer.observe(tab));
+    return () => observer.disconnect();
+  }, [activeIndex, tabs]);
+
+  const thumbStyle = thumb
+    ? ({ width: thumb.width, transform: `translateX(${thumb.x}px)` } as CSSProperties)
+    : undefined;
+
   return (
     <nav className={className} aria-hidden={hidden}>
-      <div className={styles.pill} role="tablist" style={pillStyle}>
-        <span className={styles.thumb} aria-hidden="true" />
+      <div ref={pillRef} className={styles.pill} role="tablist">
+        {/* До первого измерения подложки нет — иначе она въехала бы из левого края. */}
+        {thumb ? <span className={styles.thumb} style={thumbStyle} aria-hidden="true" /> : null}
         {tabs.map((tab) => {
           const selected = tab.key === active;
           return (
@@ -67,7 +101,7 @@ export function TabBar<K extends string>({
               onClick={() => onSelect(tab.key)}
             >
               {tab.icon(selected)}
-              <span>{tab.label}</span>
+              <span className={styles.label}>{tab.label}</span>
             </button>
           );
         })}

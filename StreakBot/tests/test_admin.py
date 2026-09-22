@@ -51,7 +51,6 @@ def _profile(client: TestClient, admin: AuthUser, user_id: int) -> dict:
 
 _ADMIN_ROUTES = [
     ("GET", "/admin/analytics"),
-    ("GET", "/admin/counts"),
     ("GET", "/admin/users"),
     ("GET", "/admin/users/1"),
     ("PUT", "/admin/users/1/block"),
@@ -207,7 +206,10 @@ def test_profile(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
     client.put("/settings", json={"timezone": "Europe/Moscow"}, headers=user.headers)
     profile = _profile(client, admin, user.id)
     assert profile["habits"] == 1
-    assert profile["timezone"] == "Moscow"
+    # Пояс подписан на языке администратора (в тестах Telegram на русском).
+    assert profile["timezone"] == "Москва"
+    client.put("/settings", json={"language": "en"}, headers=admin.headers)
+    assert _profile(client, admin, user.id)["timezone"] == "Moscow"
     assert profile["is_admin"] is False
     assert profile["app_opened_at"] is not None
     assert profile["last_seen_at"] is not None
@@ -285,7 +287,7 @@ def test_manage_admins(client: TestClient, user: AuthUser, admin: AuthUser) -> N
 
     added = client.post("/admin/admins", json={"telegram_id": user.id}, headers=admin.headers)
     assert added.status_code == 201
-    assert client.get("/admin/counts", headers=user.headers).status_code == 200
+    assert client.get("/admin/admins", headers=user.headers).status_code == 200
     again = client.post("/admin/admins", json={"telegram_id": user.id}, headers=admin.headers)
     assert again.json()["error"]["code"] == "admin_exists"
 
@@ -294,7 +296,7 @@ def test_manage_admins(client: TestClient, user: AuthUser, admin: AuthUser) -> N
 
     removed = client.delete(f"/admin/admins/{user.id}", headers=admin.headers)
     assert user.id not in {item["telegram_id"] for item in removed.json()["admins"]}
-    assert client.get("/admin/counts", headers=user.headers).status_code == 403
+    assert client.get("/admin/admins", headers=user.headers).status_code == 403
 
 
 # --------------------------------------------------------------------------- #

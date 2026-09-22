@@ -31,7 +31,6 @@ from tma.backend.errors import ApiError
 from tma.backend.models import Broadcast, Review, User
 from tma.backend.repository import Repository, utc_now
 from tma.backend.schemas import (
-    AdminCounts,
     AdminEntry,
     AdminReview,
     AdminReviewsPage,
@@ -47,9 +46,6 @@ from tma.backend.schemas import (
     ReviewReplyResponse,
 )
 from tma.backend.timezones import selected_city, timezone_display
-
-# Язык подписей в админ-панели (она только на английском) — для названия пояса.
-_ADMIN_LANGUAGE = "en"
 
 
 # --------------------------------------------------------------------------- #
@@ -101,11 +97,6 @@ def _parse_cursor(cursor: str | None) -> int | None:
 # --------------------------------------------------------------------------- #
 
 
-async def people_counts(repo: Repository) -> AdminCounts:
-    """Сколько пользователей и отзывов — для раздела «Люди»."""
-    return AdminCounts(users=await repo.count_users(), reviews=await repo.count_reviews())
-
-
 async def list_users(
     repo: Repository, query: str | None, cursor: str | None, limit: int
 ) -> AdminUsersPage:
@@ -136,8 +127,9 @@ async def _get_user(repo: Repository, telegram_id: int) -> User:
     return user
 
 
-async def user_profile(repo: Repository, telegram_id: int) -> AdminUserProfile:
-    """Профиль пользователя: данные, статус, число привычек и его отзывы."""
+async def user_profile(repo: Repository, telegram_id: int, language: str) -> AdminUserProfile:
+    """Профиль пользователя: данные, статус, число привычек и его отзывы. Пояс подписан на
+    языке интерфейса администратора (`language`)."""
     user = await _get_user(repo, telegram_id)
     reviews = await repo.user_reviews(telegram_id)
     city = selected_city(user.timezone, user.timezone_city)
@@ -147,7 +139,7 @@ async def user_profile(repo: Repository, telegram_id: int) -> AdminUserProfile:
         username=user.username,
         language=user.language,
         timezone=(
-            timezone_display(user.timezone, _ADMIN_LANGUAGE, city) if user.timezone else None
+            timezone_display(user.timezone, language, city) if user.timezone else None
         ),
         created_at=user.created_at,
         app_opened_at=user.app_opened_at,
@@ -172,13 +164,13 @@ async def _get_manageable_user(repo: Repository, telegram_id: int) -> User:
 
 
 async def set_user_blocked(
-    repo: Repository, telegram_id: int, blocked: bool
+    repo: Repository, telegram_id: int, blocked: bool, language: str
 ) -> AdminUserProfile:
     """Заблокировать пользователя (API отвечает ему 403, напоминания и рассылки не
-    приходят) или снять блокировку."""
+    приходят) или снять блокировку; вернуть профиль (пояс — на языке `language`)."""
     user = await _get_manageable_user(repo, telegram_id)
     await repo.set_blocked(user, blocked)
-    return await user_profile(repo, telegram_id)
+    return await user_profile(repo, telegram_id, language)
 
 
 async def delete_user(repo: Repository, telegram_id: int) -> None:

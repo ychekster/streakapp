@@ -19,36 +19,27 @@ import { useState } from "react";
 import { Disclosure } from "../components/Disclosure";
 import { ListGroup } from "../components/ListGroup";
 import { ListItem } from "../components/ListItem";
-import { MenuSelect } from "../components/MenuSelect";
+import { LanguageRow, ThemeRow } from "../components/PreferenceRows";
 import { ReviewDialog } from "../components/ReviewDialog";
 import { Screen } from "../components/Screen";
 import {
   CalendarBackIcon,
   ClockIcon,
   DocumentIcon,
-  GlobeIcon,
-  PaletteIcon,
   ShieldIcon,
   SlidersIcon,
   StarIcon,
 } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
 import { Switch } from "../components/Switch";
-import { LANGUAGES, THEMES } from "../constants";
 import { describeError } from "../errors";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { useStrings } from "../preferences";
-import { LANGUAGE_NAMES } from "../strings";
-import type { Language, SettingsUpdate, ThemePreference } from "../types/settings";
+import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
 /** Вложенные экраны настроек. */
 export type SettingsPage = "timezone" | "privacy" | "terms";
-
-const LANGUAGE_OPTIONS = LANGUAGES.map((language) => ({
-  value: language,
-  label: LANGUAGE_NAMES[language],
-}));
 
 interface SettingsScreenProps {
   state: UseSettingsResult;
@@ -88,11 +79,6 @@ export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsS
       );
     }
 
-    const themeOptions = THEMES.map((theme) => ({
-      value: theme,
-      label: strings.themeNames[theme],
-    }));
-
     return (
       <div className={styles.settings}>
         <ListGroup>
@@ -107,22 +93,8 @@ export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsS
             </span>
             <Disclosure />
           </ListItem>
-          <ListItem icon={<GlobeIcon />} iconColor="orange" label={strings.settingsLanguage}>
-            <MenuSelect<Language>
-              options={LANGUAGE_OPTIONS}
-              value={settings.language}
-              onChange={(language) => onSave({ language })}
-              label={strings.settingsLanguage}
-            />
-          </ListItem>
-          <ListItem icon={<PaletteIcon />} iconColor="teal" label={strings.settingsTheme}>
-            <MenuSelect<ThemePreference>
-              options={themeOptions}
-              value={settings.theme}
-              onChange={(theme) => onSave({ theme })}
-              label={strings.settingsTheme}
-            />
-          </ListItem>
+          <LanguageRow value={settings.language} onChange={(language) => onSave({ language })} />
+          <ThemeRow value={settings.theme} onChange={(theme) => onSave({ theme })} />
         </ListGroup>
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>

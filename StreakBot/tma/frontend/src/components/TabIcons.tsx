@@ -109,8 +109,8 @@ export function AnalyticsIcon({ filled }: TabIconProps) {
   );
 }
 
-/** «Люди»: два силуэта — ближний слева, дальний справа за ним. */
-export function PeopleIcon({ filled }: TabIconProps) {
+/** «Пользователи»: два силуэта — ближний слева, дальний справа за ним. */
+export function UsersIcon({ filled }: TabIconProps) {
   const fill = filled ? "currentColor" : "none";
   return (
     <svg
@@ -152,6 +152,54 @@ export function BroadcastIcon({ filled }: TabIconProps) {
       />
       <path d="M7.9 16.6l1.4 4.6c.2.6.8 1 1.4.9l.6-.1c.7-.1 1.1-.8.9-1.5l-1-3.3" />
       <path d="M21.2 10.2a4 4 0 0 1 0 5.6" />
+    </svg>
+  );
+}
+
+// Облачко отзыва (с хвостиком слева внизу) и звезда в нём.
+const BUBBLE_PATH =
+  "M8 4h10a5 5 0 0 1 5 5v4a5 5 0 0 1-5 5h-6.3l-4.3 3.6c-.6.5-1.4.1-1.4-.7V18A5 5 0 0 1 3 13V9a5 5 0 0 1 5-5z";
+const REVIEW_STAR_PATH =
+  "M13 7l1.12 2.46 2.68.3-1.99 1.83.54 2.65L13 12.9l-2.35 1.34.54-2.65-1.99-1.83 2.68-.3z";
+// id маски выреза звезды; навигация на экране одна, поэтому id уникален.
+const STAR_CUTOUT_ID = "tabbar-star-cutout";
+
+/** «Отзывы»: облачко со звездой; на активной вкладке — залитое облачко с прорезанной
+ *  звездой. */
+export function ReviewsIcon({ filled }: TabIconProps) {
+  if (filled) {
+    return (
+      <svg className={styles.icon} viewBox="0 0 26 26" aria-hidden="true">
+        <mask id={STAR_CUTOUT_ID}>
+          <rect width="26" height="26" fill="#fff" />
+          <path
+            d={REVIEW_STAR_PATH}
+            fill="#000"
+            stroke="#000"
+            strokeWidth="0.6"
+            strokeLinejoin="round"
+          />
+        </mask>
+        <path d={BUBBLE_PATH} fill="currentColor" mask={`url(#${STAR_CUTOUT_ID})`} />
+      </svg>
+    );
+  }
+  return (
+    <svg className={styles.icon} viewBox="0 0 26 26" aria-hidden="true">
+      <path
+        d={BUBBLE_PATH}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d={REVIEW_STAR_PATH}
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="0.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

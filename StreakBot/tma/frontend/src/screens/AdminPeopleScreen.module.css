@@ -1,8 +1,0 @@
-/* Ряды — той же высоты, что ряды настроек. */
-.people {
-  --list-row-min-height: var(--form-row-min-height);
-}
-
-.count {
-  font-variant-numeric: tabular-nums;
-}

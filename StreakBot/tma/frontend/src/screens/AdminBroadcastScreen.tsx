@@ -16,8 +16,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { createBroadcast, fetchBroadcast, fetchSegments } from "../api/admin";
-import { formatBytes } from "../adminFormat";
-import { ADMIN_STRINGS as S, describeAdminError } from "../adminStrings";
+import { useAdminFormat } from "../adminFormat";
+import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { PaperPlaneIcon, PhotoIcon } from "../components/AdminIcons";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ListItem } from "../components/ListItem";
@@ -56,13 +56,13 @@ function isVideo(file: File): boolean {
 }
 
 /** Почему файл не подходит (тип или размер); null — подходит. */
-function mediaProblem(file: File): string | null {
+function mediaProblem(file: File, strings: AdminStrings): string | null {
   const photo = (BROADCAST_PHOTO_TYPES as readonly string[]).includes(file.type);
   if (!photo && !isVideo(file)) {
-    return S.mediaUnsupported;
+    return strings.mediaUnsupported;
   }
   const limit = photo ? BROADCAST_PHOTO_MAX_BYTES : BROADCAST_VIDEO_MAX_BYTES;
-  return file.size > limit ? S.mediaTooLarge : null;
+  return file.size > limit ? strings.mediaTooLarge : null;
 }
 
 interface AdminBroadcastScreenProps {
@@ -78,6 +78,8 @@ export function AdminBroadcastScreen({
   lastBroadcast,
   onBroadcastChange,
 }: AdminBroadcastScreenProps) {
+  const strings = useAdminStrings();
+  const format = useAdminFormat();
   const segments = useResource(fetchSegments, "segments");
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
@@ -132,7 +134,7 @@ export function AdminBroadcastScreen({
     if (!file) {
       return;
     }
-    const problem = mediaProblem(file);
+    const problem = mediaProblem(file, strings);
     setMediaError(problem);
     if (!problem) {
       onDraftChange({ ...draft, media: file });
@@ -153,7 +155,7 @@ export function AdminBroadcastScreen({
       setConfirming(false);
       segments.reload();
     } catch (error) {
-      setSendError(describeAdminError(error, S.broadcastFailed));
+      setSendError(describeAdminError(strings, error, strings.broadcastFailed));
       hapticNotification("error");
     } finally {
       setSending(false);
@@ -161,20 +163,20 @@ export function AdminBroadcastScreen({
   }
 
   return (
-    <Screen title={S.broadcastTitle}>
+    <Screen title={strings.broadcastTitle}>
       {renderContent()}
       <ConfirmDialog
         open={confirming}
-        title={S.sendDialogTitle}
+        title={strings.sendDialogTitle}
         message={
           sendError ??
-          S.sendDialogMessage(
+          strings.sendDialogMessage(
             segment?.recipients ?? 0,
-            segment ? (S.segmentNames[segment.key] ?? segment.key) : "",
+            segment ? (strings.segmentNames[segment.key] ?? segment.key) : "",
           )
         }
-        cancelLabel={S.cancel}
-        confirmLabel={S.sendDialogConfirm}
+        cancelLabel={strings.cancel}
+        confirmLabel={strings.sendDialogConfirm}
         busy={sending}
         onCancel={() => setConfirming(false)}
         onConfirm={() => void send()}
@@ -186,19 +188,19 @@ export function AdminBroadcastScreen({
     if (!segments.data) {
       return segments.status === "error" ? (
         <StatusMessage
-          emoji={S.errorEmoji}
-          title={S.errorTitle}
-          description={describeAdminError(segments.error, S.broadcastLoadFailed)}
-          actionLabel={S.retry}
+          emoji={strings.errorEmoji}
+          title={strings.errorTitle}
+          description={describeAdminError(strings, segments.error, strings.broadcastLoadFailed)}
+          actionLabel={strings.retry}
           onAction={segments.reload}
         />
       ) : (
-        <StatusMessage emoji={S.loadingEmoji} title={S.loading} />
+        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
       );
     }
     const options = segmentList.map((item) => ({
       value: item.key,
-      label: S.segmentNames[item.key] ?? item.key,
+      label: strings.segmentNames[item.key] ?? item.key,
     }));
     return (
       <div className={styles.form}>
@@ -206,16 +208,16 @@ export function AdminBroadcastScreen({
 
         <Section
           variant="form"
-          title={S.audienceSection}
-          footer={segment ? S.recipients(segment.recipients) : undefined}
+          title={strings.audienceSection}
+          footer={segment ? strings.recipients(segment.recipients) : undefined}
         >
           <Card>
-            <ListItem label={S.sendTo}>
+            <ListItem label={strings.sendTo}>
               <MenuSelect
                 options={options}
                 value={segment?.key ?? draft.segment}
                 onChange={(key) => onDraftChange({ ...draft, segment: key })}
-                label={S.sendTo}
+                label={strings.sendTo}
               />
             </ListItem>
           </Card>
@@ -223,10 +225,10 @@ export function AdminBroadcastScreen({
 
         <Section
           variant="form"
-          title={S.messageSection}
+          title={strings.messageSection}
           footer={
             <span className={length > limit ? styles.over : undefined}>
-              {S.characters(length, limit)}
+              {strings.characters(length, limit, draft.media !== null)}
             </span>
           }
         >
@@ -237,8 +239,8 @@ export function AdminBroadcastScreen({
                 className={styles.text}
                 value={draft.text}
                 onChange={(event) => onDraftChange({ ...draft, text: event.target.value })}
-                placeholder={S.broadcastPlaceholder}
-                aria-label={S.broadcastPlaceholder}
+                placeholder={strings.broadcastPlaceholder}
+                aria-label={strings.broadcastPlaceholder}
                 rows={4}
               />
             </ListItem>
@@ -247,9 +249,9 @@ export function AdminBroadcastScreen({
 
         <Section
           variant="form"
-          title={S.mediaSection}
+          title={strings.mediaSection}
           footer={
-            mediaError ? <span className={styles.over}>{mediaError}</span> : S.mediaFooter
+            mediaError ? <span className={styles.over}>{mediaError}</span> : strings.mediaFooter
           }
         >
           <Card>
@@ -264,13 +266,13 @@ export function AdminBroadcastScreen({
                     )}
                     <span className={styles.mediaInfo}>
                       <span className={styles.mediaName}>{draft.media.name}</span>
-                      <span className={styles.mediaSize}>{formatBytes(draft.media.size)}</span>
+                      <span className={styles.mediaSize}>{format.bytes(draft.media.size)}</span>
                     </span>
                   </span>
                 </ListItem>
                 <ListItem
                   icon={<TrashIcon />}
-                  label={S.removeMedia}
+                  label={strings.removeMedia}
                   destructive
                   onPress={() => onDraftChange({ ...draft, media: null })}
                 />
@@ -279,7 +281,7 @@ export function AdminBroadcastScreen({
               <ListItem
                 icon={<PhotoIcon />}
                 iconColor="green"
-                label={S.addMedia}
+                label={strings.addMedia}
                 accent
                 onPress={() => fileInputRef.current?.click()}
               />
@@ -304,7 +306,7 @@ export function AdminBroadcastScreen({
             <ListItem
               icon={<PaperPlaneIcon />}
               iconColor="blue"
-              label={S.sendBroadcast}
+              label={strings.sendBroadcast}
               accent
               disabled={!valid}
               onPress={() => {
@@ -321,23 +323,24 @@ export function AdminBroadcastScreen({
 
 /** Ход последней рассылки: полоса прогресса и итог. */
 function Progress({ broadcast }: { broadcast: Broadcast }) {
+  const strings = useAdminStrings();
   const processed = broadcast.sent + broadcast.failed;
   const share = broadcast.total ? Math.min(1, processed / broadcast.total) : 1;
   const status =
     broadcast.status === "done"
-      ? S.broadcastDone
+      ? strings.broadcastDone
       : broadcast.status === "pending"
-        ? S.broadcastWaiting
-        : S.broadcastProgress(processed, broadcast.total);
+        ? strings.broadcastWaiting
+        : strings.broadcastProgress(processed, broadcast.total);
   return (
-    <Section variant="form" title={S.lastBroadcast}>
+    <Section variant="form" title={strings.lastBroadcast}>
       <Card padded>
         <div className={styles.progress}>
           <p className={styles.progressStatus}>{status}</p>
           <div
             className={styles.meter}
             role="progressbar"
-            aria-label={S.broadcastProgressLabel}
+            aria-label={strings.broadcastProgressLabel}
             aria-valuemin={0}
             aria-valuemax={broadcast.total}
             aria-valuenow={processed}
@@ -345,8 +348,8 @@ function Progress({ broadcast }: { broadcast: Broadcast }) {
             <span className={styles.meterFill} style={{ width: `${share * 100}%` }} />
           </div>
           <p className={styles.progressResult}>
-            {S.broadcastResult(broadcast.sent, broadcast.failed)}
-            {broadcast.status === "done" ? "" : ` · ${S.broadcastTotal(broadcast.total)}`}
+            {strings.broadcastResult(broadcast.sent, broadcast.failed)}
+            {broadcast.status === "done" ? "" : ` · ${strings.broadcastTotal(broadcast.total)}`}
           </p>
         </div>
       </Card>

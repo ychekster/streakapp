@@ -43,30 +43,31 @@
   border-radius: var(--radius-pill);
 }
 
-/* Серая подложка активной вкладки: ширина одной колонки, переезжает сдвигом на номер
-   активной. Число вкладок и номер активной (--tab-count, --tab-index) задаёт TabBar. */
+/* Серая подложка активной вкладки: положение и ширину задаёт TabBar по измеренной
+   активной вкладке; переезжает сдвигом (и меняет ширину, если вкладки разной ширины). */
 .thumb {
   position: absolute;
   top: var(--tabbar-inset);
   bottom: var(--tabbar-inset);
-  left: var(--tabbar-inset);
-  width: calc((100% - 2 * var(--tabbar-inset)) / var(--tab-count));
+  left: 0;
   border-radius: var(--radius-pill);
   background-color: var(--tabbar-thumb);
-  transform: translateX(calc(var(--tab-index) * 100%));
-  transition: transform var(--tabbar-anim);
+  transition: transform var(--tabbar-anim), width var(--tabbar-anim);
 }
 
-/* Без кнопки «+» (админ-панель, четыре вкладки) таблетка во всю ширину, как таб-бар iOS
-   с несколькими вкладками; вкладки делят её поровну. */
+/* Без кнопки «+» (админ-панель, пять вкладок) таблетка во всю ширину, как таб-бар iOS
+   с несколькими вкладками. Вкладки делят её по длине подписей: каждой — её подпись и
+   поровну свободного места, поэтому длинная подпись помещается целиком. */
 .wide .pill {
   flex: 1;
   max-width: var(--tabbar-wide-max-width);
+  display: flex;
 }
 
 .wide .tab {
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 0 4px;
+  padding: 0 var(--tabbar-wide-tab-pad);
 }
 
 /* relative — чтобы вкладка рисовалась поверх абсолютно позиционированной подложки. */
@@ -89,6 +90,14 @@
 
 .tabActive {
   font-weight: 600;
+}
+
+/* Подпись в одну строку; не помещается (пять вкладок на узком экране) — многоточие. */
+.label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .tab:active {

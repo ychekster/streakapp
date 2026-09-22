@@ -3,7 +3,6 @@
 
 import { ADMIN_PAGE_SIZE, BROADCAST_UPLOAD_TIMEOUT_MS } from "../constants";
 import type {
-  AdminCounts,
   AdminEntry,
   AdminReview,
   AdminUserProfile,
@@ -28,10 +27,6 @@ function pageQuery(cursor: string | null, extra: Record<string, string> = {}): s
 
 export function fetchAnalytics(days: number): Promise<Analytics> {
   return apiRequest<Analytics>(`/admin/analytics?days=${days}`, { method: "GET" });
-}
-
-export function fetchCounts(): Promise<AdminCounts> {
-  return apiRequest<AdminCounts>("/admin/counts", { method: "GET" });
 }
 
 /** Страница пользователей (новые сначала); `query` — имя, @username или id. */

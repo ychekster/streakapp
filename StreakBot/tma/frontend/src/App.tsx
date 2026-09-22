@@ -360,7 +360,11 @@ export function App() {
   if (adminMode) {
     return (
       <PreferencesContext.Provider value={preferences}>
-        <AdminApp onExit={exitAdmin} />
+        <AdminApp
+          settings={settingsState}
+          onSaveSettings={(patch) => void saveSettings(patch)}
+          onExit={exitAdmin}
+        />
       </PreferencesContext.Provider>
     );
   }

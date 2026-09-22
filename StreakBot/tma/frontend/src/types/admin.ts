@@ -60,11 +60,6 @@ export interface ReviewReply extends Delivery {
   review: AdminReview;
 }
 
-export interface AdminCounts {
-  users: number;
-  reviews: number;
-}
-
 export interface AdminEntry extends AdminUserRef {
   added_at: string;
   /** Это вы — себя убрать нельзя. */

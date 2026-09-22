@@ -1,6 +1,6 @@
 /**
- * Отзыв целиком — вложенный экран отзывов (или профиля пользователя). Секции — как на
- * экране привычки:
+ * Отзыв целиком — экран поверх вкладки «Отзывы» (или профиля пользователя). Секции — как
+ * на экране привычки:
  *  - От кого — автор; нажатие открывает его профиль;
  *  - Отзыв — дата и текст;
  *  - Ваш ответ — последний отправленный ответ, если он есть;
@@ -15,8 +15,8 @@
 import { useState } from "react";
 
 import { fetchReview, replyToReview } from "../api/admin";
-import { formatDateTime, userName } from "../adminFormat";
-import { ADMIN_STRINGS as S, describeAdminError } from "../adminStrings";
+import { useAdminFormat } from "../adminFormat";
+import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { PersonIcon, ReplyIcon } from "../components/AdminIcons";
 import { ComposeDialog } from "../components/ComposeDialog";
 import { Disclosure } from "../components/Disclosure";
@@ -37,7 +37,14 @@ interface AdminReviewScreenProps {
   onReplied: (review: AdminReview) => void;
 }
 
-export function AdminReviewScreen({ reviewId, initial, onOpenUser, onReplied }: AdminReviewScreenProps) {
+export function AdminReviewScreen({
+  reviewId,
+  initial,
+  onOpenUser,
+  onReplied,
+}: AdminReviewScreenProps) {
+  const strings = useAdminStrings();
+  const format = useAdminFormat();
   const review = useResource(() => fetchReview(reviewId), String(reviewId), initial);
   const [replying, setReplying] = useState(false);
 
@@ -46,26 +53,30 @@ export function AdminReviewScreen({ reviewId, initial, onOpenUser, onReplied }: 
       const result = await replyToReview(reviewId, text);
       review.setData(() => result.review);
       onReplied(result.review);
-      return result.delivered ? null : S.undelivered[result.reason ?? "bot_blocked"];
+      return result.delivered ? null : strings.undelivered[result.reason ?? "bot_blocked"];
     } catch (error) {
-      return describeAdminError(error, S.replyFailed);
+      return describeAdminError(strings, error, strings.replyFailed);
     }
   }
 
   return (
-    <Screen title={S.reviewTitle} withTabBar={false} enterAnimation>
+    <Screen title={strings.reviewTitle} withTabBar={false} enterAnimation>
       {renderContent()}
       <ComposeDialog
         open={replying}
-        title={S.replyDialogTitle}
-        message={S.replyDialogMessage}
-        placeholder={S.replyPlaceholder}
-        cancelLabel={S.cancel}
-        sendLabel={S.send}
+        title={strings.replyDialogTitle}
+        message={strings.replyDialogMessage}
+        placeholder={strings.replyPlaceholder}
+        cancelLabel={strings.cancel}
+        sendLabel={strings.send}
         maxLength={MESSAGE_MAX_LENGTH}
         onSend={sendReply}
         onClose={() => setReplying(false)}
-        done={{ title: S.replySentTitle, message: S.replySentMessage, label: S.done }}
+        done={{
+          title: strings.replySentTitle,
+          message: strings.replySentMessage,
+          label: strings.done,
+        }}
       />
     </Screen>
   );
@@ -75,24 +86,24 @@ export function AdminReviewScreen({ reviewId, initial, onOpenUser, onReplied }: 
     if (!data) {
       return review.status === "error" ? (
         <StatusMessage
-          emoji={S.errorEmoji}
-          title={S.errorTitle}
-          description={describeAdminError(review.error, S.reviewLoadFailed)}
-          actionLabel={S.retry}
+          emoji={strings.errorEmoji}
+          title={strings.errorTitle}
+          description={describeAdminError(strings, review.error, strings.reviewLoadFailed)}
+          actionLabel={strings.retry}
           onAction={review.reload}
         />
       ) : (
-        <StatusMessage emoji={S.loadingEmoji} title={S.loading} />
+        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
       );
     }
     return (
       <div className={styles.review}>
-        <Section title={S.reviewAuthorHeading}>
+        <Section title={strings.reviewAuthorHeading}>
           <Card>
             <ListItem
               icon={<PersonIcon />}
               iconColor="blue"
-              label={userName(data.user)}
+              label={format.userName(data.user)}
               onPress={() => onOpenUser(data.user)}
             >
               <span className={styles.username}>
@@ -103,20 +114,20 @@ export function AdminReviewScreen({ reviewId, initial, onOpenUser, onReplied }: 
           </Card>
         </Section>
 
-        <Section title={S.reviewHeading}>
+        <Section title={strings.reviewHeading}>
           <Card padded>
             <div className={styles.message}>
-              <p className={styles.date}>{formatDateTime(data.created_at)}</p>
+              <p className={styles.date}>{format.dateTime(data.created_at)}</p>
               <p className={styles.text}>{data.text}</p>
             </div>
           </Card>
         </Section>
 
         {data.reply_text && data.replied_at ? (
-          <Section title={S.reviewReplyHeading}>
+          <Section title={strings.reviewReplyHeading}>
             <Card padded>
               <div className={styles.message}>
-                <p className={styles.date}>{S.sentOn(formatDateTime(data.replied_at))}</p>
+                <p className={styles.date}>{strings.sentOn(format.dateTime(data.replied_at))}</p>
                 <p className={styles.text}>{data.reply_text}</p>
               </div>
             </Card>
@@ -128,7 +139,7 @@ export function AdminReviewScreen({ reviewId, initial, onOpenUser, onReplied }: 
             <ListItem
               icon={<ReplyIcon />}
               iconColor="blue"
-              label={data.reply_text ? S.replyAgain : S.reply}
+              label={data.reply_text ? strings.replyAgain : strings.reply}
               accent
               onPress={() => setReplying(true)}
             />
