@@ -1,0 +1,257 @@
+/*
+ * Графики аналитики: карточка с подписью, значением и графиком; линии, столбики, доли.
+ * Данные — единственное яркое на графике: линии делений и оси — тонкие и бледные,
+ * подписи — цветами текста; цвет ряда — цвет секции (--habit-rgb), доли — --segment-rgb.
+ */
+
+/* --- Карточка --- */
+
+.card {
+  padding: var(--space-card-padding);
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-card-padding);
+}
+
+.title {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--chart-toggle-size);
+  height: var(--chart-toggle-size);
+  /* Кнопка крупнее строки подписи — выступает в поля карточки, не раздвигая шапку. */
+  margin: var(--chart-toggle-offset) var(--chart-toggle-offset) var(--chart-toggle-offset) 0;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast);
+}
+
+.toggle:active,
+.toggle[aria-pressed="true"] {
+  background-color: var(--color-fill);
+}
+
+.toggle svg {
+  width: var(--chart-toggle-glyph);
+  height: var(--chart-toggle-glyph);
+}
+
+/* Крупное значение — пропорциональными цифрами (у крупного числа моноширинные
+   выглядят разреженно). */
+.value {
+  margin-top: 2px;
+  font-size: var(--font-size-chart-value);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.note {
+  margin-top: 2px;
+  font-size: var(--font-size-secondary);
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+}
+
+.body {
+  margin-top: var(--space-row-gap);
+}
+
+/* Таблица вместо графика: те же данные строками. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: 6px 0;
+  text-align: left;
+  font-weight: 400;
+  border-top: 1px solid var(--color-separator);
+}
+
+.table thead th {
+  border-top: none;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.table td,
+.table thead th:last-child {
+  text-align: right;
+}
+
+/* --- Линии и столбики --- */
+
+/* Контейнер графика задаёт высоту (включая подписи оси X) — внутри карточки нет своей
+   прокрутки. Фокус с клавиатуры — обводкой акцента. */
+.chart {
+  position: relative;
+  width: 100%;
+  border-radius: 6px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chart:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.grid,
+.axis,
+.crosshair {
+  stroke-width: 1px;
+  shape-rendering: crispEdges;
+}
+
+.grid {
+  stroke: var(--chart-grid);
+}
+
+.axis {
+  stroke: var(--chart-axis);
+}
+
+.crosshair {
+  stroke: var(--chart-crosshair);
+}
+
+.tick {
+  font-family: var(--font-family);
+  font-size: var(--font-size-chart-tick);
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-text-secondary);
+}
+
+.line {
+  fill: none;
+  stroke: rgb(var(--habit-rgb));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.area {
+  fill: rgba(var(--habit-rgb), var(--chart-area-alpha));
+}
+
+/* Точка значения с кольцом цвета карточки: видна поверх линии. */
+.dot {
+  fill: rgb(var(--habit-rgb));
+  stroke: var(--color-card);
+}
+
+/* Невидимая зона касания поверх графика: вертикальная прокрутка страницы — браузеру,
+   горизонтальное движение пальца — выбору дня. */
+.hit {
+  fill: transparent;
+  touch-action: pan-y;
+  cursor: crosshair;
+  outline: none;
+}
+
+.bar {
+  fill: rgb(var(--habit-rgb));
+}
+
+.capLabel {
+  font-family: var(--font-family);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-text-primary);
+}
+
+.dimmed {
+  opacity: var(--chart-dim-alpha);
+  transition: opacity var(--transition-fast);
+}
+
+/* У столбиков зона нажатия — вся колонка, курсор — как у кнопки. */
+.bar ~ .hit,
+.capLabel ~ .hit {
+  cursor: pointer;
+}
+
+/* --- Доли целого --- */
+
+/* Полоса: сегменты через зазор цвета карточки, скругления — только у краёв полосы. */
+.stackedBar {
+  display: flex;
+  gap: var(--chart-segment-gap);
+  height: var(--chart-bar-height);
+  border-radius: var(--chart-bar-radius);
+  overflow: hidden;
+}
+
+.segment {
+  flex-basis: 0;
+  min-width: var(--chart-segment-min-width);
+  background-color: rgb(var(--segment-rgb));
+}
+
+.legend {
+  list-style: none;
+  margin-top: var(--space-row-gap);
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+}
+
+.legendRow + .legendRow {
+  border-top: 1px solid var(--color-separator);
+}
+
+.swatch {
+  flex-shrink: 0;
+  width: var(--chart-swatch-size);
+  height: var(--chart-swatch-size);
+  border-radius: 3px;
+  background-color: rgb(var(--segment-rgb));
+}
+
+.legendLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.legendValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.legendShare {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}

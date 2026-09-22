@@ -18,13 +18,14 @@ def sign_init_data(
     auth_date: int | None = None,
     token: str = TEST_BOT_TOKEN,
     language_code: str = "ru",
+    first_name: str = "Test",
 ) -> str:
     """initData с пользователем `user_id`, подписанная по алгоритму Telegram Web Apps."""
     fields = {
         "auth_date": str(auth_date if auth_date is not None else int(time.time())),
         "query_id": "AAHtest",
         "user": json.dumps(
-            {"id": user_id, "first_name": "Test", "username": f"user{user_id}",
+            {"id": user_id, "first_name": first_name, "username": f"user{user_id}",
              "language_code": language_code},
             separators=(",", ":"),
         ),

@@ -1,0 +1,13 @@
+/* Ряды — той же высоты, что ряды настроек приложения. */
+.settings {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+.id {
+  font-variant-numeric: tabular-nums;
+}
+
+/* «Вернуться в приложение» — отдельной карточкой, на расстоянии групп настроек. */
+.exit {
+  margin-top: var(--space-list-gap);
+}

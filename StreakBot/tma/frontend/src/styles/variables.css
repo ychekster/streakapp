@@ -150,6 +150,7 @@
   --tabbar-content-gap: 21px; /* от конца контента (последней привычки) до навигации */
   --tabbar-inset: 4px; /* поля таблетки вокруг подложки активной вкладки */
   --tabbar-tab-width: 92px; /* минимальная ширина вкладки (обе вкладки равной ширины) */
+  --tabbar-wide-max-width: 420px; /* таблетка без «+» (админ-панель) — во всю ширину, не шире */
   --tabbar-thumb: rgba(118, 118, 128, 0.16); /* серая подложка активной вкладки */
   --tabbar-icon-size: 26px;
   --tabbar-label-size: 10px;
@@ -182,6 +183,7 @@
   --radius-list-row-icon: 7.25px;
   --list-row-icon-inset: 14px; /* от края карточки до плашки */
   --list-row-icon-gap: 14px; /* от плашки до подписи */
+  --list-row-disabled-opacity: 0.4; /* недоступное действие */
 
   /* --- Экран «Настройки» (значения сняты со скриншота-эталона «Настроек» iOS 26) --- */
   --space-list-gap: 35px; /* между карточками-группами */
@@ -259,6 +261,48 @@
   --dialog-field-pad-x: 12px;
   --dialog-field-gap: 16px; /* от пояснения до поля */
   --dialog-field-line-height: 1.3;
+
+  /*
+   * --- Админ-панель ---
+   * Графики аналитики: цвет ряда — цвет секции (--habit-rgb, как у карточек показателей);
+   * линии делений и оси — тонкие и бледные. Доли аудитории — три цвета палитры в
+   * постоянном порядке; порядок и значения проверены на различимость при нарушениях
+   * цветового зрения и на контраст с карточкой в обеих темах (оранжевый на белом ниже
+   * 3:1 — поэтому у каждой доли в легенде есть подпись и число).
+   */
+  --chart-grid: rgba(60, 60, 67, 0.12);
+  --chart-axis: rgba(60, 60, 67, 0.24);
+  --chart-crosshair: rgba(60, 60, 67, 0.4);
+  --chart-area-alpha: 0.1; /* заливка под линией — лёгкая, не сплошная */
+  --chart-dim-alpha: 0.35; /* невыбранные столбики */
+  --chart-cat-1: var(--palette-blue);
+  --chart-cat-2: var(--palette-orange);
+  --chart-cat-3: var(--palette-purple);
+  --font-size-chart-tick: 11px;
+  --font-size-chart-value: 28px;
+  --chart-bar-height: 14px; /* полоса долей */
+  --chart-bar-radius: 4px;
+  --chart-segment-gap: 2px; /* зазор цвета карточки между долями */
+  --chart-segment-min-width: 3px; /* маленькая доля всё равно видна */
+  --chart-swatch-size: 10px;
+  --chart-toggle-size: 30px; /* кнопка «таблица / график» */
+  --chart-toggle-glyph: 20px;
+  --chart-toggle-offset: -6px;
+  --space-stat-grid-gap: 10px;
+  /* Бесконечная прокрутка: высота строки со спиннером и за сколько до конца списка
+     просить следующую страницу. */
+  --load-more-height: 56px;
+  --load-more-margin: 480px;
+  --spinner-size: 20px;
+  --spinner-stroke: 2px;
+  /* Ход рассылки: полоса прогресса — заливка акцентом по дорожке того же цвета. */
+  --progress-height: 6px;
+  --progress-track-alpha: 0.18;
+  /* Превью фото или видео рассылки. */
+  --media-preview-size: 56px;
+  --radius-media-preview: 10px;
+  /* Поле текста рассылки: высота в строках до того, как оно начнёт расти. */
+  --composer-min-height: 120px;
 }
 
 /*
@@ -328,4 +372,13 @@
   --dialog-button-bg-pressed: rgba(120, 120, 128, 0.48);
   --color-dialog-message: rgba(235, 235, 245, 0.7);
   --dialog-field-bg: rgba(0, 0, 0, 0.32);
+
+  /* Графики: бледные линии на тёмной карточке; оранжевый долей — на шаг темнее
+     системного, чтобы по светлоте не выбиваться из остальных (проверено). */
+  --chart-grid: rgba(235, 235, 245, 0.12);
+  --chart-axis: rgba(235, 235, 245, 0.24);
+  --chart-crosshair: rgba(235, 235, 245, 0.45);
+  --chart-area-alpha: 0.16;
+  --chart-cat-2: 217, 119, 6;
+  --progress-track-alpha: 0.28;
 }

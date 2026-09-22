@@ -17,14 +17,21 @@
  *  - выбор часового пояса, политика конфиденциальности и условия использования — из
  *    настроек.
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
+ *
+ * Администратор может переключить приложение в режим админ-панели (ряд «Админ-панель» в
+ * настройках): тогда вместо экранов и нижней навигации приложения — AdminApp, а
+ * «Вернуться в приложение» в её настройках возвращает на экран настроек. Состояние
+ * приложения (привычки, настройки) на это время сохраняется.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { AdminApp } from "./AdminApp";
 import { ApiRequestError } from "./api/client";
 import { deleteHabit } from "./api/habits";
 import { StatusMessage } from "./components/StatusMessage";
-import { TabBar, type TabKey } from "./components/TabBar";
+import { TabBar, type TabItem } from "./components/TabBar";
+import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { useBackButton } from "./hooks/useBackButton";
 import { useHabits } from "./hooks/useHabits";
 import { useSettings } from "./hooks/useSettings";
@@ -67,6 +74,8 @@ interface Editor {
   habit: Habit | null;
 }
 
+type TabKey = "habits" | "settings";
+
 export function App() {
   const { habits, status, error, setHabits, reload, refresh } = useHabits();
   const settingsState = useSettings();
@@ -79,10 +88,12 @@ export function App() {
   const [habitEntering, setHabitEntering] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null);
+  const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);
   const scrollUnderEditor = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
+  const scrollUnderAdmin = useRef(0);
   // Прокрутка, которую нужно поставить после ближайшего рендера (см. layout-эффект ниже).
   const pendingScroll = useRef<number | null>(null);
 
@@ -99,6 +110,14 @@ export function App() {
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);
+
+  const tabs: TabItem<TabKey>[] = useMemo(
+    () => [
+      { key: "habits", label: strings.tabHabits, icon: (active) => <HabitsIcon filled={active} /> },
+      { key: "settings", label: strings.tabSettings, icon: () => <SettingsIcon /> },
+    ],
+    [strings],
+  );
 
   const showHabit = useCallback((taskId: number) => {
     scrollUnderHabit.current = window.scrollY;
@@ -133,6 +152,19 @@ export function App() {
   const hideSettingsPage = useCallback(() => {
     pendingScroll.current = scrollUnderSettingsPage.current;
     setSettingsPage(null);
+  }, []);
+
+  const enterAdmin = useCallback(() => {
+    scrollUnderAdmin.current = window.scrollY;
+    pendingScroll.current = 0;
+    setAdminMode(true);
+  }, []);
+
+  // Выход из админ-панели — на экран настроек, откуда в неё вошли.
+  const exitAdmin = useCallback(() => {
+    pendingScroll.current = scrollUnderAdmin.current;
+    setTab("settings");
+    setAdminMode(false);
   }, []);
 
   // Сохранить настройку. Пояс и режим «Отмечать за вчера» меняют день отметки — сервер
@@ -203,8 +235,17 @@ export function App() {
     [hideHabit, setHabits],
   );
 
+  // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
-    editor ? hideEditor : openHabit ? hideHabit : settingsPage ? hideSettingsPage : null,
+    adminMode
+      ? null
+      : editor
+        ? hideEditor
+        : openHabit
+          ? hideHabit
+          : settingsPage
+            ? hideSettingsPage
+            : null,
   );
 
   // Разворачиваем приложение один раз при монтировании.
@@ -299,6 +340,7 @@ export function App() {
           state={settingsState}
           onSave={(patch) => void saveSettings(patch)}
           onOpen={showSettingsPage}
+          onOpenAdmin={enterAdmin}
         />
       );
     }
@@ -315,15 +357,25 @@ export function App() {
     );
   }
 
+  if (adminMode) {
+    return (
+      <PreferencesContext.Provider value={preferences}>
+        <AdminApp onExit={exitAdmin} />
+      </PreferencesContext.Provider>
+    );
+  }
+
   return (
     <PreferencesContext.Provider value={preferences}>
       {renderScreen()}
 
       <TabBar
+        tabs={tabs}
         active={tab}
         hidden={editor !== null || openHabit !== undefined || settingsPage !== null}
         onSelect={setTab}
         onAdd={() => showEditor(null)}
+        addLabel={strings.addHabit}
       />
     </PreferencesContext.Provider>
   );

@@ -13,10 +13,12 @@ import pytz
 
 from tma.backend.cities import City, city_index
 from tma.backend.constants import (
+    BROADCAST_SEGMENTS,
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
     REMINDER_TIME_FORMAT,
+    REVIEW_MAX_LENGTH,
     THEMES,
     WEEKDAYS,
 )
@@ -124,3 +126,57 @@ def resolve_city(city_id: int) -> City:
     if city is None:
         raise ApiError(422, "invalid_timezone", "Город не найден")
     return city
+
+
+# Управляющие символы, которые остаются в многострочном тексте: перевод строки и табуляция.
+_KEPT_CONTROL = {"\n", "\t"}
+
+
+def _clean_text(value: str) -> str:
+    """Многострочный текст без управляющих символов, кроме перевода строки и табуляции
+    (NUL не принимает PostgreSQL), с переводами строк «\\n» и без пробелов по краям."""
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(
+        char
+        for char in text
+        if char in _KEPT_CONTROL or unicodedata.category(char) != "Cc"
+    ).strip()
+
+
+def validate_review(text: str) -> str:
+    """Очистить и проверить текст отзыва (непустой, не длиннее REVIEW_MAX_LENGTH)."""
+    cleaned = _clean_text(text)
+    if not cleaned:
+        raise ApiError(422, "invalid_review", "Напишите отзыв")
+    if len(cleaned) > REVIEW_MAX_LENGTH:
+        raise ApiError(
+            422, "invalid_review", f"Отзыв не длиннее {REVIEW_MAX_LENGTH} символов"
+        )
+    return cleaned
+
+
+def validate_message(text: str, max_length: int) -> str:
+    """Очистить и проверить текст сообщения бота: личного сообщения, ответа на отзыв,
+    текстовой рассылки (непустой, не длиннее `max_length`)."""
+    cleaned = validate_caption(text, max_length)
+    if cleaned is None:
+        raise ApiError(422, "invalid_message", "Введите текст сообщения")
+    return cleaned
+
+
+def validate_caption(text: str, max_length: int) -> str | None:
+    """Очистить и проверить подпись к фото или видео рассылки; пустая — None (медиа без
+    подписи)."""
+    cleaned = _clean_text(text)
+    if len(cleaned) > max_length:
+        raise ApiError(
+            422, "invalid_message", f"Сообщение не длиннее {max_length} символов"
+        )
+    return cleaned or None
+
+
+def validate_segment(value: str) -> str:
+    """Проверить сегмент получателей рассылки."""
+    if value not in BROADCAST_SEGMENTS:
+        raise ApiError(422, "invalid_segment", "Неизвестный сегмент получателей")
+    return value

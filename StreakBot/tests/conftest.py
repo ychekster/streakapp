@@ -57,18 +57,27 @@ def client() -> Iterator[TestClient]:
         yield test_client
 
 
+def auth_user(user_id: int, first_name: str = "Test") -> AuthUser:
+    """Пользователь `user_id` с подписанной initData."""
+    init_data = sign_init_data(user_id, first_name=first_name)
+    return AuthUser(id=user_id, headers={"Authorization": f"tma {init_data}"})
+
+
+def new_user(first_name: str = "Test") -> AuthUser:
+    """Новый пользователь: лимит частоты и данные у каждого свои."""
+    return auth_user(next(_user_ids), first_name)
+
+
 @pytest.fixture
 def user() -> AuthUser:
-    """Новый пользователь на каждый тест: лимит частоты и данные у каждого свои."""
-    user_id = next(_user_ids)
-    return AuthUser(id=user_id, headers={"Authorization": f"tma {sign_init_data(user_id)}"})
+    """Новый пользователь на каждый тест."""
+    return new_user()
 
 
 @pytest.fixture
 def other_user() -> AuthUser:
     """Второй пользователь — для проверок доступа к чужим данным."""
-    user_id = next(_user_ids)
-    return AuthUser(id=user_id, headers={"Authorization": f"tma {sign_init_data(user_id)}"})
+    return new_user()
 
 
 @pytest.fixture

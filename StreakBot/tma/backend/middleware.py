@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 
 from loguru import logger
 from starlette.datastructures import MutableHeaders
@@ -46,19 +47,25 @@ class BodySizeLimitMiddleware:
     Заявленный размер (Content-Length) проверяется сразу; тело без него (chunked)
     считается по мере чтения. Так POST на гигабайт не разворачивается в памяти ещё до
     проверки авторизации (FastAPI читает тело раньше зависимостей).
+
+    `path_limits` — свой предел для отдельных путей (загрузка медиа рассылки).
     """
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    def __init__(
+        self, app: ASGIApp, max_bytes: int, path_limits: Mapping[str, int] | None = None
+    ) -> None:
         self.app = app
         self.max_bytes = max_bytes
+        self.path_limits = dict(path_limits or {})
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        max_bytes = self.path_limits.get(scope["path"], self.max_bytes)
         declared = dict(scope["headers"]).get(b"content-length")
-        if declared is not None and (not declared.isdigit() or int(declared) > self.max_bytes):
+        if declared is not None and (not declared.isdigit() or int(declared) > max_bytes):
             if declared.isdigit() and int(declared) <= _DRAIN_LIMIT_BYTES:
                 await _drain(receive)
             response = error_response(413, "payload_too_large", "Слишком большой запрос")
@@ -72,7 +79,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > max_bytes:
                     # FastAPI пробрасывает HTTPException из чтения тела как есть; её
                     # обработчик (errors.py) отвечает 413 в едином формате.
                     raise HTTPException(status_code=413)

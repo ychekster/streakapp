@@ -11,6 +11,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import SendMessage
 
 from bot import reminders as bot_reminders
+from bot.pacing import Pacer
 from tma.backend.constants import WEEKDAYS
 from tma.backend.database import Database
 from tma.backend.models import FrequencyType, TaskStatus
@@ -97,17 +98,29 @@ def _reminder(task_id: int, user_id: int) -> DueReminder:
 
 def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot_reminders, "PER_CHAT_INTERVAL", 0.05)
-    monkeypatch.setattr(bot_reminders, "SEND_RATE", 1000)
     bot = _FakeBot(blocked=frozenset({3}))
     batch = [_reminder(1, 1), _reminder(2, 1), _reminder(3, 1), _reminder(4, 2), _reminder(5, 3)]
 
-    asyncio.run(bot_reminders._send_all(bot, batch))  # type: ignore[arg-type]
+    blocked = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), batch))  # type: ignore[arg-type]
 
     chats = [chat for chat, _ in bot.sent]
-    # Заблокировавший бота пользователь не мешает остальным.
+    # Заблокировавший бота пользователь не мешает остальным и возвращается, чтобы его
+    # отметили в базе.
     assert sorted(chats) == [1, 1, 1, 2]
+    assert blocked == {3}
     # Второй пользователь не ждёт, пока первому уйдут все его напоминания.
     assert chats.index(2) < 2
     first_user_times = [moment for chat, moment in bot.sent if chat == 1]
     gaps = [later - earlier for earlier, later in zip(first_user_times, first_user_times[1:])]
     assert all(gap >= 0.045 for gap in gaps)
+
+
+def test_blocked_user_gets_no_reminders(db_url: str) -> None:
+    """Заблокированному администратором напоминания не приходят."""
+
+    async def setup(repo: Repository) -> None:
+        await _user(repo, 1, "Europe/Moscow")
+        await repo.set_blocked(await repo.get_user(1), blocked=True)
+        await repo.create_task(1, "moscow 9", FrequencyType.daily, reminder_time=time(9, 0))
+
+    assert asyncio.run(_due(db_url, setup)) == []

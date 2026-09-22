@@ -1,4 +1,4 @@
-"""Чистая логика: серии, валидация ввода, ограничитель частоты."""
+"""Чистая логика: серии, валидация ввода, ограничитель частоты, расчёты аналитики."""
 
 from __future__ import annotations
 
@@ -8,8 +8,10 @@ from types import SimpleNamespace
 import pytest
 
 from tma.backend import ratelimit
+from tma.backend.analytics import completion_by_day, habits_distribution
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType
+from tma.backend.repository import TaskSchedule
 from tma.backend.services import compute_streaks
 from tma.backend.validation import resolve_timezone, validate_name
 
@@ -69,3 +71,31 @@ def test_rate_limiter_refills(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_rate_limiter_can_be_disabled() -> None:
     limiter = ratelimit.RateLimiter(burst=0, per_second=0)
     assert all(limiter.acquire(1) == 0 for _ in range(1000))
+
+
+# --------------------------------------------------------------------------- #
+#  Аналитика админ-панели
+# --------------------------------------------------------------------------- #
+
+
+def test_completion_counts_only_scheduled_days_of_existing_habits() -> None:
+    monday = date(2026, 9, 21)
+    days = [monday + timedelta(days=offset) for offset in range(3)]  # пн, вт, ср
+    schedules = [
+        TaskSchedule(1, monday, FrequencyType.daily, None),
+        TaskSchedule(2, monday, FrequencyType.specific_days, "mon,wed"),
+        TaskSchedule(3, days[2], FrequencyType.daily, None),  # создана в среду
+    ]
+    done = [
+        (1, days[0]), (2, days[0]),  # понедельник — всё выполнено
+        (2, days[1]),  # вторник не по расписанию привычки 2 — не считается
+        (3, days[2]),
+    ]
+    assert completion_by_day(schedules, done, days) == [(2, 2), (1, 0), (3, 1)]
+
+
+def test_habits_distribution_groups_the_tail() -> None:
+    buckets = habits_distribution([1, 1, 3, 7, 9], app_users=8)
+    assert [(bucket.habits, bucket.users) for bucket in buckets] == [
+        (0, 3), (1, 2), (2, 0), (3, 1), (4, 0), (5, 2),
+    ]

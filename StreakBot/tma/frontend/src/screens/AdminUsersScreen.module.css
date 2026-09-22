@@ -1,0 +1,39 @@
+/* Ряды той же высоты, что и ряды выбора часового пояса. */
+.list {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Имя занимает всё место до id и обрезается многоточием. */
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* id — ровным столбцом, как смещения поясов. */
+.trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-menu-chevron);
+  color: var(--color-text-secondary);
+}
+
+.id {
+  font-variant-numeric: tabular-nums;
+}
+
+.blocked {
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.empty {
+  padding: var(--space-section-gap) var(--space-card-padding);
+  text-align: center;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-secondary);
+}

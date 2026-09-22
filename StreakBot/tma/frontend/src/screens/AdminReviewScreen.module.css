@@ -1,0 +1,37 @@
+/* Ряды — той же высоты, что ряды настроек. */
+.review {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+.username {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Текст отзыва или ответа: дата над ним, переводы строк сохраняются. Горизонтальные
+   поля задаёт карточка (Card padded), вертикальные — сам блок. */
+.message {
+  padding: var(--space-card-padding) 0;
+}
+
+.date {
+  margin-bottom: var(--space-subheading-bottom);
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+.text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-habit-name);
+  line-height: var(--line-height-document);
+  color: var(--color-text-primary);
+}
+
+/* Кнопка ответа — отдельной карточкой под секциями, на расстоянии секции. */
+.actions {
+  margin-top: var(--space-section-gap);
+}

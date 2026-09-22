@@ -69,12 +69,25 @@
   background-color: var(--color-danger);
 }
 
+.accent {
+  color: var(--color-accent);
+}
+
+/* Приглушается содержимое, а не сам ряд: линия-разделитель (::before) остаётся как есть. */
+.disabled {
+  cursor: default;
+}
+
+.disabled > * {
+  opacity: var(--list-row-disabled-opacity);
+}
+
 .pressable {
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
 
-.pressable:active {
+.pressable:active:not(:disabled) {
   background-color: var(--color-row-press);
 }
 

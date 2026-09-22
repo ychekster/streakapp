@@ -3,7 +3,9 @@
  * (значение или контрол). Без `label` — `children` занимают весь ряд (напр. поле
  * ввода). С `icon` слева стоит цветная плашка с иконкой (как в «Настройках» iOS).
  * С `onPress` ряд становится нажимаемой кнопкой. Соседние ряды внутри одной
- * карточки разделяются тонкой линией, которая начинается от текста.
+ * карточки разделяются тонкой линией, которая начинается от текста. Действие — `accent`
+ * (подпись цветом акцента, как «Добавить…» в iOS) или `destructive` (красное);
+ * `disabled` — ряд виден, но не нажимается.
  */
 
 import type { ReactNode } from "react";
@@ -21,6 +23,10 @@ interface ListItemProps {
   iconColor?: HabitColor;
   /** Деструктивное действие (удаление): подпись и плашка иконки — красные. */
   destructive?: boolean;
+  /** Действие (отправить, добавить): подпись — цветом акцента. */
+  accent?: boolean;
+  /** Нажимаемый ряд временно недоступен (приглушён). */
+  disabled?: boolean;
   onPress?: () => void;
   /** Выровнять содержимое по верху (для многострочных рядов). */
   alignTop?: boolean;
@@ -32,6 +38,8 @@ export function ListItem({
   icon,
   iconColor,
   destructive = false,
+  accent = false,
+  disabled = false,
   onPress,
   alignTop = false,
 }: ListItemProps) {
@@ -40,7 +48,9 @@ export function ListItem({
     alignTop ? styles.alignTop : "",
     icon ? styles.withIcon : "",
     destructive ? styles.destructive : "",
+    accent ? styles.accent : "",
     onPress ? styles.pressable : "",
+    disabled ? styles.disabled : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -69,7 +79,7 @@ export function ListItem({
 
   if (onPress) {
     return (
-      <button type="button" className={className} onClick={onPress}>
+      <button type="button" className={className} onClick={onPress} disabled={disabled}>
         {content}
       </button>
     );

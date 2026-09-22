@@ -1,0 +1,112 @@
+/* Ряды формы выше обычных рядов списка — как в форме привычки. */
+.form {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Поле текста занимает весь ряд; высоту по тексту задаёт экран (растёт вместе с ним).
+   Шрифт не мельче 16px — иначе iOS увеличивает страницу при фокусе. */
+.text {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--composer-min-height);
+  margin: calc(-1 * var(--list-row-pad-y)) 0;
+  padding: var(--list-row-pad-y) 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  line-height: var(--dialog-field-line-height);
+  color: var(--color-text-primary);
+}
+
+.text::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* Превышен предел символов или файл не подходит. */
+.over {
+  color: var(--color-danger);
+}
+
+/* Превью медиа: миниатюра, имя файла и размер. */
+.media {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-card-padding);
+}
+
+.preview {
+  flex-shrink: 0;
+  width: var(--media-preview-size);
+  height: var(--media-preview-size);
+  border-radius: var(--radius-media-preview);
+  object-fit: cover;
+  background-color: var(--color-fill);
+}
+
+.mediaInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mediaName {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mediaSize {
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* Системный выбор файла скрыт — его открывает ряд «Добавить фото или видео». */
+.file {
+  display: none;
+}
+
+.send {
+  margin-top: var(--space-section-gap);
+}
+
+/* --- Ход рассылки --- */
+
+.progress {
+  padding: var(--space-card-padding) 0;
+}
+
+.progressStatus {
+  font-size: var(--font-size-habit-name);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Полоса прогресса: заливка акцентом по дорожке того же цвета, светлее. */
+.meter {
+  height: var(--progress-height);
+  margin: 10px 0 8px;
+  border-radius: var(--radius-pill);
+  background-color: rgba(var(--palette-blue), var(--progress-track-alpha));
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--color-accent);
+  transition: width var(--transition-fast);
+}
+
+.progressResult {
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}

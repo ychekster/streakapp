@@ -1,0 +1,56 @@
+/* Ряд отзыва во всю ширину: имя и дата строкой, под ними текст. */
+.review {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-card-padding);
+}
+
+.author {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+/* Без автора (в профиле) дата стоит слева. */
+.date {
+  flex-shrink: 0;
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* Текст — до трёх строк, дальше многоточие; переводы строк отзыва сохраняются. */
+.text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-body);
+  line-height: 1.35;
+  color: var(--color-text-primary);
+}
+
+.replied {
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.empty {
+  padding: var(--space-section-gap) var(--space-card-padding);
+  text-align: center;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-secondary);
+}

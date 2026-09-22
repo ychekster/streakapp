@@ -58,6 +58,8 @@ const RU = {
   settingsMarkYesterdayFooter:
     "Отметки ставятся за вчерашний день, а не за сегодняшний. Удобно, если вы подводите итоги дня на следующее утро.",
   settingsReview: "Написать отзыв",
+  // Вход в админ-панель — виден только администраторам.
+  settingsAdminPanel: "Админ-панель",
 
   // --- Диалог «Написать отзыв» ---
   reviewTitle: "Написать отзыв",
@@ -68,6 +70,7 @@ const RU = {
   reviewThanksTitle: "Спасибо за отзыв!",
   reviewThanksMessage: "Он поможет сделать приложение лучше.",
   reviewThanksDone: "OK",
+  reviewFailed: "Не удалось отправить отзыв. Попробуйте ещё раз.",
 
   // --- Выбор часового пояса ---
   timezoneTitle: "Часовой пояс",
@@ -164,6 +167,9 @@ const RU = {
     invalid_days: "Выберите хотя бы один день недели",
     invalid_reminder_time: "Укажите время напоминания",
     invalid_timezone: "Не удалось распознать часовой пояс",
+    invalid_review: "Напишите отзыв",
+    review_limit: "Сегодня вы уже оставили много отзывов — попробуйте завтра",
+    user_blocked: "Доступ к приложению ограничен",
   } as Partial<Record<ApiErrorCode, string>>,
 
   // --- Документы ---
@@ -212,6 +218,7 @@ const EN: Strings = {
   settingsMarkYesterdayFooter:
     "Habits are marked for the previous day instead of today. Handy if you review your day the next morning.",
   settingsReview: "Write a Review",
+  settingsAdminPanel: "Admin Panel",
 
   reviewTitle: "Write a Review",
   reviewMessage: "Tell us what you like and what could be better.",
@@ -221,6 +228,7 @@ const EN: Strings = {
   reviewThanksTitle: "Thanks for your review!",
   reviewThanksMessage: "It helps us make the app better.",
   reviewThanksDone: "OK",
+  reviewFailed: "Couldn’t send your review. Please try again.",
 
   timezoneTitle: "Time Zone",
   timezoneSearch: "Search",
@@ -307,6 +315,9 @@ const EN: Strings = {
     invalid_days: "Choose at least one day of the week",
     invalid_reminder_time: "Set a reminder time",
     invalid_timezone: "Couldn’t recognize the time zone",
+    invalid_review: "Write your review",
+    review_limit: "You’ve sent a lot of reviews today — try again tomorrow",
+    user_blocked: "Your access to the app has been restricted",
   },
 
   privacyPolicy: LEGAL_EN.privacy,

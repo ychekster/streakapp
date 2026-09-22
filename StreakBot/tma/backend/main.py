@@ -6,9 +6,10 @@
     # или с автоперезагрузкой при разработке:
     uvicorn tma.backend.main:app --reload --port 8000
 
-Последовательность старта: логирование → настройки → подключение к БД и создание
-таблиц → middleware (заголовки и учёт медленных запросов, CORS, предел размера тела)
-→ обработчики ошибок → роутеры.
+Последовательность старта: логирование → настройки → подключение к БД, создание
+таблиц и первый администратор → бот для сообщений из админ-панели → middleware
+(заголовки и учёт медленных запросов, CORS, предел размера тела) → обработчики ошибок
+→ роутеры.
 """
 
 from __future__ import annotations
@@ -19,18 +20,26 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
+from aiogram import Bot
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
 from tma.backend.config import Settings, load_settings
-from tma.backend.constants import MAX_REQUEST_BODY_BYTES, SLOW_REQUEST_SECONDS
+from tma.backend.constants import (
+    BROADCAST_UPLOAD_MAX_BYTES,
+    BROADCAST_UPLOAD_PATH,
+    MAX_REQUEST_BODY_BYTES,
+    SEED_ADMIN_IDS,
+    SLOW_REQUEST_SECONDS,
+)
 from tma.backend.database import Database
 from tma.backend.errors import error_response, register_error_handlers
 from tma.backend.middleware import BodySizeLimitMiddleware, ResponseMetaMiddleware
 from tma.backend.ratelimit import RateLimiter
-from tma.backend.routers import meta, settings as settings_router, tasks
+from tma.backend.repository import Repository
+from tma.backend.routers import admin, meta, reviews, settings as settings_router, tasks
 from tma.backend.timezones import warm_up as warm_up_timezones
 
 # Сколько секунд браузер может кешировать ответ на CORS-preflight.
@@ -72,12 +81,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         max_overflow=settings.db_max_overflow,
     )
     await app.state.database.create_tables()
+    # Новая база (без миграций) получает первого администратора, как и мигрированная.
+    async with app.state.database.session_factory() as session:
+        await Repository(session).seed_admins(SEED_ADMIN_IDS)
+        await session.commit()
+    # Личные сообщения и ответы на отзывы из админ-панели (messaging.py). К сети бот
+    # обращается только при отправке.
+    app.state.bot = Bot(token=settings.bot_token.get_secret_value())
     # Справочник городов для выбора пояса — сейчас, а не на первом запросе.
     await asyncio.to_thread(warm_up_timezones)
     logger.info("TMA API started (database connected, cities loaded)")
     try:
         yield
     finally:
+        await app.state.bot.session.close()
         await app.state.database.dispose()
         logger.info("TMA API stopped (database disposed)")
 
@@ -99,7 +116,11 @@ def create_app() -> FastAPI:
     # Порядок: добавленное последним оборачивает остальное. Снаружи — заголовки и учёт
     # времени (видят каждый ответ), затем CORS (и ответ 413 получает CORS-заголовки),
     # внутри — предел размера тела.
-    app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=MAX_REQUEST_BODY_BYTES,
+        path_limits={BROADCAST_UPLOAD_PATH: BROADCAST_UPLOAD_MAX_BYTES},
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -114,6 +135,8 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(settings_router.router)
     app.include_router(meta.router)
+    app.include_router(reviews.router)
+    app.include_router(admin.router)
 
     @app.get("/health", tags=["meta"], response_model=None)
     async def health(request: Request) -> dict[str, str] | JSONResponse:

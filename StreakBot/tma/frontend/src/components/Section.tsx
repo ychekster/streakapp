@@ -5,6 +5,8 @@
  *  - `form` — как написан, с заглавной буквы, и сдвинут вправо до конца скругления
  *    карточки (форма привычки, как в эталоне). Шрифт у обоих одинаковый.
  *
+ * Под содержимым может стоять приглушённое пояснение (`footer`), как под группой списка.
+ *
  * `Card` — белая карточка секции; `padded` добавляет горизонтальный отступ (карточка
  * привычки — вертикальный отступ задаёт сам блок привычки). Ряды списка (ListItem)
  * задают отступы сами, поэтому им `padded` не нужен.
@@ -19,16 +21,25 @@ interface SectionProps {
   variant?: "screen" | "form";
   /** Ссылка на заголовок (якорь сворачивающейся шапки, см. CollapsingHeader). */
   headingRef?: Ref<HTMLHeadingElement>;
+  /** Пояснение под содержимым. */
+  footer?: ReactNode;
   children: ReactNode;
 }
 
-export function Section({ title, variant = "screen", headingRef, children }: SectionProps) {
+export function Section({
+  title,
+  variant = "screen",
+  headingRef,
+  footer,
+  children,
+}: SectionProps) {
   return (
     <section className={styles.section}>
       <h2 ref={headingRef} className={`${styles.heading} ${styles[variant]}`}>
         {title}
       </h2>
       {children}
+      {footer ? <p className={styles.footer}>{footer}</p> : null}
     </section>
   );
 }

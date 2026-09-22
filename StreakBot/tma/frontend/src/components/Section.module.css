@@ -33,3 +33,12 @@
 .padded {
   padding: 0 var(--space-card-padding);
 }
+
+/* Пояснение под содержимым — как подпись под группой списка (ListGroup). */
+.footer {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-list-footer);
+  color: var(--color-text-secondary);
+}

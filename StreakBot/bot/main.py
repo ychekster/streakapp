@@ -2,12 +2,15 @@
 
 Запуск: ``python -m bot.main`` (после заполнения .env).
 
-Бот отвечает на /start приветствием с кнопкой запуска Mini App и присылает
-напоминания о привычках (bot/reminders.py). Вся работа с привычками идёт в
-приложении (см. tma/): базу данных ведёт API, бот только читает из неё напоминания.
+Бот отвечает на /start приветствием с кнопкой запуска Mini App, присылает
+напоминания о привычках (bot/reminders.py) и рассылки из админ-панели
+(bot/broadcasts.py). Вся работа с привычками идёт в приложении (см. tma/): базу
+данных ведёт API, а бот читает из неё напоминания и рассылки и отмечает в ней, кто
+запускал бота, кто его заблокировал и как идёт рассылка.
 
-Последовательность: конфиг → логирование → Bot/Dispatcher → роутер /start →
-меню бота (кнопка Mini App, без списка команд) → цикл напоминаний → polling.
+Последовательность: конфиг → логирование → Bot/Dispatcher → роутеры (/start, статус
+чата) → меню бота (кнопка Mini App, без списка команд) → циклы напоминаний и рассылок
+с общим темпом отправки → polling.
 """
 
 from __future__ import annotations
@@ -21,9 +24,11 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import ErrorEvent, MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
+from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
 from bot.constants import BTN_OPEN_APP
-from bot.handlers import start
+from bot.handlers import membership, start
+from bot.pacing import SEND_RATE, Pacer
 from bot.reminders import run_reminders
 from tma.backend.database import Database
 
@@ -84,25 +89,36 @@ async def main() -> None:
 
     bot = Bot(token=config.bot_token.get_secret_value())
     dp = Dispatcher()
+    database = Database(config.database_url)
 
-    # Проброс конфига в хендлеры через workflow_data.
+    # Проброс конфига и базы в хендлеры через workflow_data.
     dp["config"] = config
+    dp["database"] = database
 
+    # Типы обновлений для polling aiogram выводит из роутеров: с `membership` бот
+    # получает и my_chat_member (блокировку и разблокировку бота).
     dp.include_router(start.router)
+    dp.include_router(membership.router)
     register_error_handler(dp)
 
     await setup_bot_menu(bot, config.tma_url)
 
-    database = Database(config.database_url)
-    reminders = asyncio.create_task(run_reminders(bot, database))
+    # Один темп отправки на напоминания и рассылки — лимит Bot API общий (см. pacing.py).
+    pacer = Pacer(SEND_RATE)
+    loops = [
+        asyncio.create_task(run_reminders(bot, database, pacer)),
+        asyncio.create_task(run_broadcasts(bot, database, pacer)),
+    ]
     logger.info("StreakBot is up and polling")
 
     try:
         await dp.start_polling(bot)
     finally:
-        reminders.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await reminders
+        for loop in loops:
+            loop.cancel()
+        for loop in loops:
+            with contextlib.suppress(asyncio.CancelledError):
+                await loop
         await database.dispose()
         await bot.session.close()
         logger.info("StreakBot stopped")

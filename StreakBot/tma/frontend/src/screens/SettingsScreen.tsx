@@ -6,6 +6,8 @@
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает диалог с полем для отзыва (см. ReviewDialog);
  *     политика конфиденциальности и условия использования — открывают документы.
+ *  4. «Админ-панель» — только у администраторов: переключает приложение в режим
+ *     админ-панели (см. AdminApp).
  *
  * Настройки хранит App (от них зависят язык и тема всего приложения): изменение
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
@@ -27,6 +29,7 @@ import {
   GlobeIcon,
   PaletteIcon,
   ShieldIcon,
+  SlidersIcon,
   StarIcon,
 } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
@@ -51,9 +54,11 @@ interface SettingsScreenProps {
   state: UseSettingsResult;
   onSave: (patch: SettingsUpdate) => void;
   onOpen: (page: SettingsPage) => void;
+  /** Войти в админ-панель (ряд виден только администраторам). */
+  onOpenAdmin: () => void;
 }
 
-export function SettingsScreen({ state, onSave, onOpen }: SettingsScreenProps) {
+export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsScreenProps) {
   const strings = useStrings();
   const { settings, status, error, saveError, reload } = state;
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -160,6 +165,19 @@ export function SettingsScreen({ state, onSave, onOpen }: SettingsScreenProps) {
             <Disclosure />
           </ListItem>
         </ListGroup>
+
+        {settings.is_admin ? (
+          <ListGroup>
+            <ListItem
+              icon={<SlidersIcon />}
+              iconColor="purple"
+              label={strings.settingsAdminPanel}
+              onPress={onOpenAdmin}
+            >
+              <Disclosure />
+            </ListItem>
+          </ListGroup>
+        ) : null}
 
         {saveError ? (
           <p className={styles.error} role="alert">

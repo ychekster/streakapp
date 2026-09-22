@@ -3,7 +3,8 @@
 Доступ к данным идёт только через `Repository` — SQL здесь не пишется. Этот слой
 собирает из задач и их логов форму ответа (`Habit`) вместе со статистикой серий,
 создаёт и изменяет привычки, применяет переключение отметки за сегодня, работает с
-настройками пользователя и определяет, чьи напоминания пора прислать (для бота).
+настройками пользователя, принимает отзывы и определяет, чьи напоминания пора прислать
+(для бота). Логика админ-панели — в admin.py и analytics.py.
 """
 
 from __future__ import annotations
@@ -19,17 +20,20 @@ from tma.backend.constants import (
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
     MAX_HABITS_PER_USER,
+    MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
     TIMEZONE_SEARCH_LIMIT,
 )
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType, Task, TaskStatus, User
-from tma.backend.repository import Repository
+from tma.backend.repository import Repository, utc_now
 from tma.backend.schedule import due_weekdays, is_due_on, task_days
 from tma.backend.schemas import (
     Habit,
     HabitCreate,
     MetaResponse,
+    ReviewCreate,
+    ReviewCreated,
     SettingsResponse,
     SettingsUpdate,
     TimezoneEntry,
@@ -267,7 +271,8 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     Напоминание привычки наступило, если в поясе её владельца `moment` приходится
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
     запланирована, и только пока она за этот день не отмечена выполненной. Режим
-    «Отмечать за вчера» не влияет: напоминание — о сегодняшнем дне.
+    «Отмечать за вчера» не влияет: напоминание — о сегодняшнем дне. Пользователю,
+    заблокированному администратором, напоминания не приходят.
 
     Из базы читаются только привычки, время напоминания которых где-то на Земле
     наступило сейчас (по индексу, см. `_clock_times`), — а не все привычки с
@@ -275,6 +280,8 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     """
     candidates: list[tuple[Task, date]] = []
     for task in await repo.get_active_tasks_with_reminder_at(_clock_times(moment)):
+        if task.user.blocked_at is not None:
+            continue
         local = moment.astimezone(resolve_timezone(task.user.timezone))
         reminder = task.reminder_time
         if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
@@ -297,7 +304,7 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     ]
 
 
-def serialize_settings(user: User) -> SettingsResponse:
+def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
     """Собрать ответ настроек; пояс подписан на языке пользователя."""
     has_timezone = bool(user.timezone)
     city = selected_city(user.timezone, user.timezone_city)
@@ -311,7 +318,13 @@ def serialize_settings(user: User) -> SettingsResponse:
         language=user.language,
         theme=user.theme,
         mark_yesterday=user.mark_yesterday,
+        is_admin=is_admin,
     )
+
+
+async def read_settings(repo: Repository, user: User) -> SettingsResponse:
+    """Настройки пользователя (для `GET /settings`)."""
+    return serialize_settings(user, await repo.is_admin(user.telegram_id))
 
 
 async def update_settings(
@@ -340,7 +353,21 @@ async def update_settings(
         theme=validation.validate_theme(payload.theme) if payload.theme is not None else None,
         mark_yesterday=payload.mark_yesterday,
     )
-    return serialize_settings(user)
+    return await read_settings(repo, user)
+
+
+async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> ReviewCreated:
+    """Сохранить отзыв из настроек — он появится в админ-панели.
+
+    Не больше MAX_REVIEWS_PER_DAY за сутки: иначе раздел отзывов можно завалить
+    одинаковыми сообщениями.
+    """
+    text = validation.validate_review(payload.text)
+    since = utc_now() - timedelta(days=1)
+    if await repo.count_reviews_since(user.telegram_id, since) >= MAX_REVIEWS_PER_DAY:
+        raise ApiError(429, "review_limit", "Слишком много отзывов за сутки")
+    review = await repo.create_review(user.telegram_id, text)
+    return ReviewCreated(id=review.id, created_at=review.created_at)
 
 
 def build_meta() -> MetaResponse:

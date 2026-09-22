@@ -1,6 +1,7 @@
 """Эндпоинты настроек пользователя.
 
-    GET /settings — текущие настройки (пояс, язык, тема, «Отмечать за вчера»)
+    GET /settings — текущие настройки (пояс, язык, тема, «Отмечать за вчера») и
+                    признак администратора (вход в админ-панель)
     PUT /settings — обновить настройки (частично)
 
 Доступ к данным — только через репозиторий.
@@ -14,15 +15,18 @@ from tma.backend.dependencies import RepositoryDep, get_db_user
 from tma.backend.models import User
 from tma.backend.repository import Repository
 from tma.backend.schemas import SettingsResponse, SettingsUpdate
-from tma.backend.services import serialize_settings, update_settings
+from tma.backend.services import read_settings as build_settings, update_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("", response_model=SettingsResponse)
-async def read_settings(db_user: User = Depends(get_db_user)) -> SettingsResponse:
+async def read_settings(
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> SettingsResponse:
     """Вернуть текущие настройки пользователя."""
-    return serialize_settings(db_user)
+    return await build_settings(repo, db_user)
 
 
 @router.put("", response_model=SettingsResponse)

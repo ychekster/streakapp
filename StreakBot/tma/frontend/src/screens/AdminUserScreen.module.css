@@ -1,0 +1,28 @@
+/* Ряды — той же высоты, что ряды настроек. */
+.profile {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Значение справа обрезается многоточием, если не помещается. */
+.value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.error {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
+}

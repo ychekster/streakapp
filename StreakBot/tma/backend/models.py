@@ -1,4 +1,5 @@
-"""ORM-модели: User, Task, TaskLog.
+"""ORM-модели: User, Task, TaskLog и данные админ-панели (Admin, Review, UserActivity,
+Broadcast).
 
 Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
 TaskLog (см. `services.build_history`). Это исключает рассинхронизацию данных.
@@ -18,6 +19,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     Time,
     UniqueConstraint,
     false,
@@ -58,6 +60,14 @@ class TaskStatus(str, enum.Enum):
     missed = "missed"     # историческое: не отмечена до конца дня
 
 
+class BroadcastStatus(str, enum.Enum):
+    """Состояние рассылки: ждёт бота, рассылается, разослана."""
+
+    pending = "pending"
+    sending = "sending"
+    done = "done"
+
+
 class User(Base):
     """Пользователь Telegram и его настройки."""
 
@@ -85,14 +95,31 @@ class User(Base):
         Boolean, default=False, server_default=false(), nullable=False
     )
 
+    # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
+    # (/start записывает пользователя, см. bot/handlers/start.py).
+    app_opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Последний запрос к API, с точностью LAST_SEEN_RESOLUTION_SECONDS (см.
+    # Repository.touch_user). Индекс: по нему считаются активные и сегменты рассылки.
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    # Пользователь заблокировал бота (Telegram прислал my_chat_member «kicked» или
+    # ответил 403 на отправку); None — не блокировал или уже разблокировал.
+    bot_blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Заблокирован администратором: API отвечает 403, напоминания и рассылки не приходят.
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Время — UTC без пояса, как и остальные отметки времени в базе. Индекс: список
+    # пользователей в админ-панели отсортирован по дате регистрации.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime, server_default=func.now(), nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
     tasks: Mapped[list["Task"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    reviews: Mapped[list["Review"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -167,3 +194,94 @@ class TaskLog(Base):
     )
 
     task: Mapped["Task"] = relationship(back_populates="logs")
+
+
+class Admin(Base):
+    """Администратор: видит в настройках вход в админ-панель, API пускает его в /admin.
+
+    Не ссылается на `users`: администратора можно добавить по id Telegram ещё до того,
+    как он откроет приложение.
+    """
+
+    __tablename__ = "admins"
+
+    telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # Кто добавил; None — первый администратор (SEED_ADMIN_IDS).
+    added_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class Review(Base):
+    """Отзыв пользователя (настройки → «Написать отзыв») и ответ администратора на него.
+
+    Ответ приходит пользователю сообщением бота; здесь хранится последний.
+    """
+
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    reply_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    replied_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="reviews")
+
+
+class UserActivity(Base):
+    """День, в который пользователь открывал приложение (день по UTC).
+
+    Одна запись на пользователя и день — из них считаются DAU/WAU/MAU и график
+    активности. Записывает `Repository.touch_user` при первом запросе за день.
+    """
+
+    __tablename__ = "user_activity"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
+
+
+class Broadcast(Base):
+    """Рассылка из админ-панели. API создаёт её, бот рассылает (bot/broadcasts.py).
+
+    Получатели — пользователи сегмента по возрастанию id; `cursor` — id последнего
+    обработанного, поэтому после перезапуска бот продолжает с того же места.
+    Медиа уже загружено в Telegram (копия ушла автору рассылки) — хранится его file_id.
+    """
+
+    __tablename__ = "broadcasts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Ключ сегмента получателей (constants.BROADCAST_SEGMENTS).
+    segment: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Текст сообщения или подпись к медиа; None — медиа без подписи.
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "photo" / "video"; None — только текст.
+    media_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    media_file_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    status: Mapped[BroadcastStatus] = mapped_column(
+        Enum(BroadcastStatus, native_enum=False, length=16),
+        default=BroadcastStatus.pending,
+        nullable=False,
+        index=True,
+    )
+    # Получателей на момент создания; доставлено и не доставлено по мере рассылки.
+    total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cursor: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

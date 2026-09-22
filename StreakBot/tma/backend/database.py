@@ -9,6 +9,11 @@ API — единственный владелец данных. При стар�
 писателя и наоборот, а занятая база ждёт `SQLITE_BUSY_TIMEOUT_SECONDS`, а не сразу
 отвечает «database is locked». Для серверных СУБД — пул соединений с проверкой
 соединения перед выдачей (переживает перезапуск СУБД).
+
+Встроенная `lower()` SQLite переводит в нижний регистр только латиницу, поэтому на
+каждом соединении она заменяется на Python `str.lower`: поиск без учёта регистра
+(`ILIKE`, в SQLite — `lower(x) LIKE lower(y)`) находит и «Иван» по запросу «иван», как
+в PostgreSQL.
 """
 
 from __future__ import annotations
@@ -28,15 +33,22 @@ SQLITE_BUSY_TIMEOUT_SECONDS = 15
 POOL_RECYCLE_SECONDS = 1800
 
 
-def _enable_sqlite_wal(dbapi_connection: Any, _record: Any) -> None:
-    """WAL и `synchronous=NORMAL` на каждом новом соединении SQLite (надёжно для WAL и
-    заметно быстрее записи по умолчанию). Режим WAL хранится в самом файле базы."""
+def _unicode_lower(value: Any) -> Any:
+    """`lower()` для SQLite: нижний регистр любого алфавита (NULL и числа — как есть)."""
+    return value.lower() if isinstance(value, str) else value
+
+
+def _configure_sqlite(dbapi_connection: Any, _record: Any) -> None:
+    """На каждом новом соединении SQLite: WAL и `synchronous=NORMAL` (надёжно для WAL и
+    заметно быстрее записи по умолчанию; режим WAL хранится в самом файле базы) и
+    `lower()`, понимающая не только латиницу."""
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
     finally:
         cursor.close()
+    dbapi_connection.create_function("lower", 1, _unicode_lower, deterministic=True)
 
 
 class Database:
@@ -56,7 +68,7 @@ class Database:
         )
         self._engine = create_async_engine(database_url, **options)
         if is_sqlite:
-            event.listen(self._engine.sync_engine, "connect", _enable_sqlite_wal)
+            event.listen(self._engine.sync_engine, "connect", _configure_sqlite)
         self.session_factory = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,

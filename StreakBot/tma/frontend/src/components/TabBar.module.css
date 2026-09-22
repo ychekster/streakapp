@@ -32,7 +32,7 @@
   color: var(--glass-icon);
 }
 
-/* Две вкладки равной ширины (по самой широкой); подложка активной лежит под ними. */
+/* Вкладки равной ширины (по самой широкой); подложка активной лежит под ними. */
 .pill {
   position: relative;
   display: grid;
@@ -43,20 +43,30 @@
   border-radius: var(--radius-pill);
 }
 
-/* Серая подложка активной вкладки: ширина одной колонки, переезжает сдвигом. */
+/* Серая подложка активной вкладки: ширина одной колонки, переезжает сдвигом на номер
+   активной. Число вкладок и номер активной (--tab-count, --tab-index) задаёт TabBar. */
 .thumb {
   position: absolute;
   top: var(--tabbar-inset);
   bottom: var(--tabbar-inset);
   left: var(--tabbar-inset);
-  width: calc(50% - var(--tabbar-inset));
+  width: calc((100% - 2 * var(--tabbar-inset)) / var(--tab-count));
   border-radius: var(--radius-pill);
   background-color: var(--tabbar-thumb);
+  transform: translateX(calc(var(--tab-index) * 100%));
   transition: transform var(--tabbar-anim);
 }
 
-.thumbSecond {
-  transform: translateX(100%);
+/* Без кнопки «+» (админ-панель, четыре вкладки) таблетка во всю ширину, как таб-бар iOS
+   с несколькими вкладками; вкладки делят её поровну. */
+.wide .pill {
+  flex: 1;
+  max-width: var(--tabbar-wide-max-width);
+}
+
+.wide .tab {
+  min-width: 0;
+  padding: 0 4px;
 }
 
 /* relative — чтобы вкладка рисовалась поверх абсолютно позиционированной подложки. */

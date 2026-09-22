@@ -34,7 +34,33 @@ export type ApiErrorCode =
   | "invalid_theme"
   | "validation_error"
   | "internal_error"
-  | "http_error";
+  | "http_error"
+  | "not_found"
+  | "payload_too_large"
+  // Отзывы и блокировка пользователя.
+  | "invalid_review"
+  | "review_limit"
+  | "user_blocked"
+  // Админ-панель.
+  | "admin_required"
+  | "user_not_found"
+  | "user_is_admin"
+  | "review_not_found"
+  | "admin_exists"
+  | "admin_not_found"
+  | "cannot_remove_self"
+  | "invalid_message"
+  | "invalid_segment"
+  | "invalid_media"
+  | "media_too_large"
+  | "no_recipients"
+  | "admin_chat_unavailable"
+  | "broadcast_not_found"
+  | "invalid_period"
+  | "invalid_cursor"
+  | "telegram_rejected"
+  | "telegram_busy"
+  | "telegram_error";
 
 /** Единая ошибка запроса к API. */
 export class ApiRequestError extends Error {
@@ -65,22 +91,27 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
 /**
  * Выполнить запрос к API и вернуть распарсенный JSON-ответ типа T.
  * Бросает `ApiRequestError` при сетевой ошибке, ответе с не-2xx статусом или если
- * сервер не ответил за REQUEST_TIMEOUT_MS: без предела зависший запрос (например,
- * при обрыве туннеля) навсегда оставил бы экран загрузки или заблокированную отметку.
+ * сервер не ответил за `timeoutMs` (по умолчанию REQUEST_TIMEOUT_MS): без предела
+ * зависший запрос (например, при обрыве туннеля) навсегда оставил бы экран загрузки или
+ * заблокированную отметку. Тело — JSON-строка или FormData (загрузка файла).
  */
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const headers: Record<string, string> = {
     Authorization: `${AUTH_SCHEME} ${getInitData()}`,
-    // Тип тела — только когда тело есть: у GET без него запрос остаётся «простым».
-    ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    // Тип тела — только когда тело есть: у GET без него запрос остаётся «простым». У
+    // FormData тип с границей частей ставит сам браузер.
+    ...(options.body !== undefined && !(options.body instanceof FormData)
+      ? { "Content-Type": "application/json" }
+      : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
 
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
