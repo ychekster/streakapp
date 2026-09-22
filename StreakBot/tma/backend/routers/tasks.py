@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Path, Response
 
-from tma.backend.dependencies import get_db_user, get_repository
+from tma.backend.dependencies import RepositoryDep, get_db_user
 from tma.backend.errors import ApiError
 from tma.backend.models import User
 from tma.backend.repository import Repository
@@ -23,7 +23,6 @@ from tma.backend.schemas import (
     HabitResponse,
     HabitsResponse,
     HabitUpdate,
-    ToggleResponse,
 )
 from tma.backend.services import create_habit, list_habits, toggle_today, update_habit
 
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 @router.get("", response_model=HabitsResponse)
 async def get_tasks(
     db_user: User = Depends(get_db_user),
-    repo: Repository = Depends(get_repository),
+    repo: Repository = RepositoryDep,
 ) -> HabitsResponse:
     """Список активных привычек пользователя с историей выполнения."""
     habits = await list_habits(repo, db_user)
@@ -44,7 +43,7 @@ async def get_tasks(
 async def create_task(
     payload: HabitCreate,
     db_user: User = Depends(get_db_user),
-    repo: Repository = Depends(get_repository),
+    repo: Repository = RepositoryDep,
 ) -> HabitResponse:
     """Создать новую привычку и вернуть её."""
     habit = await create_habit(repo, db_user, payload)
@@ -56,7 +55,7 @@ async def update_task(
     payload: HabitUpdate,
     task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
     db_user: User = Depends(get_db_user),
-    repo: Repository = Depends(get_repository),
+    repo: Repository = RepositoryDep,
 ) -> HabitResponse:
     """Изменить привычку (название, частоту, напоминание, цвет) и вернуть её."""
     task = await repo.get_active_task(task_id, db_user.telegram_id)
@@ -70,7 +69,7 @@ async def update_task(
 async def delete_task(
     task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
     db_user: User = Depends(get_db_user),
-    repo: Repository = Depends(get_repository),
+    repo: Repository = RepositoryDep,
 ) -> Response:
     """Удалить привычку (мягко: история остаётся в базе, но нигде не показывается)."""
     task = await repo.get_active_task(task_id, db_user.telegram_id)
@@ -80,15 +79,15 @@ async def delete_task(
     return Response(status_code=204)
 
 
-@router.post("/{task_id}/toggle", response_model=ToggleResponse)
+@router.post("/{task_id}/toggle", response_model=HabitResponse)
 async def toggle_task(
     task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
     db_user: User = Depends(get_db_user),
-    repo: Repository = Depends(get_repository),
-) -> ToggleResponse:
+    repo: Repository = RepositoryDep,
+) -> HabitResponse:
     """Переключить отметку выполнения задачи за сегодня и вернуть её новое состояние."""
     task = await repo.get_active_task(task_id, db_user.telegram_id)
     if task is None:
         raise ApiError(404, "task_not_found", "Задача не найдена")
     habit = await toggle_today(repo, db_user, task)
-    return ToggleResponse(habit=habit)
+    return HabitResponse(habit=habit)

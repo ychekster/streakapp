@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 // Порядок важен: сначала дизайн-токены (переменные), затем глобальные стили.
 import "./styles/variables.css";
 import "./styles/global.css";
@@ -15,6 +16,8 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

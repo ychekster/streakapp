@@ -68,6 +68,9 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // Отправка уже идёт: состояние `submitting` обновится только со следующим рендером, а
+  // второе быстрое нажатие нижней кнопки создало бы привычку дважды.
+  const submittingRef = useRef(false);
 
   const nameMaxLength = meta?.name_max_length ?? DEFAULT_NAME_MAX_LENGTH;
   const valid = name.trim().length > 0 && (frequency === "daily" || days.size > 0);
@@ -112,9 +115,10 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   }
 
   async function submit(): Promise<void> {
-    if (!valid || submitting) {
+    if (!valid || submittingRef.current) {
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     const input: HabitInput = {
@@ -135,6 +139,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           habit ? strings.formEditFailed : strings.formCreateFailed,
         ),
       );
+      submittingRef.current = false;
       setSubmitting(false);
       hapticNotification("error");
       // Ошибка — под формой: прокрутить к ней, если форма длиннее экрана.

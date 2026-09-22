@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime, time
 
 import pytz
@@ -25,8 +26,16 @@ from tma.backend.timezones import looks_like_utc, parse_utc_offset
 
 
 def validate_name(name: str) -> str:
-    """Очистить и проверить название привычки (непустое, не длиннее лимита)."""
-    cleaned = name.strip()
+    """Очистить и проверить название привычки (непустое, не длиннее лимита).
+
+    Управляющие символы (перевод строки, табуляция, NUL…) заменяются пробелом, а
+    повторяющиеся пробелы схлопываются: название — одна строка и в приложении, и в
+    напоминании в чате, а NUL вообще не принимает PostgreSQL.
+    """
+    printable = "".join(
+        " " if unicodedata.category(char) == "Cc" else char for char in name
+    )
+    cleaned = " ".join(printable.split())
     if not cleaned:
         raise ApiError(422, "invalid_name", "Введите название привычки")
     if len(cleaned) > HABIT_NAME_MAX_LENGTH:
@@ -103,10 +112,10 @@ def resolve_timezone(value: str) -> str:
             )
         return resolved
     try:
-        pytz.timezone(text)
+        # pytz находит зону и без учёта регистра — храним каноническое имя.
+        return pytz.timezone(text).zone
     except Exception as exc:  # noqa: BLE001 — неизвестная зона → ошибка валидации
         raise ApiError(422, "invalid_timezone", "Не удалось распознать часовой пояс") from exc
-    return text
 
 
 def resolve_city(city_id: int) -> City:

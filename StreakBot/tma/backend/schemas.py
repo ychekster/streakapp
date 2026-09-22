@@ -75,10 +75,6 @@ class HabitResponse(BaseModel):
     habit: Habit
 
 
-# Псевдоним для обратной совместимости имени в роутере переключения.
-ToggleResponse = HabitResponse
-
-
 class HabitCreate(BaseModel):
     """Запрос `POST /tasks` — создание привычки."""
 

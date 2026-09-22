@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from starlette.concurrency import run_in_threadpool
 
 from tma.backend import validation
 from tma.backend.auth import TelegramUser
@@ -42,5 +43,8 @@ async def read_timezones(
 ) -> TimezonesResponse:
     """Часовые пояса для выбора в настройках: без `q` — каталог (по поясу на зону, с
     запада на восток), с `q` — найденные города. У каждого — зона, город, страна и
-    смещение."""
-    return build_timezones(validation.validate_language(language), q)
+    смещение.
+
+    Сборка каталога и поиск по ~64 тыс. городов — чистый CPU (до десятков мс), поэтому
+    они идут в пуле потоков: цикл событий тем временем обслуживает другие запросы."""
+    return await run_in_threadpool(build_timezones, validation.validate_language(language), q)

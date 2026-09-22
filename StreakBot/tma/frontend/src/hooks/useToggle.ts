@@ -40,8 +40,8 @@ function withToggledHabit(habits: Habit[], taskId: number): Habit[] {
   });
 }
 
-/** Заменить привычку в списке на авторитетную версию с сервера. */
-function withServerHabit(habits: Habit[], updated: Habit): Habit[] {
+/** Заменить привычку в списке (ответом сервера или прежним состоянием при откате). */
+function withReplacedHabit(habits: Habit[], updated: Habit): Habit[] {
   return habits.map((habit) => (habit.id === updated.id ? updated : habit));
 }
 
@@ -59,19 +59,25 @@ export function useToggle(
       inFlight.current.add(taskId);
       hapticImpact("light");
 
-      // Запоминаем снимок для отката и применяем оптимистичное изменение.
-      let snapshot: Habit[] = [];
+      // Запоминаем прежнее состояние этой привычки для отката и применяем оптимистичное
+      // изменение.
+      // Присваивается в колбэке — `as`, чтобы TypeScript не сузил тип до undefined.
+      let previous = undefined as Habit | undefined;
       setHabits((current) => {
-        snapshot = current;
+        previous = current.find((habit) => habit.id === taskId);
         return withToggledHabit(current, taskId);
       });
 
       try {
         const updated = await toggleHabit(taskId);
-        setHabits((current) => withServerHabit(current, updated));
+        setHabits((current) => withReplacedHabit(current, updated));
       } catch {
-        // Откат к состоянию до нажатия и сигнал об ошибке.
-        setHabits(snapshot);
+        // Откат только этой привычки (не всего списка: отметки других привычек, сделанные
+        // за время запроса, должны остаться) и сигнал об ошибке.
+        const restored = previous;
+        if (restored) {
+          setHabits((current) => withReplacedHabit(current, restored));
+        }
         hapticNotification("error");
       } finally {
         inFlight.current.delete(taskId);

@@ -6,25 +6,56 @@
     # или с автоперезагрузкой при разработке:
     uvicorn tma.backend.main:app --reload --port 8000
 
-Последовательность старта: настройки → подключение к БД и создание таблиц →
-CORS → обработчики ошибок → роутеры.
+Последовательность старта: логирование → настройки → подключение к БД и создание
+таблиц → middleware (заголовки и учёт медленных запросов, CORS, предел размера тела)
+→ обработчики ошибок → роутеры.
 """
 
 from __future__ import annotations
 
 import asyncio
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from tma.backend.config import Settings, load_settings
+from tma.backend.constants import MAX_REQUEST_BODY_BYTES, SLOW_REQUEST_SECONDS
 from tma.backend.database import Database
-from tma.backend.errors import register_error_handlers
+from tma.backend.errors import error_response, register_error_handlers
+from tma.backend.middleware import BodySizeLimitMiddleware, ResponseMetaMiddleware
+from tma.backend.ratelimit import RateLimiter
 from tma.backend.routers import meta, settings as settings_router, tasks
 from tma.backend.timezones import warm_up as warm_up_timezones
+
+# Сколько секунд браузер может кешировать ответ на CORS-preflight.
+_CORS_MAX_AGE_SECONDS = 600
+
+
+def setup_logging(settings: Settings) -> None:
+    """Логи API в stderr и, если задан TMA_LOG_FILE, в файл с ротацией.
+
+    `diagnose=False` обязателен: иначе loguru печатает в трейсбэке значения всех
+    переменных — вместе с токеном бота и чужой initData.
+    """
+    logger.remove()
+    logger.add(sys.stderr, level=settings.log_level, diagnose=False)
+    if settings.log_file:
+        Path(settings.log_file).parent.mkdir(parents=True, exist_ok=True)
+        logger.add(
+            settings.log_file,
+            level=settings.log_level,
+            rotation="10 MB",
+            retention="14 days",
+            encoding="utf-8",
+            enqueue=True,
+            diagnose=False,
+        )
 
 
 @asynccontextmanager
@@ -32,7 +63,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Жизненный цикл приложения: поднять подключение к БД и закрыть его при остановке."""
     settings: Settings = load_settings()
     app.state.settings = settings
-    app.state.database = Database(settings.database_url)
+    app.state.rate_limiter = RateLimiter(
+        settings.rate_limit_burst, settings.rate_limit_per_second
+    )
+    app.state.database = Database(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
     await app.state.database.create_tables()
     # Справочник городов для выбора пояса — сейчас, а не на первом запросе.
     await asyncio.to_thread(warm_up_timezones)
@@ -47,24 +85,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Собрать и сконфигурировать FastAPI-приложение."""
     settings = load_settings()
-    app = FastAPI(title="StreakBot Mini App API", version="1.0.0", lifespan=lifespan)
+    setup_logging(settings)
+    docs = settings.docs_enabled
+    app = FastAPI(
+        title="StreakBot Mini App API",
+        version="1.0.0",
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
 
+    # Порядок: добавленное последним оборачивает остальное. Снаружи — заголовки и учёт
+    # времени (видят каждый ответ), затем CORS (и ответ 413 получает CORS-заголовки),
+    # внутри — предел размера тела.
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        max_age=_CORS_MAX_AGE_SECONDS,
     )
+    app.add_middleware(ResponseMetaMiddleware, slow_seconds=SLOW_REQUEST_SECONDS)
 
     register_error_handlers(app)
     app.include_router(tasks.router)
     app.include_router(settings_router.router)
     app.include_router(meta.router)
 
-    @app.get("/health", tags=["meta"])
-    async def health() -> dict[str, str]:
-        """Проверка живости сервиса (для мониторинга/проксей)."""
+    @app.get("/health", tags=["meta"], response_model=None)
+    async def health(request: Request) -> dict[str, str] | JSONResponse:
+        """Проверка живости сервиса и доступности БД (для мониторинга/проксей)."""
+        try:
+            await request.app.state.database.ping()
+        except Exception as exc:  # noqa: BLE001 — любая ошибка БД = сервис не готов
+            logger.warning("Health check failed: database unavailable ({})", exc)
+            return error_response(503, "database_unavailable", "База данных недоступна")
         return {"status": "ok"}
 
     return app
@@ -78,7 +136,7 @@ def run() -> None:
     import uvicorn
 
     settings = load_settings()
-    uvicorn.run(app, host=settings.host, port=settings.port)
+    uvicorn.run(app, host=settings.host, port=settings.port, server_header=False)
 
 
 if __name__ == "__main__":

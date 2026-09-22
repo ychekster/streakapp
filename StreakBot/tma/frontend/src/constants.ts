@@ -56,6 +56,9 @@ export const HABIT_COLORS = [
 /** Цвет новой привычки (им же выглядели все привычки до появления выбора цвета). */
 export const DEFAULT_HABIT_COLOR = "blue";
 
+/** Сколько ждать ответа API, мс; дольше — ошибка сети (см. api/client.ts). */
+export const REQUEST_TIMEOUT_MS = 15_000;
+
 /** Пауза после ввода в поиске часового пояса, после которой уходит запрос, мс. */
 export const TIMEZONE_SEARCH_DELAY_MS = 200;
 

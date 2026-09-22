@@ -15,8 +15,11 @@ venv/
 .venv/
 env/
 
-# База данных
+# База данных (и служебные файлы SQLite: журнал WAL, общая память, журнал отката)
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 *.sqlite3
 

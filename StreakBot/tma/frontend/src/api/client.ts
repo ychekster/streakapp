@@ -6,6 +6,7 @@
  * `ApiRequestError`, чтобы UI показывал понятный текст, не разбирая разные форматы.
  */
 
+import { REQUEST_TIMEOUT_MS } from "../constants";
 import { getInitData } from "../telegram/webapp";
 
 // Базовый URL API (пустая строка => тот же источник, что и фронтенд).
@@ -21,6 +22,8 @@ export type ApiErrorCode =
   | "missing_init_data"
   | "task_not_found"
   | "duplicate_name"
+  | "habit_limit"
+  | "rate_limited"
   | "invalid_name"
   | "invalid_days"
   | "invalid_frequency"
@@ -61,24 +64,35 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
 
 /**
  * Выполнить запрос к API и вернуть распарсенный JSON-ответ типа T.
- * Бросает `ApiRequestError` при сетевой ошибке или ответе с не-2xx статусом.
+ * Бросает `ApiRequestError` при сетевой ошибке, ответе с не-2xx статусом или если
+ * сервер не ответил за REQUEST_TIMEOUT_MS: без предела зависший запрос (например,
+ * при обрыве туннеля) навсегда оставил бы экран загрузки или заблокированную отметку.
  */
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     Authorization: `${AUTH_SCHEME} ${getInitData()}`,
+    // Тип тела — только когда тело есть: у GET без него запрос остаётся «простым».
+    ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
 
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
   } catch {
-    // fetch падает только при сетевой недоступности — отдельный понятный код.
+    // fetch падает при сетевой недоступности и по таймауту — отдельный понятный код.
     throw new ApiRequestError(0, "network_error", "Нет связи с сервером");
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   const body = await parseJsonSafe(response);

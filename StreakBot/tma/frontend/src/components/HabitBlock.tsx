@@ -5,7 +5,13 @@
  * Если передан `onOpen`, весь блок, кроме кнопки отметки, открывает экран привычки: под
  * содержимым лежит невидимая кнопка на всю площадь блока, а содержимое пропускает нажатия
  * к ней (см. HabitBlock.module.css). Так кнопки не вкладываются друг в друга.
+ *
+ * Мемоизирован: отметка одной привычки заменяет в списке только её объект, и остальные
+ * блоки (у каждого — сетка из сотен точек) не перерисовываются. Обработчики должны быть
+ * стабильными (useCallback).
  */
+
+import { memo } from "react";
 
 import { GRID_DAYS } from "../constants";
 import { useStrings } from "../preferences";
@@ -26,7 +32,7 @@ interface HabitBlockProps {
   onOpen?: (taskId: number) => void;
 }
 
-export function HabitBlock({
+export const HabitBlock = memo(function HabitBlock({
   habit,
   interactive,
   gridDays = GRID_DAYS,
@@ -59,4 +65,4 @@ export function HabitBlock({
       <YearGrid history={habit.history.slice(-gridDays)} />
     </article>
   );
-}
+});

@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from collections.abc import Collection, Iterable, Iterator
+from datetime import date, datetime, time, timezone
+from itertools import islice
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,6 +23,18 @@ from tma.backend.models import (
     TaskStatus,
     User,
 )
+
+
+# Сколько значений передавать в одном `IN (...)`: у SQLite и драйверов PostgreSQL есть
+# предел числа параметров запроса.
+_IN_BATCH_SIZE = 500
+
+
+def _batches(values: Iterable[int], size: int = _IN_BATCH_SIZE) -> Iterator[list[int]]:
+    """Разбить значения на списки не длиннее `size`."""
+    iterator = iter(values)
+    while batch := list(islice(iterator, size)):
+        yield batch
 
 
 class Repository:
@@ -161,6 +175,15 @@ class Repository:
         result = await self.session.execute(query)
         return any((task_name or "").strip().lower() == target for task_name in result.scalars())
 
+    async def count_active_tasks(self, user_id: int) -> int:
+        """Сколько активных задач у пользователя."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.user_id == user_id, Task.is_active.is_(True))
+        )
+        return result.scalar_one()
+
     async def get_active_task(self, task_id: int, user_id: int) -> Task | None:
         """Вернуть активную задачу пользователя по id или None."""
         result = await self.session.execute(
@@ -190,12 +213,14 @@ class Repository:
         )
         return list(result.scalars().all())
 
-    async def get_active_tasks_with_reminders(self) -> list[Task]:
-        """Активные задачи всех пользователей с напоминанием — вместе с владельцем
-        (его пояс нужен, чтобы понять, наступило ли время напоминания)."""
+    async def get_active_tasks_with_reminder_at(self, times: Collection[time]) -> list[Task]:
+        """Активные задачи всех пользователей с напоминанием в одно из `times` — вместе с
+        владельцем (его пояс нужен, чтобы понять, наступило ли время напоминания)."""
+        if not times:
+            return []
         result = await self.session.execute(
             select(Task)
-            .where(Task.is_active.is_(True), Task.reminder_time.is_not(None))
+            .where(Task.is_active.is_(True), Task.reminder_time.in_(sorted(times)))
             .options(selectinload(Task.user))
             .order_by(Task.id)
         )
@@ -236,16 +261,47 @@ class Repository:
         return log
 
     async def set_log_status(self, log: TaskLog, status: TaskStatus) -> None:
-        """Установить статус лога и зафиксировать момент отметки."""
+        """Установить статус лога и зафиксировать момент отметки (UTC, как и остальные
+        отметки времени в базе — без пояса)."""
         log.status = status
-        log.marked_at = datetime.utcnow()
+        log.marked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.session.flush()
 
-    async def get_logs_for_task(self, task_id: int) -> list[TaskLog]:
-        """Вернуть все логи задачи, отсортированные по дате (DESC)."""
-        result = await self.session.execute(
-            select(TaskLog)
-            .where(TaskLog.task_id == task_id)
-            .order_by(TaskLog.scheduled_date.desc())
-        )
-        return list(result.scalars().all())
+    async def get_done_dates(
+        self, task_ids: Collection[int], until: date
+    ) -> dict[int, set[date]]:
+        """Даты выполнения (статус done) задач по `until` включительно: id задачи → даты.
+
+        Один запрос на все задачи и только две колонки — без ORM-объектов логов: у
+        привычки за годы накапливаются тысячи отметок, и список привычек не должен
+        собирать их по запросу на каждую.
+        """
+        done: dict[int, set[date]] = {task_id: set() for task_id in task_ids}
+        for batch in _batches(done):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.scheduled_date).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.status == TaskStatus.done,
+                    TaskLog.scheduled_date <= until,
+                )
+            )
+            for task_id, day in result.tuples():
+                done[task_id].add(day)
+        return done
+
+    async def get_done_task_days(
+        self, task_days: Collection[tuple[int, date]]
+    ) -> set[tuple[int, date]]:
+        """Какие из пар (id задачи, дата) отмечены выполненными — одним запросом на пачку."""
+        days = {day for _, day in task_days}
+        done: set[tuple[int, date]] = set()
+        for batch in _batches({task_id for task_id, _ in task_days}):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.scheduled_date).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.scheduled_date.in_(sorted(days)),
+                    TaskLog.status == TaskStatus.done,
+                )
+            )
+            done.update((task_id, day) for task_id, day in result.tuples())
+        return done & set(task_days)

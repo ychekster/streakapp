@@ -2,7 +2,7 @@
 
 Здесь собрано связывание запроса с инфраструктурой: настройки, сессия БД +
 репозиторий (с авто-commit/rollback), текущий пользователь Telegram, выведенный
-из проверенной `initData`, и его запись в БД.
+из проверенной `initData` (с ограничением частоты запросов), и его запись в БД.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from tma.backend.constants import INIT_DATA_AUTH_SCHEME
 from tma.backend.database import Database
 from tma.backend.errors import ApiError
 from tma.backend.models import User
+from tma.backend.ratelimit import RateLimiter, retry_after_header
 from tma.backend.repository import Repository
 from tma.backend.services import language_from_telegram
 
@@ -31,10 +32,16 @@ def _get_database(request: Request) -> Database:
     return request.app.state.database
 
 
+def _get_rate_limiter(request: Request) -> RateLimiter:
+    """Ограничитель частоты запросов из `app.state`."""
+    return request.app.state.rate_limiter
+
+
 async def get_repository(request: Request) -> AsyncIterator[Repository]:
     """Репозиторий поверх сессии запроса с авто-commit при успехе и rollback при ошибке.
 
-    Одна сессия на запрос, изменения фиксируются по завершении обработчика.
+    Одна сессия на запрос, изменения фиксируются по завершении обработчика. Подключать
+    только через `RepositoryDep` (см. ниже).
     """
     database = _get_database(request)
     async with database.session_factory() as session:
@@ -45,6 +52,14 @@ async def get_repository(request: Request) -> AsyncIterator[Repository]:
         except Exception:
             await session.rollback()
             raise
+
+
+# Зависимость-репозиторий с областью "function": commit выполняется ДО отправки ответа.
+# С областью по умолчанию ("request") FastAPI закрывает зависимость уже после отправки,
+# и сбой commit (например, занятая база) остался бы незамеченным: клиент получил бы
+# 200 и новое состояние, которого в базе нет. Один и тот же объект во всех местах —
+# иначе FastAPI не узнает в них одну зависимость и откроет вторую сессию.
+RepositoryDep = Depends(get_repository, scope="function")
 
 
 def _extract_init_data(authorization: str | None) -> str:
@@ -65,22 +80,34 @@ async def get_current_user(
     request: Request,
     authorization: str | None = Header(default=None),
 ) -> TelegramUser:
-    """Текущий пользователь Telegram из проверенной `initData` (иначе 401)."""
+    """Текущий пользователь Telegram из проверенной `initData` (иначе 401).
+
+    Сверх лимита частоты запросов (config: TMA_RATE_LIMIT_*) — 429 с Retry-After.
+    """
     settings = get_settings(request)
     init_data_raw = _extract_init_data(authorization)
     try:
-        return verify_init_data(
+        user = verify_init_data(
             init_data_raw,
-            bot_token=settings.bot_token,
+            bot_token=settings.bot_token.get_secret_value(),
             max_age_seconds=settings.auth_ttl_seconds,
         )
     except InitDataError as exc:
         raise ApiError(401, "invalid_init_data", "Не удалось подтвердить личность Telegram") from exc
+    retry_after = _get_rate_limiter(request).acquire(user.id)
+    if retry_after:
+        raise ApiError(
+            429,
+            "rate_limited",
+            "Слишком много запросов, попробуйте чуть позже",
+            headers=retry_after_header(retry_after),
+        )
+    return user
 
 
 async def get_db_user(
     user: TelegramUser = Depends(get_current_user),
-    repo: Repository = Depends(get_repository),
+    repo: Repository = RepositoryDep,
 ) -> User:
     """Запись текущего пользователя в БД; создаётся при первом открытии приложения
     (с языком интерфейса по языку его Telegram).

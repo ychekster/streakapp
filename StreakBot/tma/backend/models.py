@@ -30,6 +30,7 @@ from tma.backend.constants import (
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
     HABIT_COLOR_MAX_LENGTH,
+    HABIT_NAME_MAX_LENGTH,
 )
 
 
@@ -105,7 +106,7 @@ class Task(Base):
     user_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(HABIT_NAME_MAX_LENGTH), nullable=False)
 
     frequency_type: Mapped[FrequencyType] = mapped_column(
         Enum(FrequencyType, native_enum=False, length=20), nullable=False
@@ -115,7 +116,8 @@ class Task(Base):
 
     # Время напоминания в поясе пользователя; None — без напоминания. Напоминание
     # присылает бот (bot/reminders.py) в запланированные дни, если привычка не выполнена.
-    reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # Индекс: бот каждую минуту выбирает привычки по времени напоминания.
+    reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True, index=True)
     # Цвет (тема) привычки — ключ палитры из constants.HABIT_COLORS.
     color: Mapped[str] = mapped_column(
         String(HABIT_COLOR_MAX_LENGTH),

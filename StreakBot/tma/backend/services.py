@@ -18,6 +18,7 @@ from tma.backend.constants import (
     DEFAULT_LANGUAGE,
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
+    MAX_HABITS_PER_USER,
     REMINDER_TIME_FORMAT,
     TIMEZONE_SEARCH_LIMIT,
 )
@@ -107,16 +108,13 @@ def compute_streaks(task: Task, done_dates: set[date], today: date) -> tuple[int
     return current, best
 
 
-async def build_habit(repo: Repository, task: Task, today: date) -> Habit:
-    """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий."""
-    logs = await repo.get_logs_for_task(task.id)
-    # Отметки «из будущего» (возможны после смены часового пояса на более западный)
-    # не учитываются: ни в сетке, ни в сериях, ни в общем счётчике.
-    done_dates = {
-        log.scheduled_date
-        for log in logs
-        if log.status == TaskStatus.done and log.scheduled_date <= today
-    }
+def build_habit(task: Task, done_dates: set[date], today: date) -> Habit:
+    """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
+
+    `done_dates` — даты выполнения по `today` включительно (Repository.get_done_dates):
+    отметки «из будущего» (возможны после смены часового пояса на более западный) не
+    учитываются ни в сетке, ни в сериях, ни в общем счётчике.
+    """
     current_streak, best_streak = compute_streaks(task, done_dates, today)
     return Habit(
         id=task.id,
@@ -138,11 +136,21 @@ async def build_habit(repo: Repository, task: Task, today: date) -> Habit:
     )
 
 
+async def _built_habit(repo: Repository, task: Task, today: date) -> Habit:
+    """Привычка с отметками из базы (после изменения или отметки)."""
+    done = await repo.get_done_dates([task.id], today)
+    return build_habit(task, done[task.id], today)
+
+
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
-    """Все активные привычки пользователя с историей и статистикой (для `GET /tasks`)."""
+    """Все активные привычки пользователя с историей и статистикой (для `GET /tasks`).
+
+    Отметки всех привычек читаются одним запросом, а не по запросу на привычку.
+    """
     today = user_today(user)
     tasks = await repo.get_active_tasks(user.telegram_id)
-    return [await build_habit(repo, task, today) for task in tasks]
+    done = await repo.get_done_dates([task.id for task in tasks], today)
+    return [build_habit(task, done[task.id], today) for task in tasks]
 
 
 async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
@@ -155,7 +163,7 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     log = await repo.get_or_create_log(task.id, user.telegram_id, today)
     target = TaskStatus.pending if log.status == TaskStatus.done else TaskStatus.done
     await repo.set_log_status(log, target)
-    return await build_habit(repo, task, today)
+    return await _built_habit(repo, task, today)
 
 
 @dataclass(frozen=True)
@@ -197,7 +205,11 @@ async def _validate_habit_fields(
 
 
 async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
-    """Создать привычку и вернуть её в форме `Habit`."""
+    """Создать привычку и вернуть её в форме `Habit` (не больше `MAX_HABITS_PER_USER`)."""
+    if await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER:
+        raise ApiError(
+            409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
+        )
     fields = await _validate_habit_fields(repo, user, payload)
     task = await repo.create_task(
         user_id=user.telegram_id,
@@ -207,7 +219,8 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
         reminder_time=fields.reminder_time,
         color=fields.color,
     )
-    return await build_habit(repo, task, user_today(user))
+    # У новой привычки ещё нет отметок.
+    return build_habit(task, set(), user_today(user))
 
 
 async def update_habit(
@@ -226,7 +239,7 @@ async def update_habit(
         reminder_time=fields.reminder_time,
         color=fields.color,
     )
-    return await build_habit(repo, task, user_today(user))
+    return await _built_habit(repo, task, user_today(user))
 
 
 @dataclass(frozen=True)
@@ -239,6 +252,15 @@ class DueReminder:
     language: str
 
 
+def _clock_times(moment: datetime) -> set[time]:
+    """Время на часах («ЧЧ:ММ») во всех поясах мира в момент `moment` — несколько
+    десятков значений: у многих поясов смещение одинаковое."""
+    return {
+        moment.astimezone(pytz.timezone(zone)).time().replace(second=0, microsecond=0)
+        for zone in pytz.all_timezones
+    }
+
+
 async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
     """Напоминания на минуту `moment` (datetime с поясом, обычно UTC).
 
@@ -246,28 +268,33 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
     запланирована, и только пока она за этот день не отмечена выполненной. Режим
     «Отмечать за вчера» не влияет: напоминание — о сегодняшнем дне.
+
+    Из базы читаются только привычки, время напоминания которых где-то на Земле
+    наступило сейчас (по индексу, см. `_clock_times`), — а не все привычки с
+    напоминанием; отметки за день проверяются одним запросом на всех.
     """
-    due: list[DueReminder] = []
-    for task in await repo.get_active_tasks_with_reminders():
+    candidates: list[tuple[Task, date]] = []
+    for task in await repo.get_active_tasks_with_reminder_at(_clock_times(moment)):
         local = moment.astimezone(resolve_timezone(task.user.timezone))
         reminder = task.reminder_time
         if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
             continue
         day = local.date()
-        if not is_due_on(task, day):
-            continue
-        log = await repo.get_log(task.id, day)
-        if log is not None and log.status == TaskStatus.done:
-            continue
-        due.append(
-            DueReminder(
-                task_id=task.id,
-                user_id=task.user_id,
-                habit_name=task.name,
-                language=task.user.language,
-            )
+        if is_due_on(task, day):
+            candidates.append((task, day))
+    if not candidates:
+        return []
+    done = await repo.get_done_task_days({(task.id, day) for task, day in candidates})
+    return [
+        DueReminder(
+            task_id=task.id,
+            user_id=task.user_id,
+            habit_name=task.name,
+            language=task.user.language,
         )
-    return due
+        for task, day in candidates
+        if (task.id, day) not in done
+    ]
 
 
 def serialize_settings(user: User) -> SettingsResponse:

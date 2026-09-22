@@ -29,9 +29,13 @@ from tma.backend.database import Database
 
 
 def setup_logging(config: Config) -> None:
-    """Настроить loguru: вывод в stderr и ротация в файл."""
+    """Настроить loguru: вывод в stderr и ротация в файл.
+
+    `diagnose=False` обязателен: иначе loguru печатает в трейсбэке значения всех
+    переменных, а среди них — URL запроса к Bot API с токеном бота.
+    """
     logger.remove()
-    logger.add(sys.stderr, level=config.log_level, enqueue=True)
+    logger.add(sys.stderr, level=config.log_level, enqueue=True, diagnose=False)
     log_path = Path(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.add(
@@ -41,6 +45,7 @@ def setup_logging(config: Config) -> None:
         retention="14 days",
         encoding="utf-8",
         enqueue=True,
+        diagnose=False,
     )
 
 
@@ -77,7 +82,7 @@ async def main() -> None:
     setup_logging(config)
     logger.info("Starting StreakBot...")
 
-    bot = Bot(token=config.bot_token)
+    bot = Bot(token=config.bot_token.get_secret_value())
     dp = Dispatcher()
 
     # Проброс конфига в хендлеры через workflow_data.

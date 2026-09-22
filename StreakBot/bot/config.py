@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +22,9 @@ class Config(BaseSettings):
         extra="ignore",
     )
 
-    # Токен бота от @BotFather.
-    bot_token: str = Field(..., alias="BOT_TOKEN")
+    # Токен бота от @BotFather. SecretStr: в repr конфига и в трейсбэках логов токен
+    # скрыт звёздочками.
+    bot_token: SecretStr = Field(..., alias="BOT_TOKEN")
 
     # Публичный URL Telegram Mini App (фронтенд из tma/). Бот существует только для
     # того, чтобы открывать приложение, поэтому переменная обязательна. URL должен
@@ -40,6 +41,15 @@ class Config(BaseSettings):
     # Параметры логирования.
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_file: str = Field(default="logs/bot.log", alias="LOG_FILE")
+
+    @field_validator("tma_url")
+    @classmethod
+    def _require_https(cls, value: str) -> str:
+        """Telegram открывает Mini App только по HTTPS — ошибиться лучше при старте, чем
+        получать «Bad Request» на каждый /start."""
+        if not value.startswith("https://"):
+            raise ValueError("TMA_URL must be an https:// URL")
+        return value
 
 
 @lru_cache
