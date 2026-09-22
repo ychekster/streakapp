@@ -14,7 +14,9 @@ export type ResolvedTheme = "light" | "dark";
 export interface Settings {
   /** Часовой пояс (IANA) или null. */
   timezone: string | null;
-  /** Пояс на языке интерфейса: город («Москва») или смещение («UTC+3»). */
+  /** Город пояса (id в справочнике городов); null — пояс без города (UTC±N). */
+  timezone_city: number | null;
+  /** Пояс на языке интерфейса: город («Санкт-Петербург») или смещение («UTC+3»). */
   timezone_display: string | null;
   /** Смещение пояса, напр. «UTC+3». */
   timezone_offset: string | null;
@@ -27,6 +29,8 @@ export interface Settings {
 /** Частичное обновление настроек (передаются только меняемые поля). */
 export interface SettingsUpdate {
   timezone?: string;
+  /** Пояс городом — вместо `timezone`. */
+  timezone_city?: number;
   language?: Language;
   theme?: ThemePreference;
   mark_yesterday?: boolean;

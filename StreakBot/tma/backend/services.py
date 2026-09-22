@@ -19,6 +19,7 @@ from tma.backend.constants import (
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
     REMINDER_TIME_FORMAT,
+    TIMEZONE_SEARCH_LIMIT,
 )
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType, Task, TaskStatus, User
@@ -33,7 +34,14 @@ from tma.backend.schemas import (
     TimezoneEntry,
     TimezonesResponse,
 )
-from tma.backend.timezones import timezone_catalog, timezone_display, utc_label
+from tma.backend.timezones import (
+    ZoneEntry,
+    search_timezones,
+    selected_city,
+    timezone_catalog,
+    timezone_display,
+    utc_label,
+)
 
 
 def resolve_timezone(timezone_name: str | None) -> pytz.BaseTzInfo:
@@ -265,10 +273,12 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
 def serialize_settings(user: User) -> SettingsResponse:
     """Собрать ответ настроек; пояс подписан на языке пользователя."""
     has_timezone = bool(user.timezone)
+    city = selected_city(user.timezone, user.timezone_city)
     return SettingsResponse(
         timezone=user.timezone,
+        timezone_city=city.id if city is not None else None,
         timezone_display=(
-            timezone_display(user.timezone, user.language) if has_timezone else None
+            timezone_display(user.timezone, user.language, city) if has_timezone else None
         ),
         timezone_offset=utc_label(user.timezone) if has_timezone else None,
         language=user.language,
@@ -282,15 +292,19 @@ async def update_settings(
 ) -> SettingsResponse:
     """Обновить переданные настройки и вернуть актуальное состояние.
 
-    Меняются только непустые поля.
+    Меняются только непустые поля. Пояс задаётся городом (`timezone_city` — пояс
+    города) или зоной либо смещением (`timezone` — пояс без города).
     """
+    timezone, timezone_city = None, None
+    if payload.timezone_city is not None:
+        city = validation.resolve_city(payload.timezone_city)
+        timezone, timezone_city = city.zone, city.id
+    elif payload.timezone is not None:
+        timezone = validation.resolve_timezone(payload.timezone)
     await repo.update_settings(
         user,
-        timezone=(
-            validation.resolve_timezone(payload.timezone)
-            if payload.timezone is not None
-            else None
-        ),
+        timezone=timezone,
+        timezone_city=timezone_city,
         language=(
             validation.validate_language(payload.language)
             if payload.language is not None
@@ -307,11 +321,24 @@ def build_meta() -> MetaResponse:
     return MetaResponse(name_max_length=HABIT_NAME_MAX_LENGTH)
 
 
-def build_timezones(language: str) -> TimezonesResponse:
-    """Каталог часовых поясов на языке интерфейса (для выбора в настройках)."""
+def build_timezones(language: str, query: str | None) -> TimezonesResponse:
+    """Пояса для выбора в настройках на языке интерфейса: без запроса — каталог, с
+    запросом — найденные города (см. timezones.search_timezones)."""
+    entries: list[ZoneEntry] = (
+        search_timezones(query, language, TIMEZONE_SEARCH_LIMIT)
+        if query and query.strip()
+        else timezone_catalog(language)
+    )
     return TimezonesResponse(
         timezones=[
-            TimezoneEntry(id=entry.zone, city=entry.city, country=entry.country, offset=entry.offset)
-            for entry in timezone_catalog(language)
+            TimezoneEntry(
+                zone=entry.zone,
+                city_id=entry.city_id,
+                city=entry.city,
+                region=entry.region,
+                country=entry.country,
+                offset=entry.offset,
+            )
+            for entry in entries
         ]
     )

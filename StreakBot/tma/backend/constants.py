@@ -53,6 +53,10 @@ WEEKDAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 LANGUAGES: tuple[str, ...] = ("ru", "en")
 DEFAULT_LANGUAGE = "ru"
 
+# Поиск города для часового пояса: сколько городов вернуть и самый длинный запрос.
+TIMEZONE_SEARCH_LIMIT = 50
+TIMEZONE_QUERY_MAX_LENGTH = 100
+
 # Темы оформления: светлая, тёмная и адаптивная ("system" — следует за системой).
 THEMES: tuple[str, ...] = ("light", "dark", "system")
 DEFAULT_THEME = "light"

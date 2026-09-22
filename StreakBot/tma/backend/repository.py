@@ -83,13 +83,16 @@ class Repository:
         user: User,
         *,
         timezone: str | None = None,
+        timezone_city: int | None = None,
         language: str | None = None,
         theme: str | None = None,
         mark_yesterday: bool | None = None,
     ) -> None:
-        """Изменить настройки пользователя; None — оставить как есть."""
+        """Изменить настройки пользователя; None — оставить как есть. Город пояса
+        меняется вместе с поясом (None у нового пояса — пояс без города)."""
         if timezone is not None:
             user.timezone = timezone
+            user.timezone_city = timezone_city
         if language is not None:
             user.language = language
         if theme is not None:

@@ -12,6 +12,7 @@ CORS → обработчики ошибок → роутеры.
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -23,6 +24,7 @@ from tma.backend.config import Settings, load_settings
 from tma.backend.database import Database
 from tma.backend.errors import register_error_handlers
 from tma.backend.routers import meta, settings as settings_router, tasks
+from tma.backend.timezones import warm_up as warm_up_timezones
 
 
 @asynccontextmanager
@@ -32,7 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings = settings
     app.state.database = Database(settings.database_url)
     await app.state.database.create_tables()
-    logger.info("TMA API started (database connected)")
+    # Справочник городов для выбора пояса — сейчас, а не на первом запросе.
+    await asyncio.to_thread(warm_up_timezones)
+    logger.info("TMA API started (database connected, cities loaded)")
     try:
         yield
     finally:

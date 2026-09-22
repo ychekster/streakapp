@@ -41,7 +41,7 @@ import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
-import { TimezoneScreen } from "./screens/TimezoneScreen";
+import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { STRINGS } from "./strings";
 import {
   hapticNotification,
@@ -140,7 +140,11 @@ export function App() {
   const saveSettings = useCallback(
     async (patch: SettingsUpdate, preview?: Partial<Settings>) => {
       const accepted = await save(patch, preview);
-      if (accepted && (patch.timezone !== undefined || patch.mark_yesterday !== undefined)) {
+      const changesDay =
+        patch.timezone !== undefined ||
+        patch.timezone_city !== undefined ||
+        patch.mark_yesterday !== undefined;
+      if (accepted && changesDay) {
         void refresh();
       }
     },
@@ -151,14 +155,19 @@ export function App() {
   const selectTimezone = useCallback(
     (timezone: TimezoneEntry) => {
       hideSettingsPage();
-      if (timezone.id !== settings?.timezone) {
+      if (!isCurrentTimezone(timezone, settings?.timezone ?? null, settings?.timezone_city ?? null)) {
         void saveSettings(
-          { timezone: timezone.id },
-          { timezone_display: timezone.city, timezone_offset: timezone.offset },
+          timezone.city_id !== null ? { timezone_city: timezone.city_id } : { timezone: timezone.zone },
+          {
+            timezone: timezone.zone,
+            timezone_city: timezone.city_id,
+            timezone_display: timezone.city,
+            timezone_offset: timezone.offset,
+          },
         );
       }
     },
-    [hideSettingsPage, saveSettings, settings?.timezone],
+    [hideSettingsPage, saveSettings, settings?.timezone, settings?.timezone_city],
   );
 
   // Изменённая привычка заменяет прежнюю — возвращаемся на её экран. Новая добавляется в
@@ -271,7 +280,13 @@ export function App() {
     }
     if (tab === "settings") {
       if (settingsPage === "timezone") {
-        return <TimezoneScreen current={settings?.timezone ?? null} onSelect={selectTimezone} />;
+        return (
+          <TimezoneScreen
+            currentZone={settings?.timezone ?? null}
+            currentCity={settings?.timezone_city ?? null}
+            onSelect={selectTimezone}
+          />
+        );
       }
       if (settingsPage === "privacy") {
         return <LegalScreen key={settingsPage} doc={strings.privacyPolicy} />;

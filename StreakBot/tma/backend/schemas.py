@@ -104,9 +104,12 @@ class SettingsResponse(BaseModel):
     """Текущие настройки пользователя (для `GET/PUT /settings`)."""
 
     timezone: str | None = Field(None, description="Часовой пояс (IANA)")
+    timezone_city: int | None = Field(
+        None, description="Город пояса — id в справочнике городов (нет у «UTC±N»)"
+    )
     timezone_display: str | None = Field(
         None,
-        description="Пояс на языке интерфейса: город («Москва») или смещение («UTC+3»)",
+        description="Пояс на языке интерфейса: город («Санкт-Петербург») или смещение («UTC+3»)",
     )
     timezone_offset: str | None = Field(None, description="Смещение пояса, напр. «UTC+3»")
     language: str = Field(..., description="Язык интерфейса: ru, en")
@@ -120,22 +123,32 @@ class SettingsUpdate(BaseModel):
     """Запрос `PUT /settings` — частичное обновление (передаются только меняемые поля)."""
 
     timezone: str | None = Field(None, description="Новый пояс: имя IANA или «UTC±N»")
+    timezone_city: int | None = Field(
+        None, description="Новый пояс городом — id в справочнике (вместо `timezone`)"
+    )
     language: str | None = Field(None, description="Язык интерфейса: ru, en")
     theme: str | None = Field(None, description="Тема оформления: light, dark, system")
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
 
 
 class TimezoneEntry(BaseModel):
-    """Часовой пояс в каталоге для выбора в настройках."""
+    """Часовой пояс для выбора в настройках — город и его зона."""
 
-    id: str = Field(..., description="Зона IANA, напр. «Europe/Moscow»")
+    zone: str = Field(..., description="Зона IANA, напр. «Europe/Moscow»")
+    city_id: int | None = Field(
+        None, description="Город в справочнике (нет у зон без города в справочнике)"
+    )
     city: str = Field(..., description="Город на языке интерфейса")
+    region: str | None = Field(
+        None, description="Регион — только если в стране есть одноимённый город"
+    )
     country: str = Field(..., description="Страна на языке интерфейса")
     offset: str = Field(..., description="Текущее смещение, напр. «UTC+3»")
 
 
 class TimezonesResponse(BaseModel):
-    """Ответ `GET /meta/timezones` — каталог поясов, с запада на восток."""
+    """Ответ `GET /meta/timezones`: каталог поясов с запада на восток или результаты
+    поиска."""
 
     timezones: list[TimezoneEntry]
 

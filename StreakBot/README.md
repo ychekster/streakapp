@@ -83,6 +83,8 @@ StreakBot/
 │   ├── reminders.py        # Напоминания о привычках: раз в минуту, из базы API
 │   └── handlers/
 │       └── start.py        # /start — приветствие с кнопкой Mini App
+├── scripts/
+│   └── build_cities.py     # Сборка справочника городов для выбора пояса (из GeoNames)
 └── tma/
     ├── backend/            # API-сервер (FastAPI) + модели и репозиторий БД
     └── frontend/           # Mini App (React + TypeScript + Vite)

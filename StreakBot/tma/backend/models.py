@@ -68,6 +68,9 @@ class User(Base):
 
     # Пояс определяет, какой день считается «сегодня». None — UTC.
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Город пояса — id в справочнике городов (cities.py); меняется вместе с поясом.
+    # None — пояс выбран до появления справочника или смещением UTC±N.
+    timezone_city: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Язык интерфейса (constants.LANGUAGES); на нём же бот пишет напоминания.
     language: Mapped[str] = mapped_column(
         String(8), default=DEFAULT_LANGUAGE, server_default=DEFAULT_LANGUAGE, nullable=False

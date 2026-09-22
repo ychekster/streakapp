@@ -10,6 +10,7 @@ from datetime import datetime, time
 
 import pytz
 
+from tma.backend.cities import City, city_index
 from tma.backend.constants import (
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
@@ -106,3 +107,11 @@ def resolve_timezone(value: str) -> str:
     except Exception as exc:  # noqa: BLE001 — неизвестная зона → ошибка валидации
         raise ApiError(422, "invalid_timezone", "Не удалось распознать часовой пояс") from exc
     return text
+
+
+def resolve_city(city_id: int) -> City:
+    """Город справочника по id (его зона станет поясом пользователя)."""
+    city = city_index().get(city_id)
+    if city is None:
+        raise ApiError(422, "invalid_timezone", "Город не найден")
+    return city

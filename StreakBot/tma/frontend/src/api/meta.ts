@@ -46,3 +46,29 @@ export async function loadTimezones(language: Language): Promise<TimezoneEntry[]
   timezones.set(language, data.timezones);
   return data.timezones;
 }
+
+// Результаты поиска поясов по «языку и запросу»: повтор запроса (стёр букву и набрал
+// снова) не ходит на сервер.
+const searches = new Map<string, TimezoneEntry[]>();
+
+function searchKey(language: Language, query: string): string {
+  return `${language}\n${query}`;
+}
+
+/** Уже полученные результаты поиска на этом языке по этому запросу (или null). */
+export function cachedTimezoneSearch(language: Language, query: string): TimezoneEntry[] | null {
+  return searches.get(searchKey(language, query)) ?? null;
+}
+
+/** Найти города (и их пояса) по названию, стране или смещению. */
+export async function searchTimezones(
+  language: Language,
+  query: string,
+): Promise<TimezoneEntry[]> {
+  const params = new URLSearchParams({ language, q: query });
+  const data = await apiRequest<{ timezones: TimezoneEntry[] }>(`/meta/timezones?${params}`, {
+    method: "GET",
+  });
+  searches.set(searchKey(language, query), data.timezones);
+  return data.timezones;
+}
