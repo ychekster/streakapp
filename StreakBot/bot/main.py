@@ -26,7 +26,7 @@ from loguru import logger
 
 from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
-from bot.constants import BTN_OPEN_APP
+from bot.constants import MENU_BUTTON_TEXT
 from bot.handlers import membership, start
 from bot.pacing import SEND_RATE, Pacer
 from bot.reminders import run_reminders
@@ -75,7 +75,7 @@ async def setup_bot_menu(bot: Bot, tma_url: str) -> None:
     try:
         await bot.delete_my_commands()
         await bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(text=BTN_OPEN_APP, web_app=WebAppInfo(url=tma_url))
+            menu_button=MenuButtonWebApp(text=MENU_BUTTON_TEXT, web_app=WebAppInfo(url=tma_url))
         )
     except Exception as exc:  # noqa: BLE001 — меню не критично для работы
         logger.warning("Could not set up bot menu: {}", exc)
