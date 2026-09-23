@@ -5,10 +5,13 @@
  * вкладками: «Аналитика», «Пользователи», «Отзывы», «Рассылка», «Настройки». Панель
  * говорит на языке интерфейса; язык и тему можно сменить и в её настройках.
  *
- * Профиль пользователя и отзыв открываются стопкой поверх вкладки (нижняя навигация
- * скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает верхний экран):
+ * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
+ * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
+ * верхний экран):
  *  - Пользователи → профиль → его отзыв → …;
- *  - Отзывы → отзыв → профиль автора → ….
+ *  - Отзывы → отзыв → профиль автора → …;
+ *  - профиль → «Написать сообщение», отзыв → «Ответить», настройки → «Добавить
+ *    администратора» (см. ComposeScreen).
  * При возврате экран открывается на той же позиции прокрутки.
  *
  * Состояние, которое должно пережить переходы, живёт здесь: аналитика выбранного
@@ -36,12 +39,15 @@ import { useDebouncedValue } from "./hooks/useDebouncedValue";
 import { usePagedList } from "./hooks/usePagedList";
 import { useResource } from "./hooks/useResource";
 import type { UseSettingsResult } from "./hooks/useSettings";
+import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
 import { AdminAnalyticsScreen } from "./screens/AdminAnalyticsScreen";
 import {
   AdminBroadcastScreen,
   EMPTY_DRAFT,
   type BroadcastDraft,
 } from "./screens/AdminBroadcastScreen";
+import { AdminMessageScreen } from "./screens/AdminMessageScreen";
+import { AdminReplyScreen } from "./screens/AdminReplyScreen";
 import { AdminReviewScreen } from "./screens/AdminReviewScreen";
 import { AdminReviewsScreen } from "./screens/AdminReviewsScreen";
 import { AdminSettingsScreen } from "./screens/AdminSettingsScreen";
@@ -55,7 +61,10 @@ type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
   | { kind: "user"; id: number; initial: AdminUserRef | null }
-  | { kind: "review"; id: number; initial: AdminReview | null };
+  | { kind: "review"; id: number; initial: AdminReview | null }
+  | { kind: "message"; id: number; name: string }
+  | { kind: "reply"; id: number }
+  | { kind: "newAdmin" };
 
 interface AdminAppProps {
   /** Настройки пользователя (язык, тема) — общие с приложением. */
@@ -174,40 +183,58 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     push({ kind: "review", id: review.id, initial: review });
   }
 
-  function renderPage(page: AdminPage) {
-    if (page.kind === "user") {
-      return (
-        <AdminUserScreen
-          key={`user-${page.id}-${stack.length}`}
-          telegramId={page.id}
-          initial={page.initial}
-          onOpenReview={openReview}
-          onChanged={(profile) =>
-            users.update((items) =>
-              items.map((user) =>
-                user.telegram_id === profile.telegram_id
-                  ? { ...user, blocked: profile.blocked_at !== null }
-                  : user,
-              ),
-            )
-          }
-          onDeleted={forgetUser}
-        />
-      );
-    }
-    return (
-      <AdminReviewScreen
-        key={`review-${page.id}-${stack.length}`}
-        reviewId={page.id}
-        initial={page.initial}
-        onOpenUser={openUser}
-        onReplied={(updated) =>
-          reviews.update((items) =>
-            items.map((review) => (review.id === updated.id ? updated : review)),
-          )
-        }
-      />
+  // Отправленный ответ виден и в списке отзывов, и на экране отзыва под этим — туда он
+  // попадает как «уже известный» отзыв (`initial`), пока экран перечитывает свежий.
+  function applyReply(updated: AdminReview): void {
+    reviews.update((items) =>
+      items.map((review) => (review.id === updated.id ? updated : review)),
     );
+    setStack((current) =>
+      current.map((page) =>
+        page.kind === "review" && page.id === updated.id ? { ...page, initial: updated } : page,
+      ),
+    );
+  }
+
+  function renderPage(page: AdminPage) {
+    switch (page.kind) {
+      case "user":
+        return (
+          <AdminUserScreen
+            key={`user-${page.id}-${stack.length}`}
+            telegramId={page.id}
+            initial={page.initial}
+            onOpenReview={openReview}
+            onWriteMessage={(name) => push({ kind: "message", id: page.id, name })}
+            onChanged={(profile) =>
+              users.update((items) =>
+                items.map((user) =>
+                  user.telegram_id === profile.telegram_id
+                    ? { ...user, blocked: profile.blocked_at !== null }
+                    : user,
+                ),
+              )
+            }
+            onDeleted={forgetUser}
+          />
+        );
+      case "review":
+        return (
+          <AdminReviewScreen
+            key={`review-${page.id}-${stack.length}`}
+            reviewId={page.id}
+            initial={page.initial}
+            onOpenUser={openUser}
+            onReply={() => push({ kind: "reply", id: page.id })}
+          />
+        );
+      case "message":
+        return <AdminMessageScreen telegramId={page.id} name={page.name} onClose={pop} />;
+      case "reply":
+        return <AdminReplyScreen reviewId={page.id} onReplied={applyReply} onClose={pop} />;
+      case "newAdmin":
+        return <AdminAddAdminScreen onClose={pop} />;
+    }
   }
 
   function renderTab() {
@@ -238,7 +265,12 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
         );
       case "settings":
         return (
-          <AdminSettingsScreen settings={settings} onSaveSettings={onSaveSettings} onExit={onExit} />
+          <AdminSettingsScreen
+            settings={settings}
+            onSaveSettings={onSaveSettings}
+            onAddAdmin={() => push({ kind: "newAdmin" })}
+            onExit={onExit}
+          />
         );
     }
   }

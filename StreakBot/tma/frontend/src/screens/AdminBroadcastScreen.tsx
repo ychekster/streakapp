@@ -4,8 +4,8 @@
  *  - Сообщение — текст (поле растёт вместе с ним), под ним — счётчик символов: у текста
  *    предел Telegram 4096, у подписи к фото или видео — 1024;
  *  - Фото или видео — необязательно: превью, размер и «Убрать»;
- *  - «Отправить рассылку» — после подтверждения в диалоге. Копия сразу приходит автору
- *    (так медиа загружается в Telegram), остальным рассылает бот.
+ *  - «Отправить рассылку» — после подтверждения системным диалогом Telegram. Копия сразу
+ *    приходит автору (так медиа загружается в Telegram), остальным рассылает бот.
  * Над формой — ход последней рассылки: сколько доставлено и не доставлено; пока она идёт,
  * он обновляется сам.
  *
@@ -19,7 +19,6 @@ import { createBroadcast, fetchBroadcast, fetchSegments } from "../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { PaperPlaneIcon, PhotoIcon } from "../components/AdminIcons";
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
 import { Screen } from "../components/Screen";
@@ -36,7 +35,7 @@ import {
   MESSAGE_MAX_LENGTH,
 } from "../constants";
 import { useResource } from "../hooks/useResource";
-import { hapticNotification } from "../telegram/webapp";
+import { confirmAction, hapticNotification } from "../telegram/webapp";
 import type { Broadcast } from "../types/admin";
 import styles from "./AdminBroadcastScreen.module.css";
 
@@ -81,7 +80,6 @@ export function AdminBroadcastScreen({
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const segments = useResource(fetchSegments, "segments");
-  const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -142,17 +140,28 @@ export function AdminBroadcastScreen({
   }
 
   async function send(): Promise<void> {
-    if (!segment) {
+    if (!segment || sending) {
+      return;
+    }
+    setSendError(null);
+    const confirmed = await confirmAction({
+      title: strings.sendDialogTitle,
+      message: strings.sendDialogMessage(
+        segment.recipients,
+        strings.segmentNames[segment.key] ?? segment.key,
+      ),
+      confirmLabel: strings.sendDialogConfirm,
+      cancelLabel: strings.cancel,
+    });
+    if (!confirmed) {
       return;
     }
     setSending(true);
-    setSendError(null);
     try {
       const broadcast = await createBroadcast(segment.key, draft.text.trim(), draft.media);
       hapticNotification("success");
       onBroadcastChange(broadcast);
       onDraftChange({ ...EMPTY_DRAFT, segment: segment.key });
-      setConfirming(false);
       segments.reload();
     } catch (error) {
       setSendError(describeAdminError(strings, error, strings.broadcastFailed));
@@ -162,27 +171,7 @@ export function AdminBroadcastScreen({
     }
   }
 
-  return (
-    <Screen title={strings.broadcastTitle}>
-      {renderContent()}
-      <ConfirmDialog
-        open={confirming}
-        title={strings.sendDialogTitle}
-        message={
-          sendError ??
-          strings.sendDialogMessage(
-            segment?.recipients ?? 0,
-            segment ? (strings.segmentNames[segment.key] ?? segment.key) : "",
-          )
-        }
-        cancelLabel={strings.cancel}
-        confirmLabel={strings.sendDialogConfirm}
-        busy={sending}
-        onCancel={() => setConfirming(false)}
-        onConfirm={() => void send()}
-      />
-    </Screen>
-  );
+  return <Screen title={strings.broadcastTitle}>{renderContent()}</Screen>;
 
   function renderContent() {
     if (!segments.data) {
@@ -308,13 +297,15 @@ export function AdminBroadcastScreen({
               iconColor="blue"
               label={strings.sendBroadcast}
               accent
-              disabled={!valid}
-              onPress={() => {
-                setSendError(null);
-                setConfirming(true);
-              }}
+              disabled={!valid || sending}
+              onPress={() => void send()}
             />
           </Card>
+          {sendError ? (
+            <p className={styles.error} role="alert">
+              {sendError}
+            </p>
+          ) : null}
         </div>
       </div>
     );

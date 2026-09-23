@@ -22,3 +22,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-stat-gap);
 }
+
+/* Не удалось удалить привычку — под карточкой настроек. */
+.error {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
+}

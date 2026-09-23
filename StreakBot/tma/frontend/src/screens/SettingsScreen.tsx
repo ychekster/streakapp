@@ -4,7 +4,7 @@
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
  *     (светлая, тёмная или адаптивная — как в системе) — системными меню.
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
- *  3. «Написать отзыв» — открывает диалог с полем для отзыва (см. ReviewDialog);
+ *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
  *  4. «Админ-панель» — только у администраторов: переключает приложение в режим
  *     админ-панели (см. AdminApp).
@@ -14,13 +14,10 @@
  * и под карточками появляется ошибка.
  */
 
-import { useState } from "react";
-
 import { Disclosure } from "../components/Disclosure";
 import { ListGroup } from "../components/ListGroup";
 import { ListItem } from "../components/ListItem";
 import { LanguageRow, ThemeRow } from "../components/PreferenceRows";
-import { ReviewDialog } from "../components/ReviewDialog";
 import { Screen } from "../components/Screen";
 import {
   CalendarBackIcon,
@@ -39,7 +36,7 @@ import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
 /** Вложенные экраны настроек. */
-export type SettingsPage = "timezone" | "privacy" | "terms";
+export type SettingsPage = "timezone" | "review" | "privacy" | "terms";
 
 interface SettingsScreenProps {
   state: UseSettingsResult;
@@ -52,14 +49,8 @@ interface SettingsScreenProps {
 export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsScreenProps) {
   const strings = useStrings();
   const { settings, status, error, saveError, reload } = state;
-  const [reviewOpen, setReviewOpen] = useState(false);
 
-  return (
-    <Screen title={strings.settingsTitle}>
-      {renderContent()}
-      <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} />
-    </Screen>
-  );
+  return <Screen title={strings.settingsTitle}>{renderContent()}</Screen>;
 
   function renderContent() {
     if (status === "loading") {
@@ -116,7 +107,7 @@ export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsS
             icon={<StarIcon />}
             iconColor="red"
             label={strings.settingsReview}
-            onPress={() => setReviewOpen(true)}
+            onPress={() => onOpen("review")}
           >
             <Disclosure />
           </ListItem>

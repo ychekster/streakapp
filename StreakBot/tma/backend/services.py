@@ -270,9 +270,12 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
 
     Напоминание привычки наступило, если в поясе её владельца `moment` приходится
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
-    запланирована, и только пока она за этот день не отмечена выполненной. Режим
-    «Отмечать за вчера» не влияет: напоминание — о сегодняшнем дне. Пользователю,
-    заблокированному администратором, напоминания не приходят.
+    запланирована, и только пока она за этот день не отмечена выполненной.
+    Пользователю, заблокированному администратором, напоминания не приходят.
+
+    «Этот день» — день отметки приложения (`user_today`): в режиме «Отмечать за вчера»
+    кнопка в приложении отмечает вчерашний день, поэтому и напоминание — о нём. Иначе
+    отметка, сделанная пользователем, напоминание бы не отменяла.
 
     Из базы читаются только привычки, время напоминания которых где-то на Земле
     наступило сейчас (по индексу, см. `_clock_times`), — а не все привычки с
@@ -286,7 +289,7 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
         reminder = task.reminder_time
         if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
             continue
-        day = local.date()
+        day = local.date() - timedelta(days=1) if task.user.mark_yesterday else local.date()
         if is_due_on(task, day):
             candidates.append((task, day))
     if not candidates:

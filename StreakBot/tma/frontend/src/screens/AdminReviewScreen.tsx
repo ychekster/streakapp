@@ -4,80 +4,48 @@
  *  - От кого — автор; нажатие открывает его профиль;
  *  - Отзыв — дата и текст;
  *  - Ваш ответ — последний отправленный ответ, если он есть;
- *  - кнопка «Ответить» («Ответить ещё раз») — диалог с полем ответа: бот присылает его
- *    автору в Telegram с цитатой отзыва. Если автор заблокировал бота, диалог так и
- *    скажет, а ответ не запомнится.
+ *  - кнопка «Ответить» («Ответить ещё раз») — открывает экран ответа (см.
+ *    AdminReplyScreen): бот присылает его автору в Telegram с цитатой отзыва.
  *
  * Открытый из списка отзыв виден сразу (строка списка) и тихо обновляется; ответ сразу
- * виден и в списке (onReplied).
+ * виден и здесь, и в списке (AdminApp).
  */
 
-import { useState } from "react";
-
-import { fetchReview, replyToReview } from "../api/admin";
+import { fetchReview } from "../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { PersonIcon, ReplyIcon } from "../components/AdminIcons";
-import { ComposeDialog } from "../components/ComposeDialog";
 import { Disclosure } from "../components/Disclosure";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { StatusMessage } from "../components/StatusMessage";
-import { MESSAGE_MAX_LENGTH } from "../constants";
 import { useResource } from "../hooks/useResource";
 import type { AdminReview, AdminUserRef } from "../types/admin";
 import styles from "./AdminReviewScreen.module.css";
 
 interface AdminReviewScreenProps {
   reviewId: number;
-  /** Уже известный отзыв (строка списка) — виден сразу. */
+  /** Уже известный отзыв (строка списка или только что отправленный ответ) — виден сразу. */
   initial: AdminReview | null;
   onOpenUser: (user: AdminUserRef) => void;
-  onReplied: (review: AdminReview) => void;
+  /** Открыть экран ответа на этот отзыв. */
+  onReply: () => void;
 }
 
 export function AdminReviewScreen({
   reviewId,
   initial,
   onOpenUser,
-  onReplied,
+  onReply,
 }: AdminReviewScreenProps) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const review = useResource(() => fetchReview(reviewId), String(reviewId), initial);
-  const [replying, setReplying] = useState(false);
-
-  async function sendReply(text: string): Promise<string | null> {
-    try {
-      const result = await replyToReview(reviewId, text);
-      review.setData(() => result.review);
-      onReplied(result.review);
-      return result.delivered ? null : strings.undelivered[result.reason ?? "bot_blocked"];
-    } catch (error) {
-      return describeAdminError(strings, error, strings.replyFailed);
-    }
-  }
 
   return (
     <Screen title={strings.reviewTitle} withTabBar={false} enterAnimation>
       {renderContent()}
-      <ComposeDialog
-        open={replying}
-        title={strings.replyDialogTitle}
-        message={strings.replyDialogMessage}
-        placeholder={strings.replyPlaceholder}
-        cancelLabel={strings.cancel}
-        sendLabel={strings.send}
-        maxLength={MESSAGE_MAX_LENGTH}
-        onSend={sendReply}
-        onClose={() => setReplying(false)}
-        done={{
-          title: strings.replySentTitle,
-          message: strings.replySentMessage,
-          label: strings.done,
-        }}
-      />
     </Screen>
   );
 
@@ -141,7 +109,7 @@ export function AdminReviewScreen({
               iconColor="blue"
               label={data.reply_text ? strings.replyAgain : strings.reply}
               accent
-              onPress={() => setReplying(true)}
+              onPress={onReply}
             />
           </Card>
         </div>

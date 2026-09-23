@@ -8,13 +8,13 @@
  * из общего состояния, поэтому отметка и изменения здесь сразу видны и в списке.
  *
  * «Редактировать привычку» открывает форму привычки (см. HabitFormScreen). «Удалить
- * привычку» открывает диалог подтверждения; после удаления App возвращает к списку.
- * При ошибке диалог остаётся открытым и показывает её вместо пояснения.
+ * привычку» спрашивает подтверждение системным диалогом Telegram (на iPhone — обычный
+ * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
+ * карточкой.
  */
 
 import { useRef, useState } from "react";
 
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
@@ -31,7 +31,7 @@ import { HISTORY_DAYS, WEEKDAYS } from "../constants";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
 import type { Strings } from "../strings";
-import { hapticNotification } from "../telegram/webapp";
+import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import styles from "./HabitScreen.module.css";
@@ -78,18 +78,22 @@ export function HabitScreen({
   const strings = useStrings();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  function askToDelete(): void {
+  async function askToDelete(): Promise<void> {
     setDeleteError(null);
-    setConfirmingDelete(true);
-  }
-
-  async function confirmDelete(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: strings.deleteDialogTitle,
+      message: strings.deleteDialogMessage,
+      confirmLabel: strings.deleteDialogConfirm,
+      cancelLabel: strings.deleteDialogCancel,
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
     setDeleting(true);
-    setDeleteError(null);
     try {
       // При успехе App закрывает этот экран — сбрасывать состояние не нужно.
       await onDelete(habit.id);
@@ -150,23 +154,17 @@ export function HabitScreen({
               icon={<TrashIcon />}
               label={strings.deleteHabit}
               destructive
-              onPress={askToDelete}
+              disabled={deleting}
+              onPress={() => void askToDelete()}
             />
           </Card>
+          {deleteError ? (
+            <p className={styles.error} role="alert">
+              {deleteError}
+            </p>
+          ) : null}
         </Section>
       </div>
-
-      <ConfirmDialog
-        open={confirmingDelete}
-        title={strings.deleteDialogTitle}
-        message={deleteError ?? strings.deleteDialogMessage}
-        cancelLabel={strings.deleteDialogCancel}
-        confirmLabel={strings.deleteDialogConfirm}
-        destructive
-        busy={deleting}
-        onCancel={() => setConfirmingDelete(false)}
-        onConfirm={confirmDelete}
-      />
     </Screen>
   );
 }

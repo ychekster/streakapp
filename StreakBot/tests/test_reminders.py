@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import SendMessage
+from aiogram.types import InlineKeyboardMarkup
 
 from bot import reminders as bot_reminders
+from bot.constants import REMINDER_BUTTONS
 from bot.pacing import Pacer
 from tma.backend.constants import WEEKDAYS
 from tma.backend.database import Database
@@ -20,6 +22,8 @@ from tma.backend.services import DueReminder, due_reminders
 
 # 06:00 UTC = 09:00 в Москве (UTC+3) = 11:00 в Алматы (UTC+5).
 MOMENT = datetime(2026, 9, 22, 6, 0, tzinfo=timezone.utc)
+
+KEYBOARDS = bot_reminders.open_app_keyboards("https://example.com/app")
 
 
 async def _due(db_url: str, setup) -> list[DueReminder]:
@@ -77,23 +81,61 @@ def test_reminder_skips_done_unscheduled_and_deleted(db_url: str) -> None:
     assert [item.habit_name for item in due] == ["unmarked"]
 
 
+def test_mark_yesterday_reminder_is_about_the_app_day(db_url: str) -> None:
+    """В режиме «Отмечать за вчера» напоминание — о дне, который отмечает приложение:
+    вчерашняя отметка его отменяет, сегодняшняя (её пользователь поставить не мог) — нет."""
+    today = MOMENT.astimezone(timezone.utc).date()  # 09:00 в Москве — тот же день
+    yesterday = today - timedelta(days=1)
+
+    async def setup(repo: Repository) -> None:
+        user = await repo.get_or_create_user(1, None, "U", language="en")
+        await repo.update_settings(user, timezone="Europe/Moscow", mark_yesterday=True)
+        nine = time(9, 0)
+        marked = await repo.create_task(1, "marked", FrequencyType.daily, reminder_time=nine)
+        await repo.set_log_status(
+            await repo.get_or_create_log(marked.id, 1, yesterday), TaskStatus.done
+        )
+        other = await repo.create_task(1, "unmarked", FrequencyType.daily, reminder_time=nine)
+        await repo.set_log_status(
+            await repo.get_or_create_log(other.id, 1, today), TaskStatus.done
+        )
+
+    due = asyncio.run(_due(db_url, setup))
+    assert [item.habit_name for item in due] == ["unmarked"]
+
+
 class _FakeBot:
     """Вместо Bot API: записывает, кому и когда отправлено сообщение."""
 
     def __init__(self, blocked: frozenset[int] = frozenset()) -> None:
         self.sent: list[tuple[int, float]] = []
+        self.markups: list[InlineKeyboardMarkup | None] = []
         self.blocked = blocked
 
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def send_message(
+        self, chat_id: int, text: str, reply_markup: InlineKeyboardMarkup | None = None
+    ) -> None:
         if chat_id in self.blocked:
             raise TelegramForbiddenError(
                 method=SendMessage(chat_id=chat_id, text=text), message="bot was blocked"
             )
         self.sent.append((chat_id, asyncio.get_running_loop().time()))
+        self.markups.append(reply_markup)
 
 
 def _reminder(task_id: int, user_id: int) -> DueReminder:
     return DueReminder(task_id=task_id, user_id=user_id, habit_name=f"h{task_id}", language="ru")
+
+
+def test_reminder_carries_the_open_app_button() -> None:
+    """Под напоминанием — кнопка «Отметить выполнено», открывающая Mini App."""
+    bot = _FakeBot()
+
+    asyncio.run(bot_reminders._send_all(bot, Pacer(1000), [_reminder(1, 1)], KEYBOARDS))  # type: ignore[arg-type]
+
+    button = bot.markups[0].inline_keyboard[0][0]  # type: ignore[union-attr]
+    assert button.text == REMINDER_BUTTONS["ru"]
+    assert button.web_app is not None and button.web_app.url == "https://example.com/app"
 
 
 def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,7 +143,7 @@ def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) ->
     bot = _FakeBot(blocked=frozenset({3}))
     batch = [_reminder(1, 1), _reminder(2, 1), _reminder(3, 1), _reminder(4, 2), _reminder(5, 3)]
 
-    blocked = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), batch))  # type: ignore[arg-type]
+    blocked = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), batch, KEYBOARDS))  # type: ignore[arg-type]
 
     chats = [chat for chat, _ in bot.sent]
     # Заблокировавший бота пользователь не мешает остальным и возвращается, чтобы его

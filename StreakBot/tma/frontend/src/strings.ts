@@ -61,15 +61,15 @@ const RU = {
   // Вход в админ-панель — виден только администраторам.
   settingsAdminPanel: "Админ-панель",
 
-  // --- Диалог «Написать отзыв» ---
+  // --- Экран «Написать отзыв» ---
   reviewTitle: "Написать отзыв",
-  reviewMessage: "Расскажите, что вам нравится и что можно сделать лучше.",
+  reviewDescription: "Расскажите, что вам нравится и что можно сделать лучше.",
   reviewPlaceholder: "Ваш отзыв",
-  reviewCancel: "Отменить",
   reviewSend: "Отправить",
+  reviewThanksEmoji: "🎉",
   reviewThanksTitle: "Спасибо за отзыв!",
   reviewThanksMessage: "Он поможет сделать приложение лучше.",
-  reviewThanksDone: "OK",
+  reviewThanksDone: "Готово",
   reviewFailed: "Не удалось отправить отзыв. Попробуйте ещё раз.",
 
   // --- Выбор часового пояса ---
@@ -221,13 +221,13 @@ const EN: Strings = {
   settingsAdminPanel: "Admin Panel",
 
   reviewTitle: "Write a Review",
-  reviewMessage: "Tell us what you like and what could be better.",
+  reviewDescription: "Tell us what you like and what could be better.",
   reviewPlaceholder: "Your review",
-  reviewCancel: "Cancel",
   reviewSend: "Send",
+  reviewThanksEmoji: "🎉",
   reviewThanksTitle: "Thanks for your review!",
   reviewThanksMessage: "It helps us make the app better.",
-  reviewThanksDone: "OK",
+  reviewThanksDone: "Done",
   reviewFailed: "Couldn’t send your review. Please try again.",
 
   timezoneTitle: "Time Zone",

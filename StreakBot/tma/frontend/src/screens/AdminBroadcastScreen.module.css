@@ -18,7 +18,7 @@
   background: transparent;
   font-family: inherit;
   font-size: var(--font-size-habit-name);
-  line-height: var(--dialog-field-line-height);
+  line-height: var(--composer-line-height);
   color: var(--color-text-primary);
 }
 
@@ -74,6 +74,15 @@
 
 .send {
   margin-top: var(--space-section-gap);
+}
+
+/* Не удалось поставить рассылку в очередь — под кнопкой отправки. */
+.error {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
 }
 
 /* --- Ход рассылки --- */

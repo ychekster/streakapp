@@ -5,7 +5,8 @@
  * приложению: получить initData для авторизации и язык Telegram, раскрыть на весь
  * экран (включая полноэкранный режим на iPhone), прокинуть отступы безопасных зон в
  * CSS, красить фон и шапку Telegram под тему, следить за светлой/тёмной темой Telegram,
- * управлять кнопками Telegram («Назад» и нижней MainButton) и дать тактильный отклик.
+ * управлять кнопками Telegram («Назад» и нижней MainButton), спросить подтверждение
+ * системным диалогом и дать тактильный отклик.
  * Все обращения к SDK защищены проверками на наличие — приложение не падает, если
  * открыто вне Telegram или в старом клиенте.
  */
@@ -45,6 +46,14 @@ interface TelegramBottomButton {
   offClick(handler: () => void): void;
 }
 
+/** Кнопка системного диалога Telegram (showPopup, Bot API 6.2+). У типов `ok`, `close`
+ *  и `cancel` подпись ставит сам клиент — на языке Telegram. */
+interface PopupButton {
+  id: string;
+  type?: "default" | "ok" | "close" | "cancel" | "destructive";
+  text?: string;
+}
+
 /** Отступы безопасной зоны (вырез устройства или панель управления Telegram). */
 interface SafeAreaInset {
   top: number;
@@ -66,6 +75,11 @@ interface TelegramWebApp {
   setHeaderColor(color: string): void;
   // Цвет полосы под нижней кнопкой — Bot API 7.10+.
   setBottomBarColor?(color: string): void;
+  // Системный диалог клиента Telegram (на iPhone — стандартный алерт iOS) — Bot API 6.2+.
+  showPopup?(
+    params: { title?: string; message: string; buttons: PopupButton[] },
+    callback?: (buttonId: string) => void,
+  ): void;
   // Полноэкранный режим и связанные методы — Bot API 8.0+ (могут отсутствовать).
   requestFullscreen?(): void;
   disableVerticalSwipes?(): void;
@@ -267,6 +281,55 @@ export function onMainButtonClick(handler: () => void): () => void {
   const mainButton = getWebApp()?.MainButton;
   mainButton?.onClick(handler);
   return () => mainButton?.offClick(handler);
+}
+
+const CONFIRM_BUTTON_ID = "confirm";
+
+/**
+ * Спросить подтверждение системным диалогом клиента Telegram (`showPopup`): на iPhone
+ * это стандартный алерт iOS — он рисуется самим Telegram, поэтому появляется мгновенно и
+ * не зависит от вёрстки приложения. Промис — нажал ли пользователь кнопку действия.
+ *
+ * `destructive` красит кнопку действия в красный. Если метод недоступен (старый клиент
+ * или запуск вне Telegram), спрашивает браузерным `confirm`.
+ */
+export function confirmAction(options: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  destructive?: boolean;
+}): Promise<boolean> {
+  const webApp = getWebApp();
+  const showPopup = webApp?.showPopup?.bind(webApp);
+  const ask = (): boolean => window.confirm(`${options.title}\n\n${options.message}`);
+  if (!showPopup) {
+    return Promise.resolve(ask());
+  }
+  return new Promise((resolve) => {
+    try {
+      showPopup(
+        {
+          title: options.title,
+          message: options.message,
+          // Кнопка действия — второй: в алерте iOS главное действие справа.
+          buttons: [
+            { id: "cancel", type: "default", text: options.cancelLabel },
+            {
+              id: CONFIRM_BUTTON_ID,
+              type: options.destructive ? "destructive" : "default",
+              text: options.confirmLabel,
+            },
+          ],
+        },
+        // Диалог закрыли мимо кнопок (аппаратная «Назад» на Android) — это отказ.
+        (buttonId) => resolve(buttonId === CONFIRM_BUTTON_ID),
+      );
+    } catch {
+      // Другой диалог уже открыт или клиент не принял параметры.
+      resolve(ask());
+    }
+  });
 }
 
 /** Тактильный отклик на успешное/неуспешное действие (если поддерживается клиентом). */

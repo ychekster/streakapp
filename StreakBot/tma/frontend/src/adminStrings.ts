@@ -167,13 +167,14 @@ const RU = {
   deleteDialogConfirm: "Удалить",
   deleteFailed: "Не удалось удалить пользователя. Попробуйте ещё раз.",
 
-  messageDialogTitle: "Сообщение",
-  messageDialogMessage: (name: string) => `Бот пришлёт его пользователю ${name} в Telegram.`,
+  messageTitle: "Сообщение",
+  messageDescription: (name: string) => `Бот пришлёт его пользователю ${name} в Telegram.`,
   messagePlaceholder: "Сообщение",
   send: "Отправить",
+  sentEmoji: "✅",
   messageSentTitle: "Сообщение отправлено",
   messageSentMessage: "Оно в чате пользователя с ботом.",
-  done: "OK",
+  done: "Готово",
   messageFailed: "Не удалось отправить сообщение. Попробуйте ещё раз.",
 
   // --- Отзывы ---
@@ -188,8 +189,8 @@ const RU = {
   reviewReplyHeading: "Ваш ответ",
   reply: "Ответить",
   replyAgain: "Ответить ещё раз",
-  replyDialogTitle: "Ответ на отзыв",
-  replyDialogMessage: "Бот пришлёт ответ автору в Telegram вместе с цитатой отзыва.",
+  replyTitle: "Ответ на отзыв",
+  replyDescription: "Бот пришлёт ответ автору в Telegram вместе с цитатой отзыва.",
   replyPlaceholder: "Ваш ответ",
   replySentTitle: "Ответ отправлен",
   replySentMessage: "Он в чате автора с ботом.",
@@ -242,7 +243,7 @@ const RU = {
     "Администраторы видят «Админ-панель» в настройках. Нажмите на администратора, чтобы забрать права.",
   addAdmin: "Добавить администратора",
   addAdminTitle: "Новый администратор",
-  addAdminMessage:
+  addAdminDescription:
     "Введите Telegram ID пользователя. «Админ-панель» появится в его настройках при следующем открытии приложения.",
   addAdminPlaceholder: "Telegram ID",
   add: "Добавить",
@@ -412,13 +413,14 @@ const EN: AdminStrings = {
   deleteDialogConfirm: "Delete",
   deleteFailed: "Couldn’t delete the user. Please try again.",
 
-  messageDialogTitle: "Send Message",
-  messageDialogMessage: (name: string) => `The bot sends this to ${name} in Telegram.`,
+  messageTitle: "Send Message",
+  messageDescription: (name: string) => `The bot sends this to ${name} in Telegram.`,
   messagePlaceholder: "Message",
   send: "Send",
+  sentEmoji: "✅",
   messageSentTitle: "Message Sent",
   messageSentMessage: "It’s in their Telegram chat with the bot.",
-  done: "OK",
+  done: "Done",
   messageFailed: "Couldn’t send the message. Please try again.",
 
   reviewsTitle: "Reviews",
@@ -432,8 +434,8 @@ const EN: AdminStrings = {
   reviewReplyHeading: "Your Reply",
   reply: "Reply",
   replyAgain: "Send Another Reply",
-  replyDialogTitle: "Reply to Review",
-  replyDialogMessage: "The bot sends your reply to them in Telegram, quoting their review.",
+  replyTitle: "Reply to Review",
+  replyDescription: "The bot sends your reply to them in Telegram, quoting their review.",
   replyPlaceholder: "Your reply",
   replySentTitle: "Reply Sent",
   replySentMessage: "It’s in their Telegram chat with the bot.",
@@ -483,7 +485,7 @@ const EN: AdminStrings = {
   adminsFooter: "Admins see Admin Panel in Settings. Tap an admin to remove them.",
   addAdmin: "Add Admin",
   addAdminTitle: "Add Admin",
-  addAdminMessage:
+  addAdminDescription:
     "Enter their Telegram ID. They’ll see Admin Panel in Settings the next time they open the app.",
   addAdminPlaceholder: "Telegram ID",
   add: "Add",

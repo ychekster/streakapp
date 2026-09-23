@@ -1,22 +1,24 @@
 /**
- * Диалог «Написать отзыв» (открывается из настроек): поле для отзыва и «Отправить».
+ * Экран «Написать отзыв» (открывается из настроек): поле для отзыва во весь экран и
+ * нижняя кнопка Telegram «Отправить» (см. ComposeScreen).
+ *
  * Отзыв уходит на сервер (POST /reviews) и появляется в разделе отзывов админ-панели;
- * после отправки диалог благодарит за отзыв, «OK» закрывает его. Если отправить не
- * вышло, причина видна в диалоге, а текст остаётся в поле.
+ * после отправки экран благодарит за отзыв, «Готово» возвращает в настройки. Если
+ * отправить не вышло, причина видна под полем, а текст остаётся на месте.
  */
 
 import { sendReview } from "../api/reviews";
+import { ComposeScreen } from "../components/ComposeScreen";
 import { REVIEW_MAX_LENGTH } from "../constants";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
-import { ComposeDialog } from "./ComposeDialog";
 
-interface ReviewDialogProps {
-  open: boolean;
+interface ReviewScreenProps {
+  /** Вернуться в настройки. */
   onClose: () => void;
 }
 
-export function ReviewDialog({ open, onClose }: ReviewDialogProps) {
+export function ReviewScreen({ onClose }: ReviewScreenProps) {
   const strings = useStrings();
 
   async function send(text: string): Promise<string | null> {
@@ -29,17 +31,16 @@ export function ReviewDialog({ open, onClose }: ReviewDialogProps) {
   }
 
   return (
-    <ComposeDialog
-      open={open}
+    <ComposeScreen
       title={strings.reviewTitle}
-      message={strings.reviewMessage}
+      description={strings.reviewDescription}
       placeholder={strings.reviewPlaceholder}
-      cancelLabel={strings.reviewCancel}
       sendLabel={strings.reviewSend}
       maxLength={REVIEW_MAX_LENGTH}
       onSend={send}
       onClose={onClose}
       done={{
+        emoji: strings.reviewThanksEmoji,
         title: strings.reviewThanksTitle,
         message: strings.reviewThanksMessage,
         label: strings.reviewThanksDone,

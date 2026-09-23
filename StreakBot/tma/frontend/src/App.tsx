@@ -14,8 +14,8 @@
  *  - экран привычки — нажатием на привычку в списке;
  *  - форма привычки — кнопкой «+» (новая привычка) или «Редактировать привычку» на
  *    экране привычки; «Назад» закрывает её без сохранения;
- *  - выбор часового пояса, политика конфиденциальности и условия использования — из
- *    настроек.
+ *  - выбор часового пояса, «Написать отзыв», политика конфиденциальности и условия
+ *    использования — из настроек.
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
  *
  * Администратор может переключить приложение в режим админ-панели (ряд «Админ-панель» в
@@ -47,6 +47,7 @@ import { HabitFormScreen } from "./screens/HabitFormScreen";
 import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
+import { ReviewScreen } from "./screens/ReviewScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { STRINGS } from "./strings";
@@ -328,6 +329,9 @@ export function App() {
             onSelect={selectTimezone}
           />
         );
+      }
+      if (settingsPage === "review") {
+        return <ReviewScreen onClose={hideSettingsPage} />;
       }
       if (settingsPage === "privacy") {
         return <LegalScreen key={settingsPage} doc={strings.privacyPolicy} />;

@@ -1,0 +1,44 @@
+/* Ряд с полем выше обычных рядов списка — как в форме привычки и в рассылке. */
+.compose {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Поле занимает весь ряд; высоту по тексту задаёт экран (растёт вместе с ним).
+   Шрифт не мельче 16px — иначе iOS увеличивает страницу при фокусе. */
+.field {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--composer-min-height);
+  margin: calc(-1 * var(--list-row-pad-y)) 0;
+  padding: var(--list-row-pad-y) 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  line-height: var(--composer-line-height);
+  color: var(--color-text-primary);
+}
+
+.field::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* Пояснение под карточкой — как подпись под группой списка. */
+.footer {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-list-footer);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+  line-height: 1.35;
+}

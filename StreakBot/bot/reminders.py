@@ -6,6 +6,9 @@
 дни и только пока привычка за этот день не отмечена. Текст — на языке, выбранном в
 приложении.
 
+Под напоминанием стоит кнопка «Отметить выполнено» — она открывает Mini App, где
+привычку и отмечают; сама по себе кнопка ничего не делает.
+
 Опрос базы, а не расписание в памяти: привычки меняет другой процесс (API), и так
 изменения подхватываются сразу, без синхронизации. Каждая минута обрабатывается один
 раз; если цикл отстал (долгая отправка, пауза процесса), пропущенные минуты досылаются,
@@ -25,13 +28,15 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from loguru import logger
 
-from bot.constants import REMINDER_TEXTS
+from bot.constants import REMINDER_BUTTONS, REMINDER_TEXTS
 from bot.pacing import Pacer
 from tma.backend.constants import DEFAULT_LANGUAGE
 from tma.backend.database import Database
@@ -53,20 +58,42 @@ def _current_minute() -> datetime:
     return datetime.now(timezone.utc).replace(second=0, microsecond=0)
 
 
-async def run_reminders(bot: Bot, database: Database, pacer: Pacer) -> None:
+def open_app_keyboards(tma_url: str) -> dict[str, InlineKeyboardMarkup]:
+    """Кнопка «Отметить выполнено» под напоминанием — по одной на язык интерфейса.
+
+    Адрес у всех один, поэтому клавиатуры собираются один раз при старте, а не на каждое
+    напоминание.
+    """
+    return {
+        language: InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=tma_url))]]
+        )
+        for language, text in REMINDER_BUTTONS.items()
+    }
+
+
+def _keyboard(
+    keyboards: Mapping[str, InlineKeyboardMarkup], language: str
+) -> InlineKeyboardMarkup:
+    """Клавиатура на языке пользователя (незнакомый язык — язык по умолчанию)."""
+    return keyboards.get(language, keyboards[DEFAULT_LANGUAGE])
+
+
+async def run_reminders(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> None:
     """Бесконечный цикл: в начале каждой минуты прислать наступившие напоминания.
 
     Ошибки одной минуты (база недоступна и т.п.) логируются и не останавливают цикл;
     остановить его можно только отменой задачи.
     """
     logger.info("Reminders started")
+    keyboards = open_app_keyboards(tma_url)
     last_processed = _current_minute() - _MINUTE
     while True:
         now = _current_minute()
         minute = max(last_processed + _MINUTE, now - CATCH_UP_LIMIT)
         while minute <= now:
             try:
-                await _send_due(bot, database, pacer, minute)
+                await _send_due(bot, database, pacer, minute, keyboards)
             except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
                 logger.exception("Reminders for {} failed", minute)
             last_processed = minute
@@ -75,28 +102,39 @@ async def run_reminders(bot: Bot, database: Database, pacer: Pacer) -> None:
         await asyncio.sleep((next_minute - datetime.now(timezone.utc)).total_seconds())
 
 
-async def _send_due(bot: Bot, database: Database, pacer: Pacer, minute: datetime) -> None:
+async def _send_due(
+    bot: Bot,
+    database: Database,
+    pacer: Pacer,
+    minute: datetime,
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+) -> None:
     """Прислать напоминания, время которых — `minute`, и отметить заблокировавших бота."""
     # Сессия только на чтение и закрывается до отправки: сеть не держит соединение с БД.
     async with database.session_factory() as session:
         reminders = await due_reminders(Repository(session), minute)
     if not reminders:
         return
-    blocked = await _send_all(bot, pacer, reminders)
+    blocked = await _send_all(bot, pacer, reminders, keyboards)
     if blocked:
         async with database.session_factory() as session:
             await Repository(session).set_bot_blocked(blocked, blocked=True)
             await session.commit()
 
 
-async def _send_all(bot: Bot, pacer: Pacer, reminders: list[DueReminder]) -> set[int]:
+async def _send_all(
+    bot: Bot,
+    pacer: Pacer,
+    reminders: list[DueReminder],
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+) -> set[int]:
     """Разослать напоминания: параллельно по пользователям, в пределах лимитов Bot API.
     Возвращает id заблокировавших бота."""
     by_user: dict[int, list[DueReminder]] = {}
     for reminder in reminders:
         by_user.setdefault(reminder.user_id, []).append(reminder)
     results = await asyncio.gather(
-        *(_send_to_user(bot, pacer, own) for own in by_user.values()),
+        *(_send_to_user(bot, pacer, own, keyboards) for own in by_user.values()),
         return_exceptions=True,
     )
     blocked: set[int] = set()
@@ -109,31 +147,42 @@ async def _send_all(bot: Bot, pacer: Pacer, reminders: list[DueReminder]) -> set
     return blocked
 
 
-async def _send_to_user(bot: Bot, pacer: Pacer, reminders: list[DueReminder]) -> bool:
+async def _send_to_user(
+    bot: Bot,
+    pacer: Pacer,
+    reminders: list[DueReminder],
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+) -> bool:
     """Напоминания одному пользователю — по очереди, с паузой между сообщениями. True —
     пользователь заблокировал бота (остальные его напоминания не отправляются)."""
     for index, reminder in enumerate(reminders):
         if index:
             await asyncio.sleep(PER_CHAT_INTERVAL)
-        if await _send(bot, pacer, reminder):
+        if await _send(bot, pacer, reminder, keyboards):
             return True
     return False
 
 
-async def _send(bot: Bot, pacer: Pacer, reminder: DueReminder) -> bool:
+async def _send(
+    bot: Bot,
+    pacer: Pacer,
+    reminder: DueReminder,
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+) -> bool:
     """Отправить одно напоминание; сбой доставки логируется и не мешает остальным. True —
     пользователь заблокировал бота."""
     template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
     text = template.format(name=reminder.habit_name)
+    markup = _keyboard(keyboards, reminder.language)
     try:
         await pacer.wait()
         try:
-            await bot.send_message(chat_id=reminder.user_id, text=text)
+            await bot.send_message(chat_id=reminder.user_id, text=text, reply_markup=markup)
         except TelegramRetryAfter as exc:
             # Упёрлись в лимит Telegram — подождать, сколько просят, и повторить один раз.
             await asyncio.sleep(exc.retry_after)
             await pacer.wait()
-            await bot.send_message(chat_id=reminder.user_id, text=text)
+            await bot.send_message(chat_id=reminder.user_id, text=text, reply_markup=markup)
     except TelegramForbiddenError:
         # Пользователь заблокировал бота.
         logger.info(

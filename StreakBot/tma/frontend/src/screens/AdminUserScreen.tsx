@@ -4,41 +4,39 @@
  *  - Профиль — id Telegram, @username, язык, пояс, регистрация, первое открытие
  *    приложения, последний визит, число привычек и статус;
  *  - Отзывы — его отзывы (если есть); нажатие открывает отзыв, там можно ответить;
- *  - Действия — «Написать сообщение» (бот пришлёт текст в Telegram), «Заблокировать» /
- *    «Разблокировать» и «Удалить». Блокировка и удаление — только после подтверждения в
- *    диалоге; администратора нельзя ни заблокировать, ни удалить (сначала забирают права).
+ *  - Действия — «Написать сообщение» (открывает экран сообщения, бот пришлёт текст в
+ *    Telegram), «Заблокировать» / «Разблокировать» и «Удалить». Блокировка и удаление —
+ *    только после подтверждения системным диалогом Telegram; администратора нельзя ни
+ *    заблокировать, ни удалить (сначала забирают права).
  *
  * После блокировки или удаления список пользователей обновляется (onChanged, onDeleted);
- * после удаления AdminApp возвращает на вкладку.
+ * после удаления AdminApp возвращает на вкладку. Не удалось — причина под карточкой.
  */
 
 import { useState } from "react";
 
-import { deleteUser, fetchUser, messageUser, setUserBlocked } from "../api/admin";
+import { deleteUser, fetchUser, setUserBlocked } from "../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { BlockIcon, PaperPlaneIcon, UnlockIcon } from "../components/AdminIcons";
-import { ComposeDialog } from "../components/ComposeDialog";
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { TrashIcon } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
-import { MESSAGE_MAX_LENGTH } from "../constants";
 import { useResource } from "../hooks/useResource";
-import { hapticNotification } from "../telegram/webapp";
+import { confirmAction, hapticNotification } from "../telegram/webapp";
 import type { AdminReview, AdminUserProfile, AdminUserRef } from "../types/admin";
 import { ReviewRow } from "./AdminReviewsScreen";
 import styles from "./AdminUserScreen.module.css";
-
-type Confirming = "block" | "delete" | null;
 
 interface AdminUserScreenProps {
   telegramId: number;
   /** Уже известные имя и id (строка списка) — для заголовка, пока профиль грузится. */
   initial: AdminUserRef | null;
   onOpenReview: (review: AdminReview) => void;
+  /** Открыть экран личного сообщения этому пользователю. */
+  onWriteMessage: (name: string) => void;
   /** Профиль изменился (блокировка) — обновить список пользователей. */
   onChanged: (profile: AdminUserProfile) => void;
   /** Пользователь удалён (AdminApp возвращает на вкладку). */
@@ -65,16 +63,14 @@ export function AdminUserScreen({
   telegramId,
   initial,
   onOpenReview,
+  onWriteMessage,
   onChanged,
   onDeleted,
 }: AdminUserScreenProps) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const profile = useResource(() => fetchUser(telegramId), String(telegramId));
-  const [messaging, setMessaging] = useState(false);
-  const [confirming, setConfirming] = useState<Confirming>(null);
   const [busy, setBusy] = useState(false);
-  const [dialogError, setDialogError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const data = profile.data;
   const name = data
@@ -82,24 +78,6 @@ export function AdminUserScreen({
     : initial
       ? format.userName(initial)
       : strings.unnamedUser(telegramId);
-
-  async function sendMessage(text: string): Promise<string | null> {
-    try {
-      const result = await messageUser(telegramId, text);
-      if (!result.delivered) {
-        profile.reload(); // отметка «заблокировал бота» появилась на сервере
-        return strings.undelivered[result.reason ?? "bot_blocked"];
-      }
-      return null;
-    } catch (error) {
-      return describeAdminError(strings, error, strings.messageFailed);
-    }
-  }
-
-  function ask(action: Exclude<Confirming, null>): void {
-    setDialogError(null);
-    setConfirming(action);
-  }
 
   async function changeBlock(blocked: boolean): Promise<void> {
     setBusy(true);
@@ -109,30 +87,48 @@ export function AdminUserScreen({
       profile.setData(() => updated);
       onChanged(updated);
       hapticNotification("success");
-      setConfirming(null);
     } catch (error) {
-      const message = describeAdminError(strings, error, strings.blockFailed);
-      if (confirming) {
-        setDialogError(message);
-      } else {
-        setActionError(message);
-      }
+      setActionError(describeAdminError(strings, error, strings.blockFailed));
       hapticNotification("error");
     } finally {
       setBusy(false);
     }
   }
 
-  async function confirmDelete(): Promise<void> {
+  async function askToBlock(): Promise<void> {
+    setActionError(null);
+    const confirmed = await confirmAction({
+      title: strings.blockDialogTitle,
+      message: strings.blockDialogMessage(name),
+      confirmLabel: strings.blockDialogConfirm,
+      cancelLabel: strings.cancel,
+      destructive: true,
+    });
+    if (confirmed) {
+      await changeBlock(true);
+    }
+  }
+
+  async function askToDelete(): Promise<void> {
+    setActionError(null);
+    const confirmed = await confirmAction({
+      title: strings.deleteDialogTitle,
+      message: strings.deleteDialogMessage(name),
+      confirmLabel: strings.deleteDialogConfirm,
+      cancelLabel: strings.cancel,
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
     setBusy(true);
-    setDialogError(null);
     try {
       await deleteUser(telegramId);
       hapticNotification("success");
       // AdminApp закрывает этот экран — сбрасывать состояние не нужно.
       onDeleted(telegramId);
     } catch (error) {
-      setDialogError(describeAdminError(strings, error, strings.deleteFailed));
+      setActionError(describeAdminError(strings, error, strings.deleteFailed));
       setBusy(false);
       hapticNotification("error");
     }
@@ -141,44 +137,6 @@ export function AdminUserScreen({
   return (
     <Screen title={name} withTabBar={false} enterAnimation>
       {renderContent()}
-      <ComposeDialog
-        open={messaging}
-        title={strings.messageDialogTitle}
-        message={strings.messageDialogMessage(name)}
-        placeholder={strings.messagePlaceholder}
-        cancelLabel={strings.cancel}
-        sendLabel={strings.send}
-        maxLength={MESSAGE_MAX_LENGTH}
-        onSend={sendMessage}
-        onClose={() => setMessaging(false)}
-        done={{
-          title: strings.messageSentTitle,
-          message: strings.messageSentMessage,
-          label: strings.done,
-        }}
-      />
-      <ConfirmDialog
-        open={confirming === "block"}
-        title={strings.blockDialogTitle}
-        message={dialogError ?? strings.blockDialogMessage(name)}
-        cancelLabel={strings.cancel}
-        confirmLabel={strings.blockDialogConfirm}
-        destructive
-        busy={busy}
-        onCancel={() => setConfirming(null)}
-        onConfirm={() => void changeBlock(true)}
-      />
-      <ConfirmDialog
-        open={confirming === "delete"}
-        title={strings.deleteDialogTitle}
-        message={dialogError ?? strings.deleteDialogMessage(name)}
-        cancelLabel={strings.cancel}
-        confirmLabel={strings.deleteDialogConfirm}
-        destructive
-        busy={busy}
-        onCancel={() => setConfirming(null)}
-        onConfirm={() => void confirmDelete()}
-      />
     </Screen>
   );
 
@@ -248,7 +206,7 @@ export function AdminUserScreen({
               icon={<PaperPlaneIcon />}
               iconColor="blue"
               label={strings.sendMessage}
-              onPress={() => setMessaging(true)}
+              onPress={() => onWriteMessage(name)}
             />
             {data.is_admin ? null : (
               <>
@@ -265,14 +223,16 @@ export function AdminUserScreen({
                     icon={<BlockIcon />}
                     iconColor="orange"
                     label={strings.blockUser}
-                    onPress={() => ask("block")}
+                    disabled={busy}
+                    onPress={() => void askToBlock()}
                   />
                 )}
                 <ListItem
                   icon={<TrashIcon />}
                   label={strings.deleteUser}
                   destructive
-                  onPress={() => ask("delete")}
+                  disabled={busy}
+                  onPress={() => void askToDelete()}
                 />
               </>
             )}

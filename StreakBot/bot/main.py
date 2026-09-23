@@ -106,7 +106,7 @@ async def main() -> None:
     # Один темп отправки на напоминания и рассылки — лимит Bot API общий (см. pacing.py).
     pacer = Pacer(SEND_RATE)
     loops = [
-        asyncio.create_task(run_reminders(bot, database, pacer)),
+        asyncio.create_task(run_reminders(bot, database, pacer, config.tma_url)),
         asyncio.create_task(run_broadcasts(bot, database, pacer)),
     ]
     logger.info("StreakBot is up and polling")
