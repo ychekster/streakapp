@@ -3,15 +3,18 @@
 
 from __future__ import annotations
 
+import os
+import sqlite3
 from collections.abc import Iterator
 from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import make_url
 
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
-from tma.backend.constants import BROADCAST_SEGMENTS, SEED_ADMIN_IDS, WEEKDAYS
+from tma.backend.constants import BROADCAST_SEGMENTS, MAX_DB_INT, SEED_ADMIN_IDS, WEEKDAYS
 
 
 @pytest.fixture
@@ -59,6 +62,7 @@ _ADMIN_ROUTES = [
     ("DELETE", "/admin/users/1"),
     ("POST", "/admin/users/1/message"),
     ("GET", "/admin/reviews"),
+    ("GET", "/admin/reviews/1"),
     ("POST", "/admin/reviews/1/reply"),
     ("GET", "/admin/admins"),
     ("POST", "/admin/admins"),
@@ -83,6 +87,91 @@ def test_admin_routes_require_admin(
 def test_settings_show_admin_flag(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
     assert client.get("/settings", headers=user.headers).json()["is_admin"] is False
     assert client.get("/settings", headers=admin.headers).json()["is_admin"] is True
+
+
+_ADMIN_ID_ROUTES = [
+    ("GET", "/admin/users/{id}"),
+    ("GET", "/admin/users/{id}/habits"),
+    ("PUT", "/admin/users/{id}/block"),
+    ("DELETE", "/admin/users/{id}"),
+    ("POST", "/admin/users/{id}/message"),
+    ("GET", "/admin/reviews/{id}"),
+    ("POST", "/admin/reviews/{id}/reply"),
+    ("DELETE", "/admin/admins/{id}"),
+    ("GET", "/admin/broadcasts/{id}"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), _ADMIN_ID_ROUTES)
+def test_huge_id_is_rejected_not_crashed(
+    client: TestClient, admin: AuthUser, method: str, path: str
+) -> None:
+    """Идентификатор длиннее 64 бит колонка базы не принимает: без проверки параметра он
+    доходил до запроса и падал ошибкой драйвера (500) вместо ответа о плохом параметре."""
+    response = client.request(
+        method, path.format(id=MAX_DB_INT + 1), headers=admin.headers, json={}
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.parametrize("path", ["/admin/users", "/admin/reviews"])
+def test_huge_page_cursor_is_rejected_not_crashed(
+    client: TestClient, admin: AuthUser, path: str
+) -> None:
+    response = client.get(path, params={"cursor": str(MAX_DB_INT + 1)}, headers=admin.headers)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_cursor"
+
+
+def test_new_admin_id_out_of_range_is_rejected(client: TestClient, admin: AuthUser) -> None:
+    response = client.post(
+        "/admin/admins", json={"telegram_id": MAX_DB_INT + 1}, headers=admin.headers
+    )
+    assert response.status_code == 422
+
+
+def _write_from_another_connection() -> str | None:
+    """Попробовать записать в ту же базу другим соединением. None — получилось."""
+    database = make_url(os.environ["DATABASE_URL"]).database
+    assert database is not None
+    try:
+        with sqlite3.connect(database, timeout=1) as connection:
+            connection.execute("UPDATE users SET updated_at = updated_at")
+        return None
+    except sqlite3.OperationalError as error:  # база занята другим процессом
+        return str(error)
+
+
+def test_sending_does_not_hold_the_database_lock(
+    client: TestClient, user: AuthUser, admin: AuthUser, telegram: FakeTelegram
+) -> None:
+    """Пока API ходит в Telegram, база остаётся доступной на запись.
+
+    Транзакция запроса закрывается до отправки: иначе SQLite держит блокировку записи,
+    и отметки привычек остальных пользователей ждут её до таймаута — а загрузка видео
+    рассылки идёт минутами.
+    """
+    _open_app(client, user)
+    # Запрос администратора должен начаться с записи (отметка последнего визита),
+    # иначе блокировке записи неоткуда взяться и проверка ничего не значит.
+    database = make_url(os.environ["DATABASE_URL"]).database
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE users SET last_seen_at = NULL WHERE telegram_id = ?", (admin.id,))
+
+    attempts: list[str | None] = []
+    original = telegram.send_message
+
+    async def send_message(chat_id: int, text: str, **extra: object):
+        attempts.append(_write_from_another_connection())
+        return await original(chat_id, text, **extra)
+
+    telegram.send_message = send_message  # type: ignore[method-assign]
+    sent = client.post(
+        f"/admin/users/{user.id}/message", json={"text": "Привет"}, headers=admin.headers
+    )
+    assert sent.status_code == 200, sent.text
+    assert attempts == [None], f"во время отправки база была заблокирована: {attempts}"
 
 
 def test_anonymous_upload_is_not_read(client: TestClient) -> None:

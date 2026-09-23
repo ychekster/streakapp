@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import AuthUser
 from tests.helpers import sign_init_data
-from tma.backend.constants import MAX_REQUEST_BODY_BYTES
+from tma.backend.constants import MAX_DB_INT, MAX_REQUEST_BODY_BYTES
 from tma.backend.ratelimit import RateLimiter
 
 
@@ -232,6 +232,31 @@ def test_cors_preflight_allows_delete(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert "DELETE" in response.headers["Access-Control-Allow-Methods"]
+
+
+# Идентификатор длиннее 64 бит колонка базы не принимает: без проверки параметра он
+# доходил до запроса и падал ошибкой драйвера (500) вместо ответа о плохом параметре.
+_HUGE_IDS = [str(MAX_DB_INT + 1), "9" * 30]
+
+
+@pytest.mark.parametrize("task_id", _HUGE_IDS)
+def test_huge_task_id_is_rejected_not_crashed(
+    client: TestClient, user: AuthUser, task_id: str
+) -> None:
+    for response in (
+        client.post(f"/tasks/{task_id}/toggle", headers=user.headers),
+        client.delete(f"/tasks/{task_id}", headers=user.headers),
+        client.put(f"/tasks/{task_id}", json=_habit(), headers=user.headers),
+    ):
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_largest_supported_task_id_is_just_not_found(client: TestClient, user: AuthUser) -> None:
+    """Граница проверки не отсекает идентификаторы, которые база принимает."""
+    response = client.post(f"/tasks/{MAX_DB_INT}/toggle", headers=user.headers)
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "task_not_found"
 
 
 def test_health_checks_database(client: TestClient) -> None:

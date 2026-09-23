@@ -36,6 +36,7 @@ from tma.backend.constants import (
     ADMIN_SEARCH_MAX_LENGTH,
     ANALYTICS_PERIODS,
     DEFAULT_ANALYTICS_PERIOD,
+    MAX_DB_INT,
 )
 from tma.backend.dependencies import RepositoryDep, get_admin_user, get_bot
 from tma.backend.errors import ApiError
@@ -60,7 +61,12 @@ from tma.backend.schemas import (
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_admin_user)])
 
-_TelegramId = Path(..., ge=1, description="id Telegram пользователя")
+# Идентификаторы в пути. Верхняя граница — предел целого в колонке базы: без неё число
+# длиннее 64 бит доходило бы до запроса и падало ошибкой драйвера (500) вместо понятного
+# ответа о некорректном параметре.
+_TelegramId = Path(..., ge=1, le=MAX_DB_INT, description="id Telegram пользователя")
+_ReviewId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор отзыва")
+_BroadcastId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор рассылки")
 _PageSize = Query(ADMIN_PAGE_SIZE, ge=1, le=ADMIN_PAGE_SIZE_MAX)
 _Cursor = Query(None, max_length=32, description="Курсор страницы из прошлого ответа")
 
@@ -166,7 +172,7 @@ async def read_reviews(
 
 @router.get("/reviews/{review_id}", response_model=AdminReviewResponse)
 async def read_review(
-    review_id: int = Path(..., ge=1), repo: Repository = RepositoryDep
+    review_id: int = _ReviewId, repo: Repository = RepositoryDep
 ) -> AdminReviewResponse:
     return AdminReviewResponse(review=await service.get_review(repo, review_id))
 
@@ -174,7 +180,7 @@ async def read_review(
 @router.post("/reviews/{review_id}/reply", response_model=ReviewReplyResponse)
 async def reply_to_review(
     payload: AdminMessage,
-    review_id: int = Path(..., ge=1),
+    review_id: int = _ReviewId,
     admin: User = Depends(get_admin_user),
     repo: Repository = RepositoryDep,
     bot: Bot = Depends(get_bot),
@@ -258,6 +264,6 @@ async def create_broadcast(
 
 @router.get("/broadcasts/{broadcast_id}", response_model=BroadcastResponse)
 async def read_broadcast(
-    broadcast_id: int = Path(..., ge=1), repo: Repository = RepositoryDep
+    broadcast_id: int = _BroadcastId, repo: Repository = RepositoryDep
 ) -> BroadcastResponse:
     return BroadcastResponse(broadcast=await service.get_broadcast(repo, broadcast_id))

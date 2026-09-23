@@ -25,6 +25,7 @@ from tma.backend.constants import (
     BROADCAST_VIDEO_MAX_BYTES,
     BROADCAST_VIDEO_TYPES,
     CAPTION_MAX_LENGTH,
+    MAX_DB_INT,
     MESSAGE_MAX_LENGTH,
 )
 from tma.backend.errors import ApiError
@@ -86,10 +87,15 @@ def _broadcast(broadcast: Broadcast) -> BroadcastInfo:
 
 
 def _parse_cursor(cursor: str | None) -> int | None:
-    """Курсор страницы — неотрицательное целое (смещение или id); нет — первая страница."""
+    """Курсор страницы — неотрицательное целое (смещение или id); нет — первая страница.
+
+    Курсор приходит из прошлого ответа, но в запросе может оказаться любым: слишком
+    большое число колонка базы не принимает, поэтому оно отвергается здесь — как и
+    нечисловое, ошибкой о некорректном курсоре, а не ошибкой драйвера.
+    """
     if cursor is None or cursor == "":
         return None
-    if not cursor.isdigit():
+    if not cursor.isdigit() or int(cursor) > MAX_DB_INT:
         raise ApiError(422, "invalid_cursor", "Некорректный курсор страницы")
     return int(cursor)
 
@@ -198,6 +204,7 @@ async def message_user(
     """Личное сообщение пользователю от бота."""
     user = await _get_user(repo, telegram_id)
     body = validation.validate_message(text, MESSAGE_MAX_LENGTH)
+    await repo.commit()  # не держать транзакцию БД, пока идёт отправка (см. Repository.commit)
     reason = await messaging.send_text(bot, user.telegram_id, body)
     if reason == "bot_blocked":
         await repo.set_bot_blocked([user.telegram_id], blocked=True)
@@ -237,6 +244,7 @@ async def reply_to_review(
     """Ответить на отзыв сообщением бота; дошедший ответ запоминается у отзыва."""
     review = await _get_review(repo, review_id)
     body = validation.validate_message(text, MESSAGE_MAX_LENGTH)
+    await repo.commit()  # не держать транзакцию БД, пока идёт отправка (см. Repository.commit)
     reason = await messaging.send_review_reply(
         bot, review.user_id, review.user.language, review.text, body
     )
@@ -342,6 +350,9 @@ async def create_broadcast(
     total = await repo.count_recipients(segment, utc_now(), admin.telegram_id)
     if total == 0:
         raise ApiError(409, "no_recipients", "В этом сегменте нет получателей")
+    # Загрузка видео в Telegram идёт минутами — транзакцию БД на это время не держим,
+    # иначе отметки привычек остальных пользователей ждут блокировки (см. Repository.commit).
+    await repo.commit()
     file_id = await messaging.send_broadcast_copy(bot, admin.telegram_id, body, media, media_type)
     broadcast = await repo.create_broadcast(
         created_by=admin.telegram_id,

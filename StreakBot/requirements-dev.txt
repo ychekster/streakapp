@@ -1,6 +1,6 @@
 # Зависимости для разработки и тестов (python -m pytest из корня репозитория).
 -r requirements.txt
 -r tma/backend/requirements.txt
-pytest>=8
+pytest>=9.1.1,<10.0
 # TestClient FastAPI/Starlette 1.x работает поверх httpx2.
-httpx2>=2.13
+httpx2>=2.13.0,<3.0

@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
-from tma.backend.constants import DEFAULT_HABIT_COLOR, HISTORY_DAYS
+from tma.backend.constants import DEFAULT_HABIT_COLOR, HISTORY_DAYS, MAX_DB_INT
 
 
 def _assume_utc(value: datetime) -> datetime:
@@ -291,7 +291,9 @@ class AdminsResponse(BaseModel):
 class AdminCreate(BaseModel):
     """Запрос `POST /admin/admins`."""
 
-    telegram_id: int = Field(..., ge=1, description="id Telegram нового администратора")
+    telegram_id: int = Field(
+        ..., ge=1, le=MAX_DB_INT, description="id Telegram нового администратора"
+    )
 
 
 class BroadcastSegment(BaseModel):

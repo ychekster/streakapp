@@ -95,6 +95,7 @@ StreakBot/
 ├── README.md
 ├── docs/
 │   ├── ARCHITECTURE.md     # Архитектура и обоснование решений
+│   ├── DEPLOYMENT.md       # Развёртывание на сервере: домен, nginx, HTTPS, systemd
 │   └── SCALING.md          # Переход на PostgreSQL
 ├── alembic/                # Миграции схемы БД (метаданные — из tma/backend/models.py)
 ├── alembic.ini
@@ -154,6 +155,13 @@ python scripts/backup_db.py             # → streakbot_backup_<дата-вре�
 
 После остановки всех процессов SQLite сам переносит WAL в основной файл, и
 `streakbot.db` можно копировать как обычно.
+
+## Развёртывание на сервере
+
+Полный порядок — домен и HTTPS, nginx, службы systemd, резервные копии и проверка после
+запуска — в [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Коротко: API и бот работают
+службами от отдельного пользователя, API слушает только `127.0.0.1`, наружу смотрит
+nginx — он раздаёт собранный фронтенд и проксирует `/api/` в API на том же домене.
 
 ## Масштабирование
 

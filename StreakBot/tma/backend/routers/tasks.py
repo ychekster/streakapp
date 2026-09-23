@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Path, Response
 
+from tma.backend.constants import MAX_DB_INT
 from tma.backend.dependencies import RepositoryDep, get_db_user
 from tma.backend.errors import ApiError
 from tma.backend.models import User
@@ -27,6 +28,11 @@ from tma.backend.schemas import (
 from tma.backend.services import create_habit, list_habits, toggle_today, update_habit
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+# Идентификатор задачи в пути. Верхняя граница — предел целого в колонке базы:
+# без неё число длиннее 64 бит доходило бы до запроса и падало ошибкой драйвера (500)
+# вместо понятного ответа о некорректном параметре.
+_TaskId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор задачи")
 
 
 @router.get("", response_model=HabitsResponse)
@@ -53,7 +59,7 @@ async def create_task(
 @router.put("/{task_id}", response_model=HabitResponse)
 async def update_task(
     payload: HabitUpdate,
-    task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
+    task_id: int = _TaskId,
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> HabitResponse:
@@ -67,7 +73,7 @@ async def update_task(
 
 @router.delete("/{task_id}", status_code=204, response_class=Response)
 async def delete_task(
-    task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
+    task_id: int = _TaskId,
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> Response:
@@ -81,7 +87,7 @@ async def delete_task(
 
 @router.post("/{task_id}/toggle", response_model=HabitResponse)
 async def toggle_task(
-    task_id: int = Path(..., ge=1, description="Идентификатор задачи"),
+    task_id: int = _TaskId,
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> HabitResponse:

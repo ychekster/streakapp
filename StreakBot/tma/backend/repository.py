@@ -129,6 +129,18 @@ class Repository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def commit(self) -> None:
+        """Зафиксировать сделанное и закрыть транзакцию.
+
+        Обычно коммит делает зависимость `get_repository` в конце запроса, и вызывать его
+        вручную не нужно. Исключение — обработчик, которому предстоит долгий поход в сеть
+        (админ-панель отправляет сообщение или загружает видео рассылки в Telegram): пока
+        транзакция открыта, SQLite держит блокировку записи, и отметки привычек остальных
+        пользователей ждут её до таймаута. Коммит перед отправкой снимает блокировку,
+        а запись результата открывает новую, короткую транзакцию.
+        """
+        await self.session.commit()
+
     # ------------------------------------------------------------------ #
     #  Users
     # ------------------------------------------------------------------ #
@@ -390,19 +402,34 @@ class Repository:
         user_id: int,
         scheduled_date: date,
     ) -> TaskLog:
-        """Вернуть лог на дату, создав его со статусом pending при отсутствии."""
+        """Вернуть лог на дату, создав его со статусом pending при отсутствии.
+
+        Безопасно к гонке, как `get_or_create_user`: отметку одной привычки можно нажать
+        сразу с двух устройств (или повторить после таймаута запроса), и тогда лог за день
+        вставляют два запроса одновременно. Вставка идёт в SAVEPOINT, и проигравший
+        уникальное ограничение (task_id, scheduled_date) перечитывает чужую запись, а не
+        падает ошибкой.
+        """
         log = await self.get_log(task_id, scheduled_date)
         if log is not None:
             return log
-        log = TaskLog(
-            task_id=task_id,
-            user_id=user_id,
-            scheduled_date=scheduled_date,
-            status=TaskStatus.pending,
-        )
-        self.session.add(log)
-        await self.session.flush()
-        return log
+        try:
+            async with self.session.begin_nested():
+                log = TaskLog(
+                    task_id=task_id,
+                    user_id=user_id,
+                    scheduled_date=scheduled_date,
+                    status=TaskStatus.pending,
+                )
+                self.session.add(log)
+                await self.session.flush()
+            return log
+        except IntegrityError:
+            # Лог успели создать в параллельном запросе — перечитываем.
+            log = await self.get_log(task_id, scheduled_date)
+            if log is None:  # крайне маловероятно
+                raise
+            return log
 
     async def set_log_status(self, log: TaskLog, status: TaskStatus) -> None:
         """Установить статус лога и зафиксировать момент отметки (UTC, как и остальные

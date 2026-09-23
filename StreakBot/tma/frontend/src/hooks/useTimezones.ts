@@ -25,7 +25,12 @@ export function useTimezones(language: Language): UseTimezonesResult {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (cachedTimezones(language)) {
+    // Каталог этого языка уже загружен — показываем его (при смене языка список в
+    // состоянии остался бы от прежнего).
+    const known = cachedTimezones(language);
+    if (known) {
+      setTimezones(known);
+      setStatus("ready");
       return;
     }
     let active = true;

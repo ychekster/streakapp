@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -10,8 +11,9 @@ import pytest
 from tma.backend import ratelimit
 from tma.backend.analytics import completion_by_day, habits_distribution
 from tma.backend.errors import ApiError
-from tma.backend.models import FrequencyType
-from tma.backend.repository import TaskSchedule
+from tma.backend.database import Database
+from tma.backend.models import FrequencyType, TaskStatus
+from tma.backend.repository import Repository, TaskSchedule
 from tma.backend.services import compute_streaks
 from tma.backend.validation import resolve_timezone, validate_name
 
@@ -99,3 +101,50 @@ def test_habits_distribution_groups_the_tail() -> None:
     assert [(bucket.habits, bucket.users) for bucket in buckets] == [
         (0, 3), (1, 2), (2, 0), (3, 1), (4, 0), (5, 2),
     ]
+
+
+# --------------------------------------------------------------------------- #
+#  Одновременные запросы одного пользователя
+# --------------------------------------------------------------------------- #
+
+
+def test_parallel_toggles_create_one_log(db_url: str) -> None:
+    """Одну привычку можно отметить сразу с двух устройств (или повторить запрос после
+    таймаута): лог за день создают обе сессии, и проигравшая уникальное ограничение
+    перечитывает чужую запись, а не падает ошибкой (пользователь получил бы 500).
+
+    Барьер держит обе сессии до тех пор, пока каждая не увидит, что лога ещё нет: без
+    него SQLite успевает выполнить их по очереди, и гонки не случается.
+    """
+
+    async def run() -> list[date]:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                await repo.get_or_create_user(1, None, "U", language="ru")
+                task = await repo.create_task(1, "Параллельно", FrequencyType.daily)
+                await session.commit()
+                task_id = task.id
+
+            barrier = asyncio.Barrier(2)
+
+            async def toggle() -> None:
+                async with database.session_factory() as session:
+                    repo = Repository(session)
+                    assert await repo.get_log(task_id, TODAY) is None
+                    await barrier.wait()
+                    log = await repo.get_or_create_log(task_id, 1, TODAY)
+                    await repo.set_log_status(log, TaskStatus.done)
+                    await session.commit()
+
+            await asyncio.gather(toggle(), toggle())
+
+            async with database.session_factory() as session:
+                done = await Repository(session).get_done_dates([task_id], TODAY)
+                return sorted(done[task_id])
+        finally:
+            await database.dispose()
+
+    assert asyncio.run(run()) == [TODAY]
