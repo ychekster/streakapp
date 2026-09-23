@@ -228,15 +228,19 @@ export function initTelegram(): void {
   }
 
   // Применяем отступы безопасных зон сейчас и пересчитываем по событиям (фуллскрин
-  // меняет их асинхронно — после перехода значения станут известны). На Android высота
-  // окна приходит отдельным событием viewportChanged, и до него отступы ещё нулевые.
+  // меняет их асинхронно — после перехода значения станут известны).
+  //
+  // Только по этим событиям: они сообщают именно о смене зон. Подписка ещё и на
+  // viewportChanged роняла вёрстку на Android — он шлёт его и когда меняется высота
+  // окна, в том числе при появлении нижней кнопки Telegram (форма привычки, «Написать
+  // отзыв»), и отступы в этот момент приходят уже под другую раскладку клиента: экран
+  // уезжал вниз, сверху открывался зазор, а нижняя навигация прилипала к краю.
   applySafeAreaInsets(webApp);
   const refresh = (): void => applySafeAreaInsets(webApp);
   webApp.onEvent?.("safeAreaChanged", refresh);
   webApp.onEvent?.("contentSafeAreaChanged", refresh);
   webApp.onEvent?.("fullscreenChanged", refresh);
   webApp.onEvent?.("fullscreenFailed", refresh);
-  webApp.onEvent?.("viewportChanged", refresh);
 }
 
 /**
