@@ -5,6 +5,7 @@ import { ADMIN_PAGE_SIZE, BROADCAST_UPLOAD_TIMEOUT_MS } from "../constants";
 import type {
   AdminEntry,
   AdminReview,
+  AdminUserHabits,
   AdminUserProfile,
   AdminUserSummary,
   Analytics,
@@ -46,6 +47,11 @@ export async function fetchUser(telegramId: number): Promise<AdminUserProfile> {
     method: "GET",
   });
   return data.user;
+}
+
+/** Привычки пользователя — те же данные, что видит он сам (только чтение). */
+export function fetchUserHabits(telegramId: number): Promise<AdminUserHabits> {
+  return apiRequest<AdminUserHabits>(`/admin/users/${telegramId}/habits`, { method: "GET" });
 }
 
 /** Заблокировать или разблокировать; вернуть обновлённый профиль. */

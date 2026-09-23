@@ -251,6 +251,20 @@ class AdminUserResponse(BaseModel):
     user: AdminUserProfile
 
 
+class AdminUserHabits(BaseModel):
+    """Ответ `GET /admin/users/{id}/habits` — привычки пользователя в том же виде, в
+    каком их видит он сам в приложении."""
+
+    habits: list[Habit]
+    mark_yesterday: bool = Field(
+        ...,
+        description=(
+            "«Отмечать за вчера» у этого пользователя: день отметки — вчерашний "
+            "(от него зависит подпись секции «не запланированы»)"
+        ),
+    )
+
+
 class AdminBlockUpdate(BaseModel):
     """Запрос `PUT /admin/users/{id}/block`."""
 

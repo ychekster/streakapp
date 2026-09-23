@@ -1,6 +1,7 @@
-/** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр). */
+/** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр).
+ *  Сам список — HabitsList: тот же, что показывает админ-панель. */
 
-import { HabitsSection } from "../components/HabitsSection";
+import { HabitsList } from "../components/HabitsList";
 import { Screen } from "../components/Screen";
 import { Skeleton } from "../components/Skeleton";
 import { StatusMessage } from "../components/StatusMessage";
@@ -57,29 +58,14 @@ export function HabitsScreen({
         />
       );
     }
-    const scheduledHabits = habits.filter((habit) => habit.scheduled_today);
-    const otherHabits = habits.filter((habit) => !habit.scheduled_today);
     return (
-      <>
-        {scheduledHabits.length > 0 ? (
-          <HabitsSection
-            habits={scheduledHabits}
-            interactive
-            onToggle={onToggle}
-            onOpen={onOpen}
-          />
-        ) : null}
-        {otherHabits.length > 0 ? (
-          <HabitsSection
-            habits={otherHabits}
-            interactive={false}
-            subheading={
-              markYesterday ? strings.otherSubheadingYesterday : strings.otherSubheadingToday
-            }
-            onOpen={onOpen}
-          />
-        ) : null}
-      </>
+      <HabitsList
+        habits={habits}
+        markYesterday={markYesterday}
+        interactive
+        onToggle={onToggle}
+        onOpen={onOpen}
+      />
     );
   }
 }

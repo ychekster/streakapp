@@ -5,6 +5,7 @@
     GET    /admin/analytics?days=30          — аналитика: пользователи, активность, привычки
     GET    /admin/users?q=&cursor=&limit=    — пользователи (поиск, страницы)
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
+    GET    /admin/users/{id}/habits          — его привычки (как он видит их сам)
     PUT    /admin/users/{id}/block           — заблокировать / разблокировать
     DELETE /admin/users/{id}                 — удалить со всеми данными
     POST   /admin/users/{id}/message         — личное сообщение от бота
@@ -47,6 +48,7 @@ from tma.backend.schemas import (
     AdminReviewResponse,
     AdminReviewsPage,
     AdminsResponse,
+    AdminUserHabits,
     AdminUserResponse,
     AdminUsersPage,
     AnalyticsResponse,
@@ -101,6 +103,16 @@ async def read_user(
     """Профиль пользователя с его отзывами (пояс — на языке администратора)."""
     profile = await service.user_profile(repo, telegram_id, admin.language)
     return AdminUserResponse(user=profile)
+
+
+@router.get("/users/{telegram_id}/habits", response_model=AdminUserHabits)
+async def read_user_habits(
+    telegram_id: int = _TelegramId,
+    repo: Repository = RepositoryDep,
+) -> AdminUserHabits:
+    """Привычки пользователя — те же данные, что отдаёт ему `GET /tasks`: история,
+    серии и день отметки считаются в его поясе. Только чтение."""
+    return await service.user_habits(repo, telegram_id)
 
 
 @router.put("/users/{telegram_id}/block", response_model=AdminUserResponse)

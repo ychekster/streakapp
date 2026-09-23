@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
-from tma.backend.constants import BROADCAST_SEGMENTS, SEED_ADMIN_IDS
+from tma.backend.constants import BROADCAST_SEGMENTS, SEED_ADMIN_IDS, WEEKDAYS
 
 
 @pytest.fixture
@@ -53,6 +54,7 @@ _ADMIN_ROUTES = [
     ("GET", "/admin/analytics"),
     ("GET", "/admin/users"),
     ("GET", "/admin/users/1"),
+    ("GET", "/admin/users/1/habits"),
     ("PUT", "/admin/users/1/block"),
     ("DELETE", "/admin/users/1"),
     ("POST", "/admin/users/1/message"),
@@ -216,6 +218,48 @@ def test_profile(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
     assert profile["blocked_at"] is None
 
     missing = client.get("/admin/users/1", headers=admin.headers)
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "user_not_found"
+
+
+def test_user_habits(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
+    """Привычки пользователя в панели — те же, что он видит сам: с его отметками,
+    расписанием и режимом «Отмечать за вчера»."""
+    daily = client.post(
+        "/tasks", json={"name": "Бег", "frequency_type": "daily"}, headers=user.headers
+    ).json()["habit"]
+    client.post(f"/tasks/{daily['id']}/toggle", headers=user.headers)
+    # День недели, на который привычка заведомо не запланирована (пояс по умолчанию — UTC).
+    tomorrow = WEEKDAYS[(date.today() + timedelta(days=1)).weekday()]
+    client.post(
+        "/tasks",
+        json={"name": "Зал", "frequency_type": "specific_days", "days": [tomorrow]},
+        headers=user.headers,
+    )
+
+    response = client.get(f"/admin/users/{user.id}/habits", headers=admin.headers)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["mark_yesterday"] is False
+    habits = {habit["name"]: habit for habit in data["habits"]}
+    assert habits.keys() == {"Бег", "Зал"}
+    assert habits["Бег"]["scheduled_today"] is True
+    assert habits["Бег"]["done_today"] is True
+    assert habits["Бег"]["current_streak"] == 1
+    assert habits["Бег"]["history"][-1] is True
+    assert habits["Зал"]["scheduled_today"] is False
+    assert habits["Зал"]["done_today"] is False
+    # Ровно то же, что видит сам пользователь.
+    assert data["habits"] == client.get("/tasks", headers=user.headers).json()["habits"]
+
+    # Режим отметки — тоже пользователя, а не администратора.
+    client.put("/settings", json={"mark_yesterday": True}, headers=user.headers)
+    assert client.get(f"/admin/users/{user.id}/habits", headers=admin.headers).json()[
+        "mark_yesterday"
+    ] is True
+    client.put("/settings", json={"mark_yesterday": False}, headers=user.headers)
+
+    missing = client.get("/admin/users/1/habits", headers=admin.headers)
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "user_not_found"
 

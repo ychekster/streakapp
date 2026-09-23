@@ -174,6 +174,12 @@ const RU = {
   done: "Готово",
   messageFailed: "Не удалось отправить сообщение. Попробуйте ещё раз.",
 
+  // --- Привычки пользователя (тот же список, что видит он сам) ---
+  habitsTitle: "Привычки",
+  habitsLoadFailed: "Не удалось загрузить привычки",
+  habitsEmpty: "Нет привычек",
+  habitsEmptyDescription: "У этого пользователя пока нет привычек",
+
   // --- Отзывы ---
   reviewsTitle: "Отзывы",
   reviewsLoadFailed: "Не удалось загрузить отзывы",
@@ -416,6 +422,11 @@ const EN: AdminStrings = {
   messageSentMessage: "It’s in their Telegram chat with the bot.",
   done: "Done",
   messageFailed: "Couldn’t send the message. Please try again.",
+
+  habitsTitle: "Habits",
+  habitsLoadFailed: "Couldn’t load their habits",
+  habitsEmpty: "No Habits",
+  habitsEmptyDescription: "This user hasn’t created any habits yet",
 
   reviewsTitle: "Reviews",
   reviewsLoadFailed: "Couldn’t load reviews",

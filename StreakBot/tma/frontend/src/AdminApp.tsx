@@ -8,7 +8,8 @@
  * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
  * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
  * верхний экран):
- *  - Пользователи → профиль → его отзыв → …;
+ *  - Пользователи → профиль → его привычки (тот же список, что он видит сам, только
+ *    для просмотра) или его отзыв → …;
  *  - Отзывы → отзыв → профиль автора → …;
  *  - профиль → «Написать сообщение», отзыв → «Ответить», настройки → «Добавить
  *    администратора» (см. ComposeScreen).
@@ -51,6 +52,7 @@ import { AdminReplyScreen } from "./screens/AdminReplyScreen";
 import { AdminReviewScreen } from "./screens/AdminReviewScreen";
 import { AdminReviewsScreen } from "./screens/AdminReviewsScreen";
 import { AdminSettingsScreen } from "./screens/AdminSettingsScreen";
+import { AdminUserHabitsScreen } from "./screens/AdminUserHabitsScreen";
 import { AdminUserScreen } from "./screens/AdminUserScreen";
 import { AdminUsersScreen } from "./screens/AdminUsersScreen";
 import type { AdminReview, AdminUserRef, Broadcast } from "./types/admin";
@@ -61,6 +63,7 @@ type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
   | { kind: "user"; id: number; initial: AdminUserRef | null }
+  | { kind: "habits"; id: number }
   | { kind: "review"; id: number; initial: AdminReview | null }
   | { kind: "message"; id: number; name: string }
   | { kind: "reply"; id: number }
@@ -205,6 +208,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             telegramId={page.id}
             initial={page.initial}
             onOpenReview={openReview}
+            onOpenHabits={() => push({ kind: "habits", id: page.id })}
             onWriteMessage={(name) => push({ kind: "message", id: page.id, name })}
             onChanged={(profile) =>
               users.update((items) =>
@@ -216,6 +220,13 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
               )
             }
             onDeleted={forgetUser}
+          />
+        );
+      case "habits":
+        return (
+          <AdminUserHabitsScreen
+            key={`habits-${page.id}-${stack.length}`}
+            telegramId={page.id}
           />
         );
       case "review":

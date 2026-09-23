@@ -1,6 +1,8 @@
 /** Типы админ-панели — зеркалят схемы API /admin/* (tma/backend/schemas.py). Моменты
  *  времени — строки ISO 8601 в UTC («…Z»). */
 
+import type { Habit } from "./habit";
+
 /** Пользователь в строке списка. */
 export interface AdminUserRef {
   telegram_id: number;
@@ -46,6 +48,14 @@ export interface AdminUserProfile extends AdminUserRef {
   /** Активных привычек. */
   habits: number;
   reviews: AdminReview[];
+}
+
+/** Привычки пользователя — те же, что он видит сам в приложении. */
+export interface AdminUserHabits {
+  habits: Habit[];
+  /** Режим «Отмечать за вчера» этого пользователя: от него зависит подпись секции
+   *  «не запланированы». */
+  mark_yesterday: boolean;
 }
 
 /** Почему сообщение не доставлено: заблокировал бота или ни разу его не запускал. */

@@ -2,7 +2,8 @@
  * Профиль пользователя — экран поверх вкладки (во весь экран, без нижней навигации).
  * Секции — как на экране привычки:
  *  - Профиль — id Telegram, @username, язык, пояс, регистрация, первое открытие
- *    приложения, последний визит, число привычек и статус;
+ *    приложения, последний визит, число привычек и статус. Ряд «Привычки» открывает
+ *    его привычки (AdminUserHabitsScreen) — тот же список, что видит он сам;
  *  - Отзывы — его отзывы (если есть); нажатие открывает отзыв, там можно ответить;
  *  - Действия — «Написать сообщение» (открывает экран сообщения, бот пришлёт текст в
  *    Telegram), «Заблокировать» / «Разблокировать» и «Удалить». Блокировка и удаление —
@@ -19,6 +20,7 @@ import { deleteUser, fetchUser, setUserBlocked } from "../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { BlockIcon, PaperPlaneIcon, UnlockIcon } from "../components/AdminIcons";
+import { Disclosure } from "../components/Disclosure";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
@@ -35,6 +37,8 @@ interface AdminUserScreenProps {
   /** Уже известные имя и id (строка списка) — для заголовка, пока профиль грузится. */
   initial: AdminUserRef | null;
   onOpenReview: (review: AdminReview) => void;
+  /** Открыть экран привычек этого пользователя. */
+  onOpenHabits: () => void;
   /** Открыть экран личного сообщения этому пользователю. */
   onWriteMessage: (name: string) => void;
   /** Профиль изменился (блокировка) — обновить список пользователей. */
@@ -63,6 +67,7 @@ export function AdminUserScreen({
   telegramId,
   initial,
   onOpenReview,
+  onOpenHabits,
   onWriteMessage,
   onChanged,
   onDeleted,
@@ -178,7 +183,12 @@ export function AdminUserScreen({
               label={strings.profileLastActive}
               value={data.last_seen_at ? format.relative(data.last_seen_at) : strings.never}
             />
-            <InfoRow label={strings.profileHabits} value={format.count(data.habits)} numeric />
+            <ListItem label={strings.profileHabits} onPress={onOpenHabits}>
+              <span className={`${styles.value} ${styles.numeric}`}>
+                {format.count(data.habits)}
+              </span>
+              <Disclosure />
+            </ListItem>
             <ListItem label={strings.profileStatus}>
               <span className={status.danger ? styles.danger : undefined}>{status.text}</span>
             </ListItem>

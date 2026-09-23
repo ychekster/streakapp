@@ -35,6 +35,7 @@ from tma.backend.schemas import (
     AdminReview,
     AdminReviewsPage,
     AdminsResponse,
+    AdminUserHabits,
     AdminUserProfile,
     AdminUserRef,
     AdminUsersPage,
@@ -45,6 +46,7 @@ from tma.backend.schemas import (
     DeliveryResponse,
     ReviewReplyResponse,
 )
+from tma.backend.services import list_habits
 from tma.backend.timezones import selected_city, timezone_display
 
 
@@ -149,6 +151,16 @@ async def user_profile(repo: Repository, telegram_id: int, language: str) -> Adm
         is_admin=await repo.is_admin(telegram_id),
         habits=await repo.count_active_tasks(telegram_id),
         reviews=[_review(review) for review in reviews],
+    )
+
+
+async def user_habits(repo: Repository, telegram_id: int) -> AdminUserHabits:
+    """Привычки пользователя — ровно те, что он видит у себя в приложении: день отметки
+    считается в его поясе и с его режимом «Отмечать за вчера» (services.list_habits).
+    Панель их только показывает, поэтому отмечать и менять их здесь нечем."""
+    user = await _get_user(repo, telegram_id)
+    return AdminUserHabits(
+        habits=await list_habits(repo, user), mark_yesterday=user.mark_yesterday
     )
 
 
