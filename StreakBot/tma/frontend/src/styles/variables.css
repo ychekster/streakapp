@@ -3,8 +3,12 @@
  * Все числовые значения дизайна — цвета, размеры, отступы, скругления, тайминги —
  * объявлены здесь и нигде в коде не хардкодятся.
  *
- * Здесь — светлая тема. Тёмная (в конце файла) переопределяет только цвета; какая
- * тема на экране, App ставит атрибутом data-theme на <html>.
+ * Здесь — светлая тема. Тёмная (ниже) переопределяет только цвета; какая тема на
+ * экране, App ставит атрибутом data-theme на <html>.
+ *
+ * В самом конце — правки для Android: клиент Telegram на Android рисует там матовое
+ * стекло заметно хуже, поэтому ему те же поверхности отдаются сплошной заливкой. Какая
+ * платформа, main.tsx ставит атрибутом data-platform на <html> (см. telegram/webapp.ts).
  */
 :root {
   color-scheme: light; /* системные меню, выбор времени, клавиатура — в тон теме */
@@ -61,6 +65,22 @@
   --font-size-secondary: 13px;
   --font-size-section-heading: 17px; /* заголовки секций экрана привычки (капсом) */
 
+  /*
+   * --- Состояние по центру экрана (пусто, загрузка, ошибка, «отправлено») ---
+   * Значения сняты со скриншота-эталона пустого экрана «Привычки»: круглый серый значок,
+   * под ним жирный заголовок и подпись почти того же размера. Своего отступа между
+   * заголовком и подписью нет — их разделяет только межстрочный интервал.
+   */
+  --status-icon-size: 40px;
+  --status-spinner-stroke: 3px;
+  --space-status-icon-bottom: 20px;
+  --font-size-status-title: 21px;
+  --font-weight-status-title: 700;
+  --font-size-status-description: 19px;
+  --line-height-status: 1.28;
+  --status-description-max-width: 280px;
+  --space-status-action-top: 20px;
+
   /* --- Скругления --- */
   --radius-card: 16px;
   --radius-pill: 999px;
@@ -103,6 +123,9 @@
   --header-bar-bottom: 0px;
   --header-bar-blur: 3px;
   --header-bar-saturate: 180%;
+  /* Эффект матового стекла целиком одним токеном: платформа может заменить его на none,
+     и тогда backdrop-filter не создаёт слоя вовсе (а не считает размытие на 0px). */
+  --header-bar-backdrop: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
   --header-bar-tint: rgba(242, 242, 247, 0.8); /* --color-background на 80% */
   --header-hairline-scale: 1;
   --header-hairline-color: rgba(0, 0, 0, 0.09);
@@ -128,6 +151,7 @@
   --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.78));
   --glass-blur: 24px;
   --glass-saturate: 130%; /* умеренно: над синей сеткой стекло не должно синеть */
+  --glass-backdrop: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   --glass-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95), /* блик по верхней кромке */
     0 0 0 0.5px rgba(0, 0, 0, 0.14), /* ободок */
     0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -344,4 +368,35 @@
   --chart-area-alpha: 0.16;
   --chart-cat-2: 217, 119, 6;
   --progress-track-alpha: 0.28;
+}
+
+/*
+ * --- Android ---
+ * iPhone этот блок не касается: он включается только атрибутом data-platform="android"
+ * (его ставит main.tsx по platform из Telegram, см. telegram/webapp.ts).
+ *
+ * Вебвью Android пересчитывает backdrop-filter на каждом кадре прокрутки, и закреплённые
+ * поверхности — подложка шапки и нижняя навигация — отстают от содержимого и дрожат.
+ * Поэтому там вместо матового стекла сплошная заливка: её цвета — это ровно те же
+ * полупрозрачные значения, уже наложенные на цвет фона, поэтому вид почти не меняется,
+ * а прокрутка становится ровной. По той же причине там выключено размытие свёрнутого
+ * заголовка при появлении (см. CollapsingHeader.module.css): остаются движение и
+ * проявление.
+ *
+ * Порядок важен: правила ниже той же силы, что :root[data-theme="dark"], и идут после
+ * него — поэтому парный блок ниже возвращает тёмные цвета в тёмной теме.
+ */
+:root[data-platform="android"] {
+  --glass-backdrop: none;
+  --header-bar-backdrop: none;
+  /* rgba(255,255,255,0.9) и 0.78 поверх --color-background (#f2f2f7). */
+  --glass-fill: linear-gradient(180deg, #fefefe, #fcfcfd);
+  /* Подложка шапки становится непрозрачной: содержимое под ней не просвечивает, как у
+     сплошной шапки iOS. Цвет темы берётся сам — переменная общая для обеих тем. */
+  --header-bar-tint: var(--color-background);
+}
+
+:root[data-platform="android"][data-theme="dark"] {
+  /* rgba(58,58,60,0.86) и rgba(44,44,46,0.8) поверх --color-background (#000000). */
+  --glass-fill: linear-gradient(180deg, #323234, #232325);
 }

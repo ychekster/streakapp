@@ -291,7 +291,7 @@ export function App() {
     return (
       <main className={styles.fallback}>
         <StatusMessage
-          emoji={strings.outsideEmoji}
+          icon="send"
           title={strings.outsideTitle}
           description={strings.outsideDescription}
         />

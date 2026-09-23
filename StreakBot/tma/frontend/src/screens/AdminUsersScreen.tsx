@@ -50,7 +50,7 @@ export function AdminUsersScreen({ query, onQueryChange, users, onOpen }: AdminU
     if (users.status === "error") {
       return (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, users.error, strings.usersLoadFailed)}
           actionLabel={strings.retry}
@@ -59,7 +59,7 @@ export function AdminUsersScreen({ query, onQueryChange, users, onOpen }: AdminU
       );
     }
     if (users.status === "loading") {
-      return <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />;
+      return <StatusMessage icon="spinner" title={strings.loading} />;
     }
     if (users.items.length === 0) {
       return users.stale ? null : (

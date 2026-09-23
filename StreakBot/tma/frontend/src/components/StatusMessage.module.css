@@ -1,5 +1,7 @@
 /* Состояние по центру свободного пространства экрана. */
 
+/* Заголовок и подпись идут вплотную (см. StatusMessage.tsx), поэтому общего gap у
+   колонки нет: расстояния задают отступы значка сверху и кнопки снизу. */
 .container {
   flex: 1;
   display: flex;
@@ -7,30 +9,51 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 8px;
   padding: 32px var(--space-screen-x);
 }
 
-.emoji {
-  font-size: 44px;
-  line-height: 1;
-  margin-bottom: 4px;
+/* Круглый значок состояния: цвет — приглушённый текст, глиф прорезан насквозь. */
+.icon {
+  width: var(--status-icon-size);
+  height: var(--status-icon-size);
+  margin-bottom: var(--space-status-icon-bottom);
+  color: var(--color-text-secondary);
+}
+
+/* Значок загрузки: кольцо с одним непрозрачным сектором, как у подгрузки списка. */
+.spinner {
+  width: var(--status-icon-size);
+  height: var(--status-icon-size);
+  margin-bottom: var(--space-status-icon-bottom);
+  border: var(--status-spinner-stroke) solid var(--color-fill);
+  border-top-color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  animation: status-spin 0.8s linear infinite;
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .title {
-  font-size: var(--font-size-habit-name);
-  font-weight: var(--font-weight-habit-name);
+  font-size: var(--font-size-status-title);
+  font-weight: var(--font-weight-status-title);
+  line-height: var(--line-height-status);
+  letter-spacing: -0.01em;
   color: var(--color-text-primary);
 }
 
 .description {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-status-description);
+  line-height: var(--line-height-status);
   color: var(--color-text-secondary);
-  max-width: 280px;
+  max-width: var(--status-description-max-width);
 }
 
 .action {
-  margin-top: 12px;
+  margin-top: var(--space-status-action-top);
   padding: 10px 24px;
   border-radius: var(--radius-pill);
   background-color: var(--color-accent);
@@ -43,4 +66,10 @@
 .action:active {
   transform: scale(0.96);
   opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
 }

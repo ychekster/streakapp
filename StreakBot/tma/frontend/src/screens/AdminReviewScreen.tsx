@@ -54,14 +54,14 @@ export function AdminReviewScreen({
     if (!data) {
       return review.status === "error" ? (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, review.error, strings.reviewLoadFailed)}
           actionLabel={strings.retry}
           onAction={review.reload}
         />
       ) : (
-        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
+        <StatusMessage icon="spinner" title={strings.loading} />
       );
     }
     return (

@@ -144,14 +144,14 @@ export function AdminUserScreen({
     if (!data) {
       return profile.status === "error" ? (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, profile.error, strings.profileLoadFailed)}
           actionLabel={strings.retry}
           onAction={profile.reload}
         />
       ) : (
-        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
+        <StatusMessage icon="spinner" title={strings.loading} />
       );
     }
     const status = statusLabel(data, strings);

@@ -42,7 +42,7 @@ export function AdminMessageScreen({ telegramId, name, onClose }: AdminMessageSc
       onSend={send}
       onClose={onClose}
       done={{
-        emoji: strings.sentEmoji,
+        icon: "check",
         title: strings.messageSentTitle,
         message: strings.messageSentMessage,
         label: strings.done,

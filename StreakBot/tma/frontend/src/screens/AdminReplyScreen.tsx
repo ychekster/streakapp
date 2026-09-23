@@ -43,7 +43,7 @@ export function AdminReplyScreen({ reviewId, onReplied, onClose }: AdminReplyScr
       onSend={send}
       onClose={onClose}
       done={{
-        emoji: strings.sentEmoji,
+        icon: "check",
         title: strings.replySentTitle,
         message: strings.replySentMessage,
         label: strings.done,

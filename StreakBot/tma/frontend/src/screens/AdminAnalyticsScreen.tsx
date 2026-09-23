@@ -94,7 +94,7 @@ export function AdminAnalyticsScreen({
     if (status === "error" && !data) {
       return (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, error, strings.analyticsLoadFailed)}
           actionLabel={strings.retry}
@@ -103,7 +103,7 @@ export function AdminAnalyticsScreen({
       );
     }
     if (!data) {
-      return <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />;
+      return <StatusMessage icon="spinner" title={strings.loading} />;
     }
     return (
       <div className={`${styles.sections} ${refreshing ? styles.refreshing : ""}`}>

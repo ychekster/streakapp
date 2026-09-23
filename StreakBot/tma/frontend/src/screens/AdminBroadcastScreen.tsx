@@ -177,14 +177,14 @@ export function AdminBroadcastScreen({
     if (!segments.data) {
       return segments.status === "error" ? (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, segments.error, strings.broadcastLoadFailed)}
           actionLabel={strings.retry}
           onAction={segments.reload}
         />
       ) : (
-        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
+        <StatusMessage icon="spinner" title={strings.loading} />
       );
     }
     const options = segmentList.map((item) => ({

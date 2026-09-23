@@ -80,8 +80,8 @@
   z-index: 1;
   height: var(--header-bar-bottom);
   background: var(--header-bar-tint);
-  -webkit-backdrop-filter: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
-  backdrop-filter: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
+  -webkit-backdrop-filter: var(--header-bar-backdrop);
+  backdrop-filter: var(--header-bar-backdrop);
   opacity: 0;
   pointer-events: none;
   will-change: opacity;
@@ -104,4 +104,20 @@
 
 .collapsed .bar {
   opacity: 1;
+}
+
+/*
+ * Android: закреплённые части шапки — на собственных слоях компоновщика (иначе при
+ * прокрутке дрожат вместе с нижней навигацией, см. TabBar.module.css), а размытие
+ * свёрнутого заголовка выключено совсем: фильтр на каждом кадре появления вебвью
+ * Android не тянет. Движение и проявление заголовка остаются прежними.
+ * На iPhone эти правила не применяются.
+ */
+:global(:root[data-platform="android"]) .bar {
+  will-change: transform, opacity;
+}
+
+:global(:root[data-platform="android"]) .titleCollapsed {
+  filter: none;
+  will-change: transform, opacity;
 }

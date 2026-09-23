@@ -55,13 +55,13 @@ export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsS
   function renderContent() {
     if (status === "loading") {
       return (
-        <StatusMessage emoji={strings.settingsLoadingEmoji} title={strings.settingsLoading} />
+        <StatusMessage icon="spinner" title={strings.settingsLoading} />
       );
     }
     if (status === "error" || !settings) {
       return (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeError(strings, error, strings.settingsLoadFailed)}
           actionLabel={strings.errorRetry}

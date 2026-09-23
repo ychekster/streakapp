@@ -22,12 +22,14 @@ import { readRootVariable } from "../theme";
 import { ListItem } from "./ListItem";
 import { Screen } from "./Screen";
 import { Card } from "./Section";
+import type { StatusIconName } from "./StatusIcons";
 import { StatusMessage } from "./StatusMessage";
 import styles from "./ComposeScreen.module.css";
 
 /** Подтверждение после отправки. */
 interface ComposeDone {
-  emoji: string;
+  /** Значок состояния над заголовком (см. StatusIcons). */
+  icon: StatusIconName;
   title: string;
   message: string;
   /** Подпись нижней кнопки, закрывающей экран. */
@@ -148,7 +150,7 @@ export function ComposeScreen({
     <Screen title={title} withTabBar={false} enterAnimation>
       {success ? (
         <StatusMessage
-          emoji={success.emoji}
+          icon={success.icon}
           title={success.title}
           description={success.message}
         />

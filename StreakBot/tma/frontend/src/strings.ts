@@ -22,18 +22,15 @@ const RU = {
   otherSubheadingToday: "Не запланированы на сегодня",
   otherSubheadingYesterday: "Не запланированы на вчера",
 
-  emptyEmoji: "🌱",
-  emptyTitle: "Пока нет привычек",
-  emptyDescription: "Добавь первую привычку кнопкой «+» внизу.",
+  emptyTitle: "Нет привычек",
+  emptyDescription: "Создайте новую привычку для отслеживания прогресса",
 
-  errorEmoji: "⚠️",
   errorTitle: "Что-то пошло не так",
   errorRetry: "Повторить",
   habitsLoadFailed: "Не удалось загрузить привычки",
   crashDescription: "Приложение столкнулось с ошибкой. Перезапустите его — данные не пострадали.",
   crashReload: "Перезапустить",
 
-  outsideEmoji: "📱",
   outsideTitle: "Откройте в Telegram",
   outsideDescription:
     "Это мини-приложение работает внутри Telegram — откройте его кнопкой в боте StreakBot.",
@@ -46,7 +43,6 @@ const RU = {
   // --- Настройки ---
   settingsTitle: "Настройки",
   settingsLoading: "Загрузка настроек…",
-  settingsLoadingEmoji: "⏳",
   settingsLoadFailed: "Не удалось загрузить настройки",
   settingsSaveFailed: "Не удалось сохранить настройку",
   settingsTimezone: "Часовой пояс",
@@ -66,7 +62,6 @@ const RU = {
   reviewDescription: "Расскажите, что вам нравится и что можно сделать лучше.",
   reviewPlaceholder: "Ваш отзыв",
   reviewSend: "Отправить",
-  reviewThanksEmoji: "🎉",
   reviewThanksTitle: "Спасибо за отзыв!",
   reviewThanksMessage: "Он поможет сделать приложение лучше.",
   reviewThanksDone: "Готово",
@@ -184,18 +179,15 @@ const EN: Strings = {
   otherSubheadingToday: "Not scheduled for today",
   otherSubheadingYesterday: "Not scheduled for yesterday",
 
-  emptyEmoji: "🌱",
-  emptyTitle: "No habits yet",
-  emptyDescription: "Add your first habit with the “+” button below.",
+  emptyTitle: "No habits",
+  emptyDescription: "Create a new habit to track your progress",
 
-  errorEmoji: "⚠️",
   errorTitle: "Something went wrong",
   errorRetry: "Try Again",
   habitsLoadFailed: "Couldn’t load your habits",
   crashDescription: "The app ran into an error. Restart it — your data is safe.",
   crashReload: "Restart",
 
-  outsideEmoji: "📱",
   outsideTitle: "Open in Telegram",
   outsideDescription:
     "This mini app runs inside Telegram — open it with the button in the StreakBot chat.",
@@ -206,7 +198,6 @@ const EN: Strings = {
 
   settingsTitle: "Settings",
   settingsLoading: "Loading settings…",
-  settingsLoadingEmoji: "⏳",
   settingsLoadFailed: "Couldn’t load settings",
   settingsSaveFailed: "Couldn’t save the setting",
   settingsTimezone: "Time Zone",
@@ -224,7 +215,6 @@ const EN: Strings = {
   reviewDescription: "Tell us what you like and what could be better.",
   reviewPlaceholder: "Your review",
   reviewSend: "Send",
-  reviewThanksEmoji: "🎉",
   reviewThanksTitle: "Thanks for your review!",
   reviewThanksMessage: "It helps us make the app better.",
   reviewThanksDone: "Done",

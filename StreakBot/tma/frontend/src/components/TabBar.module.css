@@ -26,8 +26,8 @@
 .add {
   pointer-events: auto;
   background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-shadow);
   color: var(--glass-icon);
 }
@@ -128,4 +128,14 @@
   .thumb {
     transition: none;
   }
+}
+
+/*
+ * Android: закреплённая навигация — на собственном слое компоновщика, иначе при
+ * прокрутке вебвью пересчитывает её положение на основном потоке и она подрагивает
+ * вслед за содержимым. will-change (а не transform) — чтобы не трогать сам transform:
+ * его меняет .hidden, когда навигация уезжает вниз. На iPhone правило не применяется.
+ */
+:global(:root[data-platform="android"]) .bar {
+  will-change: transform;
 }

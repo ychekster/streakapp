@@ -33,7 +33,7 @@ export function AdminReviewsScreen({ reviews, onOpen }: AdminReviewsScreenProps)
     if (reviews.status === "error") {
       return (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, reviews.error, strings.reviewsLoadFailed)}
           actionLabel={strings.retry}
@@ -42,7 +42,7 @@ export function AdminReviewsScreen({ reviews, onOpen }: AdminReviewsScreenProps)
       );
     }
     if (reviews.status === "loading") {
-      return <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />;
+      return <StatusMessage icon="spinner" title={strings.loading} />;
     }
     if (reviews.items.length === 0) {
       return <p className={styles.empty}>{strings.reviewsEmpty}</p>;

@@ -120,14 +120,14 @@ export function AdminSettingsScreen({
     if (!admins.data) {
       return admins.status === "error" ? (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeAdminError(strings, admins.error, strings.adminsLoadFailed)}
           actionLabel={strings.retry}
           onAction={admins.reload}
         />
       ) : (
-        <StatusMessage emoji={strings.loadingEmoji} title={strings.loading} />
+        <StatusMessage icon="spinner" title={strings.loading} />
       );
     }
     return (

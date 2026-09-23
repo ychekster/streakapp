@@ -1,12 +1,17 @@
 /**
- * Центрированное сообщение-состояние: пустой список, ошибка загрузки или запуск
- * вне Telegram. Необязательная кнопка действия (например, «Повторить»).
+ * Центрированное сообщение-состояние: пустой список, загрузка, ошибка, отправленный
+ * отзыв или запуск вне Telegram. Необязательная кнопка действия (например, «Повторить»).
+ *
+ * Сверху — серый круглый значок состояния (StatusIcons), под ним жирный заголовок и
+ * подпись почти того же размера: между ними своего отступа нет, их разделяет только
+ * межстрочный интервал (вид снят со скриншота-эталона пустого экрана «Привычки»).
  */
 
+import { StatusIcon, type StatusIconName } from "./StatusIcons";
 import styles from "./StatusMessage.module.css";
 
 interface StatusMessageProps {
-  emoji: string;
+  icon: StatusIconName;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -14,7 +19,7 @@ interface StatusMessageProps {
 }
 
 export function StatusMessage({
-  emoji,
+  icon,
   title,
   description,
   actionLabel,
@@ -22,9 +27,7 @@ export function StatusMessage({
 }: StatusMessageProps) {
   return (
     <div className={styles.container}>
-      <span className={styles.emoji} aria-hidden="true">
-        {emoji}
-      </span>
+      <StatusIcon name={icon} />
       <p className={styles.title}>{title}</p>
       {description ? <p className={styles.description}>{description}</p> : null}
       {actionLabel && onAction ? (

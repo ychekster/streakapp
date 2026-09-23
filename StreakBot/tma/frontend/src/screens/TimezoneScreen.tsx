@@ -77,7 +77,7 @@ export function TimezoneScreen({ currentZone, currentCity, onSelect }: TimezoneS
   function renderCatalog() {
     if (catalog.status === "loading") {
       return (
-        <StatusMessage emoji={strings.settingsLoadingEmoji} title={strings.timezoneLoading} />
+        <StatusMessage icon="spinner" title={strings.timezoneLoading} />
       );
     }
     if (catalog.status === "error") {
@@ -105,7 +105,7 @@ export function TimezoneScreen({ currentZone, currentCity, onSelect }: TimezoneS
   function renderError(error: unknown, retry: () => void) {
     return (
       <StatusMessage
-        emoji={strings.errorEmoji}
+        icon="alert"
         title={strings.errorTitle}
         description={describeError(strings, error, strings.timezonesLoadFailed)}
         actionLabel={strings.errorRetry}

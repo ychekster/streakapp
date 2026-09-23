@@ -3,7 +3,8 @@
  *
  * SDK подключается скриптом в index.html. Здесь — только то, что реально нужно
  * приложению: получить initData для авторизации и язык Telegram, раскрыть на весь
- * экран (включая полноэкранный режим на iPhone), прокинуть отступы безопасных зон в
+ * экран (полноэкранный режим — и на iPhone, и на Android), отметить платформу на <html>
+ * для оформления, прокинуть отступы безопасных зон в
  * CSS, красить фон и шапку Telegram под тему, следить за светлой/тёмной темой Telegram,
  * управлять кнопками Telegram («Назад» и нижней MainButton), спросить подтверждение
  * системным диалогом и дать тактильный отклик.
@@ -107,6 +108,22 @@ function getWebApp(): TelegramWebApp | undefined {
   return window.Telegram?.WebApp;
 }
 
+/**
+ * Отметить платформу клиента Telegram атрибутом data-platform на <html>: «android»,
+ * «ios» или «other» (десктоп, веб). По нему стили включают оформление, которое
+ * Android-вебвью тянет плохо (см. styles/variables.css) — поведение iPhone при этом
+ * не меняется ни на пиксель.
+ *
+ * Вызывается из main.tsx до первой отрисовки, поэтому приложение сразу рисуется в
+ * нужном виде, без мигания.
+ */
+export function applyPlatform(): void {
+  const platform = getWebApp()?.platform ?? "";
+  // Клиентов Android два: «android» и старый «android_x».
+  const kind = platform.startsWith("android") ? "android" : platform === "ios" ? "ios" : "other";
+  document.documentElement.dataset.platform = kind;
+}
+
 /** Доступно ли приложение внутри Telegram (есть ли SDK и непустая initData). */
 export function isTelegramAvailable(): boolean {
   const webApp = getWebApp();
@@ -180,9 +197,15 @@ export function setTelegramColors(backgroundColor: string): void {
  * Инициализация при запуске: сообщить готовность, раскрыть на весь экран и прокинуть
  * отступы безопасных зон (цвета Telegram ставит setTelegramColors).
  *
- * На iPhone `expand()` оставляет зазор сверху (приложение открывается «шторкой»),
- * поэтому дополнительно включаем полноэкранный режим (Bot API 8.0). На других
- * платформах поведение не меняем — там приложение и так раскрывается корректно.
+ * `expand()` оставляет зазор сверху — приложение открывается «шторкой», которую можно
+ * потянуть вниз и закрыть. Поэтому на телефонах (и iPhone, и Android) дополнительно
+ * включаем полноэкранный режим (Bot API 8.0) и запрещаем вертикальные свайпы (Bot API
+ * 7.7): иначе на Android прокрутка списка то и дело утягивает за собой само окно
+ * приложения, из-за чего закреплённые шапка и нижняя навигация дрожат. На десктопе и в
+ * вебе поведение не меняем — там приложение и так раскрывается корректно.
+ *
+ * Оба метода могут отсутствовать в старом клиенте — вызовы защищены проверками, и
+ * приложение остаётся рабочим (просто «шторкой», как раньше).
  */
 export function initTelegram(): void {
   const webApp = getWebApp();
@@ -192,23 +215,28 @@ export function initTelegram(): void {
   webApp.ready();
   webApp.expand();
 
-  if (webApp.platform === "ios" && typeof webApp.requestFullscreen === "function") {
+  const isPhone = webApp.platform === "ios" || webApp.platform.startsWith("android");
+  if (isPhone) {
     try {
-      webApp.requestFullscreen();
       // В фуллскрине вертикальный свайп не должен случайно сворачивать приложение.
+      // Запрет ставим до фуллскрина: он работает и сам по себе, если фуллскрин не вышел.
       webApp.disableVerticalSwipes?.();
+      webApp.requestFullscreen?.();
     } catch {
       // requestFullscreen может бросить на неподдерживаемом клиенте — игнорируем.
     }
   }
 
   // Применяем отступы безопасных зон сейчас и пересчитываем по событиям (фуллскрин
-  // меняет их асинхронно — после перехода значения станут известны).
+  // меняет их асинхронно — после перехода значения станут известны). На Android высота
+  // окна приходит отдельным событием viewportChanged, и до него отступы ещё нулевые.
   applySafeAreaInsets(webApp);
   const refresh = (): void => applySafeAreaInsets(webApp);
   webApp.onEvent?.("safeAreaChanged", refresh);
   webApp.onEvent?.("contentSafeAreaChanged", refresh);
   webApp.onEvent?.("fullscreenChanged", refresh);
+  webApp.onEvent?.("fullscreenFailed", refresh);
+  webApp.onEvent?.("viewportChanged", refresh);
 }
 
 /**

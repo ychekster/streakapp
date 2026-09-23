@@ -40,7 +40,7 @@ export function HabitsScreen({
     if (status === "error") {
       return (
         <StatusMessage
-          emoji={strings.errorEmoji}
+          icon="alert"
           title={strings.errorTitle}
           description={describeError(strings, error, strings.habitsLoadFailed)}
           actionLabel={strings.errorRetry}
@@ -51,7 +51,7 @@ export function HabitsScreen({
     if (habits.length === 0) {
       return (
         <StatusMessage
-          emoji={strings.emptyEmoji}
+          icon="check"
           title={strings.emptyTitle}
           description={strings.emptyDescription}
         />

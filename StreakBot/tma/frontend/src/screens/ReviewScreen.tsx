@@ -40,7 +40,7 @@ export function ReviewScreen({ onClose }: ReviewScreenProps) {
       onSend={send}
       onClose={onClose}
       done={{
-        emoji: strings.reviewThanksEmoji,
+        icon: "star",
         title: strings.reviewThanksTitle,
         message: strings.reviewThanksMessage,
         label: strings.reviewThanksDone,

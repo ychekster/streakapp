@@ -42,9 +42,7 @@ const RU = {
   tabSettings: "Настройки",
 
   // --- Общие состояния и форматы ---
-  loadingEmoji: "⏳",
   loading: "Загрузка…",
-  errorEmoji: "⚠️",
   errorTitle: "Что-то пошло не так",
   retry: "Повторить",
   nothingFound: "Ничего не найдено",
@@ -171,7 +169,6 @@ const RU = {
   messageDescription: (name: string) => `Бот пришлёт его пользователю ${name} в Telegram.`,
   messagePlaceholder: "Сообщение",
   send: "Отправить",
-  sentEmoji: "✅",
   messageSentTitle: "Сообщение отправлено",
   messageSentMessage: "Оно в чате пользователя с ботом.",
   done: "Готово",
@@ -296,9 +293,7 @@ const EN: AdminStrings = {
   tabBroadcast: "Broadcast",
   tabSettings: "Settings",
 
-  loadingEmoji: "⏳",
   loading: "Loading…",
-  errorEmoji: "⚠️",
   errorTitle: "Something went wrong",
   retry: "Try Again",
   nothingFound: "No Results",
@@ -417,7 +412,6 @@ const EN: AdminStrings = {
   messageDescription: (name: string) => `The bot sends this to ${name} in Telegram.`,
   messagePlaceholder: "Message",
   send: "Send",
-  sentEmoji: "✅",
   messageSentTitle: "Message Sent",
   messageSentMessage: "It’s in their Telegram chat with the bot.",
   done: "Done",
