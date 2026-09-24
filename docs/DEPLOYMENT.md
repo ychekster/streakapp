@@ -41,10 +41,10 @@ sudo apt install -y nodejs
 ```bash
 sudo adduser --system --group --home /opt/streakbot streakbot
 sudo -u streakbot git clone <адрес репозитория> /opt/streakbot/app
-cd /opt/streakbot/app/StreakBot        # дальше всё выполняется отсюда
+cd /opt/streakbot/app                  # дальше всё выполняется отсюда
 ```
 
-> Всё запускается **из корня проекта** (папка `StreakBot`): относительный путь SQLite
+> Всё запускается **из корня проекта** (`/opt/streakbot/app`): относительный путь SQLite
 > в `DATABASE_URL` отсчитывается от рабочей директории.
 
 ```bash
@@ -142,7 +142,7 @@ Wants=network-online.target
 Type=simple
 User=streakbot
 Group=streakbot
-WorkingDirectory=/opt/streakbot/app/StreakBot
+WorkingDirectory=/opt/streakbot/app
 ExecStart=/opt/streakbot/venv/bin/python -m tma.backend.main
 Restart=always
 RestartSec=5
@@ -152,7 +152,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/streakbot/app/StreakBot
+ReadWritePaths=/opt/streakbot/app
 
 [Install]
 WantedBy=multi-user.target
@@ -182,7 +182,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name example.com;
-    root /opt/streakbot/app/StreakBot/tma/frontend/dist;
+    root /opt/streakbot/app/tma/frontend/dist;
     index index.html;
 
     # Рассылка может нести видео до 50 МБ: со значением по умолчанию (1 МБ) nginx
@@ -305,7 +305,7 @@ sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /
 Ежедневно, в cron пользователя `streakbot` (`sudo -u streakbot crontab -e`):
 
 ```cron
-0 4 * * * cd /opt/streakbot/app/StreakBot && /opt/streakbot/venv/bin/python scripts/backup_db.py --output /opt/streakbot/backups/streakbot-$(date +\%F).db && find /opt/streakbot/backups -name 'streakbot-*.db' -mtime +30 -delete
+0 4 * * * cd /opt/streakbot/app && /opt/streakbot/venv/bin/python scripts/backup_db.py --output /opt/streakbot/backups/streakbot-$(date +\%F).db && find /opt/streakbot/backups -name 'streakbot-*.db' -mtime +30 -delete
 ```
 
 Копии стоит забирать и с сервера: диск сервера — не резервная копия.
@@ -313,7 +313,7 @@ sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /
 ## 11. Обновление
 
 ```bash
-cd /opt/streakbot/app/StreakBot
+cd /opt/streakbot/app
 sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py   # сначала копия
 sudo -u streakbot git pull
 sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r tma/backend/requirements.txt
@@ -330,7 +330,7 @@ sudo systemctl restart streakbot-api streakbot-bot
 
 ```bash
 journalctl -u streakbot-api -f                  # и streakbot-bot
-tail -f /opt/streakbot/app/StreakBot/logs/api.log
+tail -f /opt/streakbot/app/logs/api.log
 curl -s https://example.com/api/health          # {"status":"ok"} или 503
 ```
 

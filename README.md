@@ -88,7 +88,7 @@ python -m bot.main
 ## Структура проекта
 
 ```
-StreakBot/
+streakapp/
 ├── .env.example            # Шаблон переменных окружения (общий для бота и API)
 ├── requirements.txt        # Зависимости бота
 ├── requirements-dev.txt    # + зависимости тестов (pytest)
