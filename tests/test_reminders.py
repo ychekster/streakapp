@@ -7,12 +7,12 @@ import asyncio
 from datetime import datetime, time, timedelta, timezone
 
 import pytest
-from aiogram.exceptions import TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.methods import SendMessage
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, MessageEntity
 
 from bot import reminders as bot_reminders
-from bot.constants import REMINDER_BUTTONS
+from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS, REMINDER_EMOJI
 from bot.pacing import Pacer
 from tma.backend.constants import WEEKDAYS
 from tma.backend.database import Database
@@ -107,20 +107,43 @@ def test_mark_yesterday_reminder_is_about_the_app_day(db_url: str) -> None:
 class _FakeBot:
     """Вместо Bot API: записывает, кому и когда отправлено сообщение."""
 
-    def __init__(self, blocked: frozenset[int] = frozenset()) -> None:
+    def __init__(
+        self, blocked: frozenset[int] = frozenset(), reject_custom_emoji: bool = False
+    ) -> None:
         self.sent: list[tuple[int, float]] = []
         self.markups: list[InlineKeyboardMarkup | None] = []
+        self.texts: list[str] = []
+        self.entities: list[list[MessageEntity] | None] = []
         self.blocked = blocked
+        # Как Telegram, если у владельца бота нет Premium (предположительно): сообщение с
+        # анимированными эмодзи отклоняется.
+        self.reject_custom_emoji = reject_custom_emoji
 
     async def send_message(
-        self, chat_id: int, text: str, reply_markup: InlineKeyboardMarkup | None = None
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+        entities: list[MessageEntity] | None = None,
+        parse_mode: str | None = None,
     ) -> None:
         if chat_id in self.blocked:
             raise TelegramForbiddenError(
                 method=SendMessage(chat_id=chat_id, text=text), message="bot was blocked"
             )
+        uses_custom_emoji = any(e.type == "custom_emoji" for e in entities or []) or any(
+            button.icon_custom_emoji_id
+            for row in (reply_markup.inline_keyboard if reply_markup else [])
+            for button in row
+        )
+        if self.reject_custom_emoji and uses_custom_emoji:
+            raise TelegramBadRequest(
+                method=SendMessage(chat_id=chat_id, text=text), message="custom emoji not allowed"
+            )
         self.sent.append((chat_id, asyncio.get_running_loop().time()))
         self.markups.append(reply_markup)
+        self.texts.append(text)
+        self.entities.append(entities)
 
 
 def _reminder(task_id: int, user_id: int) -> DueReminder:
@@ -128,14 +151,39 @@ def _reminder(task_id: int, user_id: int) -> DueReminder:
 
 
 def test_reminder_carries_the_open_app_button() -> None:
-    """Под напоминанием — кнопка «Отметить выполнено», открывающая Mini App."""
+    """Под напоминанием — кнопка «Открыть приложение», открывающая Mini App."""
     bot = _FakeBot()
 
     asyncio.run(bot_reminders._send_all(bot, Pacer(1000), [_reminder(1, 1)], KEYBOARDS))  # type: ignore[arg-type]
 
     button = bot.markups[0].inline_keyboard[0][0]  # type: ignore[union-attr]
     assert button.text == REMINDER_BUTTONS["ru"]
+    assert button.icon_custom_emoji_id == OPEN_APP_EMOJI.id
     assert button.web_app is not None and button.web_app.url == "https://example.com/app"
+
+
+def test_reminder_starts_with_the_animated_emoji() -> None:
+    """Напоминание начинается с анимированного эмодзи — сущностью, а не разметкой."""
+    bot = _FakeBot()
+
+    asyncio.run(bot_reminders._send_all(bot, Pacer(1000), [_reminder(1, 1)], KEYBOARDS))  # type: ignore[arg-type]
+
+    assert bot.texts[0] == f"{REMINDER_EMOJI.fallback} Пора выполнить «h1»"
+    (entity,) = bot.entities[0] or []
+    assert entity.type == "custom_emoji" and entity.offset == 0
+    assert entity.custom_emoji_id == REMINDER_EMOJI.id
+
+
+def test_reminder_falls_back_to_plain_emoji() -> None:
+    """Telegram отклонил анимированные эмодзи — напоминание уходит с обычными."""
+    bot = _FakeBot(reject_custom_emoji=True)
+
+    asyncio.run(bot_reminders._send_all(bot, Pacer(1000), [_reminder(1, 1)], KEYBOARDS))  # type: ignore[arg-type]
+
+    assert bot.texts == [f"{REMINDER_EMOJI.fallback} Пора выполнить «h1»"]
+    assert not bot.entities[0]
+    button = bot.markups[0].inline_keyboard[0][0]  # type: ignore[union-attr]
+    assert button.icon_custom_emoji_id is None and button.text == REMINDER_BUTTONS["ru"]
 
 
 def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) -> None:

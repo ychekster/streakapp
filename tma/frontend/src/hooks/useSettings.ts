@@ -7,6 +7,10 @@
  * сервер. Ответ сервера заменяет состояние; при ошибке изменение откатывается, а
  * причина лежит в `saveError` до следующего сохранения. Если пока летел запрос,
  * пользователь изменил что-то ещё, ответ устаревшего запроса не применяется.
+ *
+ * Изменение, которое сделал не пользователь (пояс устройства при первом запуске),
+ * сохраняется с `silent`: если сервер его не принял, оно так же откатывается, но
+ * ошибку в настройках не показывает — пользователь ничего не менял.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,7 +29,16 @@ export interface UseSettingsResult {
   saveError: unknown;
   reload: () => void;
   /** Сохранить изменение; true — сервер его принял. */
-  save: (patch: SettingsUpdate, preview?: Partial<Settings>) => Promise<boolean>;
+  save: (
+    patch: SettingsUpdate,
+    preview?: Partial<Settings>,
+    options?: SaveOptions,
+  ) => Promise<boolean>;
+}
+
+export interface SaveOptions {
+  /** Не показывать ошибку сохранения (изменение сделал не пользователь). */
+  silent?: boolean;
 }
 
 export function useSettings(): UseSettingsResult {
@@ -53,7 +66,11 @@ export function useSettings(): UseSettingsResult {
   }, [load]);
 
   const save = useCallback(
-    async (patch: SettingsUpdate, preview: Partial<Settings> = {}): Promise<boolean> => {
+    async (
+      patch: SettingsUpdate,
+      preview: Partial<Settings> = {},
+      { silent = false }: SaveOptions = {},
+    ): Promise<boolean> => {
       const request = ++latestSave.current;
       setSaveError(null);
       // Снимок для отката и мгновенное применение изменения.
@@ -72,7 +89,9 @@ export function useSettings(): UseSettingsResult {
       } catch (caught) {
         if (request === latestSave.current) {
           setSettings(previous);
-          setSaveError(caught);
+          if (!silent) {
+            setSaveError(caught);
+          }
         }
         return false;
       }

@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { installPressFeedback } from "./pressFeedback";
 import { applyPlatform } from "./telegram/webapp";
 // Порядок важен: сначала дизайн-токены (переменные), затем глобальные стили.
 import "./styles/variables.css";
@@ -13,6 +14,8 @@ import "./styles/global.css";
 // Платформу отмечаем до первой отрисовки: от неё зависит оформление (см. variables.css),
 // и иначе Android-клиент на мгновение показал бы вариант для iPhone.
 applyPlatform();
+// Подсветка нажатий, не срабатывающая при прокрутке (см. pressFeedback.ts).
+installPressFeedback();
 
 const container = document.getElementById("root");
 if (!container) {

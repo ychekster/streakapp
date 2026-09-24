@@ -18,6 +18,9 @@
  *    использования — из настроек.
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
  *
+ * Пока часовой пояс не выбран (первый запуск), приложение ставит пояс устройства —
+ * молча: его видно в настройках, и там же его можно поменять.
+ *
  * Администратор может переключить приложение в режим админ-панели (ряд «Админ-панель» в
  * настройках): тогда вместо экранов и нижней навигации приложения — AdminApp, а
  * «Вернуться в приложение» в её настройках возвращает на экран настроек. Состояние
@@ -34,7 +37,7 @@ import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { useBackButton } from "./hooks/useBackButton";
 import { useHabits } from "./hooks/useHabits";
-import { useSettings } from "./hooks/useSettings";
+import { useSettings, type SaveOptions } from "./hooks/useSettings";
 import { useSystemDark } from "./hooks/useSystemDark";
 import { useToggle } from "./hooks/useToggle";
 import {
@@ -70,6 +73,15 @@ function readBackgroundColor(): string {
   return value || "#f2f2f7";
 }
 
+/** Часовой пояс устройства (IANA) или null, если браузер его не сообщает. */
+function deviceTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Открытая форма привычки: редактируемая привычка или null — новая. */
 interface Editor {
   habit: Habit | null;
@@ -97,6 +109,8 @@ export function App() {
   const scrollUnderAdmin = useRef(0);
   // Прокрутка, которую нужно поставить после ближайшего рендера (см. layout-эффект ниже).
   const pendingScroll = useRef<number | null>(null);
+  // Пояс устройства уже предлагался серверу в этом запуске (см. эффект ниже).
+  const deviceTimezoneSent = useRef(false);
 
   // Язык и тема: из настроек, а пока они не загружены — запомненные на устройстве.
   const [savedPreferences] = useState(readSavedPreferences);
@@ -171,8 +185,8 @@ export function App() {
   // Сохранить настройку. Пояс и режим «Отмечать за вчера» меняют день отметки — сервер
   // пересчитывает привычки, и список обновляется.
   const saveSettings = useCallback(
-    async (patch: SettingsUpdate, preview?: Partial<Settings>) => {
-      const accepted = await save(patch, preview);
+    async (patch: SettingsUpdate, preview?: Partial<Settings>, options?: SaveOptions) => {
+      const accepted = await save(patch, preview, options);
       const changesDay =
         patch.timezone !== undefined ||
         patch.timezone_city !== undefined ||
@@ -248,6 +262,19 @@ export function App() {
             ? hideSettingsPage
             : null,
   );
+
+  // Пояс не выбран (новый пользователь, до этого считалось по UTC) — ставим пояс
+  // устройства, один раз за запуск. Сервер пояс не принял (браузер назвал неизвестную
+  // ему зону) — остаётся UTC, ошибка не показывается: пользователь ничего не менял.
+  useEffect(() => {
+    if (settings && settings.timezone === null && !deviceTimezoneSent.current) {
+      deviceTimezoneSent.current = true;
+      const zone = deviceTimezone();
+      if (zone) {
+        void saveSettings({ timezone: zone }, undefined, { silent: true });
+      }
+    }
+  }, [settings, saveSettings]);
 
   // Разворачиваем приложение один раз при монтировании.
   useEffect(() => {

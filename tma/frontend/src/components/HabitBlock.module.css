@@ -24,7 +24,7 @@
   transition: background-color var(--transition-fast);
 }
 
-.open:active {
+.open[data-pressed] {
   background-color: var(--color-row-press);
 }
 

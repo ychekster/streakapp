@@ -22,7 +22,7 @@
     transform var(--transition-fast);
 }
 
-.day:active {
+.day[data-pressed] {
   transform: scale(0.92);
 }
 

@@ -87,7 +87,7 @@
   transition: background-color var(--transition-fast);
 }
 
-.pressable:active:not(:disabled) {
+.pressable[data-pressed]:not(:disabled) {
   background-color: var(--color-row-press);
 }
 

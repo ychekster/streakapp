@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.types import (
     InlineKeyboardButton,
@@ -19,14 +20,17 @@ from aiogram.types import (
     User as TelegramUser,
     WebAppInfo,
 )
-from aiogram.utils.formatting import Bold, Text
+from aiogram.utils.formatting import Bold, CustomEmoji, Text
 from loguru import logger
 
 from bot.config import Config
+from bot.emoji import without_custom_emoji, without_icons
 from bot.constants import (
     BTN_OPEN_APP,
+    OPEN_APP_EMOJI,
     WELCOME_ABOUT,
     WELCOME_CALL_TO_ACTION,
+    WELCOME_EMOJI,
     WELCOME_TITLE,
 )
 from tma.backend.database import Database
@@ -37,10 +41,16 @@ router = Router(name="start")
 
 
 def _open_app_kb(tma_url: str) -> InlineKeyboardMarkup:
-    """Inline-кнопка, открывающая Mini App."""
+    """Inline-кнопка, открывающая Mini App, с анимированной иконкой."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=BTN_OPEN_APP, web_app=WebAppInfo(url=tma_url))]
+            [
+                InlineKeyboardButton(
+                    text=BTN_OPEN_APP,
+                    icon_custom_emoji_id=OPEN_APP_EMOJI.id,
+                    web_app=WebAppInfo(url=tma_url),
+                )
+            ]
         ]
     )
 
@@ -65,14 +75,25 @@ async def _record_start(database: Database, user: TelegramUser) -> None:
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, config: Config, database: Database) -> None:
-    """Приветствие: жирный заголовок, абзац о проекте, жирный призыв и кнопка."""
+    """Приветствие: анимированный эмодзи и жирный заголовок, абзац о проекте, жирный
+    призыв и кнопка."""
     if message.from_user is not None:
         await _record_start(database, message.from_user)
     content = Text(
+        CustomEmoji(WELCOME_EMOJI.fallback, custom_emoji_id=WELCOME_EMOJI.id),
+        " ",
         Bold(WELCOME_TITLE),
         "\n\n",
         WELCOME_ABOUT,
         "\n\n",
         Bold(WELCOME_CALL_TO_ACTION),
     )
-    await message.answer(**content.as_kwargs(), reply_markup=_open_app_kb(config.tma_url))
+    kwargs = content.as_kwargs()
+    markup = _open_app_kb(config.tma_url)
+    try:
+        await message.answer(**kwargs, reply_markup=markup)
+    except TelegramBadRequest as exc:
+        # Анимированные эмодзи недоступны (например, у владельца бота кончился Premium) —
+        # то же приветствие с обычными эмодзи (см. bot/emoji.py).
+        logger.warning("Welcome with custom emoji rejected, sending plain: {}", exc)
+        await message.answer(**without_custom_emoji(kwargs), reply_markup=without_icons(markup))

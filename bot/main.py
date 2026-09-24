@@ -9,7 +9,7 @@
 запускал бота, кто его заблокировал и как идёт рассылка.
 
 Последовательность: конфиг → логирование → Bot/Dispatcher → роутеры (/start, статус
-чата) → меню бота (кнопка Mini App, без списка команд) → циклы напоминаний и рассылок
+чата) → меню бота (кнопка Mini App и подсказка команды /start) → циклы напоминаний и рассылок
 с общим темпом отправки → polling.
 """
 
@@ -21,12 +21,12 @@ import sys
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import ErrorEvent, MenuButtonWebApp, WebAppInfo
+from aiogram.types import BotCommand, ErrorEvent, MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
 from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
-from bot.constants import MENU_BUTTON_TEXT
+from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMMAND_DESCRIPTION
 from bot.handlers import membership, start
 from bot.pacing import SEND_RATE, Pacer
 from bot.reminders import run_reminders
@@ -66,14 +66,20 @@ def register_error_handler(dp: Dispatcher) -> None:
 
 
 async def setup_bot_menu(bot: Bot, tma_url: str) -> None:
-    """Кнопка Mini App слева от поля ввода и пустой список команд.
+    """Кнопка Mini App слева от поля ввода и список команд — только /start.
 
-    Список команд, зарегистрированный прежними версиями бота, хранится на стороне
-    Telegram — его нужно явно удалить, иначе пользователи продолжат видеть
-    несуществующие команды. Сбой здесь не критичен для работы бота.
+    Список команд даёт подсказку, которая всплывает при вводе «/» в поле сообщения.
+    Он хранится на стороне Telegram и заменяется целиком, поэтому команды прежних
+    версий бота из него уходят; списки для отдельных языков, которые задавали прежние
+    версии, удаляются — описание одно на всех. Кнопка меню остаётся кнопкой Mini App,
+    а не списком команд. Сбой здесь не критичен для работы бота.
     """
     try:
-        await bot.delete_my_commands()
+        await bot.set_my_commands(
+            [BotCommand(command="start", description=START_COMMAND_DESCRIPTION)]
+        )
+        for language in LEGACY_COMMAND_LANGUAGES:
+            await bot.delete_my_commands(language_code=language)
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(text=MENU_BUTTON_TEXT, web_app=WebAppInfo(url=tma_url))
         )

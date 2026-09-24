@@ -28,7 +28,7 @@
   transition: transform var(--transition-fast);
 }
 
-.swatch:active {
+.swatch[data-pressed] {
   transform: scale(0.92);
 }
 

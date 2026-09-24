@@ -6,7 +6,7 @@
 дни и только пока привычка за этот день не отмечена. Текст — на языке, выбранном в
 приложении.
 
-Под напоминанием стоит кнопка «Отметить выполнено» — она открывает Mini App, где
+Под напоминанием стоит кнопка «Открыть приложение» — она открывает Mini App, где
 привычку и отмечают; сама по себе кнопка ничего не делает.
 
 Опрос базы, а не расписание в памяти: привычки меняет другой процесс (API), и так
@@ -32,11 +32,18 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramRetryAfter,
+)
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.utils.formatting import CustomEmoji, Text
 from loguru import logger
 
-from bot.constants import REMINDER_BUTTONS, REMINDER_TEXTS
+from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS, REMINDER_EMOJI, REMINDER_TEXTS
+from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
 from tma.backend.constants import DEFAULT_LANGUAGE
 from tma.backend.database import Database
@@ -59,14 +66,22 @@ def _current_minute() -> datetime:
 
 
 def open_app_keyboards(tma_url: str) -> dict[str, InlineKeyboardMarkup]:
-    """Кнопка «Отметить выполнено» под напоминанием — по одной на язык интерфейса.
+    """Кнопка «Открыть приложение» под напоминанием — по одной на язык интерфейса.
 
     Адрес у всех один, поэтому клавиатуры собираются один раз при старте, а не на каждое
     напоминание.
     """
     return {
         language: InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=tma_url))]]
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=text,
+                        icon_custom_emoji_id=OPEN_APP_EMOJI.id,
+                        web_app=WebAppInfo(url=tma_url),
+                    )
+                ]
+            ]
         )
         for language, text in REMINDER_BUTTONS.items()
     }
@@ -163,6 +178,24 @@ async def _send_to_user(
     return False
 
 
+async def _deliver(
+    bot: Bot,
+    pacer: Pacer,
+    chat_id: int,
+    content: dict[str, object],
+    markup: InlineKeyboardMarkup,
+) -> None:
+    """Отправить сообщение в общем темпе; упёрлись в лимит Telegram — подождать, сколько
+    просят, и повторить один раз."""
+    await pacer.wait()
+    try:
+        await bot.send_message(chat_id=chat_id, **content, reply_markup=markup)  # type: ignore[arg-type]
+    except TelegramRetryAfter as exc:
+        await asyncio.sleep(exc.retry_after)
+        await pacer.wait()
+        await bot.send_message(chat_id=chat_id, **content, reply_markup=markup)  # type: ignore[arg-type]
+
+
 async def _send(
     bot: Bot,
     pacer: Pacer,
@@ -172,17 +205,24 @@ async def _send(
     """Отправить одно напоминание; сбой доставки логируется и не мешает остальным. True —
     пользователь заблокировал бота."""
     template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
-    text = template.format(name=reminder.habit_name)
+    # Анимированный эмодзи — сущностью (entities): название привычки остаётся простым
+    # текстом, экранировать его не нужно.
+    content = Text(
+        CustomEmoji(REMINDER_EMOJI.fallback, custom_emoji_id=REMINDER_EMOJI.id),
+        " ",
+        template.format(name=reminder.habit_name),
+    ).as_kwargs()
     markup = _keyboard(keyboards, reminder.language)
     try:
-        await pacer.wait()
         try:
-            await bot.send_message(chat_id=reminder.user_id, text=text, reply_markup=markup)
-        except TelegramRetryAfter as exc:
-            # Упёрлись в лимит Telegram — подождать, сколько просят, и повторить один раз.
-            await asyncio.sleep(exc.retry_after)
-            await pacer.wait()
-            await bot.send_message(chat_id=reminder.user_id, text=text, reply_markup=markup)
+            await _deliver(bot, pacer, reminder.user_id, content, markup)
+        except TelegramBadRequest as exc:
+            # Анимированные эмодзи недоступны (например, у владельца бота кончился
+            # Premium) — то же напоминание с обычными эмодзи (см. bot/emoji.py).
+            logger.warning("Reminder with custom emoji rejected, sending plain: {}", exc)
+            await _deliver(
+                bot, pacer, reminder.user_id, without_custom_emoji(content), without_icons(markup)
+            )
     except TelegramForbiddenError:
         # Пользователь заблокировал бота.
         logger.info(

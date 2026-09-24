@@ -16,7 +16,7 @@
     border-color var(--transition-fast), transform var(--transition-fast);
 }
 
-.button:active:not(.disabled) {
+.button[data-pressed]:not(.disabled) {
   transform: scale(0.92);
 }
 

@@ -63,7 +63,7 @@
   transition: transform var(--transition-fast), opacity var(--transition-fast);
 }
 
-.action:active {
+.action[data-pressed] {
   transform: scale(0.96);
   opacity: 0.9;
 }

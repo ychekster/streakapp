@@ -40,7 +40,7 @@
   transition: background-color var(--transition-fast);
 }
 
-.toggle:active,
+.toggle[data-pressed],
 .toggle[aria-pressed="true"] {
   background-color: var(--color-fill);
 }
