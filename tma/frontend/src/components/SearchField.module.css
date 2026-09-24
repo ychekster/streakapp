@@ -11,6 +11,12 @@
   color: var(--color-text-secondary);
 }
 
+/* Сразу под крупным заголовком экрана — прежний, больший отступ (сжатый — только
+   для карточки под заголовком). */
+[data-screen-content] > .field:first-child {
+  margin-top: calc(var(--space-title-bottom) - var(--space-header-bottom));
+}
+
 .icon {
   flex-shrink: 0;
   width: var(--search-icon-size);

@@ -344,14 +344,15 @@ export function confirmAction(options: {
         {
           title: options.title,
           message: options.message,
-          // Кнопка действия — второй: в алерте iOS главное действие справа.
+          // Кнопка действия — первой: клиент Telegram на iPhone выстраивает кнопки в
+          // обратном порядке, и так «Отмена» оказывается слева, а действие — справа.
           buttons: [
-            { id: "cancel", type: "default", text: options.cancelLabel },
             {
               id: CONFIRM_BUTTON_ID,
               type: options.destructive ? "destructive" : "default",
               text: options.confirmLabel,
             },
+            { id: "cancel", type: "default", text: options.cancelLabel },
           ],
         },
         // Диалог закрыли мимо кнопок (аппаратная «Назад» на Android) — это отказ.

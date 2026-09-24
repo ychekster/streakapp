@@ -38,7 +38,11 @@ export function Screen({
       <CollapsingHeader title={title} anchorRef={titleAnchorRef} />
       {/* Контент в отдельной обёртке (заголовки — вне её): при прокрутке он уходит под
           подложку шапки. См. Screen.module.css. */}
-      <div className={styles.content}>{children}</div>
+      {/* Метка data-screen-content — контент под крупным заголовком (у экрана с якорем
+          его нет): по ней подзаголовок или поиск первым в контенте берут прежний отступ. */}
+      <div className={styles.content} data-screen-content={titleAnchorRef ? undefined : ""}>
+        {children}
+      </div>
     </main>
   );
 }

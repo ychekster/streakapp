@@ -13,7 +13,7 @@
   /* relative + z-index, чтобы заголовок А был НАД подложкой шапки (.bar, z-index 1). */
   position: relative;
   z-index: 2;
-  margin: 0 0 var(--space-title-bottom);
+  margin: 0 0 var(--space-header-bottom);
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-title);
   letter-spacing: -0.02em;

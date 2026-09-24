@@ -1,3 +1,12 @@
+/* Подзаголовок секции сразу под крупным заголовком экрана (ничего выше в контенте нет):
+   прежний, больший отступ. Сжатый (--space-header-bottom) — только когда под заголовком
+   сразу карточка. */
+[data-screen-content] > .section:first-child,
+[data-screen-content] > :first-child > .section:first-child,
+[data-screen-content] > :first-child > :first-child > .section:first-child {
+  padding-top: calc(var(--space-title-bottom) - var(--space-header-bottom));
+}
+
 .section + .section {
   margin-top: var(--space-section-gap);
 }
@@ -19,7 +28,7 @@
 /* Форма привычки: как написан (с заглавной буквы), начинается там, где кончается
    скругление угла карточки. */
 .form {
-  padding: 0 var(--radius-card);
+  padding: 0 var(--space-card-padding);
 }
 
 /* Белая карточка секции. Подсветка нажатия рядов не выходит за скругление. */
