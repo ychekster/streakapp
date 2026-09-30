@@ -112,7 +112,7 @@ export const BROADCAST_FILTER_KEYS = [
 export const AUDIENCE_COUNT_DELAY_MS = 150;
 
 /** Кнопка под рассылкой (BROADCAST_BUTTONS на бэкенде); пустая строка — без кнопки. */
-export const BROADCAST_BUTTONS = ["", "open_app", "review"] as const;
+export const BROADCAST_BUTTONS = ["", "open_app", "review", "new_habit"] as const;
 
 /** Пределы Bot API: текст сообщения и подпись к фото или видео (как на бэкенде). */
 export const MESSAGE_MAX_LENGTH = 4096;

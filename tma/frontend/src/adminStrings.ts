@@ -268,11 +268,14 @@ const RU = {
     "": "Без кнопки",
     open_app: "Открыть приложение",
     review: "Написать отзыв",
+    new_habit: "Добавить привычку",
   } as Record<BroadcastButton, string>,
   buttonFooters: {
     "": "Можно добавить кнопку, которая открывает приложение.",
     open_app: "Открывает приложение. Подпись — на языке получателя.",
     review: "Открывает приложение сразу на экране отзыва. Подпись — на языке получателя.",
+    new_habit:
+      "Открывает приложение сразу на форме новой привычки. Подпись — на языке получателя.",
   } as Record<BroadcastButton, string>,
   sendBroadcast: "Отправить рассылку",
   sendDialogTitle: "Отправить рассылку",
@@ -558,11 +561,18 @@ const EN: AdminStrings = {
   mediaTooLarge: "This file is too large: photos up to 10 MB, videos up to 50 MB.",
   buttonSection: "Button",
   buttonRow: "Below the Message",
-  buttonNames: { "": "None", open_app: "Open App", review: "Write a Review" },
+  buttonNames: {
+    "": "None",
+    open_app: "Open App",
+    review: "Write a Review",
+    new_habit: "Add a Habit",
+  },
   buttonFooters: {
     "": "You can add a button that opens the app.",
     open_app: "Opens the app. The label is in the recipient’s language.",
     review: "Opens the app right on the review screen. The label is in the recipient’s language.",
+    new_habit:
+      "Opens the app right on the new habit form. The label is in the recipient’s language.",
   },
   sendBroadcast: "Send Broadcast",
   sendDialogTitle: "Send Broadcast",

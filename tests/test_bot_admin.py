@@ -110,6 +110,31 @@ def test_broadcast_button_is_in_recipient_language(db_url: str) -> None:
     assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=review"
 
 
+def test_new_habit_button_opens_the_habit_form(db_url: str) -> None:
+    telegram = FakeTelegram()
+
+    async def setup(repo: Repository) -> None:
+        await repo.get_or_create_user(1, None, "Автор", language="ru")
+        await repo.get_or_create_user(2, None, "Ru", language="ru")
+        await repo.get_or_create_user(3, None, "En", language="en")
+        await repo.create_broadcast(
+            created_by=1, audience="", text="Заведите привычку", media_type=None,
+            media_file_id=None, button="new_habit", total=2,
+        )
+
+    asyncio.run(_with_repo(db_url, setup))
+    asyncio.run(_deliver_all(db_url, telegram))
+
+    buttons = {
+        item.chat_id: item.extra["reply_markup"].inline_keyboard[0][0] for item in telegram.sent
+    }
+    assert {chat: button.text for chat, button in buttons.items()} == {
+        2: "Добавить привычку",
+        3: "Add a habit",
+    }
+    assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=new_habit"
+
+
 def test_broadcast_falls_back_without_button_icon(db_url: str) -> None:
     telegram = FakeTelegram()
     telegram.reject_icons = True

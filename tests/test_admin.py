@@ -521,6 +521,7 @@ def test_text_broadcast_is_queued_and_copied_to_author(
         ({"audience": "bot:blocked", "text": "x"}, "invalid_filter"),
         ({"audience": "", "text": " "}, "invalid_message"),
         ({"audience": "", "text": "x", "button": "buy"}, "invalid_button"),
+        ({"audience": "", "text": "x", "button": "new_habits"}, "invalid_button"),
     ):
         invalid = client.post("/admin/broadcasts", data=data, headers=admin.headers)
         assert invalid.status_code == 422

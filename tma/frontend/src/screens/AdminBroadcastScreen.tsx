@@ -42,7 +42,6 @@ import {
   MESSAGE_MAX_LENGTH,
 } from "../constants";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { useFieldAboveKeyboard } from "../hooks/useFieldAboveKeyboard";
 import { useResource } from "../hooks/useResource";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
 import type { Audience, Broadcast, BroadcastButton } from "../types/admin";
@@ -101,8 +100,6 @@ export function AdminBroadcastScreen({
   const [mediaError, setMediaError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  // Нажатие на поле текста — оно встаёт над клавиатурой, без рывков (см. хук).
-  useFieldAboveKeyboard(textRef);
   const preview = useMemo(
     () => (draft.media ? URL.createObjectURL(draft.media) : null),
     [draft.media],

@@ -146,8 +146,9 @@ AUDIENCE_MAX_LENGTH = 200
 # администратором рассылок не получают никогда.
 BROADCAST_EXCLUDED_FILTERS: tuple[str, ...] = ("bot", "access")
 
-# Кнопка под рассылкой (необязательная): открыть приложение или сразу экран отзыва.
-BROADCAST_BUTTONS: tuple[str, ...] = ("open_app", "review")
+# Кнопка под рассылкой (необязательная): открыть приложение, сразу экран отзыва или
+# сразу форму новой привычки.
+BROADCAST_BUTTONS: tuple[str, ...] = ("open_app", "review", "new_habit")
 # Медиа рассылки: тип содержимого файла → вид сообщения и предел размера (пределы
 # загрузки Bot API: фото — 10 МБ, видео — 50 МБ).
 BROADCAST_PHOTO_TYPES: tuple[str, ...] = ("image/jpeg", "image/png", "image/webp")

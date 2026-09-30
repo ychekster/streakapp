@@ -316,7 +316,7 @@ class BroadcastInfo(BaseModel):
 
     id: int
     audience: str = Field(..., description="Фильтр получателей; пустой — все")
-    button: Literal["open_app", "review"] | None
+    button: Literal["open_app", "review", "new_habit"] | None
     status: Literal["pending", "sending", "done"]
     total: int = Field(..., description="Получателей на момент создания")
     sent: int

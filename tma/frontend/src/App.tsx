@@ -16,7 +16,8 @@
  *    экране привычки; «Назад» закрывает её без сохранения;
  *  - выбор часового пояса, «Написать отзыв», политика конфиденциальности и условия
  *    использования — из настроек. «Написать отзыв» открывает и кнопка под рассылкой:
- *    приложение запускается сразу на нём (параметр адреса `open=review`).
+ *    приложение запускается сразу на нём (параметр адреса `open=review`). Так же кнопка
+ *    «Добавить привычку» открывает сразу форму новой привычки (`open=new_habit`).
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
  *
  * Пока часовой пояс не выбран (первый запуск), приложение ставит пояс устройства —
@@ -91,14 +92,19 @@ function deviceTimezone(): string | null {
   }
 }
 
+/** Экран, на котором приложение открывается сразу (см. startScreen). */
+type StartScreen = "review" | "new_habit";
+
 /**
- * Экран, на котором открыть приложение, — параметр `open` его адреса. Его ставит кнопка
- * «Написать отзыв» под рассылкой из админ-панели (tma/backend/messaging.py, app_url):
- * приложение открывается сразу на экране отзыва. Без параметра (обычный запуск) — null.
+ * Экран, на котором открыть приложение, — параметр `open` его адреса. Его ставят кнопки
+ * под рассылкой из админ-панели (tma/backend/messaging.py, app_url): «Написать отзыв» —
+ * экран отзыва, «Добавить привычку» — форма новой привычки. Без параметра (обычный
+ * запуск) или с незнакомым значением — null.
  */
-function startSettingsPage(): SettingsPage | null {
+function startScreen(): StartScreen | null {
   try {
-    return new URLSearchParams(window.location.search).get("open") === "review" ? "review" : null;
+    const screen = new URLSearchParams(window.location.search).get("open");
+    return screen === "review" || screen === "new_habit" ? screen : null;
   } catch {
     return null;
   }
@@ -124,15 +130,20 @@ export function App() {
   const { settings, save } = settingsState;
   const toggle = useToggle(setHabits);
   const telegramAvailable = isTelegramAvailable();
-  // Открыто кнопкой «Написать отзыв» — сразу экран отзыва (над настройками, куда и
-  // вернёт «Назад»).
-  const [startPage] = useState(startSettingsPage);
-  const [tab, setTab] = useState<TabKey>(startPage ? "settings" : "habits");
+  // Открыто кнопкой под рассылкой: «Написать отзыв» — сразу экран отзыва (над
+  // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
+  // списком привычек).
+  const [start] = useState(startScreen);
+  const [tab, setTab] = useState<TabKey>(start === "review" ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(startPage);
+  const [editor, setEditor] = useState<Editor | null>(
+    start === "new_habit" ? { habit: null } : null,
+  );
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
+    start === "review" ? "review" : null,
+  );
   const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);

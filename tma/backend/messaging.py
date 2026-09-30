@@ -65,8 +65,8 @@ class BroadcastButton(NamedTuple):
 
 # Кнопки рассылки (ключи — constants.BROADCAST_BUTTONS). «Открыть приложение» — та же,
 # что под приветствием и напоминанием бота (bot/constants.py: REMINDER_BUTTONS и
-# OPEN_APP_EMOJI; тест следит, чтобы они совпадали). «Написать отзыв» открывает
-# приложение сразу на экране отзыва.
+# OPEN_APP_EMOJI; тест следит, чтобы они совпадали). «Написать отзыв» и «Добавить
+# привычку» открывают приложение сразу на экране отзыва и на форме новой привычки.
 BROADCAST_BUTTONS: dict[str, BroadcastButton] = {
     "open_app": BroadcastButton(
         texts={"ru": "Открыть приложение", "en": "Open App"},
@@ -77,6 +77,11 @@ BROADCAST_BUTTONS: dict[str, BroadcastButton] = {
         texts={"ru": "Написать отзыв", "en": "Write a review"},
         icon_emoji_id="5886685105065300941",  # ⭐️
         screen="review",
+    ),
+    "new_habit": BroadcastButton(
+        texts={"ru": "Добавить привычку", "en": "Add a habit"},
+        icon_emoji_id="6039587087559168309",  # 🙂
+        screen="new_habit",
     ),
 }
 # Параметр адреса Mini App с экраном, на котором она откроется (читает фронтенд, App.tsx).
