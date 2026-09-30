@@ -208,6 +208,15 @@ class AdminUsersPage(BaseModel):
 
     users: list[AdminUserSummary]
     next_cursor: str | None
+    total: int | None = Field(
+        None, description="Всего под поиском и фильтром — только на первой странице"
+    )
+
+
+class AdminUsersCount(BaseModel):
+    """Ответ `GET /admin/users/count`."""
+
+    count: int
 
 
 class AdminReview(BaseModel):
@@ -296,22 +305,18 @@ class AdminCreate(BaseModel):
     )
 
 
-class BroadcastSegment(BaseModel):
-    """Сегмент получателей рассылки и сколько в нём получателей сейчас."""
+class BroadcastRecipients(BaseModel):
+    """Ответ `GET /admin/broadcasts/recipients`: сколько получателей у фильтра сейчас."""
 
-    key: str
     recipients: int
-
-
-class BroadcastSegmentsResponse(BaseModel):
-    segments: list[BroadcastSegment]
 
 
 class BroadcastInfo(BaseModel):
     """Рассылка и ход её доставки."""
 
     id: int
-    segment: str
+    audience: str = Field(..., description="Фильтр получателей; пустой — все")
+    button: Literal["open_app", "review"] | None
     status: Literal["pending", "sending", "done"]
     total: int = Field(..., description="Получателей на момент создания")
     sent: int
@@ -325,16 +330,23 @@ class BroadcastResponse(BaseModel):
 
 
 class AnalyticsUsers(BaseModel):
-    """Пользователи: всего, новые, открывшие приложение, заблокировавшие бота и т.д."""
+    """Пользователи: всего, открывшие приложение, заблокировавшие бота и т.д."""
 
     total: int
-    new_week: int = Field(..., description="Зарегистрировались за последние 7 дней")
-    new_month: int = Field(..., description="Зарегистрировались за последние 30 дней")
     opened_app: int = Field(..., description="Открывали приложение")
     never_opened: int = Field(..., description="Только запустили бота")
     blocked_bot: int = Field(..., description="Заблокировали бота")
     blocked: int = Field(..., description="Заблокированы администратором")
     active_now: int = Field(..., description="Были в приложении последние минуты")
+
+
+class AnalyticsFunnel(BaseModel):
+    """Новые пользователи за период: запустили бота → из них открыли приложение → из них
+    добавили хотя бы одну привычку (удалённые тоже считаются)."""
+
+    started_bot: int
+    opened_app: int
+    added_habit: int
 
 
 class AnalyticsAudience(BaseModel):
@@ -363,7 +375,9 @@ class HabitsBucket(BaseModel):
 
 
 class AnalyticsHabits(BaseModel):
-    """Привычки: в среднем на пользователя приложения и распределение."""
+    """Привычки тех, кто пользуется приложением (открывал его и не заблокировал бота): в
+    среднем на такого пользователя, всего и распределение — в сумме оно равно
+    `audience.uses_app`."""
 
     average: float
     total: int
@@ -390,6 +404,7 @@ class AnalyticsResponse(BaseModel):
     period_days: int
     generated_at: UtcDateTime
     users: AnalyticsUsers
+    funnel: AnalyticsFunnel
     audience: AnalyticsAudience
     activity: AnalyticsActivity
     habits: AnalyticsHabits

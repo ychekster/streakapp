@@ -15,7 +15,8 @@
  *  - форма привычки — кнопкой «+» (новая привычка) или «Редактировать привычку» на
  *    экране привычки; «Назад» закрывает её без сохранения;
  *  - выбор часового пояса, «Написать отзыв», политика конфиденциальности и условия
- *    использования — из настроек.
+ *    использования — из настроек. «Написать отзыв» открывает и кнопка под рассылкой:
+ *    приложение запускается сразу на нём (параметр адреса `open=review`).
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
  *
  * Пока часовой пояс не выбран (первый запуск), приложение ставит пояс устройства —
@@ -27,9 +28,17 @@
  * приложения (привычки, настройки) на это время сохраняется.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { AdminApp } from "./AdminApp";
 import { ApiRequestError } from "./api/client";
 import { deleteHabit } from "./api/habits";
 import { StatusMessage } from "./components/StatusMessage";
@@ -82,6 +91,26 @@ function deviceTimezone(): string | null {
   }
 }
 
+/**
+ * Экран, на котором открыть приложение, — параметр `open` его адреса. Его ставит кнопка
+ * «Написать отзыв» под рассылкой из админ-панели (tma/backend/messaging.py, app_url):
+ * приложение открывается сразу на экране отзыва. Без параметра (обычный запуск) — null.
+ */
+function startSettingsPage(): SettingsPage | null {
+  try {
+    return new URLSearchParams(window.location.search).get("open") === "review" ? "review" : null;
+  } catch {
+    return null;
+  }
+}
+
+// Админ-панель — отдельным файлом: она нужна только администраторам, и остальные его не
+// загружают (приложение открывается быстрее). Администратору файл подгружается заранее —
+// как только из настроек известно, что он администратор (см. эффект в App), — поэтому
+// при входе в панель ждать не приходится.
+const loadAdminApp = () => import("./AdminApp");
+const AdminApp = lazy(() => loadAdminApp().then((module) => ({ default: module.AdminApp })));
+
 /** Открытая форма привычки: редактируемая привычка или null — новая. */
 interface Editor {
   habit: Habit | null;
@@ -95,12 +124,15 @@ export function App() {
   const { settings, save } = settingsState;
   const toggle = useToggle(setHabits);
   const telegramAvailable = isTelegramAvailable();
-  const [tab, setTab] = useState<TabKey>("habits");
+  // Открыто кнопкой «Написать отзыв» — сразу экран отзыва (над настройками, куда и
+  // вернёт «Назад»).
+  const [startPage] = useState(startSettingsPage);
+  const [tab, setTab] = useState<TabKey>(startPage ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null);
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(startPage);
   const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);
@@ -276,6 +308,14 @@ export function App() {
     }
   }, [settings, saveSettings]);
 
+  // Администратору — заранее загрузить админ-панель (см. loadAdminApp). Не вышло (нет
+  // сети) — не страшно: при входе в панель файл загрузится ещё раз.
+  useEffect(() => {
+    if (settings?.is_admin) {
+      loadAdminApp().catch(() => undefined);
+    }
+  }, [settings?.is_admin]);
+
   // Разворачиваем приложение один раз при монтировании.
   useEffect(() => {
     initTelegram();
@@ -391,11 +431,13 @@ export function App() {
   if (adminMode) {
     return (
       <PreferencesContext.Provider value={preferences}>
-        <AdminApp
-          settings={settingsState}
-          onSaveSettings={(patch) => void saveSettings(patch)}
-          onExit={exitAdmin}
-        />
+        <Suspense fallback={<StatusMessage icon="spinner" title={strings.adminLoading} />}>
+          <AdminApp
+            settings={settingsState}
+            onSaveSettings={(patch) => void saveSettings(patch)}
+            onExit={exitAdmin}
+          />
+        </Suspense>
       </PreferencesContext.Provider>
     );
   }

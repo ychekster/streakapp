@@ -3,7 +3,8 @@
 403 `admin_required`).
 
     GET    /admin/analytics?days=30          — аналитика: пользователи, активность, привычки
-    GET    /admin/users?q=&cursor=&limit=    — пользователи (поиск, страницы)
+    GET    /admin/users?q=&filter=&cursor=&limit= — пользователи (поиск, фильтр, страницы)
+    GET    /admin/users/count?q=&filter=     — сколько пользователей под поиском и фильтром
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
     GET    /admin/users/{id}/habits          — его привычки (как он видит их сам)
     PUT    /admin/users/{id}/block           — заблокировать / разблокировать
@@ -15,8 +16,9 @@
     GET    /admin/admins                     — администраторы
     POST   /admin/admins                     — добавить администратора по id Telegram
     DELETE /admin/admins/{id}                — убрать администратора (не себя)
-    GET    /admin/broadcasts/segments        — сегменты рассылки с числом получателей
-    POST   /admin/broadcasts                 — рассылка (multipart: segment, text, media)
+    GET    /admin/broadcasts/recipients?audience= — сколько получателей у фильтра
+    POST   /admin/broadcasts                 — рассылка (multipart: audience, text, button,
+                                               media)
     GET    /admin/broadcasts/{id}            — ход рассылки
 
 Доступ к данным — только через репозиторий.
@@ -35,10 +37,11 @@ from tma.backend.constants import (
     ADMIN_PAGE_SIZE_MAX,
     ADMIN_SEARCH_MAX_LENGTH,
     ANALYTICS_PERIODS,
+    AUDIENCE_MAX_LENGTH,
     DEFAULT_ANALYTICS_PERIOD,
     MAX_DB_INT,
 )
-from tma.backend.dependencies import RepositoryDep, get_admin_user, get_bot
+from tma.backend.dependencies import RepositoryDep, get_admin_user, get_bot, get_settings
 from tma.backend.errors import ApiError
 from tma.backend.models import User
 from tma.backend.repository import Repository, utc_now
@@ -51,10 +54,11 @@ from tma.backend.schemas import (
     AdminsResponse,
     AdminUserHabits,
     AdminUserResponse,
+    AdminUsersCount,
     AdminUsersPage,
     AnalyticsResponse,
+    BroadcastRecipients,
     BroadcastResponse,
-    BroadcastSegmentsResponse,
     DeliveryResponse,
     ReviewReplyResponse,
 )
@@ -69,6 +73,12 @@ _ReviewId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификато
 _BroadcastId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор рассылки")
 _PageSize = Query(ADMIN_PAGE_SIZE, ge=1, le=ADMIN_PAGE_SIZE_MAX)
 _Cursor = Query(None, max_length=32, description="Курсор страницы из прошлого ответа")
+_Search = Query(None, max_length=ADMIN_SEARCH_MAX_LENGTH, description="Имя, @username или id")
+_FILTER_DESCRIPTION = "Фильтр «признак:значение» через запятую (audience.py)"
+# Параметр запроса привязывается к имени первого аргумента, который его использует: у
+# фильтра рассылки имя другое («audience»), поэтому и объект Query — свой.
+_Filter = Query(None, max_length=AUDIENCE_MAX_LENGTH, description=_FILTER_DESCRIPTION)
+_Audience = Query(None, max_length=AUDIENCE_MAX_LENGTH, description=_FILTER_DESCRIPTION)
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)
@@ -89,15 +99,25 @@ async def read_analytics(
 
 @router.get("/users", response_model=AdminUsersPage)
 async def read_users(
-    q: str | None = Query(
-        None, max_length=ADMIN_SEARCH_MAX_LENGTH, description="Имя, @username или id"
-    ),
+    q: str | None = _Search,
+    filter: str | None = _Filter,  # noqa: A002 — имя параметра запроса
     cursor: str | None = _Cursor,
     limit: int = _PageSize,
     repo: Repository = RepositoryDep,
 ) -> AdminUsersPage:
     """Пользователи, новые сначала; `next_cursor` ответа — для следующей страницы."""
-    return await service.list_users(repo, q, cursor, limit)
+    return await service.list_users(repo, q, filter, cursor, limit)
+
+
+# Объявлен раньше /users/{telegram_id}: иначе «count» разбирался бы как id.
+@router.get("/users/count", response_model=AdminUsersCount)
+async def count_users(
+    q: str | None = _Search,
+    filter: str | None = _Filter,  # noqa: A002 — имя параметра запроса
+    repo: Repository = RepositoryDep,
+) -> AdminUsersCount:
+    """Сколько пользователей под поиском и фильтром (фильтр ещё настраивается)."""
+    return await service.count_users(repo, q, filter)
 
 
 @router.get("/users/{telegram_id}", response_model=AdminUserResponse)
@@ -226,11 +246,14 @@ async def delete_admin(
 # --------------------------------------------------------------------------- #
 
 
-@router.get("/broadcasts/segments", response_model=BroadcastSegmentsResponse)
-async def read_segments(
-    admin: User = Depends(get_admin_user), repo: Repository = RepositoryDep
-) -> BroadcastSegmentsResponse:
-    return await service.broadcast_segments(repo, admin)
+@router.get("/broadcasts/recipients", response_model=BroadcastRecipients)
+async def read_recipients(
+    audience: str | None = _Audience,
+    admin: User = Depends(get_admin_user),
+    repo: Repository = RepositoryDep,
+) -> BroadcastRecipients:
+    """Сколько получателей у рассылки с фильтром `audience` сейчас."""
+    return await service.broadcast_recipients(repo, admin, audience)
 
 
 @router.post("/broadcasts", response_model=BroadcastResponse, status_code=201)
@@ -240,14 +263,15 @@ async def create_broadcast(
     repo: Repository = RepositoryDep,
     bot: Bot = Depends(get_bot),
 ) -> BroadcastResponse:
-    """Рассылка: форма multipart с полями `segment`, `text` и необязательным файлом
+    """Рассылка: форма multipart с полями `audience` (фильтр получателей, пустой — все),
+    `text`, `button` (кнопка под сообщением, пустое — без неё) и необязательным файлом
     `media` (фото или видео). Копия приходит автору сразу, остальным — от бота.
 
     Форма разбирается здесь, уже после проверки прав, а не объявленными параметрами
     `Form`/`File`: их FastAPI читает до зависимостей, и анонимный запрос успевал бы
     загрузить файл до 50 МБ (путь рассылки — единственный с таким пределом тела).
     """
-    async with request.form(max_files=1, max_fields=3) as form:
+    async with request.form(max_files=1, max_fields=4) as form:
         media = form.get("media")
         if media is not None and not isinstance(media, UploadFile):
             raise ApiError(422, "invalid_media", "Поле media — файл")
@@ -255,9 +279,11 @@ async def create_broadcast(
             repo,
             bot,
             admin,
-            segment=str(form.get("segment") or ""),
+            audience=str(form.get("audience") or ""),
             text=str(form.get("text") or ""),
+            button=str(form.get("button") or ""),
             media=media,
+            tma_url=get_settings(request).tma_url,
         )
     return BroadcastResponse(broadcast=broadcast)
 

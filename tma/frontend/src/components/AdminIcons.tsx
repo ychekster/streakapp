@@ -108,13 +108,21 @@ export function KeyIcon() {
 
 /* --- Карточки показателей --- */
 
-/** Всего пользователей: два силуэта. */
-export function UsersStatIcon() {
+/** Открыли приложение: телефон. */
+export function AppIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle {...STAT_STROKE} cx="9" cy="8.5" r="3.4" />
-      <path {...STAT_STROKE} d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
-      <path {...STAT_STROKE} d="M15.5 5.3a3.4 3.4 0 0 1 0 6.4M17.5 13.9c2.1.6 3.5 2.4 3.5 5.1" />
+      <rect {...STAT_STROKE} x="6.5" y="2.8" width="11" height="18.4" rx="2.6" />
+      <path {...STAT_STROKE} d="M10.5 18h3" />
+    </svg>
+  );
+}
+
+/** Фильтры: три линии, каждая короче предыдущей (кнопка «Фильтры», 20×20). */
+export function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...ROW_STROKE} d="M4 7h16M7 12h10M10 17h4" />
     </svg>
   );
 }

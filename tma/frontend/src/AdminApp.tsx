@@ -8,6 +8,7 @@
  * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
  * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
  * верхний экран):
+ *  - Пользователи → «Фильтры» (условия списка, см. AdminUserFiltersScreen);
  *  - Пользователи → профиль → его привычки (тот же список, что он видит сам, только
  *    для просмотра) или его отзыв → …;
  *  - Отзывы → отзыв → профиль автора → …;
@@ -16,15 +17,19 @@
  * При возврате экран открывается на той же позиции прокрутки.
  *
  * Состояние, которое должно пережить переходы, живёт здесь: аналитика выбранного
- * периода, списки пользователей (с запросом поиска) и отзывов, черновик и ход последней
+ * периода, списки пользователей (с запросом поиска и фильтром) и отзывов, черновик и ход последней
  * рассылки. Списки загружаются при первом открытии вкладки и обновляются при повторном.
  * Действия в профиле и отзыве (блокировка, удаление, ответ) сразу видны в списках — без
  * повторной загрузки. Настройки (язык, тема) — общие с приложением: их хранит App.
+ *
+ * Пока фокус в поле ввода (поиск, текст рассылки), нижняя навигация спрятана: иначе
+ * открытая клавиатура поднимает её над собой (см. useTextFieldFocused).
  */
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { fetchAnalytics, fetchReviews, fetchUsers } from "./api/admin";
+import { audienceParam } from "./audience";
 import { useAdminStrings } from "./adminStrings";
 import { TabBar, type TabItem } from "./components/TabBar";
 import {
@@ -39,6 +44,7 @@ import { useBackButton } from "./hooks/useBackButton";
 import { useDebouncedValue } from "./hooks/useDebouncedValue";
 import { usePagedList } from "./hooks/usePagedList";
 import { useResource } from "./hooks/useResource";
+import { useTextFieldFocused } from "./hooks/useTextFieldFocused";
 import type { UseSettingsResult } from "./hooks/useSettings";
 import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
 import { AdminAnalyticsScreen } from "./screens/AdminAnalyticsScreen";
@@ -52,16 +58,18 @@ import { AdminReplyScreen } from "./screens/AdminReplyScreen";
 import { AdminReviewScreen } from "./screens/AdminReviewScreen";
 import { AdminReviewsScreen } from "./screens/AdminReviewsScreen";
 import { AdminSettingsScreen } from "./screens/AdminSettingsScreen";
+import { AdminUserFiltersScreen } from "./screens/AdminUserFiltersScreen";
 import { AdminUserHabitsScreen } from "./screens/AdminUserHabitsScreen";
 import { AdminUserScreen } from "./screens/AdminUserScreen";
 import { AdminUsersScreen } from "./screens/AdminUsersScreen";
-import type { AdminReview, AdminUserRef, Broadcast } from "./types/admin";
+import type { AdminReview, AdminUserRef, Audience, Broadcast } from "./types/admin";
 import type { SettingsUpdate } from "./types/settings";
 
 type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
+  | { kind: "userFilters" }
   | { kind: "user"; id: number; initial: AdminUserRef | null }
   | { kind: "habits"; id: number }
   | { kind: "review"; id: number; initial: AdminReview | null }
@@ -92,10 +100,11 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   const [reviewsOpened, setReviewsOpened] = useState(false);
   const [query, setQuery] = useState("");
   const settledQuery = useDebouncedValue(query.trim(), ADMIN_SEARCH_DELAY_MS);
+  const [userAudience, setUserAudience] = useState<Audience>({});
   const users = usePagedList(
-    (cursor) => fetchUsers(settledQuery, cursor),
+    (cursor) => fetchUsers(settledQuery, userAudience, cursor),
     (user) => user.telegram_id,
-    settledQuery,
+    `${settledQuery}\n${audienceParam(userAudience)}`,
     usersOpened,
   );
   const reviews = usePagedList(fetchReviews, (review) => review.id, "reviews", reviewsOpened);
@@ -138,6 +147,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   }, []);
 
   useBackButton(stack.length > 0 ? pop : null);
+  const typing = useTextFieldFocused();
 
   // Другая вкладка — с начала; её данные, если уже загружены, тихо обновляются (прежние
   // видны, пока загружаются новые).
@@ -201,6 +211,15 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
 
   function renderPage(page: AdminPage) {
     switch (page.kind) {
+      case "userFilters":
+        return (
+          <AdminUserFiltersScreen
+            query={settledQuery}
+            audience={userAudience}
+            onChange={setUserAudience}
+            onClose={pop}
+          />
+        );
       case "user":
         return (
           <AdminUserScreen
@@ -259,6 +278,9 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
           <AdminUsersScreen
             query={query}
             onQueryChange={setQuery}
+            audience={userAudience}
+            onAudienceChange={setUserAudience}
+            onOpenFilters={() => push({ kind: "userFilters" })}
             users={users}
             onOpen={openUser}
           />
@@ -290,7 +312,12 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   return (
     <>
       {page ? renderPage(page) : renderTab()}
-      <TabBar tabs={tabs} active={tab} hidden={page !== undefined} onSelect={selectTab} />
+      <TabBar
+        tabs={tabs}
+        active={tab}
+        hidden={page !== undefined || typing}
+        onSelect={selectTab}
+      />
     </>
   );
 }

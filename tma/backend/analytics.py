@@ -1,4 +1,9 @@
-"""Аналитика админ-панели: пользователи, активность, привычки и доля выполнения.
+"""Аналитика админ-панели: воронка новых пользователей, активность, привычки и доля
+выполнения.
+
+Воронка — пользователи, появившиеся за период (запустили бота или сразу открыли
+приложение): сколько из них открыли приложение и сколько из тех добавили хотя бы одну
+привычку.
 
 Дни — по UTC (кроме доли выполнения: отметки хранятся датой в поясе пользователя).
 Счётчики и ряды по дням берутся из базы агрегатами (Repository), а доля выполнения
@@ -26,6 +31,7 @@ from tma.backend.schemas import (
     AnalyticsActivity,
     AnalyticsAudience,
     AnalyticsDay,
+    AnalyticsFunnel,
     AnalyticsHabits,
     AnalyticsResponse,
     AnalyticsUsers,
@@ -71,8 +77,9 @@ def completion_by_day(
 
 
 def habits_distribution(habit_counts: list[int], app_users: int) -> list[HabitsBucket]:
-    """Сколько пользователей приложения завели 0, 1, … и HABITS_DISTRIBUTION_MAX+
-    привычек. Без привычек — открывшие приложение, у кого их нет."""
+    """Сколько пользователей приложения (`app_users` — пользуются им: открывали и не
+    заблокировали бота) завели 0, 1, … и HABITS_DISTRIBUTION_MAX+ привычек. Без
+    привычек — те из них, у кого их нет."""
     buckets = Counter(min(count, HABITS_DISTRIBUTION_MAX) for count in habit_counts)
     buckets[0] = max(0, app_users - len(habit_counts))
     return [
@@ -91,6 +98,7 @@ async def build_analytics(repo: Repository, period_days: int, now: datetime) -> 
     period_start = datetime.combine(first_day, time.min)
 
     counts = await repo.user_counts(now)
+    funnel = await repo.funnel_since(period_start)
     new_by_day = await repo.new_users_by_day(period_start)
     total = await repo.count_users_created_before(period_start)
     active_by_day = await repo.active_users_by_day(first_day)
@@ -117,18 +125,24 @@ async def build_analytics(repo: Repository, period_days: int, now: datetime) -> 
         )
 
     habits_total = sum(habit_counts)
+    # Привычки — только у тех, кто пользуется приложением: открывал его и не заблокировал
+    # бота (как «Пользуются приложением» в аудитории — распределение в сумме равно ей).
+    app_users = counts.reachable_opened
     return AnalyticsResponse(
         period_days=period_days,
         generated_at=now,
         users=AnalyticsUsers(
             total=counts.total,
-            new_week=counts.new_week,
-            new_month=counts.new_month,
             opened_app=counts.opened_app,
             never_opened=counts.never_opened,
             blocked_bot=counts.blocked_bot,
             blocked=counts.blocked,
             active_now=counts.active_now,
+        ),
+        funnel=AnalyticsFunnel(
+            started_bot=funnel.started_bot,
+            opened_app=funnel.opened_app,
+            added_habit=funnel.added_habit,
         ),
         audience=AnalyticsAudience(
             uses_app=counts.reachable_opened,
@@ -137,9 +151,9 @@ async def build_analytics(repo: Repository, period_days: int, now: datetime) -> 
         ),
         activity=AnalyticsActivity(dau=active_by_day.get(today, 0), wau=wau, mau=mau),
         habits=AnalyticsHabits(
-            average=round(habits_total / counts.opened_app, 2) if counts.opened_app else 0.0,
+            average=round(habits_total / app_users, 2) if app_users else 0.0,
             total=habits_total,
-            distribution=habits_distribution(habit_counts, counts.opened_app),
+            distribution=habits_distribution(habit_counts, app_users),
         ),
         completion_rate=_ratio(
             sum(completed for _, completed in completion),

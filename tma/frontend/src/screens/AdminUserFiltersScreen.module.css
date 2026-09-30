@@ -1,0 +1,8 @@
+/* Ряды фильтров той же высоты, что ряды формы привычки и рассылки. */
+.form {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+.reset {
+  margin-top: var(--space-section-gap);
+}

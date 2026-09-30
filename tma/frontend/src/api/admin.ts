@@ -1,6 +1,7 @@
 /** Запросы админ-панели (/admin/*) поверх общего HTTP-клиента. Каждый требует прав
  *  администратора — без них API отвечает 403 `admin_required`. */
 
+import { audienceParam } from "../audience";
 import { ADMIN_PAGE_SIZE, BROADCAST_UPLOAD_TIMEOUT_MS } from "../constants";
 import type {
   AdminEntry,
@@ -9,8 +10,9 @@ import type {
   AdminUserProfile,
   AdminUserSummary,
   Analytics,
+  Audience,
   Broadcast,
-  BroadcastSegment,
+  BroadcastButton,
   Delivery,
   Page,
   ReviewReply,
@@ -30,16 +32,41 @@ export function fetchAnalytics(days: number): Promise<Analytics> {
   return apiRequest<Analytics>(`/admin/analytics?days=${days}`, { method: "GET" });
 }
 
-/** Страница пользователей (новые сначала); `query` — имя, @username или id. */
+/** Параметры поиска и фильтра пользователей (пустые не передаются). */
+function usersQuery(query: string, audience: Audience): Record<string, string> {
+  const params: Record<string, string> = {};
+  const filter = audienceParam(audience);
+  if (query) {
+    params.q = query;
+  }
+  if (filter) {
+    params.filter = filter;
+  }
+  return params;
+}
+
+/** Страница пользователей (новые сначала); `query` — имя, @username или id, `audience` —
+ *  фильтр. На первой странице — ещё и сколько их всего (`total`). */
 export async function fetchUsers(
   query: string,
+  audience: Audience,
   cursor: string | null,
 ): Promise<Page<AdminUserSummary>> {
-  const data = await apiRequest<{ users: AdminUserSummary[]; next_cursor: string | null }>(
-    `/admin/users?${pageQuery(cursor, query ? { q: query } : {})}`,
-    { method: "GET" },
-  );
-  return { items: data.users, next_cursor: data.next_cursor };
+  const data = await apiRequest<{
+    users: AdminUserSummary[];
+    next_cursor: string | null;
+    total: number | null;
+  }>(`/admin/users?${pageQuery(cursor, usersQuery(query, audience))}`, { method: "GET" });
+  return { items: data.users, next_cursor: data.next_cursor, total: data.total };
+}
+
+/** Сколько пользователей под поиском и фильтром. */
+export async function countUsers(query: string, audience: Audience): Promise<number> {
+  const params = new URLSearchParams(usersQuery(query, audience));
+  const data = await apiRequest<{ count: number }>(`/admin/users/count?${params}`, {
+    method: "GET",
+  });
+  return data.count;
 }
 
 export async function fetchUser(telegramId: number): Promise<AdminUserProfile> {
@@ -124,23 +151,28 @@ export async function removeAdmin(telegramId: number): Promise<AdminEntry[]> {
   return data.admins;
 }
 
-export async function fetchSegments(): Promise<BroadcastSegment[]> {
-  const data = await apiRequest<{ segments: BroadcastSegment[] }>("/admin/broadcasts/segments", {
+/** Сколько получателей у рассылки с фильтром сейчас (без автора — ему приходит копия). */
+export async function fetchRecipients(audience: Audience): Promise<number> {
+  const params = new URLSearchParams({ audience: audienceParam(audience) });
+  const data = await apiRequest<{ recipients: number }>(`/admin/broadcasts/recipients?${params}`, {
     method: "GET",
   });
-  return data.segments;
+  return data.recipients;
 }
 
-/** Поставить рассылку в очередь: текст, фото или видео (с подписью или без). Копия
- *  приходит автору сразу; медиа загружается вместе с запросом, поэтому таймаут длиннее. */
+/** Поставить рассылку в очередь: текст, фото или видео (с подписью или без) и кнопка под
+ *  ним. Копия приходит автору сразу; медиа загружается вместе с запросом, поэтому таймаут
+ *  длиннее. */
 export async function createBroadcast(
-  segment: string,
+  audience: Audience,
   text: string,
+  button: BroadcastButton,
   media: File | null,
 ): Promise<Broadcast> {
   const form = new FormData();
-  form.set("segment", segment);
+  form.set("audience", audienceParam(audience));
   form.set("text", text);
+  form.set("button", button);
   if (media) {
     form.set("media", media);
   }

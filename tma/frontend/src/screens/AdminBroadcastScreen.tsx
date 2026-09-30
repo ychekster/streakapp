@@ -1,9 +1,12 @@
 /**
  * Вкладка «Рассылка» админ-панели — форма в стиле формы привычки:
- *  - Кому — сегмент получателей (системным меню) и сколько в нём людей сейчас;
+ *  - Кому — фильтр получателей, по ряду на признак (AudienceFilterRows; условия
+ *    складываются), и сколько получателей под ним сейчас;
  *  - Сообщение — текст (поле растёт вместе с ним), под ним — счётчик символов: у текста
  *    предел Telegram 4096, у подписи к фото или видео — 1024;
  *  - Фото или видео — необязательно: превью, размер и «Убрать»;
+ *  - Кнопка под сообщением — необязательно: «Открыть приложение» или «Написать отзыв»
+ *    (открывает приложение сразу на экране отзыва);
  *  - «Отправить рассылку» — после подтверждения системным диалогом Telegram. Копия сразу
  *    приходит автору (так медиа загружается в Telegram), остальным рассылает бот.
  * Над формой — ход последней рассылки: сколько доставлено и не доставлено; пока она идёт,
@@ -15,17 +18,21 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { createBroadcast, fetchBroadcast, fetchSegments } from "../api/admin";
+import { audienceEntries, audienceParam } from "../audience";
+import { createBroadcast, fetchBroadcast, fetchRecipients } from "../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { PaperPlaneIcon, PhotoIcon } from "../components/AdminIcons";
+import { AudienceFilterRows } from "../components/AudienceFilterRows";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { TrashIcon } from "../components/SettingsIcons";
-import { StatusMessage } from "../components/StatusMessage";
 import {
+  AUDIENCE_COUNT_DELAY_MS,
+  BROADCAST_BUTTONS,
+  BROADCAST_FILTER_KEYS,
   BROADCAST_PHOTO_MAX_BYTES,
   BROADCAST_PHOTO_TYPES,
   BROADCAST_POLL_MS,
@@ -34,19 +41,23 @@ import {
   CAPTION_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
 } from "../constants";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useFieldAboveKeyboard } from "../hooks/useFieldAboveKeyboard";
 import { useResource } from "../hooks/useResource";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
-import type { Broadcast } from "../types/admin";
+import type { Audience, Broadcast, BroadcastButton } from "../types/admin";
 import styles from "./AdminBroadcastScreen.module.css";
 
 /** Черновик рассылки. */
 export interface BroadcastDraft {
-  segment: string;
+  /** Фильтр получателей; пустой — все пользователи. */
+  audience: Audience;
   text: string;
   media: File | null;
+  button: BroadcastButton;
 }
 
-export const EMPTY_DRAFT: BroadcastDraft = { segment: "all", text: "", media: null };
+export const EMPTY_DRAFT: BroadcastDraft = { audience: {}, text: "", media: null, button: "" };
 
 const MEDIA_ACCEPT = [...BROADCAST_PHOTO_TYPES, ...BROADCAST_VIDEO_TYPES].join(",");
 
@@ -79,12 +90,19 @@ export function AdminBroadcastScreen({
 }: AdminBroadcastScreenProps) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
-  const segments = useResource(fetchSegments, "segments");
+  // Пока значения фильтра переключают подряд, получатели не пересчитываются на каждое.
+  const settledAudience = useDebouncedValue(draft.audience, AUDIENCE_COUNT_DELAY_MS);
+  const recipients = useResource(
+    () => fetchRecipients(settledAudience),
+    audienceParam(settledAudience),
+  );
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  // Нажатие на поле текста — оно встаёт над клавиатурой, без рывков (см. хук).
+  useFieldAboveKeyboard(textRef);
   const preview = useMemo(
     () => (draft.media ? URL.createObjectURL(draft.media) : null),
     [draft.media],
@@ -100,7 +118,7 @@ export function AdminBroadcastScreen({
       field.style.height = "auto";
       field.style.height = `${field.scrollHeight}px`;
     }
-  }, [draft.text, segments.data]);
+  }, [draft.text]);
 
   // Пока последняя рассылка идёт, её ход обновляется сам.
   const pollingId = lastBroadcast && lastBroadcast.status !== "done" ? lastBroadcast.id : null;
@@ -118,13 +136,18 @@ export function AdminBroadcastScreen({
     return () => window.clearInterval(timer);
   }, [pollingId, onBroadcastChange]);
 
-  const segmentList = segments.data ?? [];
-  const segment = segmentList.find((item) => item.key === draft.segment) ?? segmentList[0];
+  // Число получателей — для текущего фильтра, а не для прежнего, пока идёт пересчёт.
+  const counted =
+    audienceParam(settledAudience) === audienceParam(draft.audience) &&
+    !recipients.refreshing &&
+    recipients.status === "ready"
+      ? recipients.data
+      : null;
   const limit = draft.media ? CAPTION_MAX_LENGTH : MESSAGE_MAX_LENGTH;
   const length = draft.text.trim().length;
   const valid =
-    segment !== undefined &&
-    segment.recipients > 0 &&
+    counted !== null &&
+    counted > 0 &&
     (draft.media !== null || length > 0) &&
     length <= limit;
 
@@ -139,17 +162,20 @@ export function AdminBroadcastScreen({
     }
   }
 
+  // Кому — для диалога подтверждения: выбранные условия через запятую или «всем».
+  const audienceText =
+    audienceEntries(draft.audience)
+      .map(([key, value]) => strings.filterValues[key][value].toLowerCase())
+      .join(", ") || strings.audienceAll;
+
   async function send(): Promise<void> {
-    if (!segment || sending) {
+    if (counted === null || sending) {
       return;
     }
     setSendError(null);
     const confirmed = await confirmAction({
       title: strings.sendDialogTitle,
-      message: strings.sendDialogMessage(
-        segment.recipients,
-        strings.segmentNames[segment.key] ?? segment.key,
-      ),
+      message: strings.sendDialogMessage(counted, audienceText),
       confirmLabel: strings.sendDialogConfirm,
       cancelLabel: strings.cancel,
     });
@@ -158,11 +184,17 @@ export function AdminBroadcastScreen({
     }
     setSending(true);
     try {
-      const broadcast = await createBroadcast(segment.key, draft.text.trim(), draft.media);
+      const broadcast = await createBroadcast(
+        draft.audience,
+        draft.text.trim(),
+        draft.button,
+        draft.media,
+      );
       hapticNotification("success");
       onBroadcastChange(broadcast);
-      onDraftChange({ ...EMPTY_DRAFT, segment: segment.key });
-      segments.reload();
+      // Текст и медиа — на новую рассылку; кому и с какой кнопкой — как в этой.
+      onDraftChange({ ...EMPTY_DRAFT, audience: draft.audience, button: draft.button });
+      recipients.reload();
     } catch (error) {
       setSendError(describeAdminError(strings, error, strings.broadcastFailed));
       hapticNotification("error");
@@ -174,23 +206,20 @@ export function AdminBroadcastScreen({
   return <Screen title={strings.broadcastTitle}>{renderContent()}</Screen>;
 
   function renderContent() {
-    if (!segments.data) {
-      return segments.status === "error" ? (
-        <StatusMessage
-          icon="alert"
-          title={strings.errorTitle}
-          description={describeAdminError(strings, segments.error, strings.broadcastLoadFailed)}
-          actionLabel={strings.retry}
-          onAction={segments.reload}
-        />
-      ) : (
-        <StatusMessage icon="spinner" title={strings.loading} />
-      );
-    }
-    const options = segmentList.map((item) => ({
-      value: item.key,
-      label: strings.segmentNames[item.key] ?? item.key,
+    const buttonOptions = BROADCAST_BUTTONS.map((button) => ({
+      value: button,
+      label: strings.buttonNames[button],
     }));
+    const recipientsFooter =
+      counted !== null ? (
+        strings.recipients(counted)
+      ) : recipients.status === "error" && !recipients.refreshing ? (
+        <span className={styles.over}>
+          {describeAdminError(strings, recipients.error, strings.recipientsFailed)}
+        </span>
+      ) : (
+        strings.recipientsCounting
+      );
     return (
       <div className={styles.form}>
         {lastBroadcast ? <Progress broadcast={lastBroadcast} /> : null}
@@ -198,17 +227,14 @@ export function AdminBroadcastScreen({
         <Section
           variant="form"
           title={strings.audienceSection}
-          footer={segment ? strings.recipients(segment.recipients) : undefined}
+          footer={recipientsFooter}
         >
           <Card>
-            <ListItem label={strings.sendTo}>
-              <MenuSelect
-                options={options}
-                value={segment?.key ?? draft.segment}
-                onChange={(key) => onDraftChange({ ...draft, segment: key })}
-                label={strings.sendTo}
-              />
-            </ListItem>
+            <AudienceFilterRows
+              keys={BROADCAST_FILTER_KEYS}
+              audience={draft.audience}
+              onChange={(audience) => onDraftChange({ ...draft, audience })}
+            />
           </Card>
         </Section>
 
@@ -288,6 +314,23 @@ export function AdminBroadcastScreen({
               event.target.value = "";
             }}
           />
+        </Section>
+
+        <Section
+          variant="form"
+          title={strings.buttonSection}
+          footer={strings.buttonFooters[draft.button]}
+        >
+          <Card>
+            <ListItem label={strings.buttonRow}>
+              <MenuSelect
+                options={buttonOptions}
+                value={draft.button}
+                onChange={(button) => onDraftChange({ ...draft, button })}
+                label={strings.buttonRow}
+              />
+            </ListItem>
+          </Card>
         </Section>
 
         <div className={styles.send}>

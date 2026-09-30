@@ -10,13 +10,18 @@ from types import SimpleNamespace
 import pytest
 
 from bot import broadcasts as bot_broadcasts
+from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS
 from bot.handlers.membership import on_bot_status_changed
 from bot.handlers.start import _record_start
 from bot.pacing import Pacer
 from tests.fake_telegram import FakeTelegram
+from tma.backend.audience import parse_audience
 from tma.backend.database import Database
-from tma.backend.models import BroadcastStatus, UserActivity
+from tma.backend.messaging import BROADCAST_BUTTONS
+from tma.backend.models import BroadcastStatus, Review, Task, UserActivity
 from tma.backend.repository import Repository, utc_now
+
+_TMA_URL = "https://app.example.com/?v=2"
 
 
 async def _with_repo(db_url: str, action):
@@ -42,23 +47,15 @@ def test_broadcast_is_delivered_in_batches(db_url: str, monkeypatch: pytest.Monk
             await repo.get_or_create_user(user_id, None, "U", language="ru")
         await repo.set_bot_blocked([4], blocked=True)  # не получает рассылок
         await repo.set_blocked(await repo.get_user(5), blocked=True)  # заблокирован
-        total = await repo.count_recipients("all", utc_now(), exclude_user_id=1)
+        total = await repo.count_recipients({}, utc_now(), exclude_user_id=1)
         broadcast = await repo.create_broadcast(
-            created_by=1, segment="all", text="Привет", media_type="photo",
-            media_file_id="photo-large", total=total,
+            created_by=1, audience="", text="Привет", media_type="photo",
+            media_file_id="photo-large", button=None, total=total,
         )
         return broadcast.id
 
-    async def deliver() -> None:
-        database = Database(db_url)
-        try:
-            while await bot_broadcasts._deliver_next_batch(telegram, database, Pacer(1000)):
-                pass
-        finally:
-            await database.dispose()
-
     broadcast_id = asyncio.run(_with_repo(db_url, setup))
-    asyncio.run(deliver())
+    asyncio.run(_deliver_all(db_url, telegram))
 
     # Автору (1) копия уже пришла от API; 4 и 5 не получатели; 3 заблокировал бота.
     assert [(item.kind, item.chat_id, item.media) for item in telegram.sent] == [
@@ -75,18 +72,191 @@ def test_broadcast_is_delivered_in_batches(db_url: str, monkeypatch: pytest.Monk
     asyncio.run(_with_repo(db_url, check))
 
 
-def test_segments(db_url: str) -> None:
+async def _deliver_all(db_url: str, telegram: FakeTelegram) -> None:
+    """Разослать все рассылки из очереди, как цикл бота."""
+    database = Database(db_url)
+    try:
+        while await bot_broadcasts._deliver_next_batch(
+            telegram, database, Pacer(1000), _TMA_URL
+        ):
+            pass
+    finally:
+        await database.dispose()
+
+
+def test_broadcast_button_is_in_recipient_language(db_url: str) -> None:
+    telegram = FakeTelegram()
+
+    async def setup(repo: Repository) -> None:
+        await repo.get_or_create_user(1, None, "Автор", language="ru")
+        await repo.get_or_create_user(2, None, "Ru", language="ru")
+        await repo.get_or_create_user(3, None, "En", language="en")
+        await repo.create_broadcast(
+            created_by=1, audience="", text="Оставьте отзыв", media_type=None,
+            media_file_id=None, button="review", total=2,
+        )
+
+    asyncio.run(_with_repo(db_url, setup))
+    asyncio.run(_deliver_all(db_url, telegram))
+
+    buttons = {
+        item.chat_id: item.extra["reply_markup"].inline_keyboard[0][0] for item in telegram.sent
+    }
+    assert {chat: button.text for chat, button in buttons.items()} == {
+        2: "Написать отзыв",
+        3: "Write a review",
+    }
+    # Адрес приложения с экраном отзыва; его собственные параметры сохраняются.
+    assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=review"
+
+
+def test_broadcast_falls_back_without_button_icon(db_url: str) -> None:
+    telegram = FakeTelegram()
+    telegram.reject_icons = True
+
+    async def setup(repo: Repository) -> None:
+        await repo.get_or_create_user(1, None, "Автор", language="ru")
+        await repo.get_or_create_user(2, None, "U", language="ru")
+        await repo.create_broadcast(
+            created_by=1, audience="", text="Заходите", media_type=None,
+            media_file_id=None, button="open_app", total=1,
+        )
+
+    asyncio.run(_with_repo(db_url, setup))
+    asyncio.run(_deliver_all(db_url, telegram))
+
+    [sent] = telegram.sent
+    button = sent.extra["reply_markup"].inline_keyboard[0][0]
+    assert (sent.chat_id, button.text, button.icon_custom_emoji_id) == (
+        2, "Открыть приложение", None
+    )
+    assert button.web_app.url == _TMA_URL
+
+
+def test_broadcast_with_broken_filter_does_not_jam_the_queue(db_url: str) -> None:
+    """Фильтр, который не разбирается (правили базу вручную), — рассылка закрывается без
+    отправки, а следующая за ней уходит."""
+    telegram = FakeTelegram()
+
+    async def setup(repo: Repository) -> list[int]:
+        await repo.get_or_create_user(1, None, "Автор", language="ru")
+        await repo.get_or_create_user(2, None, "U", language="ru")
+        broken = await repo.create_broadcast(
+            created_by=1, audience="vip:yes", text="Сломанная", media_type=None,
+            media_file_id=None, button=None, total=1,
+        )
+        good = await repo.create_broadcast(
+            created_by=1, audience="", text="Обычная", media_type=None,
+            media_file_id=None, button=None, total=1,
+        )
+        return [broken.id, good.id]
+
+    ids = asyncio.run(_with_repo(db_url, setup))
+    asyncio.run(_deliver_all(db_url, telegram))
+    assert [(item.chat_id, item.text) for item in telegram.sent] == [(2, "Обычная")]
+
+    async def check(repo: Repository) -> None:
+        for broadcast_id in ids:
+            assert (await repo.get_broadcast(broadcast_id)).status == BroadcastStatus.done
+
+    asyncio.run(_with_repo(db_url, check))
+
+
+def test_open_app_button_matches_the_bot() -> None:
+    """«Открыть приложение» под рассылкой — та же кнопка, что под приветствием и
+    напоминанием."""
+    button = BROADCAST_BUTTONS["open_app"]
+    assert button.texts == REMINDER_BUTTONS
+    assert button.icon_emoji_id == OPEN_APP_EMOJI.id
+
+
+def test_audience_filters(db_url: str) -> None:
+    async def check(repo: Repository) -> None:
+        for user_id in range(1, 8):
+            await repo.get_or_create_user(user_id, None, "U", language="ru")
+        now = utc_now()  # после регистрации: получатели — зарегистрированные к моменту
+        # 1 — открыл приложение сейчас, завёл привычку и оставил отзыв; 2 — открыл 10 дней
+        # назад и больше не заходит; 3 — привычку завёл и удалил; 4 — только запустил
+        # бота; 5 — на английском; 6 — заблокировал бота; 7 — заблокирован.
+        for user_id, seen in ((1, now), (2, now - timedelta(days=10)), (3, now), (5, now)):
+            await repo.touch_user(await repo.get_user(user_id), seen)
+        old = now - timedelta(days=40)
+        for user_id in (6, 7):
+            await repo.touch_user(await repo.get_user(user_id), old)
+        (await repo.get_user(5)).language = "en"
+        repo.session.add_all([
+            Task(user_id=1, name="Бег", frequency_type="daily", created_at=now),
+            Task(user_id=3, name="Сон", frequency_type="daily", created_at=now, is_active=False),
+            Review(user_id=1, text="Класс", created_at=now),
+        ])
+        await repo.set_bot_blocked([6], blocked=True)
+        await repo.set_blocked(await repo.get_user(7), blocked=True)
+        await repo.session.flush()
+
+        async def users(audience: str) -> set[int]:
+            found = await repo.search_users(None, parse_audience(audience), now, 0, 100)
+            assert await repo.count_users(None, parse_audience(audience), now) == len(found)
+            return {user.telegram_id for user in found}
+
+        assert await users("") == {1, 2, 3, 4, 5, 6, 7}
+        assert await users("app:never") == {4}
+        assert await users("app:opened") == {1, 2, 3, 5, 6, 7}
+        assert await users("habits:any") == {1, 3}  # удалённая привычка тоже считается
+        assert await users("habits:none,app:opened") == {2, 5, 6, 7}
+        assert await users("activity:1d") == {1, 3, 5}
+        assert await users("activity:30d") == {1, 2, 3, 5}
+        assert await users("activity:inactive_7d") == {2, 6, 7}
+        assert await users("activity:inactive_30d") == {6, 7}
+        assert await users("language:en") == {5}
+        assert await users("reviews:any") == {1}
+        assert await users("bot:blocked") == {6}
+        assert await users("access:blocked") == {7}
+        assert await users("access:ok,bot:ok,activity:inactive_7d") == {2}
+
+        # Рассылка: без заблокировавших бота, заблокированных и автора.
+        recipients = await repo.recipients_after(parse_audience("app:opened"), now, 1, 0, 100)
+        assert recipients == [(2, "ru"), (3, "ru"), (5, "en")]
+        assert await repo.count_recipients(parse_audience("app:opened"), now, 1) == 3
+        # Сделанное после начала рассылки её фильтр не меняет.
+        earlier = now - timedelta(minutes=1)
+        assert await repo.count_users(None, parse_audience("habits:any"), earlier) == 0
+        assert await repo.count_users(None, parse_audience("reviews:any"), earlier) == 0
+
+    asyncio.run(_with_repo(db_url, check))
+
+
+def test_habit_counts_skip_users_who_blocked_the_bot(db_url: str) -> None:
     async def check(repo: Repository) -> None:
         now = utc_now()
         for user_id in (1, 2, 3):
             await repo.get_or_create_user(user_id, None, "U", language="ru")
-        await repo.touch_user(await repo.get_user(1), now)  # открыл приложение сейчас
-        await repo.touch_user(await repo.get_user(2), now - timedelta(days=10))
-        counts = {
-            segment: await repo.count_recipients(segment, now)
-            for segment in ("all", "active_7d", "active_30d", "never_opened")
-        }
-        assert counts == {"all": 3, "active_7d": 1, "active_30d": 2, "never_opened": 1}
+        for user_id in (1, 2):
+            await repo.touch_user(await repo.get_user(user_id), now)
+        repo.session.add_all([
+            Task(user_id=1, name="Бег", frequency_type="daily"),
+            Task(user_id=1, name="Сон", frequency_type="daily"),
+            Task(user_id=2, name="Бег", frequency_type="daily"),
+            Task(user_id=3, name="Бег", frequency_type="daily"),  # не открывал приложение
+        ])
+        await repo.set_bot_blocked([2], blocked=True)  # ушёл — не считается
+        await repo.session.flush()
+        assert await repo.active_habit_counts() == [2]
+
+    asyncio.run(_with_repo(db_url, check))
+
+
+def test_funnel(db_url: str) -> None:
+    async def check(repo: Repository) -> None:
+        now = utc_now()
+        for user_id in (1, 2, 3):
+            await repo.get_or_create_user(user_id, None, "U", language="ru")
+        for user_id in (1, 2):
+            await repo.touch_user(await repo.get_user(user_id), now)
+        repo.session.add(Task(user_id=1, name="Бег", frequency_type="daily"))
+        await repo.session.flush()
+        funnel = await repo.funnel_since(now - timedelta(days=1))
+        assert (funnel.started_bot, funnel.opened_app, funnel.added_habit) == (3, 2, 1)
+        assert (await repo.funnel_since(now + timedelta(days=1))).started_bot == 0
 
     asyncio.run(_with_repo(db_url, check))
 

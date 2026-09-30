@@ -1,5 +1,6 @@
 """Сообщения бота, которые отправляет сам API: личное сообщение и ответ на отзыв из
-админ-панели, копия рассылки её автору.
+админ-панели, копия рассылки её автору. Здесь же — кнопка под рассылкой: её ставят и
+копия автору, и бот, рассылающий остальным (bot/broadcasts.py).
 
 Они уходят сразу, в запросе администратора, — и он тут же видит результат: сообщение
 дошло или пользователь заблокировал бота. Массовую рассылку отправляет процесс бота
@@ -18,7 +19,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Literal
+from typing import Literal, NamedTuple
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot
 from aiogram.exceptions import (
@@ -27,7 +29,13 @@ from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramRetryAfter,
 )
-from aiogram.types import InputFile, Message
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+    Message,
+    WebAppInfo,
+)
 from aiogram.utils.formatting import Bold, ExpandableBlockQuote, Text
 from loguru import logger
 from starlette.datastructures import UploadFile
@@ -43,6 +51,36 @@ REVIEW_REPLY_TITLES: dict[str, str] = {
 }
 # Отзыв в цитате обрезается до стольких символов.
 REVIEW_QUOTE_MAX_LENGTH = 300
+
+
+class BroadcastButton(NamedTuple):
+    """Кнопка под рассылкой: подпись на языке получателя (ключи — constants.LANGUAGES),
+    id анимированной иконки перед подписью (None — без иконки) и экран приложения, который
+    она открывает (None — главный)."""
+
+    texts: dict[str, str]
+    icon_emoji_id: str | None
+    screen: str | None
+
+
+# Кнопки рассылки (ключи — constants.BROADCAST_BUTTONS). «Открыть приложение» — та же,
+# что под приветствием и напоминанием бота (bot/constants.py: REMINDER_BUTTONS и
+# OPEN_APP_EMOJI; тест следит, чтобы они совпадали). «Написать отзыв» открывает
+# приложение сразу на экране отзыва.
+BROADCAST_BUTTONS: dict[str, BroadcastButton] = {
+    "open_app": BroadcastButton(
+        texts={"ru": "Открыть приложение", "en": "Open App"},
+        icon_emoji_id="6028346797368283073",
+        screen=None,
+    ),
+    "review": BroadcastButton(
+        texts={"ru": "Написать отзыв", "en": "Write a review"},
+        icon_emoji_id="5886685105065300941",  # ⭐️
+        screen="review",
+    ),
+}
+# Параметр адреса Mini App с экраном, на котором она откроется (читает фронтенд, App.tsx).
+APP_SCREEN_PARAM = "open"
 
 # Telegram просит подождать (RetryAfter) не дольше этого — ждём и повторяем, иначе ошибка:
 # администратор ждёт ответа на свой запрос.
@@ -100,6 +138,37 @@ async def _send(send: Callable[[], Awaitable[Message]]) -> Message | Undelivered
         raise ApiError(502, "telegram_error", "Не удалось связаться с Telegram") from exc
 
 
+def app_url(tma_url: str, screen: str | None) -> str:
+    """Адрес Mini App, открывающий экран `screen` (None — главный)."""
+    if screen is None:
+        return tma_url
+    parts = urlsplit(tma_url)
+    query = [*parse_qsl(parts.query), (APP_SCREEN_PARAM, screen)]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def broadcast_keyboard(
+    button: str | None, language: str, tma_url: str, *, icon: bool = True
+) -> InlineKeyboardMarkup | None:
+    """Клавиатура под рассылкой: кнопка `button` (None — без кнопки) с подписью на языке
+    `language`; `icon=False` — без анимированной иконки (её Telegram может не принять,
+    см. bot/emoji.py)."""
+    if button is None:
+        return None
+    spec = BROADCAST_BUTTONS[button]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=spec.texts.get(language, spec.texts[DEFAULT_LANGUAGE]),
+                    icon_custom_emoji_id=spec.icon_emoji_id if icon else None,
+                    web_app=WebAppInfo(url=app_url(tma_url, spec.screen)),
+                )
+            ]
+        ]
+    )
+
+
 async def send_text(bot: Bot, chat_id: int, text: str) -> Undelivered | None:
     """Личное сообщение как есть. None — доставлено."""
     result = await _send(lambda: bot.send_message(chat_id=chat_id, text=text))
@@ -130,35 +199,54 @@ async def send_broadcast_copy(
     text: str | None,
     media: UploadFile | None,
     media_type: str | None,
+    keyboard: Callable[[bool], InlineKeyboardMarkup | None],
 ) -> str | None:
     """Прислать рассылку её автору — раньше всех, как образец — и вернуть file_id
     загруженного медиа (по нему бот разошлёт то же фото или видео остальным, не
     загружая файл заново). Без медиа — None.
 
+    `keyboard(icon)` — кнопка под сообщением (с анимированной иконкой или без). Если
+    Telegram не принял сообщение с иконкой (у владельца бота кончился Premium), оно
+    отправляется ещё раз без неё.
+
     Автор не запускал бота или заблокировал его — 409: без этой копии медиа в Telegram не
     загрузить.
     """
-    if media is None or media_type is None:
-        result = await _send(lambda: bot.send_message(chat_id=chat_id, text=text or ""))
-    elif media_type == "photo":
-        result = await _send(
-            lambda: bot.send_photo(
-                chat_id=chat_id,
-                photo=_UploadInputFile(media),
-                caption=text,
-                request_timeout=_UPLOAD_TIMEOUT_SECONDS,
+
+    async def deliver(markup: InlineKeyboardMarkup | None) -> Message | Undelivered:
+        if media is None or media_type is None:
+            return await _send(
+                lambda: bot.send_message(chat_id=chat_id, text=text or "", reply_markup=markup)
             )
-        )
-    else:
-        result = await _send(
+        if media_type == "photo":
+            return await _send(
+                lambda: bot.send_photo(
+                    chat_id=chat_id,
+                    photo=_UploadInputFile(media),
+                    caption=text,
+                    reply_markup=markup,
+                    request_timeout=_UPLOAD_TIMEOUT_SECONDS,
+                )
+            )
+        return await _send(
             lambda: bot.send_video(
                 chat_id=chat_id,
                 video=_UploadInputFile(media),
                 caption=text,
                 supports_streaming=True,
+                reply_markup=markup,
                 request_timeout=_UPLOAD_TIMEOUT_SECONDS,
             )
         )
+
+    markup = keyboard(True)
+    try:
+        result = await deliver(markup)
+    except ApiError as exc:
+        plain = keyboard(False)
+        if exc.code != "telegram_rejected" or plain == markup:
+            raise
+        result = await deliver(plain)
     if isinstance(result, str):
         raise ApiError(
             409,

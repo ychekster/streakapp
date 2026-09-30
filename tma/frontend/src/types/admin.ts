@@ -1,6 +1,7 @@
 /** Типы админ-панели — зеркалят схемы API /admin/* (tma/backend/schemas.py). Моменты
  *  времени — строки ISO 8601 в UTC («…Z»). */
 
+import type { AUDIENCE_FILTERS, BROADCAST_BUTTONS } from "../constants";
 import type { Habit } from "./habit";
 
 /** Пользователь в строке списка. */
@@ -21,7 +22,18 @@ export interface AdminUserSummary extends AdminUserRef {
 export interface Page<T> {
   items: T[];
   next_cursor: string | null;
+  /** Всего в списке (под поиском и фильтром) — только на первой странице. */
+  total?: number | null;
 }
+
+/** Признак фильтра пользователей (AUDIENCE_FILTERS). */
+export type AudienceKey = keyof typeof AUDIENCE_FILTERS;
+
+/** Фильтр пользователей: признак → выбранное значение; признака нет — любое. */
+export type Audience = { [K in AudienceKey]?: (typeof AUDIENCE_FILTERS)[K][number] };
+
+/** Кнопка под рассылкой; пустая строка — без кнопки. */
+export type BroadcastButton = (typeof BROADCAST_BUTTONS)[number];
 
 export interface AdminReview {
   id: number;
@@ -76,17 +88,13 @@ export interface AdminEntry extends AdminUserRef {
   is_self: boolean;
 }
 
-/** Сегмент получателей рассылки (ключ — BROADCAST_SEGMENTS на бэкенде). */
-export interface BroadcastSegment {
-  key: string;
-  recipients: number;
-}
-
 export type BroadcastStatus = "pending" | "sending" | "done";
 
 export interface Broadcast {
   id: number;
-  segment: string;
+  /** Фильтр получателей строкой «признак:значение,…»; пустая — все. */
+  audience: string;
+  button: Exclude<BroadcastButton, ""> | null;
   status: BroadcastStatus;
   /** Получателей на момент создания. */
   total: number;
@@ -120,14 +128,15 @@ export interface Analytics {
   generated_at: string;
   users: {
     total: number;
-    new_week: number;
-    new_month: number;
     opened_app: number;
     never_opened: number;
     blocked_bot: number;
     blocked: number;
     active_now: number;
   };
+  /** Новые за период: запустили бота → из них открыли приложение → из них добавили
+   *  хотя бы одну привычку. */
+  funnel: { started_bot: number; opened_app: number; added_habit: number };
   /** Все пользователи без пересечений. */
   audience: { uses_app: number; never_opened: number; blocked_bot: number };
   activity: { dau: number; wau: number; mau: number };

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # SecretStr: в repr настроек и в трейсбэках логов токен скрыт звёздочками.
     bot_token: SecretStr = Field(..., alias="BOT_TOKEN")
 
+    # Адрес Mini App (тот же TMA_URL, что у бота). API он нужен только для кнопки под
+    # копией рассылки, которую получает её автор; без него рассылку с кнопкой не создать.
+    tma_url: str | None = Field(default=None, alias="TMA_URL")
+
     # Строка подключения к БД (async-драйвер). Для SQLite путь относительный,
     # поэтому сервер нужно запускать из корня репозитория — см. tma/README.md.
     database_url: str = Field(

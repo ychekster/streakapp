@@ -1,0 +1,85 @@
+/* Капсулы под поиском — одной строкой, которая листается вбок. Строка выходит за поля
+   экрана до его краёв (капсулы уезжают под край, а не обрезаются у поля), а в покое
+   первая капсула стоит по полю, как поиск над ней. Вертикальный отступ внутри — чтобы
+   прокручиваемая строка не срезала тень капсулы «Фильтры». */
+.chips {
+  display: flex;
+  gap: 8px;
+  margin: -4px calc(-1 * (env(safe-area-inset-right) + var(--space-screen-x)))
+    calc(var(--space-title-bottom) - 4px)
+    calc(-1 * (env(safe-area-inset-left) + var(--space-screen-x)));
+  padding: 4px calc(env(safe-area-inset-right) + var(--space-screen-x)) 4px
+    calc(env(safe-area-inset-left) + var(--space-screen-x));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* Капсула той же формы, что поле поиска, но ниже. */
+.chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  line-height: 1.2;
+  transition: opacity var(--transition-fast);
+}
+
+.chip[data-pressed] {
+  opacity: 0.6;
+}
+
+/* «Фильтры»: белая капсула с иконкой, как карточки. */
+.open {
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-card);
+  color: var(--color-accent);
+}
+
+.open svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+/* Сколько условий выбрано — кружок акцентного цвета. */
+.count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-on-habit);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Выбранное условие: подложка акцентного цвета, крестик снимает его. */
+.active {
+  background-color: rgba(var(--palette-blue), 0.14);
+  color: var(--color-accent);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.remove {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}

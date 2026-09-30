@@ -6,13 +6,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from itertools import islice
 from typing import Any
 
-from sqlalchemy import String, and_, case, cast, delete, func, or_, select, true, update
+from sqlalchemy import (
+    String,
+    and_,
+    case,
+    cast,
+    delete,
+    exists,
+    func,
+    not_,
+    or_,
+    select,
+    true,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -64,27 +77,60 @@ def _like_pattern(text: str) -> str:
     return f"%{escaped}%"
 
 
-def _segment_condition(segment: str, moment: datetime) -> Any:
-    """Условие на пользователя для сегмента рассылки (constants.BROADCAST_SEGMENTS).
+# Периоды фильтров «активность» и «появились» (constants.AUDIENCE_FILTERS), дней.
+_FILTER_DAYS: dict[str, int] = {"1d": 1, "7d": 7, "30d": 30, "inactive_7d": 7, "inactive_30d": 30}
 
-    Новый сегмент (например, подписчики) — новая ветка здесь и ключ в константах.
+
+def _audience_condition(audience: Mapping[str, str], moment: datetime) -> Any:
+    """Условие на пользователя для фильтра (audience.py): условия признаков через «и».
+
+    Всё считается на момент `moment`: привычки, отзывы и первое открытие приложения —
+    сделанные до него. Рассылка перебирает получателей долго, и так её фильтр не
+    расползается: кто открыл приложение или добавил привычку во время рассылки, в неё не
+    попадает — как не был посчитан и в числе получателей.
     """
-    if segment == "active_7d":
-        return User.last_seen_at >= moment - timedelta(days=7)
-    if segment == "active_30d":
-        return User.last_seen_at >= moment - timedelta(days=30)
-    if segment == "never_opened":
-        return User.app_opened_at.is_(None)
-    return true()  # "all"
+    conditions: list[Any] = []
+    opened = and_(User.app_opened_at.is_not(None), User.app_opened_at <= moment)
+    has_habit = exists().where(Task.user_id == User.telegram_id, Task.created_at <= moment)
+    has_review = exists().where(Review.user_id == User.telegram_id, Review.created_at <= moment)
+    for key, value in audience.items():
+        if key == "app":
+            conditions.append(opened if value == "opened" else not_(opened))
+        elif key == "habits":
+            # Считаются и удалённые привычки: «добавил хотя бы одну» — как в воронке аналитики.
+            conditions.append(has_habit if value == "any" else not_(has_habit))
+        elif key == "activity":
+            since = moment - timedelta(days=_FILTER_DAYS[value])
+            if value.startswith("inactive_"):
+                conditions.append(
+                    and_(opened, or_(User.last_seen_at.is_(None), User.last_seen_at < since))
+                )
+            else:
+                conditions.append(User.last_seen_at >= since)
+        elif key == "joined":
+            conditions.append(User.created_at >= moment - timedelta(days=_FILTER_DAYS[value]))
+        elif key == "language":
+            conditions.append(User.language == value)
+        elif key == "reviews":
+            conditions.append(has_review if value == "any" else not_(has_review))
+        elif key == "bot":
+            column = User.bot_blocked_at
+            conditions.append(column.is_not(None) if value == "blocked" else column.is_(None))
+        elif key == "access":
+            column = User.blocked_at
+            conditions.append(column.is_not(None) if value == "blocked" else column.is_(None))
+    return and_(true(), *conditions)
 
 
-def _recipient_condition(segment: str, moment: datetime, exclude_user_id: int | None) -> Any:
-    """Получатели рассылки: пользователи сегмента, уже зарегистрированные к `moment`
+def _recipient_condition(
+    audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None
+) -> Any:
+    """Получатели рассылки: пользователи под фильтром, уже зарегистрированные к `moment`
     (пришедшие во время долгой рассылки её не получают — как и не посчитаны в ней), кроме
     заблокировавших бота (Telegram сообщает о разблокировке, поэтому отметка точна),
     заблокированных администратором и автора рассылки (ему копия уже пришла)."""
     condition = and_(
-        _segment_condition(segment, moment),
+        _audience_condition(audience, moment),
         User.created_at <= moment,
         User.bot_blocked_at.is_(None),
         User.blocked_at.is_(None),
@@ -99,8 +145,6 @@ class UserCounts:
     """Счётчики пользователей для аналитики."""
 
     total: int
-    new_week: int
-    new_month: int
     opened_app: int
     never_opened: int
     blocked_bot: int
@@ -110,6 +154,16 @@ class UserCounts:
     # blocked_bot делят всех пользователей без пересечений).
     reachable_opened: int
     reachable_never_opened: int
+
+
+@dataclass(frozen=True)
+class Funnel:
+    """Воронка новых пользователей за период: запустили бота → из них открыли
+    приложение → из них добавили хотя бы одну привычку."""
+
+    started_bot: int
+    opened_app: int
+    added_habit: int
 
 
 @dataclass(frozen=True)
@@ -569,15 +623,10 @@ class Repository:
     #  Users in the admin panel
     # ------------------------------------------------------------------ #
 
-    async def search_users(self, query: str | None, offset: int, limit: int) -> list[User]:
-        """Пользователи для админ-панели, новые сначала: страница `limit` с `offset`.
-
-        Запрос ищет по имени и @username без учёта регистра (в том числе кириллицы —
-        см. database.py), а цифры — ещё и по началу id Telegram. Страницы — по смещению,
-        а не по курсору: у `created_at` из разных источников разный формат в SQLite, и
-        сравнение «после такой-то записи» ненадёжно.
-        """
-        statement = select(User).order_by(User.created_at.desc(), User.telegram_id.desc())
+    @staticmethod
+    def _users_condition(query: str | None, audience: Mapping[str, str], moment: datetime) -> Any:
+        """Пользователи под поиском и фильтром (условие WHERE)."""
+        condition = _audience_condition(audience, moment)
         text = (query or "").strip().lstrip("@")
         if text:
             pattern = _like_pattern(text)
@@ -587,18 +636,50 @@ class Repository:
             ]
             if text.isdigit():
                 conditions.append(cast(User.telegram_id, String).like(f"{text}%"))
-            statement = statement.where(or_(*conditions))
+            condition = and_(condition, or_(*conditions))
+        return condition
+
+    async def search_users(
+        self,
+        query: str | None,
+        audience: Mapping[str, str],
+        moment: datetime,
+        offset: int,
+        limit: int,
+    ) -> list[User]:
+        """Пользователи для админ-панели, новые сначала: страница `limit` с `offset`.
+
+        Запрос ищет по имени и @username без учёта регистра (в том числе кириллицы —
+        см. database.py), а цифры — ещё и по началу id Telegram; фильтр `audience` — см.
+        audience.py. Страницы — по смещению, а не по курсору: у `created_at` из разных
+        источников разный формат в SQLite, и сравнение «после такой-то записи» ненадёжно.
+        """
+        statement = (
+            select(User)
+            .where(self._users_condition(query, audience, moment))
+            .order_by(User.created_at.desc(), User.telegram_id.desc())
+        )
         result = await self.session.execute(statement.offset(offset).limit(limit))
         return list(result.scalars().all())
+
+    async def count_users(
+        self, query: str | None, audience: Mapping[str, str], moment: datetime
+    ) -> int:
+        """Сколько пользователей под поиском и фильтром."""
+        return await self.session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(self._users_condition(query, audience, moment))
+        ) or 0
 
     # ------------------------------------------------------------------ #
     #  Analytics
     # ------------------------------------------------------------------ #
 
     async def user_counts(self, now: datetime) -> UserCounts:
-        """Счётчики пользователей одним запросом: всего, новые за 7 и 30 дней, открывшие
-        и не открывшие приложение, заблокировавшие бота, заблокированные администратором,
-        активные прямо сейчас и деление всех без пересечений (см. UserCounts)."""
+        """Счётчики пользователей одним запросом: всего, открывшие и не открывшие
+        приложение, заблокировавшие бота, заблокированные администратором, активные прямо
+        сейчас и деление всех без пересечений (см. UserCounts)."""
 
         def count_where(condition: Any) -> Any:
             return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
@@ -607,8 +688,6 @@ class Repository:
             await self.session.execute(
                 select(
                     func.count(),
-                    count_where(User.created_at >= now - timedelta(days=7)),
-                    count_where(User.created_at >= now - timedelta(days=30)),
                     count_where(User.app_opened_at.is_not(None)),
                     count_where(User.app_opened_at.is_(None)),
                     count_where(User.bot_blocked_at.is_not(None)),
@@ -624,6 +703,28 @@ class Repository:
             )
         ).one()
         return UserCounts(*(int(value) for value in row))
+
+    async def funnel_since(self, since: datetime) -> Funnel:
+        """Воронка пользователей, появившихся начиная с `since` (см. Funnel), одним
+        запросом. Считаются и удалённые привычки: пользователь их всё-таки добавлял."""
+
+        def count_where(condition: Any) -> Any:
+            return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+
+        opened = User.app_opened_at.is_not(None)
+        has_habit = exists().where(Task.user_id == User.telegram_id)
+        row = (
+            await self.session.execute(
+                select(
+                    func.count(),
+                    count_where(opened),
+                    count_where(and_(opened, has_habit)),
+                )
+                .select_from(User)
+                .where(User.created_at >= since)
+            )
+        ).one()
+        return Funnel(*(int(value) for value in row))
 
     async def count_users_created_before(self, moment: datetime) -> int:
         """Сколько пользователей зарегистрировалось раньше `moment`."""
@@ -657,11 +758,18 @@ class Repository:
         ) or 0
 
     async def active_habit_counts(self) -> list[int]:
-        """Число активных привычек у каждого пользователя, у которого они есть."""
+        """Число активных привычек у каждого, кто пользуется приложением (открывал его и не
+        заблокировал бота), если они у него есть. Заблокировавшие бота не считаются: они
+        ушли, хотя привычки у них остались."""
         result = await self.session.execute(
             select(func.count())
             .select_from(Task)
-            .where(Task.is_active.is_(True))
+            .join(User, User.telegram_id == Task.user_id)
+            .where(
+                Task.is_active.is_(True),
+                User.app_opened_at.is_not(None),
+                User.bot_blocked_at.is_(None),
+            )
             .group_by(Task.user_id)
         )
         return list(result.scalars().all())
@@ -696,52 +804,55 @@ class Repository:
     # ------------------------------------------------------------------ #
 
     async def count_recipients(
-        self, segment: str, moment: datetime, exclude_user_id: int | None = None
+        self, audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None = None
     ) -> int:
-        """Сколько получателей у рассылки на сегмент в момент `moment`."""
+        """Сколько получателей у рассылки с фильтром `audience` в момент `moment`."""
         return await self.session.scalar(
             select(func.count())
             .select_from(User)
-            .where(_recipient_condition(segment, moment, exclude_user_id))
+            .where(_recipient_condition(audience, moment, exclude_user_id))
         ) or 0
 
     async def recipients_after(
         self,
-        segment: str,
+        audience: Mapping[str, str],
         moment: datetime,
         exclude_user_id: int | None,
         after_id: int,
         limit: int,
-    ) -> list[int]:
-        """Следующие получатели рассылки по возрастанию id — после `after_id`."""
+    ) -> list[tuple[int, str]]:
+        """Следующие получатели рассылки по возрастанию id — после `after_id`: (id, язык
+        интерфейса — на нём подпись кнопки под рассылкой)."""
         result = await self.session.execute(
-            select(User.telegram_id)
+            select(User.telegram_id, User.language)
             .where(
-                _recipient_condition(segment, moment, exclude_user_id),
+                _recipient_condition(audience, moment, exclude_user_id),
                 User.telegram_id > after_id,
             )
             .order_by(User.telegram_id)
             .limit(limit)
         )
-        return list(result.scalars().all())
+        return [(user_id, language) for user_id, language in result.tuples()]
 
     async def create_broadcast(
         self,
         *,
         created_by: int,
-        segment: str,
+        audience: str,
         text: str | None,
         media_type: str | None,
         media_file_id: str | None,
+        button: str | None,
         total: int,
     ) -> Broadcast:
-        """Поставить рассылку в очередь бота."""
+        """Поставить рассылку в очередь бота (`audience` — строка фильтра, audience.py)."""
         broadcast = Broadcast(
             created_by=created_by,
-            segment=segment,
+            audience=audience,
             text=text,
             media_type=media_type,
             media_file_id=media_file_id,
+            button=button,
             status=BroadcastStatus.pending,
             total=total,
         )

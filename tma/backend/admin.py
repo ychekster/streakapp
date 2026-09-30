@@ -9,7 +9,9 @@
   пользователь заблокировал бота, это отмечается в базе и возвращается как «не
   доставлено», а не ошибкой;
 - рассылку API только ставит в очередь (копия — автору, по ней медиа загружается в
-  Telegram), а рассылает бот (bot/broadcasts.py).
+  Telegram), а рассылает бот (bot/broadcasts.py);
+- кого показать в списке пользователей и кому отправить рассылку, задаёт фильтр
+  (audience.py).
 """
 
 from __future__ import annotations
@@ -18,10 +20,10 @@ from aiogram import Bot
 from starlette.datastructures import UploadFile
 
 from tma.backend import messaging, validation
+from tma.backend.audience import audience_key, parse_audience
 from tma.backend.constants import (
     BROADCAST_PHOTO_MAX_BYTES,
     BROADCAST_PHOTO_TYPES,
-    BROADCAST_SEGMENTS,
     BROADCAST_VIDEO_MAX_BYTES,
     BROADCAST_VIDEO_TYPES,
     CAPTION_MAX_LENGTH,
@@ -39,11 +41,11 @@ from tma.backend.schemas import (
     AdminUserHabits,
     AdminUserProfile,
     AdminUserRef,
+    AdminUsersCount,
     AdminUsersPage,
     AdminUserSummary,
     BroadcastInfo,
-    BroadcastSegment,
-    BroadcastSegmentsResponse,
+    BroadcastRecipients,
     DeliveryResponse,
     ReviewReplyResponse,
 )
@@ -76,7 +78,8 @@ def _review(review: Review) -> AdminReview:
 def _broadcast(broadcast: Broadcast) -> BroadcastInfo:
     return BroadcastInfo(
         id=broadcast.id,
-        segment=broadcast.segment,
+        audience=broadcast.audience,
+        button=broadcast.button,
         status=broadcast.status.value,
         total=broadcast.total,
         sent=broadcast.sent,
@@ -106,11 +109,14 @@ def _parse_cursor(cursor: str | None) -> int | None:
 
 
 async def list_users(
-    repo: Repository, query: str | None, cursor: str | None, limit: int
+    repo: Repository, query: str | None, audience: str | None, cursor: str | None, limit: int
 ) -> AdminUsersPage:
-    """Страница пользователей (новые сначала), с поиском по имени, @username и id."""
+    """Страница пользователей (новые сначала), с поиском по имени, @username и id и с
+    фильтром (audience.py). На первой странице — ещё и сколько их всего."""
     offset = _parse_cursor(cursor) or 0
-    users = await repo.search_users(query, offset, limit + 1)
+    filters = parse_audience(audience)
+    moment = utc_now()
+    users = await repo.search_users(query, filters, moment, offset, limit + 1)
     more = len(users) > limit
     return AdminUsersPage(
         users=[
@@ -125,6 +131,14 @@ async def list_users(
             for user in users[:limit]
         ],
         next_cursor=str(offset + limit) if more else None,
+        total=await repo.count_users(query, filters, moment) if offset == 0 else None,
+    )
+
+
+async def count_users(repo: Repository, query: str | None, audience: str | None) -> AdminUsersCount:
+    """Сколько пользователей под поиском и фильтром."""
+    return AdminUsersCount(
+        count=await repo.count_users(query, parse_audience(audience), utc_now())
     )
 
 
@@ -299,18 +313,13 @@ async def remove_admin(repo: Repository, viewer: User, telegram_id: int) -> Admi
 # --------------------------------------------------------------------------- #
 
 
-async def broadcast_segments(repo: Repository, viewer: User) -> BroadcastSegmentsResponse:
-    """Сегменты рассылки и сколько в каждом получателей сейчас (без автора: ему приходит
-    копия)."""
-    moment = utc_now()
-    return BroadcastSegmentsResponse(
-        segments=[
-            BroadcastSegment(
-                key=segment,
-                recipients=await repo.count_recipients(segment, moment, viewer.telegram_id),
-            )
-            for segment in BROADCAST_SEGMENTS
-        ]
+async def broadcast_recipients(
+    repo: Repository, viewer: User, audience: str | None
+) -> BroadcastRecipients:
+    """Сколько получателей у рассылки с фильтром сейчас (без автора: ему приходит копия)."""
+    filters = parse_audience(audience, broadcast=True)
+    return BroadcastRecipients(
+        recipients=await repo.count_recipients(filters, utc_now(), viewer.telegram_id)
     )
 
 
@@ -335,31 +344,48 @@ async def create_broadcast(
     repo: Repository,
     bot: Bot,
     admin: User,
-    segment: str,
+    audience: str,
     text: str,
+    button: str,
     media: UploadFile | None,
+    tma_url: str | None,
 ) -> BroadcastInfo:
-    """Поставить рассылку в очередь бота: текст, фото или видео (с подписью или без)."""
-    segment = validation.validate_segment(segment)
+    """Поставить рассылку в очередь бота: текст, фото или видео (с подписью или без),
+    под ним — необязательная кнопка. `audience` — фильтр получателей (audience.py)."""
+    filters = parse_audience(audience, broadcast=True)
+    button_key = validation.validate_broadcast_button(button)
+    if button_key is not None and not tma_url:
+        raise ApiError(503, "app_url_missing", "Не задан адрес приложения (TMA_URL)")
     media_type = _media_type(media) if media is not None else None
     body = (
         validation.validate_caption(text, CAPTION_MAX_LENGTH)
         if media_type
         else validation.validate_message(text, MESSAGE_MAX_LENGTH)
     )
-    total = await repo.count_recipients(segment, utc_now(), admin.telegram_id)
+    total = await repo.count_recipients(filters, utc_now(), admin.telegram_id)
     if total == 0:
-        raise ApiError(409, "no_recipients", "В этом сегменте нет получателей")
+        raise ApiError(409, "no_recipients", "Под этот фильтр не попал ни один получатель")
     # Загрузка видео в Telegram идёт минутами — транзакцию БД на это время не держим,
     # иначе отметки привычек остальных пользователей ждут блокировки (см. Repository.commit).
     await repo.commit()
-    file_id = await messaging.send_broadcast_copy(bot, admin.telegram_id, body, media, media_type)
+    file_id = await messaging.send_broadcast_copy(
+        bot,
+        admin.telegram_id,
+        body,
+        media,
+        media_type,
+        # Кнопка на копии — на языке автора; получатели видят её каждый на своём.
+        lambda icon: messaging.broadcast_keyboard(
+            button_key, admin.language, tma_url or "", icon=icon
+        ),
+    )
     broadcast = await repo.create_broadcast(
         created_by=admin.telegram_id,
-        segment=segment,
+        audience=audience_key(filters),
         text=body,
         media_type=media_type,
         media_file_id=file_id,
+        button=button_key,
         total=total,
     )
     return _broadcast(broadcast)

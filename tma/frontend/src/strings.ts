@@ -43,6 +43,8 @@ const RU = {
   // --- Настройки ---
   settingsTitle: "Настройки",
   settingsLoading: "Загрузка настроек…",
+  // Админ-панель ещё загружается (обычно она загружена заранее — см. App.tsx).
+  adminLoading: "Загрузка…",
   settingsLoadFailed: "Не удалось загрузить настройки",
   settingsSaveFailed: "Не удалось сохранить настройку",
   settingsTimezone: "Часовой пояс",
@@ -198,6 +200,7 @@ const EN: Strings = {
 
   settingsTitle: "Settings",
   settingsLoading: "Loading settings…",
+  adminLoading: "Loading…",
   settingsLoadFailed: "Couldn’t load settings",
   settingsSaveFailed: "Couldn’t save the setting",
   settingsTimezone: "Time Zone",

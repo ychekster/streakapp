@@ -83,6 +83,37 @@ export const ADMIN_SEARCH_MAX_LENGTH = 100;
 export const ANALYTICS_PERIODS = [7, 30, 90] as const;
 export const DEFAULT_ANALYTICS_PERIOD = 30;
 
+/** Фильтры пользователей — в списке пользователей и в получателях рассылки
+ *  (AUDIENCE_FILTERS на бэкенде): признак → его значения, в том же порядке. Условия разных
+ *  признаков складываются через «и». */
+export const AUDIENCE_FILTERS = {
+  app: ["opened", "never"],
+  habits: ["any", "none"],
+  activity: ["1d", "7d", "30d", "inactive_7d", "inactive_30d"],
+  joined: ["1d", "7d", "30d"],
+  language: ["ru", "en"],
+  reviews: ["any", "none"],
+  bot: ["ok", "blocked"],
+  access: ["ok", "blocked"],
+} as const;
+
+/** Признаки фильтра рассылки: заблокировавшие бота и заблокированные администратором
+ *  рассылок не получают никогда (BROADCAST_EXCLUDED_FILTERS на бэкенде). */
+export const BROADCAST_FILTER_KEYS = [
+  "app",
+  "habits",
+  "activity",
+  "joined",
+  "language",
+  "reviews",
+] as const;
+
+/** Пауза после смены фильтра, после которой пересчитывается число пользователей, мс. */
+export const AUDIENCE_COUNT_DELAY_MS = 150;
+
+/** Кнопка под рассылкой (BROADCAST_BUTTONS на бэкенде); пустая строка — без кнопки. */
+export const BROADCAST_BUTTONS = ["", "open_app", "review"] as const;
+
 /** Пределы Bot API: текст сообщения и подпись к фото или видео (как на бэкенде). */
 export const MESSAGE_MAX_LENGTH = 4096;
 export const CAPTION_MAX_LENGTH = 1024;

@@ -7,7 +7,7 @@
 
 import { ApiRequestError, type ApiErrorCode } from "./api/client";
 import { useLanguage } from "./preferences";
-import type { UndeliveredReason } from "./types/admin";
+import type { AudienceKey, BroadcastButton, UndeliveredReason } from "./types/admin";
 import type { Language } from "./types/settings";
 
 /** Число по-русски: «1 234». */
@@ -64,10 +64,11 @@ const RU = {
     90: "Последние 90 дней",
   } as Record<number, string>,
   periodDays: (days: number) => `Последние ${days} ${plural(days, "день", "дня", "дней")}`,
+  funnelHeading: "Новые пользователи",
+  statStartedBot: "Запустили бота",
+  statOpenedApp: "Открыли приложение",
+  statAddedHabit: "Добавили привычку",
   usersHeading: "Пользователи",
-  statTotalUsers: "Всего пользователей",
-  statNewWeek: "Новые · 7 дней",
-  statNewMonth: "Новые · 30 дней",
   statActiveNow: "Сейчас в приложении",
   chartTotalUsers: "Всего пользователей",
   chartTotalUsersNote: (added: number, period: string) =>
@@ -90,7 +91,7 @@ const RU = {
   statAverageHabits: "Привычек на пользователя",
   statTotalHabits: "Активных привычек",
   chartHabits: "Пользователи по числу привычек",
-  chartHabitsNote: "Открывавшие приложение",
+  chartHabitsNote: "Пользуются приложением",
   habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
   habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
     const who = `${ru(users)} ${plural(users, "пользователь", "пользователя", "пользователей")}`;
@@ -126,6 +127,49 @@ const RU = {
   usersEmpty: "Пока нет пользователей",
   blockedTag: "Заблокирован",
   unnamedUser: (telegramId: number) => `Пользователь ${telegramId}`,
+  usersFound: (count: number) =>
+    `${ru(count)} ${plural(count, "пользователь", "пользователя", "пользователей")}`,
+  usersNoMatches: "Никто не подходит под эти фильтры",
+
+  // --- Фильтры пользователей и получателей рассылки ---
+  filters: "Фильтры",
+  filtersTitle: "Фильтры",
+  filtersFooter:
+    "Условия складываются: показываются пользователи, которые подходят под все выбранные сразу.",
+  filtersReset: "Сбросить фильтры",
+  filtersShow: (count: number | null) => (count === null ? "Показать" : `Показать · ${ru(count)}`),
+  filtersCount: (count: number | null) =>
+    count === null
+      ? "Считаем…"
+      : `Подходят: ${ru(count)} ${plural(count, "пользователь", "пользователя", "пользователей")}`,
+  removeFilter: (label: string) => `Убрать фильтр «${label}»`,
+  filterAny: "Все",
+  filterNames: {
+    app: "Приложение",
+    habits: "Привычки",
+    activity: "Активность",
+    joined: "Появились",
+    language: "Язык",
+    reviews: "Отзывы",
+    bot: "Бот",
+    access: "Блокировка",
+  } as Record<AudienceKey, string>,
+  filterValues: {
+    app: { opened: "Открывали приложение", never: "Не открывали приложение" },
+    habits: { any: "Добавили привычку", none: "Не добавили привычку" },
+    activity: {
+      "1d": "Заходили за 24 часа",
+      "7d": "Заходили за 7 дней",
+      "30d": "Заходили за 30 дней",
+      inactive_7d: "Не заходят 7+ дней",
+      inactive_30d: "Не заходят 30+ дней",
+    },
+    joined: { "1d": "Новые за 24 часа", "7d": "Новые за 7 дней", "30d": "Новые за 30 дней" },
+    language: { ru: "Русский язык", en: "Английский язык" },
+    reviews: { any: "Оставляли отзыв", none: "Не оставляли отзыв" },
+    bot: { ok: "Бот не заблокирован", blocked: "Заблокировали бота" },
+    access: { ok: "Не заблокированы админом", blocked: "Заблокированы админом" },
+  } as Record<AudienceKey, Record<string, string>>,
 
   // --- Профиль пользователя ---
   profileLoadFailed: "Не удалось загрузить пользователя",
@@ -202,17 +246,12 @@ const RU = {
 
   // --- Рассылка ---
   broadcastTitle: "Рассылка",
-  broadcastLoadFailed: "Не удалось загрузить получателей",
-  audienceSection: "Аудитория",
-  sendTo: "Кому",
-  segmentNames: {
-    all: "Все пользователи",
-    active_7d: "Активные за 7 дней",
-    active_30d: "Активные за 30 дней",
-    never_opened: "Не открывали приложение",
-  } as Record<string, string>,
+  audienceSection: "Кому",
+  audienceAll: "всем пользователям",
+  recipientsCounting: "Считаем получателей…",
+  recipientsFailed: "Не удалось посчитать получателей.",
   recipients: (count: number) =>
-    `${ru(count)} ${plural(count, "получатель", "получателя", "получателей")}. Копия придёт вам первой, заблокировавшим бота рассылка не отправляется.`,
+    `${ru(count)} ${plural(count, "получатель", "получателя", "получателей")}. Условия складываются. Копия придёт вам первой, заблокировавшим бота рассылка не отправляется.`,
   messageSection: "Сообщение",
   broadcastPlaceholder: "Текст сообщения",
   characters: (count: number, limit: number, caption: boolean) =>
@@ -223,10 +262,22 @@ const RU = {
   mediaFooter: "Фото JPEG, PNG или WebP до 10 МБ либо видео MP4 до 50 МБ. Текст станет подписью.",
   mediaUnsupported: "Выберите фото JPEG, PNG или WebP либо видео MP4.",
   mediaTooLarge: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ.",
+  buttonSection: "Кнопка",
+  buttonRow: "Под сообщением",
+  buttonNames: {
+    "": "Без кнопки",
+    open_app: "Открыть приложение",
+    review: "Написать отзыв",
+  } as Record<BroadcastButton, string>,
+  buttonFooters: {
+    "": "Можно добавить кнопку, которая открывает приложение.",
+    open_app: "Открывает приложение. Подпись — на языке получателя.",
+    review: "Открывает приложение сразу на экране отзыва. Подпись — на языке получателя.",
+  } as Record<BroadcastButton, string>,
   sendBroadcast: "Отправить рассылку",
   sendDialogTitle: "Отправить рассылку",
-  sendDialogMessage: (count: number, segment: string) =>
-    `Отправить сообщение ${ru(count)} ${plural(count, "получателю", "получателям", "получателям")} («${segment}»)? Копия придёт вам первой.`,
+  sendDialogMessage: (count: number, audience: string) =>
+    `Отправить сообщение ${ru(count)} ${plural(count, "получателю", "получателям", "получателям")} (${audience})? Копия придёт вам первой.`,
   sendDialogConfirm: "Отправить",
   broadcastFailed: "Не удалось отправить рассылку. Попробуйте ещё раз.",
   lastBroadcast: "Последняя рассылка",
@@ -278,11 +329,13 @@ const RU = {
     admin_not_found: "Этот пользователь уже не администратор",
     cannot_remove_self: "Себя убрать нельзя — попросите другого администратора",
     invalid_message: "Введите сообщение (до 4 096 символов, подпись — до 1 024)",
-    invalid_segment: "Выберите, кому отправить рассылку",
+    invalid_filter: "Такого фильтра нет — обновите приложение",
+    invalid_button: "Такой кнопки нет — обновите приложение",
+    app_url_missing: "На сервере не задан адрес приложения — кнопку не добавить",
     invalid_media: "Telegram не сможет отправить этот файл — нужен JPEG, PNG, WebP или MP4",
     media_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
     payload_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
-    no_recipients: "В этой аудитории пока никого нет",
+    no_recipients: "Под эти фильтры никто не подходит",
     admin_chat_unavailable: "Сначала запустите бота — копия каждой рассылки приходит вам",
     telegram_rejected: "Telegram не принял это сообщение",
     telegram_busy: "Telegram просит подождать — попробуйте через минуту",
@@ -316,10 +369,11 @@ const EN: AdminStrings = {
   period: "Period",
   periodNames: { 7: "Last 7 Days", 30: "Last 30 Days", 90: "Last 90 Days" },
   periodDays: (days: number) => `Last ${days} Days`,
+  funnelHeading: "New Users",
+  statStartedBot: "Started the bot",
+  statOpenedApp: "Opened the app",
+  statAddedHabit: "Added a habit",
   usersHeading: "Users",
-  statTotalUsers: "Total users",
-  statNewWeek: "New · 7 days",
-  statNewMonth: "New · 30 days",
   statActiveNow: "Online now",
   chartTotalUsers: "Total users",
   chartTotalUsersNote: (added: number, period: string) =>
@@ -342,7 +396,7 @@ const EN: AdminStrings = {
   statAverageHabits: "Avg habits per user",
   statTotalHabits: "Active habits",
   chartHabits: "Users by number of habits",
-  chartHabitsNote: "People who opened the app",
+  chartHabitsNote: "People who use the app",
   habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
   habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
     const who = `${en(users)} ${users === 1 ? "user" : "users"}`;
@@ -377,6 +431,44 @@ const EN: AdminStrings = {
   usersEmpty: "No users yet",
   blockedTag: "Blocked",
   unnamedUser: (telegramId: number) => `User ${telegramId}`,
+  usersFound: (count: number) => `${en(count)} ${count === 1 ? "user" : "users"}`,
+  usersNoMatches: "No one matches these filters",
+
+  filters: "Filters",
+  filtersTitle: "Filters",
+  filtersFooter: "Conditions combine: you see users who match all of the selected ones.",
+  filtersReset: "Reset Filters",
+  filtersShow: (count: number | null) => (count === null ? "Show" : `Show · ${en(count)}`),
+  filtersCount: (count: number | null) =>
+    count === null ? "Counting…" : `${en(count)} ${count === 1 ? "user matches" : "users match"}`,
+  removeFilter: (label: string) => `Remove filter “${label}”`,
+  filterAny: "Any",
+  filterNames: {
+    app: "App",
+    habits: "Habits",
+    activity: "Activity",
+    joined: "Joined",
+    language: "Language",
+    reviews: "Reviews",
+    bot: "Bot",
+    access: "Access",
+  },
+  filterValues: {
+    app: { opened: "Opened the app", never: "Never opened the app" },
+    habits: { any: "Added a habit", none: "No habits added" },
+    activity: {
+      "1d": "Active in 24 hours",
+      "7d": "Active in 7 days",
+      "30d": "Active in 30 days",
+      inactive_7d: "Away 7+ days",
+      inactive_30d: "Away 30+ days",
+    },
+    joined: { "1d": "New in 24 hours", "7d": "New in 7 days", "30d": "New in 30 days" },
+    language: { ru: "Russian", en: "English" },
+    reviews: { any: "Left a review", none: "No reviews" },
+    bot: { ok: "Bot not blocked", blocked: "Blocked the bot" },
+    access: { ok: "Not blocked by admin", blocked: "Blocked by admin" },
+  },
 
   profileLoadFailed: "Couldn’t load this user",
   profileHeading: "Profile",
@@ -448,17 +540,12 @@ const EN: AdminStrings = {
   sentOn: (date: string) => `Sent ${date}`,
 
   broadcastTitle: "Broadcast",
-  broadcastLoadFailed: "Couldn’t load audiences",
-  audienceSection: "Audience",
-  sendTo: "Send To",
-  segmentNames: {
-    all: "All Users",
-    active_7d: "Active in Last 7 Days",
-    active_30d: "Active in Last 30 Days",
-    never_opened: "Never Opened the App",
-  },
+  audienceSection: "Recipients",
+  audienceAll: "all users",
+  recipientsCounting: "Counting recipients…",
+  recipientsFailed: "Couldn’t count recipients.",
   recipients: (count: number) =>
-    `${en(count)} ${count === 1 ? "recipient" : "recipients"}. You get a copy first. People who blocked the bot are skipped.`,
+    `${en(count)} ${count === 1 ? "recipient" : "recipients"}. Conditions combine. You get a copy first. People who blocked the bot are skipped.`,
   messageSection: "Message",
   broadcastPlaceholder: "Text of the message",
   characters: (count: number, limit: number, caption: boolean) =>
@@ -469,10 +556,18 @@ const EN: AdminStrings = {
   mediaFooter: "JPEG, PNG or WebP up to 10 MB, or an MP4 video up to 50 MB. The text becomes its caption.",
   mediaUnsupported: "Choose a JPEG, PNG or WebP photo, or an MP4 video.",
   mediaTooLarge: "This file is too large: photos up to 10 MB, videos up to 50 MB.",
+  buttonSection: "Button",
+  buttonRow: "Below the Message",
+  buttonNames: { "": "None", open_app: "Open App", review: "Write a Review" },
+  buttonFooters: {
+    "": "You can add a button that opens the app.",
+    open_app: "Opens the app. The label is in the recipient’s language.",
+    review: "Opens the app right on the review screen. The label is in the recipient’s language.",
+  },
   sendBroadcast: "Send Broadcast",
   sendDialogTitle: "Send Broadcast",
-  sendDialogMessage: (count: number, segment: string) =>
-    `Send this message to ${en(count)} ${count === 1 ? "person" : "people"} (${segment})? You’ll get a copy first.`,
+  sendDialogMessage: (count: number, audience: string) =>
+    `Send this message to ${en(count)} ${count === 1 ? "person" : "people"} (${audience})? You’ll get a copy first.`,
   sendDialogConfirm: "Send",
   broadcastFailed: "Couldn’t send the broadcast. Please try again.",
   lastBroadcast: "Last Broadcast",
@@ -520,11 +615,13 @@ const EN: AdminStrings = {
     admin_not_found: "They’re no longer an admin",
     cannot_remove_self: "You can’t remove yourself — ask another admin",
     invalid_message: "Enter a message (up to 4,096 characters, or 1,024 for a caption)",
-    invalid_segment: "Choose who gets the broadcast",
+    invalid_filter: "This filter doesn’t exist — please update the app",
+    invalid_button: "This button doesn’t exist — please update the app",
+    app_url_missing: "The server has no app address set — can’t add a button",
     invalid_media: "Telegram can’t send this file — use a JPEG, PNG, WebP or MP4",
     media_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",
     payload_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",
-    no_recipients: "Nobody is in this audience yet",
+    no_recipients: "No one matches these filters",
     admin_chat_unavailable: "Start the bot first — you get a copy of every broadcast",
     telegram_rejected: "Telegram didn’t accept this message",
     telegram_busy: "Telegram asked us to slow down — try again in a minute",

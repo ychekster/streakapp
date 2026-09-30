@@ -6,7 +6,8 @@
  * остаётся прежний список (`stale`) — он не мигает на каждой букве. Ответы на устаревший
  * ключ и догрузка прежнего списка не применяются. Элемент, который уже есть в списке
  * (сдвиг страниц, пока список листали), не дублируется. Пока `enabled` ложно, ничего
- * не загружается (список ещё не открывали).
+ * не загружается (список ещё не открывали). Сколько всего элементов (`total`), сообщает
+ * первая страница — если API его присылает.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,6 +18,8 @@ export type PagedListStatus = "loading" | "ready" | "error";
 
 export interface PagedList<T> {
   items: T[];
+  /** Всего в списке по текущему ключу (из первой страницы); null — неизвестно. */
+  total: number | null;
   status: PagedListStatus;
   error: unknown;
   /** На экране — список по прежнему ключу (ответ на новый ещё идёт). */
@@ -35,6 +38,7 @@ interface State<T> {
   key: string;
   items: T[];
   cursor: string | null;
+  total: number | null;
 }
 
 export function usePagedList<T>(
@@ -67,7 +71,12 @@ export function usePagedList<T>(
       .current(null)
       .then((page) => {
         if (active) {
-          setState({ key, items: page.items, cursor: page.next_cursor });
+          setState({
+            key,
+            items: page.items,
+            cursor: page.next_cursor,
+            total: page.total ?? null,
+          });
           setFailed(null);
         }
       })
@@ -117,6 +126,7 @@ export function usePagedList<T>(
 
   return {
     items: state?.items ?? [],
+    total: state?.key === key ? state.total : null,
     status: failed?.key === key ? "error" : state === null ? "loading" : "ready",
     error: failed?.key === key ? failed.error : null,
     stale: state !== null && state.key !== key,

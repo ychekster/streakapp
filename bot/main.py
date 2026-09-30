@@ -113,7 +113,7 @@ async def main() -> None:
     pacer = Pacer(SEND_RATE)
     loops = [
         asyncio.create_task(run_reminders(bot, database, pacer, config.tma_url)),
-        asyncio.create_task(run_broadcasts(bot, database, pacer)),
+        asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
     ]
     logger.info("StreakBot is up and polling")
 

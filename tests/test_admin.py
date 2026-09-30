@@ -14,7 +14,7 @@ from sqlalchemy.engine import make_url
 
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
-from tma.backend.constants import BROADCAST_SEGMENTS, MAX_DB_INT, SEED_ADMIN_IDS, WEEKDAYS
+from tma.backend.constants import MAX_DB_INT, SEED_ADMIN_IDS, WEEKDAYS
 
 
 @pytest.fixture
@@ -56,6 +56,7 @@ def _profile(client: TestClient, admin: AuthUser, user_id: int) -> dict:
 _ADMIN_ROUTES = [
     ("GET", "/admin/analytics"),
     ("GET", "/admin/users"),
+    ("GET", "/admin/users/count"),
     ("GET", "/admin/users/1"),
     ("GET", "/admin/users/1/habits"),
     ("PUT", "/admin/users/1/block"),
@@ -67,7 +68,7 @@ _ADMIN_ROUTES = [
     ("GET", "/admin/admins"),
     ("POST", "/admin/admins"),
     ("DELETE", "/admin/admins/1"),
-    ("GET", "/admin/broadcasts/segments"),
+    ("GET", "/admin/broadcasts/recipients"),
     ("POST", "/admin/broadcasts"),
     ("GET", "/admin/broadcasts/1"),
 ]
@@ -179,7 +180,7 @@ def test_anonymous_upload_is_not_read(client: TestClient) -> None:
     response = client.post(
         "/admin/broadcasts",
         files={"media": ("big.mp4", b"0" * 200_000, "video/mp4")},
-        data={"segment": "all"},
+        data={"audience": ""},
     )
     assert response.status_code == 401
 
@@ -290,6 +291,55 @@ def test_user_search_and_pages(client: TestClient, admin: AuthUser) -> None:
         "/admin/users", params={"limit": 2, "cursor": first["next_cursor"]}, headers=admin.headers
     ).json()
     assert ids(first) + ids(second) == everyone[:4]
+
+
+def test_user_filters(client: TestClient, admin: AuthUser) -> None:
+    """Фильтры списка пользователей складываются через «и»; на первой странице — сколько
+    всего под поиском и фильтром."""
+    name = "Фильтруемый"
+    opened = new_user(name)
+    _open_app(client, opened)
+    with_habit = new_user(name)
+    client.post(
+        "/tasks", json={"name": "Бег", "frequency_type": "daily"}, headers=with_habit.headers
+    )
+    reviewer = new_user(name)
+    client.post("/reviews", json={"text": "Отлично"}, headers=reviewer.headers)
+    client.put(f"/admin/users/{reviewer.id}/block", json={"blocked": True}, headers=admin.headers)
+
+    def found(audience: str) -> set[int]:
+        page = client.get(
+            "/admin/users", params={"q": name, "filter": audience, "limit": 100},
+            headers=admin.headers,
+        )
+        assert page.status_code == 200, page.text
+        body = page.json()
+        count = client.get(
+            "/admin/users/count", params={"q": name, "filter": audience}, headers=admin.headers
+        ).json()["count"]
+        assert body["total"] == count == len(body["users"])
+        return {item["telegram_id"] for item in body["users"]}
+
+    everyone = {opened.id, with_habit.id, reviewer.id}
+    assert everyone <= found("")
+    assert {opened.id, with_habit.id, reviewer.id} <= found("app:opened")
+    assert found("habits:any") == {with_habit.id}
+    assert opened.id in found("habits:none")
+    assert found("reviews:any") == {reviewer.id}
+    assert found("access:blocked") == {reviewer.id}
+    # Условия складываются: открыл приложение, но без привычек и не заблокирован.
+    combined = found("app:opened,habits:none,access:ok")
+    assert opened.id in combined and not {with_habit.id, reviewer.id} & combined
+    assert everyone <= found("activity:1d,joined:1d")
+    assert not everyone & found("activity:inactive_7d")
+
+    for audience in ("app:maybe", "vip:yes", "app:opened,app:never", "x" * 300):
+        response = client.get("/admin/users", params={"filter": audience}, headers=admin.headers)
+        assert response.status_code == 422, audience
+        if len(audience) <= 200:
+            assert response.json()["error"]["code"] == "invalid_filter"
+    second = client.get("/admin/users", params={"cursor": "30"}, headers=admin.headers).json()
+    assert second["total"] is None  # только на первой странице
 
 
 def test_profile(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
@@ -437,32 +487,99 @@ def test_manage_admins(client: TestClient, user: AuthUser, admin: AuthUser) -> N
 # --------------------------------------------------------------------------- #
 
 
+def _recipients(client: TestClient, admin: AuthUser, audience: str = "") -> int:
+    response = client.get(
+        "/admin/broadcasts/recipients", params={"audience": audience}, headers=admin.headers
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["recipients"]
+
+
 def test_text_broadcast_is_queued_and_copied_to_author(
     client: TestClient, user: AuthUser, admin: AuthUser, telegram: FakeTelegram
 ) -> None:
     _open_app(client, user)
-    segments = client.get("/admin/broadcasts/segments", headers=admin.headers).json()["segments"]
-    assert [segment["key"] for segment in segments] == list(BROADCAST_SEGMENTS)
-    everyone = next(segment["recipients"] for segment in segments if segment["key"] == "all")
+    everyone = _recipients(client, admin)
+    assert 0 < _recipients(client, admin, "app:opened") <= everyone
 
     response = client.post(
-        "/admin/broadcasts", data={"segment": "all", "text": "Новости"}, headers=admin.headers
+        "/admin/broadcasts", data={"audience": "", "text": "Новости"}, headers=admin.headers
     )
     assert response.status_code == 201, response.text
     broadcast = response.json()["broadcast"]
     assert (broadcast["status"], broadcast["total"], broadcast["sent"]) == ("pending", everyone, 0)
-    assert (telegram.sent[-1].chat_id, telegram.sent[-1].text) == (admin.id, "Новости")
+    assert (broadcast["audience"], broadcast["button"]) == ("", None)
+    copy = telegram.sent[-1]
+    assert (copy.chat_id, copy.text, copy.extra["reply_markup"]) == (admin.id, "Новости", None)
 
     status = client.get(f"/admin/broadcasts/{broadcast['id']}", headers=admin.headers).json()
     assert status["broadcast"]["id"] == broadcast["id"]
 
     for data, code in (
-        ({"segment": "vip", "text": "x"}, "invalid_segment"),
-        ({"segment": "all", "text": " "}, "invalid_message"),
+        ({"audience": "vip:yes", "text": "x"}, "invalid_filter"),
+        # Заблокировавшие бота и заблокированные рассылок не получают — фильтра по ним нет.
+        ({"audience": "bot:blocked", "text": "x"}, "invalid_filter"),
+        ({"audience": "", "text": " "}, "invalid_message"),
+        ({"audience": "", "text": "x", "button": "buy"}, "invalid_button"),
     ):
         invalid = client.post("/admin/broadcasts", data=data, headers=admin.headers)
         assert invalid.status_code == 422
         assert invalid.json()["error"]["code"] == code
+    excluded = client.get(
+        "/admin/broadcasts/recipients", params={"audience": "access:ok"}, headers=admin.headers
+    )
+    assert excluded.status_code == 422, excluded.text
+    assert excluded.json()["error"]["code"] == "invalid_filter"
+
+
+def test_broadcast_with_filter_and_button(
+    client: TestClient, user: AuthUser, admin: AuthUser, telegram: FakeTelegram
+) -> None:
+    _open_app(client, user)
+    audience = "habits:none,app:opened"  # порядок признаков не важен
+    total = _recipients(client, admin, audience)
+    response = client.post(
+        "/admin/broadcasts",
+        data={"audience": audience, "text": "Как вам?", "button": "review"},
+        headers=admin.headers,
+    )
+    assert response.status_code == 201, response.text
+    broadcast = response.json()["broadcast"]
+    assert (broadcast["audience"], broadcast["button"], broadcast["total"]) == (
+        "app:opened,habits:none",
+        "review",
+        total,
+    )
+    # Копия автору — с той же кнопкой: открывает приложение сразу на экране отзыва.
+    button = telegram.sent[-1].extra["reply_markup"].inline_keyboard[0][0]
+    assert button.text == "Написать отзыв"
+    assert button.web_app.url == "https://example.com?open=review"
+
+    nobody = client.post(
+        "/admin/broadcasts",
+        data={"audience": "joined:1d,activity:inactive_30d", "text": "x"},
+        headers=admin.headers,
+    )
+    assert nobody.status_code == 409
+    assert nobody.json()["error"]["code"] == "no_recipients"
+
+
+def test_broadcast_copy_falls_back_without_button_icon(
+    client: TestClient, user: AuthUser, admin: AuthUser, telegram: FakeTelegram
+) -> None:
+    """Иконку на кнопке Telegram не принял (Premium у владельца бота кончился) — копия
+    уходит без неё, а рассылка всё равно создаётся."""
+    _open_app(client, user)
+    telegram.reject_icons = True
+    response = client.post(
+        "/admin/broadcasts",
+        data={"audience": "", "text": "Заходите", "button": "open_app"},
+        headers=admin.headers,
+    )
+    assert response.status_code == 201, response.text
+    button = telegram.sent[-1].extra["reply_markup"].inline_keyboard[0][0]
+    assert (button.text, button.icon_custom_emoji_id) == ("Открыть приложение", None)
+    assert button.web_app.url == "https://example.com"
 
 
 def test_photo_broadcast_uploads_file_once(
@@ -472,7 +589,7 @@ def test_photo_broadcast_uploads_file_once(
     photo = b"\xff\xd8" + b"0" * 200_000  # больше общего предела тела запроса (64 КБ)
     response = client.post(
         "/admin/broadcasts",
-        data={"segment": "all", "text": ""},
+        data={"audience": "", "text": ""},
         files={"media": ("photo.jpg", photo, "image/jpeg")},
         headers=admin.headers,
     )
@@ -482,7 +599,7 @@ def test_photo_broadcast_uploads_file_once(
 
     wrong = client.post(
         "/admin/broadcasts",
-        data={"segment": "all", "text": "x"},
+        data={"audience": "", "text": "x"},
         files={"media": ("doc.pdf", b"%PDF", "application/pdf")},
         headers=admin.headers,
     )
@@ -511,9 +628,17 @@ def test_analytics(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
     assert today["total_users"] == data["users"]["total"]
     assert data["activity"]["dau"] == today["active_users"]
     assert data["users"]["active_now"] >= 2
+    funnel = data["funnel"]
+    # Пользователь и администратор появились в этом тесте: оба открыли приложение, один
+    # добавил привычку. Воронка сужается сверху вниз.
+    assert funnel["started_bot"] >= funnel["opened_app"] >= funnel["added_habit"] >= 1
+    assert funnel["opened_app"] >= 2
     assert sum(data["audience"].values()) == data["users"]["total"]
     assert [bucket["habits"] for bucket in data["habits"]["distribution"]] == [0, 1, 2, 3, 4, 5]
     assert data["habits"]["distribution"][-1]["open_ended"] is True
+    # Распределение — ровно те, кто пользуется приложением (без заблокировавших бота).
+    distributed = sum(bucket["users"] for bucket in data["habits"]["distribution"])
+    assert distributed == data["audience"]["uses_app"]
     assert 0 < data["completion_rate"] <= 1
 
     invalid = client.get("/admin/analytics", params={"days": 12}, headers=admin.headers)

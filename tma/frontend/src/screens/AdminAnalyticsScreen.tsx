@@ -2,8 +2,9 @@
  * Вкладка «Аналитика» админ-панели. Сверху — период (7, 30 или 90 дней): он один на все
  * графики ниже. Секции — как на экране привычки, каждая в своём цвете (иконки показателей
  * и её график):
- *  - Пользователи — всего, новые за 7 и 30 дней, сейчас в приложении; график числа
- *    пользователей по дням;
+ *  - Новые пользователи — воронка за период: запустили бота → из них открыли приложение
+ *    → из них добавили привычку, и сейчас в приложении;
+ *  - Пользователи — график числа пользователей по дням;
  *  - Активность — DAU, WAU, MAU и их отношение; график DAU (сегодняшний день ещё идёт —
  *    отрезок к нему пунктиром);
  *  - Аудитория — все пользователи без пересечений: пользуются приложением, ещё не
@@ -20,6 +21,7 @@ import { useState } from "react";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
 import {
+  AppIcon,
   ChecklistIcon,
   MonthIcon,
   OnlineIcon,
@@ -27,7 +29,6 @@ import {
   StackIcon,
   SunIcon,
   UserPlusIcon,
-  UsersStatIcon,
   WeekIcon,
 } from "../components/AdminIcons";
 import { ChartCard, type ChartTable } from "../components/ChartCard";
@@ -122,7 +123,7 @@ function Dashboard({ data }: { data: Analytics }) {
   const labels = data.days.map((day, index) =>
     index === lastIndex ? strings.today : format.day(day.date),
   );
-  const { users, activity, habits, audience } = data;
+  const { users, funnel, activity, habits, audience } = data;
   const added = data.days.reduce((sum, day) => sum + day.new_users, 0);
   const averageDau = data.days.length
     ? data.days.reduce((sum, day) => sum + day.active_users, 0) / data.days.length
@@ -131,30 +132,33 @@ function Dashboard({ data }: { data: Analytics }) {
 
   return (
     <>
+      <Section title={strings.funnelHeading}>
+        <div className={styles.stats} style={habitColorStyle(USERS_COLOR)}>
+          <StatCard
+            icon={<UserPlusIcon />}
+            value={format.count(funnel.started_bot)}
+            label={strings.statStartedBot}
+          />
+          <StatCard
+            icon={<AppIcon />}
+            value={format.count(funnel.opened_app)}
+            label={strings.statOpenedApp}
+          />
+          <StatCard
+            icon={<ChecklistIcon />}
+            value={format.count(funnel.added_habit)}
+            label={strings.statAddedHabit}
+          />
+          <StatCard
+            icon={<OnlineIcon />}
+            value={format.count(users.active_now)}
+            label={strings.statActiveNow}
+          />
+        </div>
+      </Section>
+
       <Section title={strings.usersHeading}>
         <div className={styles.group} style={habitColorStyle(USERS_COLOR)}>
-          <div className={styles.stats}>
-            <StatCard
-              icon={<UsersStatIcon />}
-              value={format.count(users.total)}
-              label={strings.statTotalUsers}
-            />
-            <StatCard
-              icon={<UserPlusIcon />}
-              value={format.count(users.new_week)}
-              label={strings.statNewWeek}
-            />
-            <StatCard
-              icon={<UserPlusIcon />}
-              value={format.count(users.new_month)}
-              label={strings.statNewMonth}
-            />
-            <StatCard
-              icon={<OnlineIcon />}
-              value={format.count(users.active_now)}
-              label={strings.statActiveNow}
-            />
-          </div>
           <TrendCard
             title={strings.chartTotalUsers}
             summary={{

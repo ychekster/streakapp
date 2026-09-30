@@ -28,6 +28,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from tma.backend.constants import (
+    AUDIENCE_MAX_LENGTH,
     DEFAULT_HABIT_COLOR,
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
@@ -99,7 +100,7 @@ class User(Base):
     # (/start записывает пользователя, см. bot/handlers/start.py).
     app_opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Последний запрос к API, с точностью LAST_SEEN_RESOLUTION_SECONDS (см.
-    # Repository.touch_user). Индекс: по нему считаются активные и сегменты рассылки.
+    # Repository.touch_user). Индекс: по нему считаются активные и фильтры активности.
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     # Пользователь заблокировал бота (Telegram прислал my_chat_member «kicked» или
     # ответил 403 на отправку); None — не блокировал или уже разблокировал.
@@ -254,7 +255,7 @@ class UserActivity(Base):
 class Broadcast(Base):
     """Рассылка из админ-панели. API создаёт её, бот рассылает (bot/broadcasts.py).
 
-    Получатели — пользователи сегмента по возрастанию id; `cursor` — id последнего
+    Получатели — пользователи под фильтром по возрастанию id; `cursor` — id последнего
     обработанного, поэтому после перезапуска бот продолжает с того же места.
     Медиа уже загружено в Telegram (копия ушла автору рассылки) — хранится его file_id.
     """
@@ -263,8 +264,13 @@ class Broadcast(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    # Ключ сегмента получателей (constants.BROADCAST_SEGMENTS).
-    segment: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Фильтр получателей — строка «признак:значение» через запятую (audience.py); пустая —
+    # все пользователи.
+    audience: Mapped[str] = mapped_column(
+        String(AUDIENCE_MAX_LENGTH), default="", server_default="", nullable=False
+    )
+    # Кнопка под сообщением (constants.BROADCAST_BUTTONS); None — без кнопки.
+    button: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Текст сообщения или подпись к медиа; None — медиа без подписи.
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     # "photo" / "video"; None — только текст.

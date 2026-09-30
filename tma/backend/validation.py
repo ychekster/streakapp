@@ -13,7 +13,7 @@ import pytz
 
 from tma.backend.cities import City, city_index
 from tma.backend.constants import (
-    BROADCAST_SEGMENTS,
+    BROADCAST_BUTTONS,
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
@@ -175,8 +175,10 @@ def validate_caption(text: str, max_length: int) -> str | None:
     return cleaned or None
 
 
-def validate_segment(value: str) -> str:
-    """Проверить сегмент получателей рассылки."""
-    if value not in BROADCAST_SEGMENTS:
-        raise ApiError(422, "invalid_segment", "Неизвестный сегмент получателей")
+def validate_broadcast_button(value: str) -> str | None:
+    """Проверить кнопку под рассылкой; пустая строка — без кнопки (None)."""
+    if value == "":
+        return None
+    if value not in BROADCAST_BUTTONS:
+        raise ApiError(422, "invalid_button", "Неизвестная кнопка")
     return value

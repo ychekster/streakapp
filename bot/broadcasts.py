@@ -1,19 +1,23 @@
 """Рассылки из админ-панели: API ставит их в очередь (таблица `broadcasts`), бот рассылает.
 
 Раз в `POLL_SECONDS` бот берёт самую раннюю неразосланную рассылку и отправляет её
-получателям сегмента по возрастанию id — пачками по `BATCH_SIZE`, параллельно внутри
-пачки и в общем темпе с напоминаниями (bot/pacing.py). После каждой пачки в базе
-запоминаются курсор (id последнего получателя пачки) и счётчики, поэтому после
-перезапуска рассылка продолжается с того же места; пачка, прерванная посередине, может
-прийти части своих получателей повторно.
+получателям под её фильтром (tma/backend/audience.py) по возрастанию id — пачками по
+`BATCH_SIZE`, параллельно внутри пачки и в общем темпе с напоминаниями (bot/pacing.py).
+После каждой пачки в базе запоминаются курсор (id последнего получателя пачки) и
+счётчики, поэтому после перезапуска рассылка продолжается с того же места; пачка,
+прерванная посередине, может прийти части своих получателей повторно.
 
-Получатели считаются на момент создания рассылки (`created_at`): сегмент «активные за 7
-дней» не расползается, пока идёт долгая рассылка. Автору рассылки её копия уже пришла
-от API — ему повторно не отправляется. Заблокировавшие бота отмечаются в базе и
-следующих рассылок не получают.
+Получатели считаются на момент создания рассылки (`created_at`): фильтр «были в
+приложении за 7 дней» не расползается, пока идёт долгая рассылка. Автору рассылки её
+копия уже пришла от API — ему повторно не отправляется. Заблокировавшие бота отмечаются
+в базе и следующих рассылок не получают.
 
 Медиа уже загружено в Telegram (при отправке копии автору), поэтому фото и видео
 рассылаются по file_id — без повторной загрузки файла.
+
+Кнопка под рассылкой («Открыть приложение» или «Написать отзыв») подписана на языке
+получателя. Если Telegram не принял сообщение с анимированной иконкой на кнопке (у
+владельца бота кончился Premium), оно отправляется ещё раз без иконки (см. bot/emoji.py).
 """
 
 from __future__ import annotations
@@ -24,11 +28,21 @@ from datetime import datetime
 from typing import Literal
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramRetryAfter,
+)
+from aiogram.types import InlineKeyboardMarkup
 from loguru import logger
 
+from bot.emoji import without_icons
 from bot.pacing import Pacer
+from tma.backend.audience import Audience, parse_audience
 from tma.backend.database import Database
+from tma.backend.errors import ApiError
+from tma.backend.messaging import broadcast_keyboard
 from tma.backend.models import Broadcast
 from tma.backend.repository import Repository
 
@@ -47,11 +61,12 @@ class _Job:
 
     id: int
     created_by: int
-    segment: str
+    audience: Audience
     created_at: datetime
     text: str | None
     media_type: str | None
     media_file_id: str | None
+    button: str | None
     cursor: int
 
     @classmethod
@@ -59,16 +74,18 @@ class _Job:
         return cls(
             id=broadcast.id,
             created_by=broadcast.created_by,
-            segment=broadcast.segment,
+            # Фильтр проверен при создании рассылки (API) — здесь он только разбирается.
+            audience=parse_audience(broadcast.audience),
             created_at=broadcast.created_at,
             text=broadcast.text,
             media_type=broadcast.media_type,
             media_file_id=broadcast.media_file_id,
+            button=broadcast.button,
             cursor=broadcast.cursor,
         )
 
 
-async def run_broadcasts(bot: Bot, database: Database, pacer: Pacer) -> None:
+async def run_broadcasts(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> None:
     """Бесконечный цикл: разослать поставленные в очередь рассылки.
 
     Ошибка (база недоступна и т.п.) логируется и не останавливает цикл — рассылка
@@ -77,14 +94,14 @@ async def run_broadcasts(bot: Bot, database: Database, pacer: Pacer) -> None:
     logger.info("Broadcasts started")
     while True:
         try:
-            while await _deliver_next_batch(bot, database, pacer):
+            while await _deliver_next_batch(bot, database, pacer, tma_url):
                 pass
         except Exception:  # noqa: BLE001 — цикл рассылок не должен падать
             logger.exception("Broadcast delivery failed")
         await asyncio.sleep(POLL_SECONDS)
 
 
-async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer) -> bool:
+async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> bool:
     """Отправить следующую пачку самой ранней неразосланной рассылки. False — рассылать
     нечего."""
     # Сессии — только на чтение очереди и на запись итогов: отправка по сети не держит
@@ -94,9 +111,17 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer) -> boo
         broadcast = await repo.next_broadcast()
         if broadcast is None:
             return False
-        job = _Job.of(broadcast)
+        try:
+            job = _Job.of(broadcast)
+        except ApiError as exc:
+            # Фильтр не разбирается (строку правили в базе вручную): кому слать — неясно.
+            # Рассылка закрывается, чтобы не держать очередь, а не рассылается наугад.
+            logger.error("Broadcast {} skipped, bad audience filter: {}", broadcast.id, exc.message)
+            await repo.finish_broadcast(broadcast)
+            await session.commit()
+            return True
         recipients = await repo.recipients_after(
-            job.segment, job.created_at, job.created_by, job.cursor, BATCH_SIZE
+            job.audience, job.created_at, job.created_by, job.cursor, BATCH_SIZE
         )
         if not recipients:
             await repo.finish_broadcast(broadcast)
@@ -106,8 +131,17 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer) -> boo
             )
             return True
 
-    outcomes = await asyncio.gather(*(_send(bot, pacer, job, chat_id) for chat_id in recipients))
-    blocked = [chat_id for chat_id, outcome in zip(recipients, outcomes) if outcome == "blocked"]
+    outcomes = await asyncio.gather(
+        *(
+            _send(bot, pacer, job, chat_id, broadcast_keyboard(job.button, language, tma_url))
+            for chat_id, language in recipients
+        )
+    )
+    blocked = [
+        chat_id
+        for (chat_id, _), outcome in zip(recipients, outcomes)
+        if outcome == "blocked"
+    ]
 
     async with database.session_factory() as session:
         repo = Repository(session)
@@ -116,7 +150,7 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer) -> boo
             return True
         sent = outcomes.count("sent")
         await repo.record_broadcast_progress(
-            broadcast, cursor=recipients[-1], sent=sent, failed=len(outcomes) - sent
+            broadcast, cursor=recipients[-1][0], sent=sent, failed=len(outcomes) - sent
         )
         if blocked:
             await repo.set_bot_blocked(blocked, blocked=True)
@@ -124,17 +158,19 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer) -> boo
     return True
 
 
-async def _send(bot: Bot, pacer: Pacer, job: _Job, chat_id: int) -> _Outcome:
+async def _send(
+    bot: Bot, pacer: Pacer, job: _Job, chat_id: int, markup: InlineKeyboardMarkup | None
+) -> _Outcome:
     """Отправить рассылку одному получателю; сбой логируется и не мешает остальным."""
     try:
         await pacer.wait()
         try:
-            await _send_content(bot, job, chat_id)
+            await _send_with_fallback(bot, job, chat_id, markup)
         except TelegramRetryAfter as exc:
             # Упёрлись в лимит Telegram — подождать, сколько просят, и повторить один раз.
             await asyncio.sleep(exc.retry_after)
             await pacer.wait()
-            await _send_content(bot, job, chat_id)
+            await _send_with_fallback(bot, job, chat_id, markup)
     except TelegramForbiddenError:
         return "blocked"
     except TelegramAPIError as exc:
@@ -143,16 +179,36 @@ async def _send(bot: Bot, pacer: Pacer, job: _Job, chat_id: int) -> _Outcome:
     return "sent"
 
 
-async def _send_content(bot: Bot, job: _Job, chat_id: int) -> None:
-    """Текст, фото или видео рассылки (медиа — по file_id, с подписью или без)."""
+async def _send_with_fallback(
+    bot: Bot, job: _Job, chat_id: int, markup: InlineKeyboardMarkup | None
+) -> None:
+    """Отправить рассылку; не принял Telegram иконку на кнопке — ещё раз без неё."""
+    try:
+        await _send_content(bot, job, chat_id, markup)
+    except TelegramBadRequest as exc:
+        plain = without_icons(markup) if markup is not None else None
+        # Без иконки не поможет: её на кнопке нет или чата нет (бота не запускали).
+        if plain is None or plain == markup or "chat not found" in exc.message.lower():
+            raise
+        logger.warning("Broadcast {} button icon rejected, sending plain: {}", job.id, exc)
+        await _send_content(bot, job, chat_id, plain)
+
+
+async def _send_content(
+    bot: Bot, job: _Job, chat_id: int, markup: InlineKeyboardMarkup | None
+) -> None:
+    """Текст, фото или видео рассылки (медиа — по file_id, с подписью или без) и кнопка."""
     if job.media_type == "photo" and job.media_file_id:
-        await bot.send_photo(chat_id=chat_id, photo=job.media_file_id, caption=job.text)
+        await bot.send_photo(
+            chat_id=chat_id, photo=job.media_file_id, caption=job.text, reply_markup=markup
+        )
     elif job.media_type == "video" and job.media_file_id:
         await bot.send_video(
             chat_id=chat_id,
             video=job.media_file_id,
             caption=job.text,
             supports_streaming=True,
+            reply_markup=markup,
         )
     else:
-        await bot.send_message(chat_id=chat_id, text=job.text or "")
+        await bot.send_message(chat_id=chat_id, text=job.text or "", reply_markup=markup)

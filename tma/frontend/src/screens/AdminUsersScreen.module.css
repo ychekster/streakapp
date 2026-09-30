@@ -37,3 +37,12 @@
   font-size: var(--font-size-habit-name);
   color: var(--color-text-secondary);
 }
+
+/* Сколько пользователей под поиском и фильтром — над карточкой, как заголовок группы. */
+.total {
+  margin-bottom: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
