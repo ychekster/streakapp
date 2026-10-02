@@ -45,6 +45,9 @@ export function WebChrome() {
 
   return (
     <>
+      {/* Invisible fixed strip on the top edge: keeps iOS from drawing its scroll edge
+          haze over the top of the installed app (see .topEdge). */}
+      <div className={styles.topEdge} aria-hidden="true" />
       {backVisible ? (
         <button
           type="button"

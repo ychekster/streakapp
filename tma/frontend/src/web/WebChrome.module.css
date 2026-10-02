@@ -1,3 +1,27 @@
+/*
+ * Top edge for iOS. Since iOS 26 an installed web app gets a soft "scroll edge" haze
+ * over its top ~40pt, unless WebKit finds a fixed box with a background on the top edge
+ * (hit-tested at the centre, 4px down; wider than 90% of the viewport, taller than 10px,
+ * opacity of at least 0.1 — LocalFrameView::fixedContainerEdges). Then it drops the haze
+ * and fills the status bar with that box's colour, blended over the page background —
+ * here the background itself. The strip is 2% opaque, so it can't be seen, takes no
+ * space and lets taps through; z-index keeps it the topmost box at the sampled point.
+ */
+.topEdge {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background-color: rgba(242, 242, 247, 0.02); /* --color-background at 2% */
+  pointer-events: none;
+}
+
+:global(:root[data-theme="dark"]) .topEdge {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
 /* Back button: an iOS 26 glass circle centred on the top control row
    (--app-content-safe-area-top, set for web mode in variables.css). */
 .back {
