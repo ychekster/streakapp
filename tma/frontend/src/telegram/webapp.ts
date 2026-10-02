@@ -224,7 +224,8 @@ export function setTelegramColors(backgroundColor: string): void {
 export function initTelegram(): void {
   const webApp = getWebApp();
   // Outside Telegram the SDK is loaded too, but reports every inset as 0: applying them
-  // would put the web app's tab bar and header on the screen edges (web/insets.ts).
+  // would put the web app's tab bar and header on the screen edges. The web app leaves
+  // the --app-safe-area-* variables unset, so CSS falls back to live env() values.
   if (!webApp || !isTelegramAvailable()) {
     return;
   }

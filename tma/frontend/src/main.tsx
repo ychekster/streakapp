@@ -22,7 +22,6 @@ import { installPressFeedback } from "./pressFeedback";
 import { STRINGS } from "./strings";
 import { applyPlatform } from "./telegram/webapp";
 import { startWebApp } from "./web/bootstrap";
-import { trackWebSafeAreaInsets } from "./web/insets";
 // Порядок важен: сначала дизайн-токены (переменные), затем глобальные стили.
 import "./styles/variables.css";
 import "./styles/global.css";
@@ -49,9 +48,6 @@ if (entry !== "telegram") {
 }
 if (entry === "landing") {
   captureInstallPrompt();
-}
-if (entry === "web") {
-  trackWebSafeAreaInsets();
 }
 
 /** The installed web app: make sure there is a session, then the app. */

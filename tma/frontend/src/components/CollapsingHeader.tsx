@@ -31,10 +31,23 @@ interface CollapsingHeaderProps {
   anchorRef?: RefObject<HTMLElement>;
 }
 
-/** Прочитать числовое значение CSS-переменной (в px); 0, если не задана. */
-function readPxVar(name: string): number {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const value = Number.parseFloat(raw);
+let probe: HTMLDivElement | null = null;
+
+/**
+ * Значение CSS-переменной в px; не задана — `fallback`. Значение может быть выражением
+ * (в веб-приложении отступы — живые env(safe-area-inset-*)), поэтому его вычисляет сам
+ * браузер — шириной скрытого элемента-пробы — и каждый раз заново, без снимка при запуске.
+ */
+function readPxVar(name: string, fallback = "0px"): number {
+  if (!probe) {
+    probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText =
+      "position:fixed;top:0;left:0;height:0;visibility:hidden;pointer-events:none";
+    document.body.appendChild(probe);
+  }
+  probe.style.width = `var(${name}, ${fallback})`;
+  const value = Number.parseFloat(getComputedStyle(probe).width);
   return Number.isFinite(value) ? value : 0;
 }
 
@@ -72,7 +85,8 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
     };
 
     const recompute = (): void => {
-      const safeTop = readPxVar("--app-safe-area-top");
+      // Как в CSS: в Mini App — отступ от Telegram, в веб-приложении — env() браузера.
+      const safeTop = readPxVar("--app-safe-area-top", "env(safe-area-inset-top, 0px)");
       const contentTop = readPxVar("--app-content-safe-area-top");
       const rowHeight = readPxVar("--header-collapsed-row-height");
       const overhang = readPxVar("--header-bar-overhang");

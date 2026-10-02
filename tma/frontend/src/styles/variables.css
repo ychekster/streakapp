@@ -408,7 +408,9 @@
  * navigation bar, the values measured from the reference screenshots of iOS Settings
  * (below the status bar, in pt): a 46pt row with the back button and the collapsed
  * title centred on it, the blurred bar 8pt deeper (54pt), the large title's cap top at
- * 65.5 and its baseline at 89, the first card at 105. Safe-area insets: web/insets.ts.
+ * 65.5 and its baseline at 89, the first card at 105. Safe-area insets: --app-safe-area-*
+ * stay unset here, so every rule falls back to the browser's live env() values (never a
+ * snapshot taken at launch, when iOS may not have reported them yet).
  */
 :root[data-app="web"] {
   --app-content-safe-area-top: 46px;
