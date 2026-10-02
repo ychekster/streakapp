@@ -122,6 +122,7 @@
    *   --header-hairline-scale — сжатие 1px-линии до 1 физического пикселя (1 / devicePixelRatio).
    */
   --header-bar-bottom: 0px;
+  --header-bar-overhang: 0px; /* на сколько подложка ниже строки кнопок (веб-приложение) */
   --header-bar-blur: 3px;
   --header-bar-saturate: 180%;
   /* Эффект матового стекла целиком одним токеном: платформа может заменить его на none,
@@ -403,14 +404,23 @@
 }
 
 /*
- * Installed web app (main.tsx sets data-app="web"). Telegram's fullscreen leaves a row
- * for its own controls at the top (--app-content-safe-area-top); the web app keeps the
- * same row for its back button, so screens look exactly like in the Mini App. Safe-area
- * insets come from the browser (env(), viewport-fit=cover in index.html).
+ * Installed web app (main.tsx sets data-app="web"). The top is laid out like an iOS 26
+ * navigation bar, the values measured from the reference screenshots of iOS Settings
+ * (below the status bar, in pt): a 46pt row with the back button and the collapsed
+ * title centred on it, the blurred bar 8pt deeper (54pt), the large title's cap top at
+ * 65.5 and its baseline at 89, the first card at 105. Safe-area insets: web/insets.ts.
  */
 :root[data-app="web"] {
-  --app-content-safe-area-top: 44px;
-  --web-back-size: 36px;
+  --app-content-safe-area-top: 46px;
+  --header-bar-overhang: 8px;
+  --space-screen-top: 11px; /* row + 11 + SF Pro's 8.4px above the cap = 65.5 */
+  --space-header-bottom: 7px; /* 34px title line (40.6px) + 7 = first card at 105 */
+  /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
+  --web-back-size: 44px;
+  --web-back-left: 15px;
+  --web-back-stroke: 2.4px;
+  /* Tab bar 20.5pt above the bottom edge, like the iOS 26 tab bar (34 · 0.37 + 8). */
+  --tabbar-safe-area-share: 0.37;
   --web-main-height: 50px;
   /* Brand colors of the landing and the save-account banner. */
   --brand-blue: #2f8ff5;

@@ -1,27 +1,38 @@
-/* Back button: in the top control row (--app-content-safe-area-top, set for web mode in
-   variables.css), like Telegram's own button in fullscreen. */
+/* Back button: an iOS 26 glass circle centred on the top control row
+   (--app-content-safe-area-top, set for web mode in variables.css). */
 .back {
   position: fixed;
   z-index: 20;
   top: calc(
-    env(safe-area-inset-top, 0px) + (var(--app-content-safe-area-top, 44px) - var(--web-back-size)) / 2
+    var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
+      (var(--app-content-safe-area-top, 44px) - var(--web-back-size)) / 2
   );
-  left: var(--space-screen-x);
+  left: calc(env(safe-area-inset-left, 0px) + var(--web-back-left));
   width: var(--web-back-size);
   height: var(--web-back-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 2px 0 0;
+  display: block;
+  padding: 0;
   border: none;
   border-radius: var(--radius-pill);
   background: var(--glass-fill);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-shadow);
-  color: var(--color-accent);
+  color: var(--glass-icon);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: transform var(--transition-fast);
+}
+
+.back svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* viewBox 44 = --web-back-size, so the width is in px. */
+.back path {
+  stroke-width: var(--web-back-stroke);
 }
 
 .back:active {

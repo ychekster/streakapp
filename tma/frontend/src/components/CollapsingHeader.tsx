@@ -75,15 +75,20 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
       const safeTop = readPxVar("--app-safe-area-top");
       const contentTop = readPxVar("--app-content-safe-area-top");
       const rowHeight = readPxVar("--header-collapsed-row-height");
+      const overhang = readPxVar("--header-bar-overhang");
       const dpr = window.devicePixelRatio || 1;
 
       const contentBand = contentTop > 0 ? contentTop : rowHeight;
       // Центр свёрнутого заголовка Б — для порога сворачивания (кросс-фейд А↔Б срабатывает
       // ровно в позиции Б, поэтому здесь именно центр строки).
       const collapsedCenterY = safeTop + contentBand / 2;
-      // Нижний край шапки — низ зоны кнопок Telegram. Округляем до физического пикселя, чтобы
+      // Нижний край шапки — низ зоны кнопок Telegram (в веб-приложении — чуть ниже, как у
+      // шапки iOS, см. --header-bar-overhang). Округляем до физического пикселя, чтобы
       // линия-разделитель не размазывалась на два пикселя.
-      setRootPx("--header-bar-bottom", Math.round((safeTop + contentBand) * dpr) / dpr);
+      setRootPx(
+        "--header-bar-bottom",
+        Math.round((safeTop + contentBand + overhang) * dpr) / dpr,
+      );
       document.documentElement.style.setProperty("--header-hairline-scale", String(1 / dpr));
 
       // Порог сворачивания: scrollY, при котором центр заголовка А (в потоке) достигает

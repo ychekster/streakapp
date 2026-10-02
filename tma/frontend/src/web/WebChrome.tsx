@@ -52,12 +52,13 @@ export function WebChrome() {
           aria-label={strings.webBack}
           onClick={() => webChrome.pressBack()}
         >
-          <svg viewBox="0 0 12 20" width="12" height="20" aria-hidden="true">
+          {/* Drawn over the whole circle: the chevron of the iOS 26 back button, its tip
+              5.4pt left of the centre (measured from the reference screenshot). */}
+          <svg viewBox="0 0 44 44" aria-hidden="true">
             <path
-              d="M10 2 2 10l8 8"
+              d="M25.2 13.9 16.6 22l8.6 8.1"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />

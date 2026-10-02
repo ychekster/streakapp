@@ -191,6 +191,11 @@ function applySafeAreaInsets(webApp: TelegramWebApp): void {
  * Вызывается при запуске и при каждой смене темы.
  */
 export function setTelegramColors(backgroundColor: string): void {
+  if (!isTelegramAvailable()) {
+    // Web app: the status bar strip above the app takes the page's theme color.
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", backgroundColor);
+    return;
+  }
   const webApp = getWebApp();
   try {
     webApp?.setBackgroundColor(backgroundColor);
@@ -218,7 +223,9 @@ export function setTelegramColors(backgroundColor: string): void {
  */
 export function initTelegram(): void {
   const webApp = getWebApp();
-  if (!webApp) {
+  // Outside Telegram the SDK is loaded too, but reports every inset as 0: applying them
+  // would put the web app's tab bar and header on the screen edges (web/insets.ts).
+  if (!webApp || !isTelegramAvailable()) {
     return;
   }
   webApp.ready();
