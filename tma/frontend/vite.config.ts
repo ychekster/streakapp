@@ -1,12 +1,54 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 // Конфигурация сборки фронтенда TMA.
 // Базовый URL API задаётся переменной окружения VITE_API_BASE_URL (см. .env.example)
 // и читается в коде через import.meta.env — здесь хардкода адресов нет.
 // `vite preview` берёт host, allowedHosts и proxy отсюда же (из `server`).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Installable web app (spec §4): manifest + service worker (src/sw.ts — app shell
+    // cache and push). The worker is registered in main.tsx, never inside Telegram.
+    VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      injectRegister: false,
+      registerType: "autoUpdate",
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
+      },
+      includeAssets: ["icons/apple-touch-icon.png", "icons/favicon-32.png"],
+      manifest: {
+        id: "/app",
+        name: "StreakApp",
+        short_name: "StreakApp",
+        description: "Трекер привычек: отмечайте дни и копите стрики",
+        lang: "ru",
+        // pwa=1 — the access gate's fallback check (platform.ts).
+        start_url: "/app?pwa=1",
+        scope: "/",
+        display: "standalone",
+        orientation: "portrait",
+        // Splash in the brand blue (the icon is full-bleed blue); the status bar matches
+        // the app's light background so screens look native.
+        background_color: "#2f8ff5",
+        theme_color: "#f2f2f7",
+        icons: [
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          {
+            src: "/icons/maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+    }),
+  ],
   server: {
     // Только локальный интерфейс: туннель (cloudflared) подключается к 127.0.0.1, а из
     // локальной сети (Wi-Fi) сервер недоступен. Для проверки с телефона в той же сети —

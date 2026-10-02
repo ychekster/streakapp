@@ -3,6 +3,7 @@
 403 `admin_required`).
 
     GET    /admin/analytics?days=30          — аналитика: пользователи, активность, привычки
+    GET    /admin/funnel?since=&until=       — web app funnel (landing → install → habit)
     GET    /admin/users?q=&filter=&cursor=&limit= — пользователи (поиск, фильтр, страницы)
     GET    /admin/users/count?q=&filter=     — сколько пользователей под поиском и фильтром
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
@@ -31,7 +32,10 @@ from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from starlette.datastructures import UploadFile
 
 from tma.backend import admin as service
+from datetime import date, timedelta
+
 from tma.backend.analytics import build_analytics
+from tma.backend.funnel import funnel_report
 from tma.backend.constants import (
     ADMIN_PAGE_SIZE,
     ADMIN_PAGE_SIZE_MAX,
@@ -60,6 +64,7 @@ from tma.backend.schemas import (
     BroadcastRecipients,
     BroadcastResponse,
     DeliveryResponse,
+    FunnelResponse,
     ReviewReplyResponse,
 )
 
@@ -68,7 +73,8 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_ad
 # Идентификаторы в пути. Верхняя граница — предел целого в колонке базы: без неё число
 # длиннее 64 бит доходило бы до запроса и падало ошибкой драйвера (500) вместо понятного
 # ответа о некорректном параметре.
-_TelegramId = Path(..., ge=1, le=MAX_DB_INT, description="id Telegram пользователя")
+# Web-only accounts have negative ids (see models.User), hence the lower bound.
+_TelegramId = Path(..., ge=-MAX_DB_INT, le=MAX_DB_INT, description="id пользователя")
 _ReviewId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор отзыва")
 _BroadcastId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор рассылки")
 _PageSize = Query(ADMIN_PAGE_SIZE, ge=1, le=ADMIN_PAGE_SIZE_MAX)
@@ -90,6 +96,24 @@ async def read_analytics(
     if days not in ANALYTICS_PERIODS:
         raise ApiError(422, "invalid_period", "Период — 7, 30 или 90 дней")
     return await build_analytics(repo, days, utc_now())
+
+
+# Longest funnel period, days.
+_FUNNEL_MAX_DAYS = 366
+
+
+@router.get("/funnel", response_model=FunnelResponse)
+async def read_funnel(
+    since: date | None = Query(None, description="First day (UTC); default — 30 days ago"),
+    until: date | None = Query(None, description="Last day (UTC), inclusive; default — today"),
+    repo: Repository = RepositoryDep,
+) -> FunnelResponse:
+    """Web app funnel: each step's count in total, by platform and by install source."""
+    last = until or utc_now().date()
+    first = since or last - timedelta(days=29)
+    if first > last or (last - first).days >= _FUNNEL_MAX_DAYS:
+        raise ApiError(422, "invalid_period", "Некорректный период")
+    return await funnel_report(repo, first, last)
 
 
 # --------------------------------------------------------------------------- #

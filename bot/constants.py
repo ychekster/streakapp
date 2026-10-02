@@ -85,3 +85,19 @@ REMINDER_BUTTONS: dict[str, str] = {
     "ru": BTN_OPEN_APP,
     "en": "Open App",
 }
+
+# --------------------------------------------------------------------------- #
+#  "Log in via Telegram" from the web app (bot/handlers/web_login.py)
+# --------------------------------------------------------------------------- #
+
+# The web app opens the bot with /start login_<code>; the user confirms here. Asking first
+# protects from someone sending a victim their own login link.
+LOGIN_CONFIRM_TEXT = (
+    "Войти в приложение StreakApp с этим аккаунтом Telegram?\n\n"
+    "Подтвердите, только если вход начали вы — в приложении на своём телефоне."
+)
+LOGIN_CONFIRM_BUTTON = "Подтвердить вход"
+LOGIN_CANCEL_BUTTON = "Отмена"
+LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение StreakApp — вход выполнен."
+LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
+LOGIN_CANCELLED_TEXT = "Вход отменён."

@@ -10,7 +10,13 @@
  * системным диалогом и дать тактильный отклик.
  * Все обращения к SDK защищены проверками на наличие — приложение не падает, если
  * открыто вне Telegram или в старом клиенте.
+ *
+ * Outside Telegram (the installed web app) the back and bottom buttons are the app's own
+ * (web/chrome.ts, drawn by WebChrome), haptics use navigator.vibrate where available, and
+ * links open in the browser — screens call the same functions on both platforms.
  */
+
+import { webChrome } from "../web/chrome";
 
 type HapticStyle = "light" | "medium" | "heavy" | "rigid" | "soft";
 type HapticNotification = "error" | "success" | "warning";
@@ -89,6 +95,9 @@ interface TelegramWebApp {
   contentSafeAreaInset?: SafeAreaInset;
   onEvent?(eventType: string, handler: () => void): void;
   offEvent?(eventType: string, handler: () => void): void;
+  // Links: openLink — in the external browser (Bot API 6.4+), openTelegramLink — t.me.
+  openLink?(url: string): void;
+  openTelegramLink?(url: string): void;
   BackButton?: TelegramBackButton;
   MainButton?: TelegramBottomButton;
   HapticFeedback?: TelegramHapticFeedback;
@@ -249,6 +258,10 @@ export function initTelegram(): void {
  * экранами кнопка остаётся на месте, меняется только обработчик (см. useBackButton).
  */
 export function setBackButtonVisible(visible: boolean): void {
+  if (!isTelegramAvailable()) {
+    webChrome.setBackVisible(visible);
+    return;
+  }
   const backButton = getWebApp()?.BackButton;
   if (visible) {
     backButton?.show();
@@ -262,6 +275,9 @@ export function setBackButtonVisible(visible: boolean): void {
  * Возвращает функцию отписки — её удобно вернуть из эффекта как cleanup.
  */
 export function onBackButtonClick(handler: () => void): () => void {
+  if (!isTelegramAvailable()) {
+    return webChrome.onBack(handler);
+  }
   const backButton = getWebApp()?.BackButton;
   backButton?.onClick(handler);
   return () => backButton?.offClick(handler);
@@ -280,6 +296,10 @@ export interface MainButtonState {
 
 /** Показать нижнюю кнопку Telegram в заданном состоянии (или обновить показанную). */
 export function showMainButton(state: MainButtonState): void {
+  if (!isTelegramAvailable()) {
+    webChrome.showMain(state);
+    return;
+  }
   const mainButton = getWebApp()?.MainButton;
   if (!mainButton) {
     return;
@@ -303,6 +323,10 @@ export function showMainButton(state: MainButtonState): void {
 
 /** Спрятать нижнюю кнопку Telegram. */
 export function hideMainButton(): void {
+  if (!isTelegramAvailable()) {
+    webChrome.hideMain();
+    return;
+  }
   const mainButton = getWebApp()?.MainButton;
   mainButton?.hideProgress();
   mainButton?.setParams({ is_visible: false });
@@ -310,6 +334,9 @@ export function hideMainButton(): void {
 
 /** Подписаться на нажатие нижней кнопки; возвращает функцию отписки. */
 export function onMainButtonClick(handler: () => void): () => void {
+  if (!isTelegramAvailable()) {
+    return webChrome.onMain(handler);
+  }
   const mainButton = getWebApp()?.MainButton;
   mainButton?.onClick(handler);
   return () => mainButton?.offClick(handler);
@@ -333,7 +360,8 @@ export function confirmAction(options: {
   destructive?: boolean;
 }): Promise<boolean> {
   const webApp = getWebApp();
-  const showPopup = webApp?.showPopup?.bind(webApp);
+  // Outside Telegram the SDK is loaded but its dialog goes nowhere — ask the browser.
+  const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
   const ask = (): boolean => window.confirm(`${options.title}\n\n${options.message}`);
   if (!showPopup) {
     return Promise.resolve(ask());
@@ -367,10 +395,48 @@ export function confirmAction(options: {
 
 /** Тактильный отклик на успешное/неуспешное действие (если поддерживается клиентом). */
 export function hapticNotification(type: HapticNotification): void {
+  if (!isTelegramAvailable()) {
+    vibrate(type === "success" ? [12, 60, 12] : [30, 50, 30]);
+    return;
+  }
   getWebApp()?.HapticFeedback?.notificationOccurred(type);
+}
+
+/** navigator.vibrate where the browser has it (Android); iPhone browsers — no-op. */
+function vibrate(pattern: number | number[]): void {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // Not supported — no haptics.
+  }
 }
 
 /** Лёгкий тактильный отклик на нажатие (если поддерживается клиентом). */
 export function hapticImpact(style: HapticStyle = "light"): void {
+  if (!isTelegramAvailable()) {
+    vibrate(style === "light" || style === "soft" ? 8 : 15);
+    return;
+  }
   getWebApp()?.HapticFeedback?.impactOccurred(style);
+}
+
+/** Open a link in the phone's real browser: from Telegram via openLink (leaves the Mini
+ *  App open), otherwise a new tab. */
+export function openExternalLink(url: string): void {
+  const webApp = getWebApp();
+  if (isTelegramAvailable() && webApp?.openLink) {
+    webApp.openLink(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
+
+/** Open a t.me link: inside Telegram without leaving it, otherwise via the browser. */
+export function openTelegramLink(url: string): void {
+  const webApp = getWebApp();
+  if (isTelegramAvailable() && webApp?.openTelegramLink) {
+    webApp.openTelegramLink(url);
+    return;
+  }
+  window.location.href = url;
 }

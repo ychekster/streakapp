@@ -424,3 +424,166 @@ class ReviewReplyResponse(DeliveryResponse):
     """Ответ на отзыв: результат доставки и отзыв (с ответом, если он дошёл)."""
 
     review: AdminReview
+
+
+# --------------------------------------------------------------------------- #
+#  Web app (PWA): accounts, logins, push, funnel events
+# --------------------------------------------------------------------------- #
+
+
+class WebSessionResponse(BaseModel):
+    """A web session for the installed app: the token goes into `Authorization: Bearer`."""
+
+    token: str
+    user_id: int
+
+
+class AccountLogin(BaseModel):
+    """A login method of the account and its state."""
+
+    provider: Literal["telegram", "google"]
+    linked: bool
+    # What it is linked as: @username, name or e-mail; null — not linked.
+    label: str | None = None
+
+
+class AccountResponse(BaseModel):
+    """Settings → Account: logins and whether the account is still a guest."""
+
+    user_id: int
+    is_guest: bool
+    has_habits: bool
+    logins: list[AccountLogin]
+    # Google login is configured on the server (GOOGLE_CLIENT_ID).
+    google_available: bool
+
+
+class LinkResult(BaseModel):
+    """Result of linking a login: the account to continue in and, for the web app, a new
+    session (the account may have switched or merged)."""
+
+    account: AccountResponse
+    session: WebSessionResponse | None = None
+
+
+class HandoffCreate(BaseModel):
+    """`POST /auth/handoff` — where the install link is opened from (analytics `src`)."""
+
+    src: str = Field("settings", max_length=32)
+
+
+class HandoffResponse(BaseModel):
+    """A single-use link that opens the install flow logged into the same account."""
+
+    token: str
+    url: str
+    expires_in: int
+
+
+class TokenRequest(BaseModel):
+    """A one-time token or code from a link or a redirect."""
+
+    token: str = Field(..., min_length=1, max_length=256)
+
+
+class TelegramLoginStart(BaseModel):
+    """`POST /auth/telegram/start` — "log in via Telegram" through the bot."""
+
+    code: str
+    # Opens the bot in the Telegram app (tg://) and its web fallback (https://t.me/…).
+    app_url: str
+    web_url: str
+    expires_in: int
+
+
+class TelegramLoginPoll(BaseModel):
+    """Whether the bot login was confirmed; `result` — when it was."""
+
+    status: Literal["pending", "done"]
+    result: LinkResult | None = None
+
+
+class TelegramWidgetLogin(BaseModel):
+    """Data returned by Telegram's web login (oauth.telegram.org), checked by its hash."""
+
+    id: int
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+    photo_url: str | None = None
+    auth_date: int
+    hash: str = Field(..., max_length=128)
+
+
+class GoogleStart(BaseModel):
+    """`POST /auth/google/start`: `web` — the installed app (redirects back into it),
+    `telegram` — from the Mini App (finishes in the browser)."""
+
+    mode: Literal["web", "telegram"] = "web"
+
+
+class RedirectUrl(BaseModel):
+    """Where to send the browser."""
+
+    url: str
+
+
+class WebConfig(BaseModel):
+    """Public settings the web app needs."""
+
+    vapid_public_key: str | None
+    telegram_bot_username: str | None
+    # Numeric bot id for Telegram's web login (public: it is the bot's user id).
+    telegram_bot_id: int | None
+    google_available: bool
+
+
+class PushKeys(BaseModel):
+    p256dh: str = Field(..., max_length=255)
+    auth: str = Field(..., max_length=255)
+
+
+class PushSubscriptionIn(BaseModel):
+    """A browser PushSubscription (`subscription.toJSON()`)."""
+
+    endpoint: str = Field(..., max_length=1024)
+    keys: PushKeys
+
+
+class PushUnsubscribe(BaseModel):
+    endpoint: str = Field(..., max_length=1024)
+
+
+class PushStatus(BaseModel):
+    """Whether the account gets reminders as push notifications."""
+
+    subscribed: bool
+
+
+class EventIn(BaseModel):
+    """A funnel event from the landing or the app (see constants.FUNNEL_EVENTS)."""
+
+    event: str = Field(..., max_length=48)
+    anon_id: str | None = Field(None, max_length=64)
+    platform: str | None = Field(None, max_length=16)
+    browser_context: str | None = Field(None, max_length=16)
+    src: str | None = Field(None, max_length=32)
+    props: dict[str, object] | None = None
+
+
+class FunnelRow(BaseModel):
+    """Funnel step counts: total and by platform and by `src`."""
+
+    event: str
+    total: int
+    unique: int
+    by_platform: dict[str, int]
+    by_src: dict[str, int]
+
+
+class FunnelResponse(BaseModel):
+    """`GET /admin/funnel` — web app funnel for a period."""
+
+    since: date
+    until: date
+    steps: list[FunnelRow]

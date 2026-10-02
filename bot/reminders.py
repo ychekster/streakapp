@@ -23,12 +23,19 @@
 
 Кто заблокировал бота (Telegram ответил 403), тому остальные напоминания минуты не
 отправляются, а в базе это отмечается — для аналитики и рассылок админ-панели.
+
+Web app users (spec §9) get the reminder once, on one channel: an account with a Web
+Push subscription gets a push notification on its devices; otherwise, if it has Telegram
+(a positive id), the bot message as before. Web-only accounts without push get nothing.
+Subscriptions the push service reports as gone (404/410) are deleted; if all of an
+account's subscriptions are gone, that reminder falls back to Telegram.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
@@ -48,7 +55,16 @@ from bot.pacing import Pacer
 from tma.backend.constants import DEFAULT_LANGUAGE
 from tma.backend.database import Database
 from tma.backend.repository import Repository
+from tma.backend.models import PushSubscription
+from tma.backend.repository import utc_now
 from tma.backend.services import DueReminder, due_reminders
+from tma.backend.webpush import (
+    PushOutcome,
+    PushTarget,
+    VapidKeys,
+    notification,
+    send_push,
+)
 
 _MINUTE = timedelta(minutes=1)
 
@@ -58,6 +74,21 @@ CATCH_UP_LIMIT = timedelta(minutes=5)
 
 # Пауза между сообщениями одному чату, в секундах (лимит Bot API — около одного в секунду).
 PER_CHAT_INTERVAL = 1.0
+
+
+# Title of the reminder push notification.
+PUSH_TITLE = "StreakApp"
+
+PushSender = Callable[[PushTarget, dict[str, object], VapidKeys], Awaitable[PushOutcome]]
+
+
+@dataclass(frozen=True)
+class PushConfig:
+    """Web Push settings: VAPID keys and the web app's public URL (notification taps open
+    `<base_url>/app?pwa=1&habit=<id>`)."""
+
+    keys: VapidKeys
+    base_url: str
 
 
 def _current_minute() -> datetime:
@@ -94,7 +125,9 @@ def _keyboard(
     return keyboards.get(language, keyboards[DEFAULT_LANGUAGE])
 
 
-async def run_reminders(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> None:
+async def run_reminders(
+    bot: Bot, database: Database, pacer: Pacer, tma_url: str, push: PushConfig | None = None
+) -> None:
     """Бесконечный цикл: в начале каждой минуты прислать наступившие напоминания.
 
     Ошибки одной минуты (база недоступна и т.п.) логируются и не останавливают цикл;
@@ -108,7 +141,7 @@ async def run_reminders(bot: Bot, database: Database, pacer: Pacer, tma_url: str
         minute = max(last_processed + _MINUTE, now - CATCH_UP_LIMIT)
         while minute <= now:
             try:
-                await _send_due(bot, database, pacer, minute, keyboards)
+                await _send_due(bot, database, pacer, minute, keyboards, push)
             except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
                 logger.exception("Reminders for {} failed", minute)
             last_processed = minute
@@ -123,18 +156,87 @@ async def _send_due(
     pacer: Pacer,
     minute: datetime,
     keyboards: Mapping[str, InlineKeyboardMarkup],
+    push: PushConfig | None = None,
+    send: PushSender = send_push,
 ) -> None:
-    """Прислать напоминания, время которых — `minute`, и отметить заблокировавших бота."""
+    """Прислать напоминания, время которых — `minute`: push на устройства веб-приложения
+    или сообщение бота (см. docstring модуля), — и отметить заблокировавших бота и
+    исчезнувшие подписки."""
     # Сессия только на чтение и закрывается до отправки: сеть не держит соединение с БД.
     async with database.session_factory() as session:
-        reminders = await due_reminders(Repository(session), minute)
+        repo = Repository(session)
+        reminders = await due_reminders(repo, minute)
+        subscriptions = (
+            await repo.push_subscriptions_for({item.user_id for item in reminders})
+            if reminders and push is not None
+            else {}
+        )
     if not reminders:
         return
-    blocked = await _send_all(bot, pacer, reminders, keyboards)
-    if blocked:
+    by_push = [item for item in reminders if item.user_id in subscriptions]
+    gone: list[str] = []
+    delivered: list[str] = []
+    fallback: list[DueReminder] = []
+    if push is not None and by_push:
+        gone, delivered, fallback = await _push_all(by_push, subscriptions, push, send)
+    by_chat = [
+        item for item in reminders if item.user_id not in subscriptions and item.user_id > 0
+    ] + fallback
+    blocked = await _send_all(bot, pacer, by_chat, keyboards) if by_chat else set()
+    if blocked or gone or delivered:
         async with database.session_factory() as session:
-            await Repository(session).set_bot_blocked(blocked, blocked=True)
+            repo = Repository(session)
+            if blocked:
+                await repo.set_bot_blocked(blocked, blocked=True)
+            await repo.delete_push_subscriptions(gone)
+            await repo.mark_push_delivered(delivered, utc_now())
             await session.commit()
+
+
+def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
+    """Push notification of a reminder: same text as the bot message; a tap opens the
+    habit in the app."""
+    template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
+    return notification(
+        PUSH_TITLE,
+        f"{REMINDER_EMOJI.fallback} {template.format(name=reminder.habit_name)}",
+        f"{base_url}/app?pwa=1&habit={reminder.task_id}",
+        tag=f"habit-{reminder.task_id}",
+    )
+
+
+async def _push_all(
+    reminders: list[DueReminder],
+    subscriptions: Mapping[int, list[PushSubscription]],
+    push: PushConfig,
+    send: PushSender,
+) -> tuple[list[str], list[str], list[DueReminder]]:
+    """Push every reminder to all devices of its account, in parallel. Returns gone and
+    delivered endpoints, and the reminders of Telegram accounts all of whose devices are
+    gone (they fall back to the bot message)."""
+
+    async def deliver(reminder: DueReminder) -> list[tuple[str, PushOutcome]]:
+        data = push_payload(reminder, push.base_url)
+        targets = [
+            PushTarget(item.endpoint, item.p256dh, item.auth)
+            for item in subscriptions[reminder.user_id]
+        ]
+        outcomes = await asyncio.gather(*(send(target, data, push.keys) for target in targets))
+        return [(target.endpoint, outcome) for target, outcome in zip(targets, outcomes)]
+
+    results = await asyncio.gather(*(deliver(item) for item in reminders))
+    gone: list[str] = []
+    delivered: list[str] = []
+    fallback: list[DueReminder] = []
+    for reminder, outcomes in zip(reminders, results):
+        gone += [endpoint for endpoint, outcome in outcomes if outcome is PushOutcome.gone]
+        delivered += [endpoint for endpoint, outcome in outcomes if outcome is PushOutcome.sent]
+        if reminder.user_id > 0 and all(outcome is PushOutcome.gone for _, outcome in outcomes):
+            fallback.append(reminder)
+    logger.info(
+        "Push reminders: {} reminders, {} delivered, {} gone", len(reminders), len(delivered), len(gone)
+    )
+    return list(dict.fromkeys(gone)), list(dict.fromkeys(delivered)), fallback
 
 
 async def _send_all(

@@ -269,3 +269,60 @@ async def send_broadcast_copy(
             raise ApiError(422, "invalid_media", "Видео в этом формате не поддерживается")
         return result.video.file_id
     return None
+
+
+# --------------------------------------------------------------------------- #
+#  One-time offer to install the web app (spec §8)
+# --------------------------------------------------------------------------- #
+
+# The offer the bot sends once, right after the user's first check-in ever. Draft text —
+# edit here (keys — constants.LANGUAGES).
+INSTALL_OFFER_TEXTS: dict[str, str] = {
+    "ru": (
+        "Отличное начало! Хотите иконку StreakApp прямо на экране телефона? "
+        "Так проще не забывать отмечаться."
+    ),
+    "en": (
+        "Great start! Want a StreakApp icon right on your phone’s home screen? "
+        "It makes checking in easier to remember."
+    ),
+}
+INSTALL_OFFER_INSTALL: dict[str, str] = {"ru": "Установить", "en": "Install"}
+INSTALL_OFFER_LATER: dict[str, str] = {"ru": "Не сейчас", "en": "Not now"}
+# Callback of «Не сейчас»: the bot removes the buttons (bot/handlers/install_offer.py).
+INSTALL_OFFER_DISMISS = "install_offer:dismiss"
+# Screen of the Mini App the «Установить» button opens: it opens the install page in the
+# phone's real browser with a fresh single-use login link. A plain URL button would open
+# Telegram's built-in browser, where installing is impossible, and would leave a
+# long-lived login link in the chat history.
+INSTALL_SCREEN = "install"
+
+
+def install_offer_keyboard(language: str, tma_url: str) -> InlineKeyboardMarkup:
+    """«Установить» (opens the Mini App's install screen) and «Не сейчас»."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=INSTALL_OFFER_INSTALL.get(language, INSTALL_OFFER_INSTALL[DEFAULT_LANGUAGE]),
+                    web_app=WebAppInfo(url=app_url(tma_url, INSTALL_SCREEN)),
+                ),
+                InlineKeyboardButton(
+                    text=INSTALL_OFFER_LATER.get(language, INSTALL_OFFER_LATER[DEFAULT_LANGUAGE]),
+                    callback_data=INSTALL_OFFER_DISMISS,
+                ),
+            ]
+        ]
+    )
+
+
+async def send_install_offer(
+    bot: Bot, chat_id: int, language: str, tma_url: str
+) -> Undelivered | None:
+    """Send the install offer. None — delivered."""
+    text = INSTALL_OFFER_TEXTS.get(language, INSTALL_OFFER_TEXTS[DEFAULT_LANGUAGE])
+    markup = install_offer_keyboard(language, tma_url)
+    result = await _send(
+        lambda: bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+    )
+    return result if isinstance(result, str) else None

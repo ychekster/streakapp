@@ -30,6 +30,8 @@ from tma.backend.config import Settings, load_settings
 from tma.backend.constants import (
     BROADCAST_UPLOAD_MAX_BYTES,
     BROADCAST_UPLOAD_PATH,
+    EVENT_RATE_LIMIT,
+    GUEST_RATE_LIMIT,
     MAX_REQUEST_BODY_BYTES,
     SEED_ADMIN_IDS,
     SLOW_REQUEST_SECONDS,
@@ -39,7 +41,7 @@ from tma.backend.errors import error_response, register_error_handlers
 from tma.backend.middleware import BodySizeLimitMiddleware, ResponseMetaMiddleware
 from tma.backend.ratelimit import RateLimiter
 from tma.backend.repository import Repository
-from tma.backend.routers import admin, meta, reviews, settings as settings_router, tasks
+from tma.backend.routers import admin, auth, meta, reviews, settings as settings_router, tasks, web
 from tma.backend.timezones import warm_up as warm_up_timezones
 
 # Сколько секунд браузер может кешировать ответ на CORS-preflight.
@@ -75,6 +77,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.rate_limiter = RateLimiter(
         settings.rate_limit_burst, settings.rate_limit_per_second
     )
+    # Requests without an account yet, keyed by address or device: guest accounts (the
+    # first launch of the installed app) and funnel events from the landing.
+    app.state.guest_limiter = RateLimiter(*GUEST_RATE_LIMIT)
+    app.state.event_limiter = RateLimiter(*EVENT_RATE_LIMIT)
     app.state.database = Database(
         settings.database_url,
         pool_size=settings.db_pool_size,
@@ -137,6 +143,8 @@ def create_app() -> FastAPI:
     app.include_router(meta.router)
     app.include_router(reviews.router)
     app.include_router(admin.router)
+    app.include_router(auth.router)
+    app.include_router(web.router)
 
     @app.get("/health", tags=["meta"], response_model=None)
     async def health(request: Request) -> dict[str, str] | JSONResponse:

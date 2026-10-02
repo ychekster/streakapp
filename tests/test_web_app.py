@@ -1,0 +1,496 @@
+"""Web app (PWA): guest accounts, web sessions, Telegram → web handoff, logins (bot,
+Telegram web login, Google), linking and merging rules, unlinking, funnel events, the
+one-time install offer and push reminders. Bot API and Google are faked."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import hmac
+import os
+import time
+from collections.abc import Iterator
+from datetime import datetime, time as clock, timezone
+from urllib.parse import parse_qs, urlsplit
+
+import pytest
+from fastapi.testclient import TestClient
+
+from bot import reminders as bot_reminders
+from bot.pacing import Pacer
+from tests.conftest import AuthUser, auth_user, new_user
+from tests.fake_telegram import FakeTelegram
+from tests.helpers import TEST_BOT_TOKEN
+from tma.backend import google_oauth
+from tma.backend.accounts import PROVIDER_GOOGLE, LoginProfile, confirm_telegram_login
+from tma.backend.config import load_settings
+from tma.backend.constants import SEED_ADMIN_IDS
+from tma.backend.database import Database
+from tma.backend.models import FrequencyType
+from tma.backend.ratelimit import RateLimiter
+from tma.backend.repository import Repository, utc_now
+from tma.backend.webpush import PushOutcome, VapidKeys
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _no_anonymous_limits(client: TestClient) -> Iterator[None]:
+    """All test requests come from one address: lift the per-address limits."""
+    guests, events = client.app.state.guest_limiter, client.app.state.event_limiter
+    client.app.state.guest_limiter = RateLimiter(0, 0)
+    client.app.state.event_limiter = RateLimiter(0, 0)
+    yield
+    client.app.state.guest_limiter, client.app.state.event_limiter = guests, events
+
+
+@pytest.fixture
+def telegram(client: TestClient) -> Iterator[FakeTelegram]:
+    fake = FakeTelegram()
+    original = client.app.state.bot
+    client.app.state.bot = fake
+    yield fake
+    client.app.state.bot = original
+
+
+def _guest(client: TestClient) -> dict[str, str]:
+    response = client.post("/auth/guest")
+    assert response.status_code == 201, response.text
+    assert response.json()["user_id"] < 0
+    return _bearer(response.json()["token"])
+
+
+def _habit(client: TestClient, headers: dict[str, str], name: str) -> dict:
+    response = client.post(
+        "/tasks", json={"name": name, "frequency_type": "daily"}, headers=headers
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["habit"]
+
+
+def _names(client: TestClient, headers: dict[str, str]) -> list[str]:
+    response = client.get("/tasks", headers=headers)
+    assert response.status_code == 200, response.text
+    return sorted(habit["name"] for habit in response.json()["habits"])
+
+
+def _account(client: TestClient, headers: dict[str, str]) -> dict:
+    response = client.get("/auth/account", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _run(coroutine_factory):
+    """Run DB work directly (as the bot process would), on its own connection."""
+
+    async def run():
+        database = Database(os.environ["DATABASE_URL"])
+        try:
+            async with database.session_factory() as session:
+                result = await coroutine_factory(Repository(session))
+                await session.commit()
+                return result
+        finally:
+            await database.dispose()
+
+    return asyncio.run(run())
+
+
+def _bot_login(client: TestClient, headers: dict[str, str], telegram_user: AuthUser) -> dict:
+    """"Log in via Telegram" through the bot: start, confirm in the bot, poll."""
+    start = client.post("/auth/telegram/start", headers=headers)
+    assert start.status_code == 200, start.text
+    code = start.json()["code"]
+    assert start.json()["web_url"].endswith(f"?start=login_{code}")
+    pending = client.post("/auth/telegram/poll", json={"token": code}, headers=headers)
+    assert pending.json()["status"] == "pending"
+    confirmed = _run(
+        lambda repo: confirm_telegram_login(
+            repo, load_settings(), code, telegram_user.id, "tg", "Tg"
+        )
+    )
+    assert confirmed
+    done = client.post("/auth/telegram/poll", json={"token": code}, headers=headers)
+    assert done.status_code == 200, done.text
+    assert done.json()["status"] == "done"
+    return done.json()["result"]
+
+
+@pytest.fixture(autouse=True)
+def _bot_username(client: TestClient) -> Iterator[None]:
+    client.app.state.bot_username = "test_bot"
+    yield
+
+
+# --------------------------------------------------------------------------- #
+#  Guests and sessions
+# --------------------------------------------------------------------------- #
+
+
+def test_guest_keeps_habits_on_the_server(client: TestClient) -> None:
+    guest = _guest(client)
+    _habit(client, guest, "Вода")
+    assert _names(client, guest) == ["Вода"]
+    account = _account(client, guest)
+    assert account["is_guest"] is True
+    assert [login["linked"] for login in account["logins"]] == [False, False]
+
+
+def test_unknown_session_is_401(client: TestClient) -> None:
+    response = client.get("/tasks", headers=_bearer("not-a-session"))
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_session"
+
+
+def test_meta_accepts_web_sessions(client: TestClient) -> None:
+    assert client.get("/meta", headers=_guest(client)).status_code == 200
+
+
+# --------------------------------------------------------------------------- #
+#  Telegram → web handoff
+# --------------------------------------------------------------------------- #
+
+
+def test_handoff_logs_the_app_into_the_telegram_account(client: TestClient, user: AuthUser) -> None:
+    _habit(client, user.headers, "Зарядка")
+    created = client.post("/auth/handoff", json={"src": "bot"}, headers=user.headers)
+    assert created.status_code == 200, created.text
+    token = created.json()["token"]
+    assert "src=bot" in created.json()["url"] and f"h={token}" in created.json()["url"]
+
+    redeemed = client.post("/auth/handoff/redeem", json={"token": token})
+    assert redeemed.status_code == 200, redeemed.text
+    session = _bearer(redeemed.json()["session"]["token"])
+    assert _names(client, session) == ["Зарядка"]
+    # Single use.
+    again = client.post("/auth/handoff/redeem", json={"token": token})
+    assert again.status_code == 410
+
+
+def test_handoff_is_created_only_in_telegram(client: TestClient) -> None:
+    response = client.post("/auth/handoff", json={}, headers=_guest(client))
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "telegram_only"
+
+
+def test_handoff_on_a_device_with_a_guest_merges_its_habits(
+    client: TestClient, user: AuthUser
+) -> None:
+    _habit(client, user.headers, "Зарядка")
+    guest = _guest(client)
+    _habit(client, guest, "Вода")
+    token = client.post("/auth/handoff", json={}, headers=user.headers).json()["token"]
+    redeemed = client.post("/auth/handoff/redeem", json={"token": token}, headers=guest)
+    assert redeemed.status_code == 200, redeemed.text
+    assert redeemed.json()["account"]["user_id"] == user.id
+    assert _names(client, user.headers) == ["Вода", "Зарядка"]
+    # The guest's old session ended with it.
+    assert client.get("/tasks", headers=guest).status_code == 401
+
+
+# --------------------------------------------------------------------------- #
+#  Linking rules (spec 6.6)
+# --------------------------------------------------------------------------- #
+
+
+def test_new_telegram_login_turns_the_guest_into_a_telegram_account(client: TestClient) -> None:
+    guest = _guest(client)
+    _habit(client, guest, "Вода")
+    telegram_user = new_user()
+    result = _bot_login(client, guest, telegram_user)
+    assert result["account"]["user_id"] == telegram_user.id
+    assert result["account"]["is_guest"] is False
+    session = _bearer(result["session"]["token"])
+    # Same habits in the web app and in the Mini App.
+    assert _names(client, session) == _names(client, telegram_user.headers) == ["Вода"]
+
+
+def test_empty_guest_switches_to_the_existing_account(client: TestClient, user: AuthUser) -> None:
+    _habit(client, user.headers, "Зарядка")
+    guest = _guest(client)
+    guest_id = _account(client, guest)["user_id"]
+    result = _bot_login(client, guest, user)
+    assert result["account"]["user_id"] == user.id
+    assert _names(client, _bearer(result["session"]["token"])) == ["Зарядка"]
+    # The empty guest is discarded.
+    assert _run(lambda repo: repo.get_user(guest_id)) is None
+
+
+def test_guest_with_habits_merges_into_the_existing_account(
+    client: TestClient, user: AuthUser
+) -> None:
+    habit = _habit(client, user.headers, "Бег")
+    assert client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers).status_code == 200
+    guest = _guest(client)
+    guest_habit = _habit(client, guest, "Бег")
+    client.post(f"/tasks/{guest_habit['id']}/toggle", headers=guest)
+    _habit(client, guest, "Вода")
+
+    result = _bot_login(client, guest, user)
+    session = _bearer(result["session"]["token"])
+    # Nothing is lost: the clashing name gets a suffix, check-ins move along.
+    assert _names(client, session) == ["Бег", "Бег (2)", "Вода"]
+    habits = client.get("/tasks", headers=session).json()["habits"]
+    assert {h["name"]: h["done_today"] for h in habits} == {"Бег": True, "Бег (2)": True, "Вода": False}
+
+
+def test_telegram_web_login_checks_the_hash(client: TestClient) -> None:
+    guest = _guest(client)
+    telegram_user = new_user()
+    fields = {"id": str(telegram_user.id), "first_name": "Web", "auth_date": str(int(time.time()))}
+    check = "\n".join(f"{key}={fields[key]}" for key in sorted(fields))
+    secret = hashlib.sha256(TEST_BOT_TOKEN.encode()).digest()
+    signed = {**fields, "hash": hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()}
+
+    forged = client.post("/auth/telegram/widget", json={**signed, "first_name": "Evil"}, headers=guest)
+    assert forged.status_code == 401
+    response = client.post("/auth/telegram/widget", json=signed, headers=guest)
+    assert response.status_code == 200, response.text
+    assert response.json()["account"]["user_id"] == telegram_user.id
+
+
+@pytest.fixture
+def google(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Google login configured; the code exchange returns the profile set by the test."""
+    monkeypatch.setattr(client.app.state.settings, "google_client_id", "test-client")
+    profile: dict[str, LoginProfile] = {}
+
+    async def exchange(settings, code: str) -> LoginProfile:
+        return profile["next"]
+
+    monkeypatch.setattr(google_oauth, "exchange_code", exchange)
+    return profile
+
+
+def _google_link(client: TestClient, headers: dict[str, str], subject: str) -> str:
+    """Run the Google redirect; returns where the browser lands."""
+    start = client.post("/auth/google/start", json={"mode": "web"}, headers=headers)
+    assert start.status_code == 200, start.text
+    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
+    callback = client.get(
+        "/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False
+    )
+    assert callback.status_code == 303
+    return callback.headers["location"]
+
+
+def test_google_links_the_guest_and_keeps_its_habits(client: TestClient, google) -> None:
+    guest = _guest(client)
+    _habit(client, guest, "Вода")
+    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-1", email="a@example.com")
+    location = _google_link(client, guest, "g-1")
+    assert "/app?pwa=1&auth=" in location
+    code = parse_qs(urlsplit(location).query)["auth"][0]
+    result = client.post("/auth/complete", json={"token": code}, headers=guest)
+    assert result.status_code == 200, result.text
+    session = _bearer(result.json()["session"]["token"])
+    account = _account(client, session)
+    assert account["is_guest"] is False
+    assert account["logins"][1] == {"provider": "google", "linked": True, "label": "a@example.com"}
+    assert _names(client, session) == ["Вода"]
+    # The result code is single-use.
+    assert client.post("/auth/complete", json={"token": code}).status_code == 410
+
+
+def test_google_login_on_a_new_phone_opens_the_same_account(client: TestClient, google) -> None:
+    first_phone = _guest(client)
+    _habit(client, first_phone, "Чтение")
+    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-2")
+    _google_link(client, first_phone, "g-2")
+
+    new_phone = _guest(client)
+    location = _google_link(client, new_phone, "g-2")
+    code = parse_qs(urlsplit(location).query)["auth"][0]
+    session = _bearer(client.post("/auth/complete", json={"token": code}).json()["session"]["token"])
+    assert _names(client, session) == ["Чтение"]
+
+
+def test_two_telegram_accounts_never_merge(client: TestClient, google, user: AuthUser) -> None:
+    other = new_user()
+    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-3")
+    # Google linked to `user` from the Mini App (finishes in the browser).
+    start = client.post("/auth/google/start", json={}, headers=user.headers)
+    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
+    landed = client.get("/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False)
+    assert landed.headers["location"].endswith("/linked?provider=google")
+    # The same Google from another Telegram account is a conflict.
+    start = client.post("/auth/google/start", json={}, headers=other.headers)
+    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
+    landed = client.get("/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False)
+    assert landed.headers["location"].endswith("error=account_conflict")
+
+
+def test_last_login_cannot_be_unlinked(client: TestClient, google) -> None:
+    guest = _guest(client)
+    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-4")
+    location = _google_link(client, guest, "g-4")
+    code = parse_qs(urlsplit(location).query)["auth"][0]
+    session = _bearer(client.post("/auth/complete", json={"token": code}).json()["session"]["token"])
+    response = client.delete("/auth/logins/google", headers=session)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "last_login"
+
+    telegram_user = new_user()
+    session = _bearer(_bot_login(client, session, telegram_user)["session"]["token"])
+    unlinked = client.delete("/auth/logins/google", headers=session)
+    assert unlinked.status_code == 200, unlinked.text
+    assert unlinked.json()["account"]["logins"][1]["linked"] is False
+
+
+def test_telegram_is_not_unlinked_from_inside_telegram(client: TestClient, user: AuthUser) -> None:
+    response = client.delete("/auth/logins/telegram", headers=user.headers)
+    assert response.status_code == 409
+
+
+# --------------------------------------------------------------------------- #
+#  Funnel events
+# --------------------------------------------------------------------------- #
+
+
+def test_events_are_recorded_and_counted(client: TestClient) -> None:
+    for platform in ("ios", "android"):
+        response = client.post(
+            "/events",
+            json={"event": "landing_view", "anon_id": f"a-{platform}", "platform": platform,
+                  "browser_context": "in_app", "src": "Threads"},
+        )
+        assert response.status_code == 204, response.text
+    assert client.post("/events", json={"event": "nonsense"}).status_code == 422
+
+    admin = auth_user(SEED_ADMIN_IDS[0])
+    report = client.get("/admin/funnel", headers=admin.headers)
+    assert report.status_code == 200, report.text
+    landing = next(step for step in report.json()["steps"] if step["event"] == "landing_view")
+    assert landing["total"] >= 2
+    assert landing["by_src"]["threads"] >= 2
+    assert client.get("/admin/funnel", headers=new_user().headers).status_code == 403
+
+
+def test_first_habit_and_first_checkin_are_recorded_once(client: TestClient) -> None:
+    guest = _guest(client)
+    user_id = _account(client, guest)["user_id"]
+    first = _habit(client, guest, "Один")
+    _habit(client, guest, "Два")
+    client.post(f"/tasks/{first['id']}/toggle", headers=guest)
+    client.post(f"/tasks/{first['id']}/toggle", headers=guest)
+    client.post(f"/tasks/{first['id']}/toggle", headers=guest)
+
+    async def count(repo: Repository) -> dict[str, int]:
+        from sqlalchemy import func, select
+
+        from tma.backend.models import Event
+
+        rows = await repo.session.execute(
+            select(Event.event, func.count()).where(Event.user_id == user_id).group_by(Event.event)
+        )
+        return dict(rows.tuples().all())
+
+    assert _run(count) == {"first_habit_created": 1, "first_checkin": 1}
+
+
+# --------------------------------------------------------------------------- #
+#  One-time install offer (spec §8)
+# --------------------------------------------------------------------------- #
+
+
+def test_bot_offers_the_app_once_after_the_first_checkin(
+    client: TestClient, telegram: FakeTelegram, user: AuthUser
+) -> None:
+    habit = _habit(client, user.headers, "Зарядка")
+    for _ in range(3):
+        client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
+    offers = [sent for sent in telegram.sent if sent.chat_id == user.id]
+    assert len(offers) == 1
+    assert offers[0].text.startswith("Отличное начало!")
+    buttons = offers[0].extra["reply_markup"].inline_keyboard[0]
+    assert buttons[0].web_app.url.endswith("?open=install")
+    assert buttons[1].callback_data == "install_offer:dismiss"
+
+
+def test_no_offer_for_web_check_ins(client: TestClient, telegram: FakeTelegram) -> None:
+    guest = _guest(client)
+    habit = _habit(client, guest, "Вода")
+    client.post(f"/tasks/{habit['id']}/toggle", headers=guest)
+    assert telegram.sent == []
+
+
+# --------------------------------------------------------------------------- #
+#  Push reminders (spec §9)
+# --------------------------------------------------------------------------- #
+
+
+class _ChatBot:
+    def __init__(self) -> None:
+        self.chats: list[int] = []
+
+    async def send_message(self, chat_id: int, **_: object) -> None:
+        self.chats.append(chat_id)
+
+
+def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
+    moment = datetime(2026, 9, 22, 9, 0, tzinfo=timezone.utc)
+    pushed: list[tuple[str, dict]] = []
+    gone_endpoint = "https://push.example/gone"
+
+    async def sender(target, data, keys) -> PushOutcome:
+        pushed.append((target.endpoint, data))
+        return PushOutcome.gone if target.endpoint == gone_endpoint else PushOutcome.sent
+
+    async def scenario() -> tuple[list[int], dict]:
+        database = Database(db_url)
+        await database.create_tables()
+        async with database.session_factory() as session:
+            repo = Repository(session)
+            web = await repo.create_web_user("ru", utc_now())  # push
+            await repo.get_or_create_user(501, None, None, "ru")  # Telegram + push
+            await repo.get_or_create_user(502, None, None, "ru")  # Telegram only
+            await repo.get_or_create_user(503, None, None, "ru")  # Telegram, push gone
+            lonely = await repo.create_web_user("ru", utc_now())  # web, no push
+            for user_id in (web.telegram_id, 501, 502, 503, lonely.telegram_id):
+                await repo.create_task(user_id, "Вода", FrequencyType.daily, reminder_time=clock(9, 0))
+            await repo.save_push_subscription(web.telegram_id, "https://push.example/web", "k", "a", None)
+            await repo.save_push_subscription(501, "https://push.example/tg", "k", "a", None)
+            await repo.save_push_subscription(503, gone_endpoint, "k", "a", None)
+            await session.commit()
+        bot = _ChatBot()
+        push = bot_reminders.PushConfig(VapidKeys("key", "mailto:x@example.com"), "https://app.example")
+        keyboards = bot_reminders.open_app_keyboards("https://app.example")
+        await bot_reminders._send_due(bot, database, Pacer(1000), moment, keyboards, push, sender)  # type: ignore[arg-type]
+        async with database.session_factory() as session:
+            left = await Repository(session).push_subscriptions_for([web.telegram_id, 501, 503])
+        await database.dispose()
+        return bot.chats, left
+
+    chats, left = asyncio.run(scenario())
+    # Telegram only for the account without push, and as a fallback for the gone one.
+    assert sorted(chats) == [502, 503]
+    assert sorted(endpoint for endpoint, _ in pushed) == sorted(
+        ["https://push.example/web", "https://push.example/tg", gone_endpoint]
+    )
+    payload = pushed[0][1]
+    assert payload["title"] == "StreakApp" and "«Вода»" in payload["body"]
+    assert "/app?pwa=1&habit=" in payload["url"]
+    # The gone subscription is deleted.
+    assert 503 not in left and len(left) == 2
+
+
+def test_broadcasts_skip_web_only_accounts(client: TestClient) -> None:
+    _guest(client)
+    admin = auth_user(SEED_ADMIN_IDS[0])
+    count = client.get("/admin/broadcasts/recipients", headers=admin.headers).json()
+
+    async def telegram_users(repo: Repository) -> int:
+        from sqlalchemy import func, select
+
+        from tma.backend.models import User
+
+        return await repo.session.scalar(
+            select(func.count()).select_from(User).where(
+                User.telegram_id > 0, User.bot_blocked_at.is_(None), User.blocked_at.is_(None)
+            )
+        )
+
+    # Recipients never include negative (web-only) ids: at most all Telegram users.
+    assert count["recipients"] <= _run(telegram_users)

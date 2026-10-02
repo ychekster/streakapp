@@ -9,6 +9,10 @@
  *  4. «Админ-панель» — только у администраторов: переключает приложение в режим
  *     админ-панели (см. AdminApp).
  *
+ * Above them (spec §7): «Аккаунт» — logins of the account (AccountScreen), in both the
+ * Mini App and the web app; «Установить на рабочий стол» — only in Telegram: opens the
+ * install page in the phone's browser with a single-use login link.
+ *
  * Настройки хранит App (от них зависят язык и тема всего приложения): изменение
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
  * и под карточками появляется ошибка.
@@ -23,6 +27,8 @@ import {
   CalendarBackIcon,
   ClockIcon,
   DocumentIcon,
+  InstallIcon,
+  PersonIcon,
   ShieldIcon,
   SlidersIcon,
   StarIcon,
@@ -30,13 +36,14 @@ import {
 import { StatusMessage } from "../components/StatusMessage";
 import { Switch } from "../components/Switch";
 import { describeError } from "../errors";
+import type { HandoffLink } from "../hooks/useHandoffLink";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { useStrings } from "../preferences";
 import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
 /** Вложенные экраны настроек. */
-export type SettingsPage = "timezone" | "review" | "privacy" | "terms";
+export type SettingsPage = "timezone" | "review" | "privacy" | "terms" | "account" | "install";
 
 interface SettingsScreenProps {
   state: UseSettingsResult;
@@ -44,9 +51,20 @@ interface SettingsScreenProps {
   onOpen: (page: SettingsPage) => void;
   /** Войти в админ-панель (ряд виден только администраторам). */
   onOpenAdmin: () => void;
+  /** Install link (Telegram only; null — the row is hidden: the web app is installed). */
+  install: HandoffLink | null;
+  /** The web account is still a guest (shown next to «Аккаунт»). */
+  guest: boolean;
 }
 
-export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsScreenProps) {
+export function SettingsScreen({
+  state,
+  onSave,
+  onOpen,
+  onOpenAdmin,
+  install,
+  guest,
+}: SettingsScreenProps) {
   const strings = useStrings();
   const { settings, status, error, saveError, reload } = state;
 
@@ -72,6 +90,28 @@ export function SettingsScreen({ state, onSave, onOpen, onOpenAdmin }: SettingsS
 
     return (
       <div className={styles.settings}>
+        <ListGroup>
+          <ListItem
+            icon={<PersonIcon />}
+            iconColor="blue"
+            label={strings.settingsAccount}
+            onPress={() => onOpen("account")}
+          >
+            {guest ? <span className={styles.value}>{strings.settingsAccountGuest}</span> : null}
+            <Disclosure />
+          </ListItem>
+          {install ? (
+            <ListItem
+              icon={<InstallIcon />}
+              iconColor="teal"
+              label={strings.settingsInstall}
+              onPress={install.ready ? install.open : () => onOpen("install")}
+            >
+              <Disclosure />
+            </ListItem>
+          ) : null}
+        </ListGroup>
+
         <ListGroup>
           <ListItem
             icon={<ClockIcon />}

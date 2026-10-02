@@ -18,6 +18,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     Time,
@@ -70,7 +71,13 @@ class BroadcastStatus(str, enum.Enum):
 
 
 class User(Base):
-    """Пользователь Telegram и его настройки."""
+    """Пользователь и его настройки.
+
+    `telegram_id` is the internal account id. Telegram accounts keep their (positive)
+    Telegram id, so the Telegram identity is the id itself. Web-only accounts — guests and
+    Google-only accounts — get a random negative id (see accounts.py), which can never
+    collide with a Telegram user id.
+    """
 
     __tablename__ = "users"
 
@@ -107,6 +114,11 @@ class User(Base):
     bot_blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Заблокирован администратором: API отвечает 403, напоминания и рассылки не приходят.
     blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # First time the user ever marked a habit as done (drives the one-time install offer
+    # from the bot, see services.toggle_today). Backfilled by migration 0010.
+    first_checkin_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # When the bot sent the "install the app" offer; None — not sent yet.
+    install_offer_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Время — UTC без пояса, как и остальные отметки времени в базе. Индекс: список
     # пользователей в админ-панели отсортирован по дате регистрации.
@@ -291,3 +303,111 @@ class Broadcast(Base):
         DateTime, server_default=func.now(), nullable=False
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+# --------------------------------------------------------------------------- #
+#  Web app (PWA): identities, sessions, one-time codes, push, funnel events
+# --------------------------------------------------------------------------- #
+
+
+class UserIdentity(Base):
+    """A login linked to an account (Google). The Telegram identity is not stored here:
+    a Telegram account's id *is* its Telegram id (see User)."""
+
+    __tablename__ = "user_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_identity_provider_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Shown in Settings → Account ("linked as …").
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class WebSession(Base):
+    """A web (PWA) login. The client keeps the random token; only its hash is stored, so a
+    database leak does not reveal usable tokens. Expiry slides forward on use."""
+
+    __tablename__ = "web_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    last_used_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class AuthCode(Base):
+    """A short-lived, single-use code: Telegram → web handoff, bot login request, Google
+    OAuth state and the login result handed back to the app. Stored hashed, like
+    sessions. `user_id` has no foreign key: the account may be merged away meanwhile."""
+
+    __tablename__ = "auth_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Kind-specific data (JSON text): OAuth mode, confirmed Telegram user, …
+    payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PushSubscription(Base):
+    """A Web Push subscription of one device (browser endpoint + keys)."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    endpoint: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Event(Base):
+    """A funnel analytics event (landing → install → first launch → first habit …).
+
+    `user_id` has no foreign key on purpose: the funnel must survive account merges and
+    deletions. `anon_id` is a random id the device keeps before an account exists.
+    """
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    anon_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    browser_context: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    src: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    props: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False, index=True
+    )

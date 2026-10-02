@@ -1,18 +1,33 @@
 /**
  * HTTP-клиент к API TMA.
  *
- * Каждый запрос несёт заголовок `Authorization: tma <initData>` — бэкенд по нему
- * проверяет подпись Telegram. Ошибки сети и API приводятся к единому типу
- * `ApiRequestError`, чтобы UI показывал понятный текст, не разбирая разные форматы.
+ * Каждый запрос несёт заголовок авторизации: в Telegram — `Authorization: tma
+ * <initData>` (бэкенд проверяет подпись Telegram), в установленном веб-приложении —
+ * `Authorization: Bearer <token>` его сессии (session.ts). Ошибки сети и API приводятся к
+ * единому типу `ApiRequestError`, чтобы UI показывал понятный текст, не разбирая разные
+ * форматы.
  */
 
 import { REQUEST_TIMEOUT_MS } from "../constants";
+import { currentSessionToken } from "../session";
 import { getInitData } from "../telegram/webapp";
 
 // Базовый URL API (пустая строка => тот же источник, что и фронтенд).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const AUTH_SCHEME = "tma";
+const WEB_AUTH_SCHEME = "Bearer";
+
+/** Authorization header value: Telegram initData inside Telegram, otherwise the web
+ *  session token; null — neither (the API answers 401). */
+export function authorizationHeader(): string | null {
+  const initData = getInitData();
+  if (initData) {
+    return `${AUTH_SCHEME} ${initData}`;
+  }
+  const token = currentSessionToken();
+  return token ? `${WEB_AUTH_SCHEME} ${token}` : null;
+}
 
 /** Машинно-читаемые коды ошибок, которые UI может различать. Пользователю показывается
  *  не текст ответа сервера, а подпись кода на языке интерфейса (см. errors.ts). */
@@ -62,7 +77,22 @@ export type ApiErrorCode =
   | "invalid_cursor"
   | "telegram_rejected"
   | "telegram_busy"
-  | "telegram_error";
+  | "telegram_error"
+  // Web app: sessions and logins.
+  | "invalid_session"
+  | "handoff_invalid"
+  | "login_expired"
+  | "login_not_linked"
+  | "last_login"
+  | "account_conflict"
+  | "telegram_already_linked"
+  | "provider_already_linked"
+  | "invalid_telegram_login"
+  | "google_unavailable"
+  | "web_only"
+  | "telegram_only"
+  | "push_unavailable"
+  | "push_not_delivered";
 
 /** Единая ошибка запроса к API. */
 export class ApiRequestError extends Error {
@@ -102,8 +132,9 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
+  const authorization = authorizationHeader();
   const headers: Record<string, string> = {
-    Authorization: `${AUTH_SCHEME} ${getInitData()}`,
+    ...(authorization ? { Authorization: authorization } : {}),
     // Тип тела — только когда тело есть: у GET без него запрос остаётся «простым». У
     // FormData тип с границей частей ставит сам браузер.
     ...(options.body !== undefined && !(options.body instanceof FormData)

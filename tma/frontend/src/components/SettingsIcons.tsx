@@ -123,3 +123,52 @@ export function DocumentIcon() {
     </svg>
   );
 }
+
+/** Аккаунт (web app). */
+export function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle {...STROKE} cx="12" cy="8.5" r="3.5" />
+      <path {...STROKE} d="M5 19.5c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5" />
+    </svg>
+  );
+}
+
+/** Установить на рабочий стол. */
+export function InstallIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect {...STROKE} x="6" y="3" width="12" height="18" rx="2.5" />
+      <path {...STROKE} d="M12 8v6M9.5 11.5 12 14l2.5-2.5" />
+    </svg>
+  );
+}
+
+/** Telegram (бумажный самолётик). */
+export function TelegramIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M20.5 4.5 3.5 11l6 2 2 6.5 3-4.5 4.5 3.5 1.5-14z" />
+      <path {...STROKE} d="M9.5 13l9-6.5" />
+    </svg>
+  );
+}
+
+/** Google (буква G). */
+export function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M19 12h-6.5M19 12a7 7 0 1 1-2.05-4.95" />
+    </svg>
+  );
+}
+
+/** Уведомления. */
+export function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15L6 16.5z" />
+      <path {...STROKE} d="M10 20.5a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}

@@ -27,10 +27,12 @@ from loguru import logger
 from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
 from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMMAND_DESCRIPTION
-from bot.handlers import membership, start
+from bot.handlers import membership, start, web_login
 from bot.pacing import SEND_RATE, Pacer
-from bot.reminders import run_reminders
+from bot.reminders import PushConfig, run_reminders
+from tma.backend.config import load_settings as load_web_settings
 from tma.backend.database import Database
+from tma.backend.webpush import VapidKeys
 
 
 def setup_logging(config: Config) -> None:
@@ -87,6 +89,17 @@ async def setup_bot_menu(bot: Bot, tma_url: str) -> None:
         logger.warning("Could not set up bot menu: {}", exc)
 
 
+def push_config(config: Config) -> PushConfig | None:
+    """Web Push settings for reminders; None — no VAPID key, reminders only via the bot."""
+    if config.vapid_private_key is None or not config.vapid_private_key.get_secret_value():
+        logger.info("Web Push is off: VAPID_PRIVATE_KEY is not set")
+        return None
+    return PushConfig(
+        keys=VapidKeys(config.vapid_private_key.get_secret_value(), config.vapid_subject),
+        base_url=(config.public_base_url or config.tma_url).rstrip("/"),
+    )
+
+
 async def main() -> None:
     """Инициализировать и запустить бота."""
     config = load_config()
@@ -100,9 +113,13 @@ async def main() -> None:
     # Проброс конфига и базы в хендлеры через workflow_data.
     dp["config"] = config
     dp["database"] = database
+    # API settings (same .env): the web login handler hashes codes like the API does.
+    dp["web_settings"] = load_web_settings()
 
     # Типы обновлений для polling aiogram выводит из роутеров: с `membership` бот
     # получает и my_chat_member (блокировку и разблокировку бота).
+    # Before `start`: its /start filter (login deep link) is narrower.
+    dp.include_router(web_login.router)
     dp.include_router(start.router)
     dp.include_router(membership.router)
     register_error_handler(dp)
@@ -112,7 +129,9 @@ async def main() -> None:
     # Один темп отправки на напоминания и рассылки — лимит Bot API общий (см. pacing.py).
     pacer = Pacer(SEND_RATE)
     loops = [
-        asyncio.create_task(run_reminders(bot, database, pacer, config.tma_url)),
+        asyncio.create_task(
+            run_reminders(bot, database, pacer, config.tma_url, push_config(config))
+        ),
         asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
     ]
     logger.info("StreakBot is up and polling")

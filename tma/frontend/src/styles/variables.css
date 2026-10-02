@@ -401,3 +401,27 @@
   /* rgba(58,58,60,0.86) и rgba(44,44,46,0.8) поверх --color-background (#000000). */
   --glass-fill: linear-gradient(180deg, #323234, #232325);
 }
+
+/*
+ * Installed web app (main.tsx sets data-app="web"). Telegram's fullscreen leaves a row
+ * for its own controls at the top (--app-content-safe-area-top); the web app keeps the
+ * same row for its back button, so screens look exactly like in the Mini App. Safe-area
+ * insets come from the browser (env(), viewport-fit=cover in index.html).
+ */
+:root[data-app="web"] {
+  --app-content-safe-area-top: 44px;
+  --web-back-size: 36px;
+  --web-main-height: 50px;
+  /* Brand colors of the landing and the save-account banner. */
+  --brand-blue: #2f8ff5;
+  --brand-blue-soft: #eaf3fe;
+}
+
+:root[data-app="web"][data-theme="dark"] {
+  --brand-blue-soft: rgba(47, 143, 245, 0.18);
+}
+
+/* While the web app's bottom action button is shown (WebChrome), screens end above it. */
+:root[data-app="web"][data-main-button] {
+  --space-screen-bottom: calc(var(--web-main-height) + 40px);
+}

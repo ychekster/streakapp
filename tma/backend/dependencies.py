@@ -1,21 +1,23 @@
 """Зависимости FastAPI (Dependency Injection).
 
 Здесь собрано связывание запроса с инфраструктурой: настройки, сессия БД +
-репозиторий (с авто-commit/rollback), текущий пользователь Telegram, выведенный
-из проверенной `initData` (с ограничением частоты запросов), его запись в БД,
-проверка прав администратора и бот для сообщений из админ-панели.
+репозиторий (с авто-commit/rollback), текущий пользователь — из проверенной `initData`
+Telegram или из сессии веб-приложения (с ограничением частоты запросов), его запись в
+БД, проверка прав администратора и бот для сообщений из админ-панели.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import AsyncIterator
 
 from aiogram import Bot
 from fastapi import Depends, Header, Request
 
+from tma.backend.accounts import resolve_session
 from tma.backend.auth import InitDataError, TelegramUser, verify_init_data
 from tma.backend.config import Settings
-from tma.backend.constants import INIT_DATA_AUTH_SCHEME
+from tma.backend.constants import INIT_DATA_AUTH_SCHEME, WEB_SESSION_AUTH_SCHEME
 from tma.backend.database import Database
 from tma.backend.errors import ApiError
 from tma.backend.models import User
@@ -83,6 +85,26 @@ def _extract_init_data(authorization: str | None) -> str:
     return authorization
 
 
+def _bearer_token(authorization: str | None) -> str | None:
+    """The web session token from `Authorization: Bearer <token>`; None — another scheme."""
+    prefix = f"{WEB_SESSION_AUTH_SCHEME} "
+    if authorization and authorization.lower().startswith(prefix):
+        return authorization[len(prefix):].strip()
+    return None
+
+
+def _rate_limit(request: Request, user_id: int) -> None:
+    """Сверх лимита частоты запросов (config: TMA_RATE_LIMIT_*) — 429 с Retry-After."""
+    retry_after = _get_rate_limiter(request).acquire(user_id)
+    if retry_after:
+        raise ApiError(
+            429,
+            "rate_limited",
+            "Слишком много запросов, попробуйте чуть позже",
+            headers=retry_after_header(retry_after),
+        )
+
+
 async def get_current_user(
     request: Request,
     authorization: str | None = Header(default=None),
@@ -101,34 +123,79 @@ async def get_current_user(
         )
     except InitDataError as exc:
         raise ApiError(401, "invalid_init_data", "Не удалось подтвердить личность Telegram") from exc
-    retry_after = _get_rate_limiter(request).acquire(user.id)
-    if retry_after:
-        raise ApiError(
-            429,
-            "rate_limited",
-            "Слишком много запросов, попробуйте чуть позже",
-            headers=retry_after_header(retry_after),
-        )
+    _rate_limit(request, user.id)
     return user
 
 
+@dataclass(frozen=True)
+class Principal:
+    """Who is calling: a Telegram Mini App user (`telegram`) or a web app session
+    (`session_token`). `user_id` is the account id in both cases."""
+
+    user_id: int
+    telegram: TelegramUser | None = None
+    session_token: str | None = None
+
+
+async def get_principal(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    repo: Repository = RepositoryDep,
+) -> Principal:
+    """The caller: `Authorization: tma <initData>` (Mini App, as before) or
+    `Authorization: Bearer <token>` (installed web app). Invalid — 401."""
+    token = _bearer_token(authorization)
+    if token is None:
+        telegram = await get_current_user(request, authorization)
+        return Principal(user_id=telegram.id, telegram=telegram)
+    session = await resolve_session(repo, get_settings(request), token)
+    if session is None:
+        raise ApiError(401, "invalid_session", "Сессия устарела — войдите снова")
+    _rate_limit(request, session.user_id)
+    return Principal(user_id=session.user_id, session_token=token)
+
+
+async def get_optional_principal(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    repo: Repository = RepositoryDep,
+) -> Principal | None:
+    """Like get_principal, but no (or an expired) authorization is not an error."""
+    if not authorization:
+        return None
+    try:
+        return await get_principal(request, authorization, repo)
+    except ApiError as exc:
+        if exc.status_code == 401:
+            return None
+        raise
+
+
 async def get_db_user(
-    user: TelegramUser = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
     repo: Repository = RepositoryDep,
 ) -> User:
-    """Запись текущего пользователя в БД; создаётся при первом открытии приложения
-    (с языком интерфейса по языку его Telegram). Запрос отмечается как активность
-    пользователя (для аналитики), а заблокированному администратором — 403.
+    """Запись текущего пользователя в БД. Пользователь Telegram создаётся при первом
+    открытии приложения (с языком интерфейса по языку его Telegram); аккаунт веб-сессии
+    уже есть (его создал вход). Запрос отмечается как активность пользователя (для
+    аналитики), а заблокированному администратором — 403.
 
     FastAPI кеширует зависимости в пределах запроса, поэтому `repo` здесь — тот же
     репозиторий (и та же сессия), что получает обработчик маршрута.
     """
-    db_user = await repo.get_or_create_user(
-        user.id,
-        user.username,
-        user.first_name,
-        language=language_from_telegram(user.language_code),
-    )
+    if principal.telegram is not None:
+        user = principal.telegram
+        db_user = await repo.get_or_create_user(
+            user.id,
+            user.username,
+            user.first_name,
+            language=language_from_telegram(user.language_code),
+        )
+    else:
+        found = await repo.get_user(principal.user_id)
+        if found is None:
+            raise ApiError(401, "invalid_session", "Сессия устарела — войдите снова")
+        db_user = found
     if db_user.blocked_at is not None:
         raise ApiError(403, "user_blocked", "Доступ к приложению ограничен")
     await repo.touch_user(db_user, utc_now())

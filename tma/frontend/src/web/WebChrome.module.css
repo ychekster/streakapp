@@ -1,0 +1,81 @@
+/* Back button: in the top control row (--app-content-safe-area-top, set for web mode in
+   variables.css), like Telegram's own button in fullscreen. */
+.back {
+  position: fixed;
+  z-index: 20;
+  top: calc(
+    env(safe-area-inset-top, 0px) + (var(--app-content-safe-area-top, 44px) - var(--web-back-size)) / 2
+  );
+  left: var(--space-screen-x);
+  width: var(--web-back-size);
+  height: var(--web-back-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px 0 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-shadow);
+  color: var(--color-accent);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back:active {
+  transform: scale(0.94);
+}
+
+/* Bottom action (Telegram MainButton in the Mini App): full width above the home
+   indicator. */
+.mainBar {
+  position: fixed;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px var(--space-screen-x) calc(env(safe-area-inset-bottom, 0px) + 10px);
+  background: linear-gradient(to top, var(--color-background) 60%, transparent);
+  pointer-events: none;
+}
+
+.main {
+  width: 100%;
+  height: var(--web-main-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.main:disabled {
+  cursor: default;
+}
+
+.main:not(:disabled):active {
+  opacity: 0.85;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

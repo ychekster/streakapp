@@ -15,6 +15,9 @@ HISTORY_DAYS = 364
 # Префикс схемы авторизации в заголовке `Authorization` (рекомендация Telegram):
 #   Authorization: tma <initData>
 INIT_DATA_AUTH_SCHEME = "tma"
+# The installed web app authenticates with its session token instead:
+#   Authorization: Bearer <token>
+WEB_SESSION_AUTH_SCHEME = "bearer"
 
 # Предел целого числа, которое принимает колонка базы: 64-битное знаковое (SQLite
 # INTEGER, PostgreSQL BIGINT). Идентификаторы в пути и курсоры страниц ограничены им:
@@ -159,3 +162,39 @@ BROADCAST_VIDEO_MAX_BYTES = 50 * 1024 * 1024
 # (файл видео и поля формы).
 BROADCAST_UPLOAD_PATH = "/admin/broadcasts"
 BROADCAST_UPLOAD_MAX_BYTES = BROADCAST_VIDEO_MAX_BYTES + 64 * 1024
+
+# --------------------------------------------------------------------------- #
+#  Web app (PWA) funnel analytics
+# --------------------------------------------------------------------------- #
+
+# Funnel steps in order (spec §10). The landing and the app send most of them
+# (`POST /events`); the server adds first_habit_created, first_checkin and
+# account_linked itself. Unknown names are rejected.
+FUNNEL_EVENTS: tuple[str, ...] = (
+    "landing_view",
+    "desktop_qr_view",
+    "choose_telegram",
+    "choose_install",
+    "inapp_escape_attempt",
+    "inapp_hint_shown",
+    "install_screen_view",
+    "install_prompt_shown",
+    "install_prompt_accepted",
+    "install_prompt_dismissed",
+    "app_installed",
+    "first_standalone_launch",
+    "first_habit_created",
+    "first_checkin",
+    "push_permission_granted",
+    "push_permission_denied",
+    "account_linked",
+)
+# Accepted values of the event context fields (anything else is stored as null).
+EVENT_PLATFORMS: tuple[str, ...] = ("ios", "android", "desktop")
+EVENT_CONTEXTS: tuple[str, ...] = ("in_app", "browser", "standalone", "telegram")
+# Largest `props` of an event, serialized (bytes).
+EVENT_PROPS_MAX_BYTES = 2048
+# Rate limits without an account (burst, per second): new guest accounts per address
+# (a phone creates one on its first launch) and funnel events per device.
+GUEST_RATE_LIMIT: tuple[int, float] = (10, 0.1)
+EVENT_RATE_LIMIT: tuple[int, float] = (60, 2.0)

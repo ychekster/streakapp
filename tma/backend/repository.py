@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
@@ -33,25 +34,36 @@ from sqlalchemy.orm import selectinload
 from tma.backend.constants import (
     ACTIVE_NOW_MINUTES,
     DEFAULT_HABIT_COLOR,
+    HABIT_NAME_MAX_LENGTH,
     LAST_SEEN_RESOLUTION_SECONDS,
 )
 from tma.backend.models import (
     Admin,
+    AuthCode,
     Broadcast,
     BroadcastStatus,
+    Event,
     FrequencyType,
+    PushSubscription,
     Review,
     Task,
     TaskLog,
     TaskStatus,
     User,
     UserActivity,
+    UserIdentity,
+    WebSession,
 )
 
 
 # Сколько значений передавать в одном `IN (...)`: у SQLite и драйверов PostgreSQL есть
 # предел числа параметров запроса.
 _IN_BATCH_SIZE = 500
+
+# Web-only account ids: random in [-_WEB_ID_MAX, -1]. Within 2**53, so JavaScript (the
+# admin panel) keeps them exact.
+_WEB_ID_MAX = 2**53 - 1
+_WEB_ID_ATTEMPTS = 5
 
 
 def _batches(values: Iterable[int], size: int = _IN_BATCH_SIZE) -> Iterator[list[int]]:
@@ -131,6 +143,8 @@ def _recipient_condition(
     заблокированных администратором и автора рассылки (ему копия уже пришла)."""
     condition = and_(
         _audience_condition(audience, moment),
+        # Web-only accounts (negative ids) have no Telegram chat to send to.
+        User.telegram_id > 0,
         User.created_at <= moment,
         User.bot_blocked_at.is_(None),
         User.blocked_at.is_(None),
@@ -321,7 +335,15 @@ class Repository:
         """Удалить пользователя со всеми его данными: отметками, привычками, отзывами и
         днями активности. Порядок — от зависимых таблиц к `users` (PostgreSQL проверяет
         внешние ключи)."""
-        for model in (TaskLog, Task, Review, UserActivity):
+        for model in (
+            TaskLog,
+            Task,
+            Review,
+            UserActivity,
+            UserIdentity,
+            WebSession,
+            PushSubscription,
+        ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
         await self.session.execute(delete(User).where(User.telegram_id == telegram_id))
 
@@ -721,7 +743,9 @@ class Repository:
                     count_where(and_(opened, has_habit)),
                 )
                 .select_from(User)
-                .where(User.created_at >= since)
+                # The bot funnel starts with /start: web-only accounts are not in it
+                # (their funnel is the events table, see web_funnel).
+                .where(User.created_at >= since, User.telegram_id > 0)
             )
         ).one()
         return Funnel(*(int(value) for value in row))
@@ -890,3 +914,412 @@ class Repository:
         broadcast.status = BroadcastStatus.done
         broadcast.finished_at = utc_now()
         await self.session.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Web app: accounts
+    # ------------------------------------------------------------------ #
+
+    async def create_web_user(self, language: str, now: datetime) -> User:
+        """A new web-only account (guest) with a random negative id — it never collides
+        with a Telegram id. Retries on the (astronomically unlikely) id clash."""
+        for _ in range(_WEB_ID_ATTEMPTS):
+            user_id = -(secrets.randbelow(_WEB_ID_MAX) + 1)
+            if await self.get_user(user_id) is not None:
+                continue
+            user = User(telegram_id=user_id, language=language, app_opened_at=now)
+            self.session.add(user)
+            await self.session.flush()
+            return user
+        raise RuntimeError("Could not allocate a web user id")
+
+    async def clone_user(
+        self, source: User, new_id: int, username: str | None, first_name: str | None
+    ) -> User:
+        """A new account `new_id` with the settings of `source` (habits are moved
+        separately, see move_user_data)."""
+        user = User(
+            telegram_id=new_id,
+            username=username,
+            first_name=first_name,
+            timezone=source.timezone,
+            timezone_city=source.timezone_city,
+            language=source.language,
+            theme=source.theme,
+            mark_yesterday=source.mark_yesterday,
+            app_opened_at=source.app_opened_at,
+            last_seen_at=source.last_seen_at,
+            first_checkin_at=source.first_checkin_at,
+        )
+        self.session.add(user)
+        await self.session.flush()
+        return user
+
+    async def has_any_task(self, user_id: int) -> bool:
+        """Has the account ever had a habit (deleted ones count)."""
+        return bool(await self.session.scalar(select(exists().where(Task.user_id == user_id))))
+
+    async def user_has_data(self, user_id: int) -> bool:
+        """Has the account ever had a habit (even a deleted one) or a review."""
+        return bool(
+            await self.session.scalar(
+                select(
+                    or_(
+                        exists().where(Task.user_id == user_id),
+                        exists().where(Review.user_id == user_id),
+                    )
+                )
+            )
+        )
+
+    async def move_user_data(self, source: User, target: User) -> User:
+        """Move everything of `source` into `target`, delete `source` and return the
+        target re-read from the database.
+
+        Nothing is lost: habits, check-ins, reviews, activity days, logins, web sessions,
+        push subscriptions and funnel events all move. An active habit whose name the
+        target already uses gets a suffix («Бег (2)») instead of being dropped. Settings
+        stay the target's; what the target lacks (time zone, first check-in) is taken
+        from the source.
+        """
+        source_id, target_id = source.telegram_id, target.telegram_id
+        taken = {
+            name.strip().lower()
+            for name in (
+                await self.session.scalars(
+                    select(Task.name).where(Task.user_id == target_id, Task.is_active.is_(True))
+                )
+            )
+        }
+        for task in await self.get_active_tasks(source_id):
+            name, number = task.name, 2
+            while name.strip().lower() in taken:
+                suffix = f" ({number})"
+                name = task.name[: HABIT_NAME_MAX_LENGTH - len(suffix)] + suffix
+                number += 1
+            task.name = name
+            taken.add(name.strip().lower())
+
+        if target.timezone is None and source.timezone is not None:
+            target.timezone, target.timezone_city = source.timezone, source.timezone_city
+        for field in ("first_checkin_at", "app_opened_at"):
+            values = [value for value in (getattr(source, field), getattr(target, field)) if value]
+            setattr(target, field, min(values) if values else None)
+        if target.install_offer_sent_at is None:
+            target.install_offer_sent_at = source.install_offer_sent_at
+        await self.session.flush()
+
+        for model in (Task, TaskLog, Review, UserIdentity, WebSession, PushSubscription, Event):
+            await self.session.execute(
+                update(model)
+                .where(model.user_id == source_id)
+                .values(user_id=target_id)
+                .execution_options(synchronize_session=False)
+            )
+        # Activity days are keyed by (user, day): move the days the target lacks.
+        await self.session.execute(
+            update(UserActivity)
+            .where(
+                UserActivity.user_id == source_id,
+                UserActivity.day.not_in(
+                    select(UserActivity.day).where(UserActivity.user_id == target_id)
+                ),
+            )
+            .values(user_id=target_id)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(delete(UserActivity).where(UserActivity.user_id == source_id))
+        await self.session.execute(delete(User).where(User.telegram_id == source_id))
+        # Bulk updates bypass the identity map: drop stale objects, re-read the target.
+        self.session.expunge_all()
+        merged = await self.get_user(target_id)
+        assert merged is not None
+        return merged
+
+    async def mark_first_checkin(self, user: User, now: datetime) -> bool:
+        """Remember the user's first check-in ever. True — this is it (it was not set)."""
+        if user.first_checkin_at is not None:
+            return False
+        result = await self.session.execute(
+            update(User)
+            .where(User.telegram_id == user.telegram_id, User.first_checkin_at.is_(None))
+            .values(first_checkin_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        user.first_checkin_at = now
+        return result.rowcount > 0
+
+    async def mark_install_offer_sent(self, user_id: int, now: datetime) -> bool:
+        """Claim the one-time install offer for the user. True — not sent before."""
+        result = await self.session.execute(
+            update(User)
+            .where(User.telegram_id == user_id, User.install_offer_sent_at.is_(None))
+            .values(install_offer_sent_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount > 0
+
+    # ------------------------------------------------------------------ #
+    #  Web app: linked logins
+    # ------------------------------------------------------------------ #
+
+    async def get_identity(self, provider: str, provider_user_id: str) -> UserIdentity | None:
+        """The login `provider`/`provider_user_id`, if it is linked to an account."""
+        return await self.session.scalar(
+            select(UserIdentity).where(
+                UserIdentity.provider == provider,
+                UserIdentity.provider_user_id == provider_user_id,
+            )
+        )
+
+    async def user_identities(self, user_id: int) -> list[UserIdentity]:
+        """Logins linked to the account (besides Telegram, which is the id itself)."""
+        result = await self.session.scalars(
+            select(UserIdentity).where(UserIdentity.user_id == user_id).order_by(UserIdentity.id)
+        )
+        return list(result.all())
+
+    async def add_identity(
+        self,
+        user_id: int,
+        provider: str,
+        provider_user_id: str,
+        email: str | None,
+        display_name: str | None,
+    ) -> UserIdentity:
+        """Link a login to the account."""
+        identity = UserIdentity(
+            user_id=user_id,
+            provider=provider,
+            provider_user_id=provider_user_id,
+            email=email,
+            display_name=display_name,
+        )
+        self.session.add(identity)
+        await self.session.flush()
+        return identity
+
+    async def delete_identities(self, user_id: int, provider: str) -> None:
+        """Unlink the account's logins of `provider`."""
+        await self.session.execute(
+            delete(UserIdentity).where(
+                UserIdentity.user_id == user_id, UserIdentity.provider == provider
+            )
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Web app: sessions and one-time codes
+    # ------------------------------------------------------------------ #
+
+    async def create_session(
+        self,
+        token_hash: str,
+        user_id: int,
+        user_agent: str | None,
+        now: datetime,
+        expires_at: datetime,
+    ) -> WebSession:
+        """Start a web session."""
+        session = WebSession(
+            token_hash=token_hash,
+            user_id=user_id,
+            user_agent=(user_agent or "")[:255] or None,
+            created_at=now,
+            last_used_at=now,
+            expires_at=expires_at,
+        )
+        self.session.add(session)
+        await self.session.flush()
+        return session
+
+    async def get_session(self, token_hash: str, now: datetime) -> WebSession | None:
+        """A web session that has not expired."""
+        return await self.session.scalar(
+            select(WebSession).where(
+                WebSession.token_hash == token_hash, WebSession.expires_at > now
+            )
+        )
+
+    async def delete_session(self, token_hash: str) -> None:
+        """End a web session (log out, or replaced after switching accounts)."""
+        await self.session.execute(delete(WebSession).where(WebSession.token_hash == token_hash))
+
+    async def create_code(
+        self,
+        code_hash: str,
+        kind: str,
+        user_id: int | None,
+        payload: str | None,
+        now: datetime,
+        expires_at: datetime,
+    ) -> AuthCode:
+        """Store a one-time code; long-expired codes are cleaned up on the way."""
+        await self.session.execute(
+            delete(AuthCode).where(AuthCode.expires_at < now - timedelta(days=1))
+        )
+        code = AuthCode(
+            code_hash=code_hash,
+            kind=kind,
+            user_id=user_id,
+            payload=payload,
+            created_at=now,
+            expires_at=expires_at,
+        )
+        self.session.add(code)
+        await self.session.flush()
+        return code
+
+    async def get_code(self, code_hash: str, kind: str, now: datetime) -> AuthCode | None:
+        """An unused, unexpired one-time code of `kind`."""
+        return await self.session.scalar(
+            select(AuthCode).where(
+                AuthCode.code_hash == code_hash,
+                AuthCode.kind == kind,
+                AuthCode.used_at.is_(None),
+                AuthCode.expires_at > now,
+            )
+        )
+
+    async def use_code(self, code: AuthCode, now: datetime) -> bool:
+        """Spend a one-time code. False — it was spent meanwhile (a parallel request)."""
+        result = await self.session.execute(
+            update(AuthCode)
+            .where(AuthCode.id == code.id, AuthCode.used_at.is_(None))
+            .values(used_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        code.used_at = now
+        return result.rowcount > 0
+
+    # ------------------------------------------------------------------ #
+    #  Web app: push subscriptions
+    # ------------------------------------------------------------------ #
+
+    async def save_push_subscription(
+        self, user_id: int, endpoint: str, p256dh: str, auth: str, user_agent: str | None
+    ) -> None:
+        """Store the device's subscription for the account (the endpoint identifies the
+        device: re-subscribing moves it to the current account)."""
+        subscription = await self.session.scalar(
+            select(PushSubscription).where(PushSubscription.endpoint == endpoint)
+        )
+        if subscription is None:
+            self.session.add(
+                PushSubscription(
+                    user_id=user_id,
+                    endpoint=endpoint,
+                    p256dh=p256dh,
+                    auth=auth,
+                    user_agent=(user_agent or "")[:255] or None,
+                )
+            )
+        else:
+            subscription.user_id = user_id
+            subscription.p256dh = p256dh
+            subscription.auth = auth
+        await self.session.flush()
+
+    async def delete_push_subscriptions(
+        self, endpoints: Collection[str], user_id: int | None = None
+    ) -> None:
+        """Forget subscriptions: the push service said they are gone (404/410), or the
+        device unsubscribed (`user_id` — only the account's own)."""
+        if not endpoints:
+            return
+        statement = delete(PushSubscription).where(
+            PushSubscription.endpoint.in_(list(endpoints))
+        )
+        if user_id is not None:
+            statement = statement.where(PushSubscription.user_id == user_id)
+        await self.session.execute(statement)
+
+    async def push_subscriptions_for(
+        self, user_ids: Collection[int]
+    ) -> dict[int, list[PushSubscription]]:
+        """Push subscriptions of the users: user id → subscriptions (users without
+        subscriptions are absent)."""
+        found: dict[int, list[PushSubscription]] = {}
+        for batch in _batches(set(user_ids)):
+            result = await self.session.scalars(
+                select(PushSubscription)
+                .where(PushSubscription.user_id.in_(batch))
+                .order_by(PushSubscription.id)
+            )
+            for subscription in result:
+                found.setdefault(subscription.user_id, []).append(subscription)
+        return found
+
+    async def has_push_subscription(self, user_id: int) -> bool:
+        """Does the account have at least one push subscription."""
+        return bool(
+            await self.session.scalar(select(exists().where(PushSubscription.user_id == user_id)))
+        )
+
+    async def mark_push_delivered(self, endpoints: Collection[str], now: datetime) -> None:
+        """Remember the last successful push per subscription."""
+        if endpoints:
+            await self.session.execute(
+                update(PushSubscription)
+                .where(PushSubscription.endpoint.in_(list(endpoints)))
+                .values(last_success_at=now)
+            )
+
+    # ------------------------------------------------------------------ #
+    #  Web app: funnel events
+    # ------------------------------------------------------------------ #
+
+    async def add_event(
+        self,
+        event: str,
+        *,
+        user_id: int | None = None,
+        anon_id: str | None = None,
+        platform: str | None = None,
+        browser_context: str | None = None,
+        src: str | None = None,
+        props: dict[str, Any] | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        """Record a funnel event."""
+        self.session.add(
+            Event(
+                event=event,
+                user_id=user_id,
+                anon_id=anon_id,
+                platform=platform,
+                browser_context=browser_context,
+                src=src,
+                props=props,
+                created_at=now or utc_now(),
+            )
+        )
+        await self.session.flush()
+
+    async def has_event(self, event: str, user_id: int) -> bool:
+        """Has the account already got this event (for "first …" events)."""
+        return bool(
+            await self.session.scalar(
+                select(exists().where(Event.event == event, Event.user_id == user_id))
+            )
+        )
+
+    async def event_counts(
+        self, since: datetime, until: datetime
+    ) -> list[tuple[str, str | None, str | None, int, int]]:
+        """Funnel counts in [since, until): (event, platform, src, events, distinct
+        devices or accounts)."""
+        who = func.coalesce(Event.anon_id, cast(Event.user_id, String))
+        result = await self.session.execute(
+            select(
+                Event.event,
+                Event.platform,
+                Event.src,
+                func.count(),
+                func.count(func.distinct(who)),
+            )
+            .where(Event.created_at >= since, Event.created_at < until)
+            .group_by(Event.event, Event.platform, Event.src)
+        )
+        return [
+            (event, platform, src, int(total), int(distinct))
+            for event, platform, src, total, distinct in result.tuples()
+        ]

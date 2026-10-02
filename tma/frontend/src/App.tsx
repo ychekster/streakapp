@@ -23,6 +23,12 @@
  * Пока часовой пояс не выбран (первый запуск), приложение ставит пояс устройства —
  * молча: его видно в настройках, и там же его можно поменять.
  *
+ * The same App runs as the installed web app (main.tsx decides; platform.ts). Then the
+ * back and bottom buttons are the app's own (WebChrome), guests see a calm save-account
+ * banner above their habits, and a notification tap opens its habit (`habit=<id>`).
+ * Settings → «Аккаунт» exists in both; «Установить на рабочий стол» only in Telegram,
+ * and the bot's «Установить» button opens the Mini App on it (`open=install`).
+ *
  * Администратор может переключить приложение в режим админ-панели (ряд «Админ-панель» в
  * настройках): тогда вместо экранов и нижней навигации приложения — AdminApp, а
  * «Вернуться в приложение» в её настройках возвращает на экран настроек. Состояние
@@ -42,10 +48,14 @@ import {
 
 import { ApiRequestError } from "./api/client";
 import { deleteHabit } from "./api/habits";
+import { fetchAccount, type Account } from "./api/web";
+import { SaveAccountBanner } from "./components/SaveAccountBanner";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { useBackButton } from "./hooks/useBackButton";
+import { useHandoffLink } from "./hooks/useHandoffLink";
+import { useTelegramLoginWatcher } from "./hooks/useTelegramLoginWatcher";
 import { useHabits } from "./hooks/useHabits";
 import { useSettings, type SaveOptions } from "./hooks/useSettings";
 import { useSystemDark } from "./hooks/useSystemDark";
@@ -56,13 +66,17 @@ import {
   resolveTheme,
   savePreferences,
 } from "./preferences";
+import { usePlatform } from "./platform";
+import { AccountScreen } from "./screens/AccountScreen";
 import { HabitFormScreen } from "./screens/HabitFormScreen";
+import { InstallFromTelegramScreen } from "./screens/InstallFromTelegramScreen";
 import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
+import { currentSessionToken } from "./session";
 import { STRINGS } from "./strings";
 import {
   hapticNotification,
@@ -73,6 +87,9 @@ import {
 import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
+import { hasAuthNotice } from "./web/bootstrap";
+import { beginTelegramBotLogin } from "./web/login";
+import { WebChrome } from "./web/WebChrome";
 import styles from "./App.module.css";
 
 // Цвет фона берём из дизайн-токена (CSS-переменной), а не хардкодим в коде.
@@ -93,7 +110,7 @@ function deviceTimezone(): string | null {
 }
 
 /** Экран, на котором приложение открывается сразу (см. startScreen). */
-type StartScreen = "review" | "new_habit";
+type StartScreen = "review" | "new_habit" | "install";
 
 /**
  * Экран, на котором открыть приложение, — параметр `open` его адреса. Его ставят кнопки
@@ -104,7 +121,7 @@ type StartScreen = "review" | "new_habit";
 function startScreen(): StartScreen | null {
   try {
     const screen = new URLSearchParams(window.location.search).get("open");
-    return screen === "review" || screen === "new_habit" ? screen : null;
+    return screen === "review" || screen === "new_habit" || screen === "install" ? screen : null;
   } catch {
     return null;
   }
@@ -116,6 +133,12 @@ function startScreen(): StartScreen | null {
 // при входе в панель ждать не приходится.
 const loadAdminApp = () => import("./AdminApp");
 const AdminApp = lazy(() => loadAdminApp().then((module) => ({ default: module.AdminApp })));
+
+/** Habit a push notification opens (`habit=<id>` in the address), or null. */
+function startHabit(): number | null {
+  const value = Number(new URLSearchParams(window.location.search).get("habit"));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 
 /** Открытая форма привычки: редактируемая привычка или null — новая. */
 interface Editor {
@@ -130,11 +153,16 @@ export function App() {
   const { settings, save } = settingsState;
   const toggle = useToggle(setHabits);
   const telegramAvailable = isTelegramAvailable();
+  const platform = usePlatform();
+  const web = platform === "web";
   // Открыто кнопкой под рассылкой: «Написать отзыв» — сразу экран отзыва (над
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).
   const [start] = useState(startScreen);
-  const [tab, setTab] = useState<TabKey>(start === "review" ? "settings" : "habits");
+  // A login just came back (bootstrap): show its outcome on Settings → Account.
+  const [authReturn] = useState(hasAuthNotice);
+  const startsInSettings = start === "review" || start === "install" || authReturn;
+  const [tab, setTab] = useState<TabKey>(startsInSettings ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
@@ -142,8 +170,12 @@ export function App() {
     start === "new_habit" ? { habit: null } : null,
   );
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
-    start === "review" ? "review" : null,
+    start === "review" ? "review" : start === "install" ? "install" : authReturn ? "account" : null,
   );
+  // Web app: the account (guest or not) — for the save-account banner and Settings.
+  const [account, setAccount] = useState<Account | null>(null);
+  const pendingHabit = useRef(startHabit());
+  const install = useHandoffLink("settings", telegramAvailable && tab === "settings");
   const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);
@@ -319,6 +351,64 @@ export function App() {
     }
   }, [settings, saveSettings]);
 
+  // Web app: is the account still a guest (save-account banner, Settings). Asked again
+  // when the first habit appears and after a login switched accounts.
+  const loadAccount = useCallback(() => {
+    if (web) {
+      fetchAccount()
+        .then(setAccount)
+        .catch(() => undefined);
+    }
+  }, [web]);
+  const hasHabits = habits.length > 0;
+  useEffect(() => {
+    loadAccount();
+  }, [loadAccount, hasHabits]);
+
+  // A login switched or merged accounts: everything on screen belongs to the new one.
+  // (useSettings returns a new `reload` every render: read the latest through a ref, so
+  // this callback — and the watchers that use it — stay stable.)
+  const reloadSettings = useRef(settingsState.reload);
+  reloadSettings.current = settingsState.reload;
+  const reloadAccountData = useCallback(() => {
+    reload();
+    reloadSettings.current();
+    loadAccount();
+  }, [reload, loadAccount]);
+
+  // A bot login confirmed while the user is outside Settings → Account (which watches
+  // by itself): switch to that account.
+  useTelegramLoginWatcher(web && settingsPage !== "account", reloadAccountData);
+
+  // A notification tap opens its habit: at launch (`habit=<id>` in the address) or, with
+  // the app already open, by a message from the service worker (sw.ts).
+  useEffect(() => {
+    const id = pendingHabit.current;
+    if (id !== null && status === "ready" && !editor) {
+      pendingHabit.current = null;
+      if (habits.some((habit) => habit.id === id)) {
+        setTab("habits");
+        setSettingsPage(null);
+        showHabit(id);
+      }
+    }
+  }, [status, habits, editor, showHabit]);
+  useEffect(() => {
+    if (!web || !("serviceWorker" in navigator)) {
+      return undefined;
+    }
+    const onMessage = (event: MessageEvent): void => {
+      const url = typeof event.data?.url === "string" ? event.data.url : "";
+      const id = Number(new URL(url, window.location.origin).searchParams.get("habit"));
+      if (event.data?.type === "open-habit" && Number.isInteger(id) && id > 0) {
+        pendingHabit.current = id;
+        void refresh();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [web, refresh]);
+
   // Администратору — заранее загрузить админ-панель (см. loadAdminApp). Не вышло (нет
   // сети) — не страшно: при входе в панель файл загрузится ещё раз.
   useEffect(() => {
@@ -364,8 +454,9 @@ export function App() {
     }
   });
 
-  // Открыто вне Telegram — авторизоваться нечем, объясняем пользователю.
-  if (!telegramAvailable) {
+  // Открыто вне Telegram без сессии веб-приложения — авторизоваться нечем (main.tsx сюда
+  // так не пускает; на всякий случай объясняем пользователю).
+  if (!telegramAvailable && !currentSessionToken()) {
     return (
       <main className={styles.fallback}>
         <StatusMessage
@@ -417,12 +508,20 @@ export function App() {
       if (settingsPage === "terms") {
         return <LegalScreen key={settingsPage} doc={strings.termsOfUse} />;
       }
+      if (settingsPage === "account") {
+        return <AccountScreen onAccountChanged={reloadAccountData} />;
+      }
+      if (settingsPage === "install") {
+        return <InstallFromTelegramScreen src={start === "install" ? "bot" : "settings"} />;
+      }
       return (
         <SettingsScreen
           state={settingsState}
           onSave={(patch) => void saveSettings(patch)}
           onOpen={showSettingsPage}
           onOpenAdmin={enterAdmin}
+          install={telegramAvailable ? install : null}
+          guest={web && account?.is_guest === true}
         />
       );
     }
@@ -435,6 +534,19 @@ export function App() {
         onToggle={toggle}
         onOpen={showHabit}
         onReload={reload}
+        onTelegramLogin={
+          web && account?.is_guest ? () => void beginTelegramBotLogin().catch(() => undefined) : undefined
+        }
+        banner={
+          web && account?.is_guest ? (
+            <SaveAccountBanner
+              onOpen={() => {
+                setTab("settings");
+                showSettingsPage("account");
+              }}
+            />
+          ) : null
+        }
       />
     );
   }
@@ -449,6 +561,7 @@ export function App() {
             onExit={exitAdmin}
           />
         </Suspense>
+        {web ? <WebChrome /> : null}
       </PreferencesContext.Provider>
     );
   }
@@ -465,6 +578,7 @@ export function App() {
         onAdd={() => showEditor(null)}
         addLabel={strings.addHabit}
       />
+      {web ? <WebChrome /> : null}
     </PreferencesContext.Provider>
   );
 }

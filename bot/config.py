@@ -38,6 +38,13 @@ class Config(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    # Web app (PWA) push reminders — see docs/WEB_APP_SETUP.md. Without the private key
+    # reminders go only through the bot, as before.
+    vapid_private_key: SecretStr | None = Field(default=None, alias="VAPID_PRIVATE_KEY")
+    vapid_subject: str = Field(default="mailto:admin@example.com", alias="VAPID_SUBJECT")
+    # Public base URL of the web app (notification taps open it); empty — TMA_URL.
+    public_base_url: str = Field(default="", alias="PUBLIC_BASE_URL")
+
     # Параметры логирования.
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_file: str = Field(default="logs/bot.log", alias="LOG_FILE")

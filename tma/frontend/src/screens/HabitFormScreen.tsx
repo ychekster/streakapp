@@ -9,6 +9,9 @@
  *  - Частота — каждый день или по дням; «по дням» добавляет выбор дней недели;
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py);
+ *    В веб-приложении вместо бота — уведомление: разрешение спрашивается тем же нажатием
+ *    «Создать привычку» / «Сохранить» (никогда — при первом запуске); если уведомления
+ *    запрещены, под переключателем — как их включить (spec §9);
  *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка).
  *
  * Открывается кнопкой «+» (новая привычка) или рядом «Редактировать привычку» на экране
@@ -37,10 +40,12 @@ import {
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
+import { usePlatform } from "../platform";
 import { useResolvedTheme, useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
 import { habitColorHex, habitColorStyle, readRootVariable } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
+import { askPermissionFromTap, pushPermission, subscribePush } from "../web/push";
 import styles from "./HabitFormScreen.module.css";
 
 interface HabitFormScreenProps {
@@ -66,6 +71,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   );
   const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
   const [submitting, setSubmitting] = useState(false);
+  const web = usePlatform() === "web";
+  const [permission, setPermission] = useState(pushPermission);
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   // Отправка уже идёт: состояние `submitting` обновится только со следующим рендером, а
@@ -120,6 +127,14 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    // Web app: ask for notifications right from this tap (Safari needs the gesture).
+    if (web && reminderOn) {
+      if (permission === "default") {
+        void askPermissionFromTap().then(setPermission);
+      } else if (permission === "granted") {
+        void subscribePush();
+      }
+    }
     setError(null);
     const input: HabitInput = {
       name: name.trim(),
@@ -216,6 +231,9 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
               </ListItem>
             ) : null}
           </Card>
+          {web && reminderOn && permission === "denied" ? (
+            <p className={styles.note}>{strings.notificationsDenied}</p>
+          ) : null}
         </Section>
 
         <Section variant="form" title={strings.formThemeHeading}>

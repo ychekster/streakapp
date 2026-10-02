@@ -55,7 +55,7 @@ def _open_app_kb(tma_url: str) -> InlineKeyboardMarkup:
     )
 
 
-async def _record_start(database: Database, user: TelegramUser) -> None:
+async def record_start(database: Database, user: TelegramUser) -> None:
     """Записать запустившего бота (язык интерфейса — по языку Telegram, как в API) и
     снять отметку о блокировке бота. Сбой не мешает приветствию."""
     try:
@@ -78,7 +78,7 @@ async def cmd_start(message: Message, config: Config, database: Database) -> Non
     """Приветствие: анимированный эмодзи и жирный заголовок, абзац о проекте, жирный
     призыв и кнопка."""
     if message.from_user is not None:
-        await _record_start(database, message.from_user)
+        await record_start(database, message.from_user)
     content = Text(
         CustomEmoji(WELCOME_EMOJI.fallback, custom_emoji_id=WELCOME_EMOJI.id),
         " ",

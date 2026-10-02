@@ -12,7 +12,7 @@ import pytest
 from bot import broadcasts as bot_broadcasts
 from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS
 from bot.handlers.membership import on_bot_status_changed
-from bot.handlers.start import _record_start
+from bot.handlers.start import record_start
 from bot.pacing import Pacer
 from tests.fake_telegram import FakeTelegram
 from tma.backend.audience import parse_audience
@@ -293,7 +293,7 @@ def test_start_records_user_and_clears_bot_block(db_url: str) -> None:
         database = Database(db_url)
         await database.create_tables()
         try:
-            await _record_start(database, telegram_user)
+            await record_start(database, telegram_user)
             async with database.session_factory() as session:
                 repo = Repository(session)
                 user = await repo.get_user(7)
@@ -301,7 +301,7 @@ def test_start_records_user_and_clears_bot_block(db_url: str) -> None:
                 assert (user.language, user.app_opened_at) == ("en", None)
                 await repo.set_bot_blocked([7], blocked=True)
                 await session.commit()
-            await _record_start(database, telegram_user)
+            await record_start(database, telegram_user)
             async with database.session_factory() as session:
                 assert (await Repository(session).get_user(7)).bot_blocked_at is None
         finally:

@@ -74,6 +74,49 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="TMA_LOG_LEVEL")
     log_file: str = Field(default="", alias="TMA_LOG_FILE")
 
+    # ------------------------------------------------------------------ #
+    #  Web app (PWA) — see docs/WEB_APP_SETUP.md
+    # ------------------------------------------------------------------ #
+
+    # Public HTTPS base of the landing and the web app (the same frontend as the Mini
+    # App). Empty — TMA_URL. Used for install links, OAuth redirects and push links.
+    public_base_url: str = Field(default="", alias="PUBLIC_BASE_URL")
+    # Path under which the frontend's server proxies the API (nginx and Vite: /api).
+    public_api_path: str = Field(default="/api", alias="PUBLIC_API_PATH")
+    # Secret for hashing web session tokens and one-time codes (handoff, login). Empty —
+    # derived from BOT_TOKEN (fine locally; set a real one in production). Changing it
+    # logs every web user out.
+    web_auth_secret: SecretStr | None = Field(default=None, alias="WEB_AUTH_SECRET")
+    # Web session lifetime, days; every use extends it (sliding expiry).
+    web_session_ttl_days: int = Field(default=180, ge=1, alias="WEB_SESSION_TTL_DAYS")
+    # Lifetime of the Telegram → web handoff token, minutes.
+    handoff_ttl_minutes: int = Field(default=30, ge=1, alias="HANDOFF_TTL_MINUTES")
+    # Bot username without "@" (deep links for "log in via Telegram"). Empty — asked
+    # from Telegram (getMe) on first use.
+    telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
+    # Google OAuth client (Google Cloud Console → Credentials). Empty — Google login off.
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: SecretStr | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
+    # Web Push (VAPID) keys: the public one is handed to browsers, the private one signs
+    # pushes (the bot sends reminders with it, the API only a test notification).
+    # Generate with scripts/generate_vapid_keys.py. Empty — push off.
+    vapid_public_key: str = Field(default="", alias="VAPID_PUBLIC_KEY")
+    vapid_private_key: SecretStr | None = Field(default=None, alias="VAPID_PRIVATE_KEY")
+    # Contact the push services may use: "mailto:you@example.com" or an https URL.
+    vapid_subject: str = Field(default="mailto:admin@example.com", alias="VAPID_SUBJECT")
+
+    @property
+    def web_base_url(self) -> str:
+        """Public base URL of the web app, without a trailing slash."""
+        return (self.public_base_url or self.tma_url or "").rstrip("/")
+
+    @property
+    def auth_secret(self) -> bytes:
+        """Key for hashing session tokens and one-time codes."""
+        if self.web_auth_secret is not None and self.web_auth_secret.get_secret_value():
+            return self.web_auth_secret.get_secret_value().encode("utf-8")
+        return b"web-auth:" + self.bot_token.get_secret_value().encode("utf-8")
+
     @property
     def cors_origins(self) -> list[str]:
         """Список источников CORS из строки через запятую."""

@@ -28,6 +28,27 @@ function pageQuery(cursor: string | null, extra: Record<string, string> = {}): s
   return params.toString();
 }
 
+/** Web app funnel step (GET /admin/funnel). */
+export interface FunnelStep {
+  event: string;
+  total: number;
+  unique: number;
+  by_platform: Record<string, number>;
+  by_src: Record<string, number>;
+}
+
+/** Web app funnel for the last `days` days (UTC, today included). */
+export async function fetchWebFunnel(days: number): Promise<FunnelStep[]> {
+  const until = new Date();
+  const since = new Date(until.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  const day = (date: Date) => date.toISOString().slice(0, 10);
+  const data = await apiRequest<{ steps: FunnelStep[] }>(
+    `/admin/funnel?since=${day(since)}&until=${day(until)}`,
+    { method: "GET" },
+  );
+  return data.steps;
+}
+
 export function fetchAnalytics(days: number): Promise<Analytics> {
   return apiRequest<Analytics>(`/admin/analytics?days=${days}`, { method: "GET" });
 }

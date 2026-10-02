@@ -42,6 +42,7 @@ import { Section } from "../components/Section";
 import { StackedBar } from "../components/StackedBar";
 import { StatCard } from "../components/StatCard";
 import { StatusMessage } from "../components/StatusMessage";
+import { WebFunnelSection } from "../components/WebFunnelSection";
 import { ANALYTICS_PERIODS } from "../constants";
 import type { Resource } from "../hooks/useResource";
 import { habitColorStyle } from "../theme";
@@ -264,6 +265,8 @@ function Dashboard({ data }: { data: Analytics }) {
           />
         </div>
       </Section>
+
+      <WebFunnelSection days={data.period_days} />
     </>
   );
 }
