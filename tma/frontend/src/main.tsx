@@ -49,6 +49,12 @@ if (entry !== "telegram") {
 if (entry === "landing") {
   captureInstallPrompt();
 }
+if (entry === "web") {
+  // Scroll is the app's own: each tab and the screen under a nested one reopen where they
+  // were left (App). The browser must not restore its saved position when «Назад» steps
+  // back through history (web/WebChrome.tsx) — it would throw the list back to the top.
+  window.history.scrollRestoration = "manual";
+}
 
 /** The installed web app: make sure there is a session, then the app. */
 function WebRoot() {

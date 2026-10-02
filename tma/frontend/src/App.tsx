@@ -19,6 +19,7 @@
  *    приложение запускается сразу на нём (параметр адреса `open=review`). Так же кнопка
  *    «Добавить привычку» открывает сразу форму новой привычки (`open=new_habit`).
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
+ * Так же и вкладки: у каждой своя позиция; ещё не прокрученная открывается с начала.
  *
  * Пока часовой пояс не выбран (первый запуск), приложение ставит пояс устройства —
  * молча: его видно в настройках, и там же его можно поменять.
@@ -49,6 +50,7 @@ import {
 import { ApiRequestError } from "./api/client";
 import { deleteHabit } from "./api/habits";
 import { fetchAccount, type Account } from "./api/web";
+import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
 import { SaveAccountBanner } from "./components/SaveAccountBanner";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
@@ -182,6 +184,8 @@ export function App() {
   const scrollUnderEditor = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
   const scrollUnderAdmin = useRef(0);
+  // Позиция прокрутки каждой вкладки, пока открыта другая.
+  const tabScroll = useRef<Record<TabKey, number>>({ habits: 0, settings: 0 });
   // Прокрутка, которую нужно поставить после ближайшего рендера (см. layout-эффект ниже).
   const pendingScroll = useRef<number | null>(null);
   // Пояс устройства уже предлагался серверу в этом запуске (см. эффект ниже).
@@ -257,6 +261,17 @@ export function App() {
     setAdminMode(false);
   }, []);
 
+  // Переключение вкладки: запомнить, где оставили текущую, и открыть новую там, где её
+  // оставили (или с начала).
+  function selectTab(next: TabKey): void {
+    if (next === tab) {
+      return;
+    }
+    tabScroll.current[tab] = window.scrollY;
+    pendingScroll.current = tabScroll.current[next];
+    setTab(next);
+  }
+
   // Сохранить настройку. Пояс и режим «Отмечать за вчера» меняют день отметки — сервер
   // пересчитывает привычки, и список обновляется.
   const saveSettings = useCallback(
@@ -302,6 +317,12 @@ export function App() {
         : [...current, saved],
     );
     if (editor?.habit == null) {
+      // Форма открыта с другой вкладки: та запоминает свою позицию, а список привычек
+      // открывается на своей.
+      if (tab !== "habits") {
+        tabScroll.current[tab] = scrollUnderEditor.current;
+        scrollUnderEditor.current = tabScroll.current.habits;
+      }
       setTab("habits");
     }
     hideEditor();
@@ -387,12 +408,20 @@ export function App() {
     if (id !== null && status === "ready" && !editor) {
       pendingHabit.current = null;
       if (habits.some((habit) => habit.id === id)) {
+        const fromTab = tab !== "habits";
+        if (fromTab) {
+          tabScroll.current[tab] = settingsPage ? scrollUnderSettingsPage.current : window.scrollY;
+        }
         setTab("habits");
         setSettingsPage(null);
         showHabit(id);
+        if (fromTab) {
+          // «Назад» с экрана привычки — на список, туда, где его оставили.
+          scrollUnderHabit.current = tabScroll.current.habits;
+        }
       }
     }
-  }, [status, habits, editor, showHabit]);
+  }, [status, habits, editor, showHabit, tab, settingsPage]);
   useEffect(() => {
     if (!web || !("serviceWorker" in navigator)) {
       return undefined;
@@ -447,10 +476,13 @@ export function App() {
 
   // Вложенный экран открывается с начала, экран под ним — на сохранённой позиции.
   // Layout-эффект: прокрутка ставится до отрисовки и до эффектов шапки, читающих scrollY.
+  // Шапка экрана (CollapsingHeader) по событию сразу принимает вид для этой позиции, без
+  // анимации.
   useLayoutEffect(() => {
     if (pendingScroll.current !== null) {
       window.scrollTo(0, pendingScroll.current);
       pendingScroll.current = null;
+      window.dispatchEvent(new Event(SCROLL_RESTORED_EVENT));
     }
   });
 
@@ -541,8 +573,13 @@ export function App() {
           web && account?.is_guest ? (
             <SaveAccountBanner
               onOpen={() => {
+                // Из списка привычек сразу в «Аккаунт» над настройками: «Назад» вернёт на
+                // настройки там, где их оставили.
+                tabScroll.current.habits = window.scrollY;
+                scrollUnderSettingsPage.current = tabScroll.current.settings;
+                pendingScroll.current = 0;
                 setTab("settings");
-                showSettingsPage("account");
+                setSettingsPage("account");
               }}
             />
           ) : null
@@ -574,7 +611,7 @@ export function App() {
         tabs={tabs}
         active={tab}
         hidden={editor !== null || openHabit !== undefined || settingsPage !== null}
-        onSelect={setTab}
+        onSelect={selectTab}
         onAdd={() => showEditor(null)}
         addLabel={strings.addHabit}
       />

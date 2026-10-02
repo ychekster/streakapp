@@ -16,12 +16,17 @@
  * --header-bar-bottom (экранный Y нижнего края шапки) и --header-hairline-scale (сжатие линии
  * до одного физического пикселя), которые считает recompute.
  *
+ * Экран, открытый на запомненной позиции прокрутки (возврат на вкладку или из вложенного
+ * экрана), получает шапку сразу в нужном состоянии, без анимации: начальное состояние
+ * ставится до первой отрисовки, а о прокрутке, которую App ставит после монтирования,
+ * он сообщает событием SCROLL_RESTORED_EVENT.
+ *
  * Экран без крупного заголовка (экран привычки) передаёт `anchorRef` — элемент в потоке,
  * который играет роль А: порог считается по нему, а сам он не растворяется, а уходит под
  * подложку вместе с контентом.
  */
 
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 
 import styles from "./CollapsingHeader.module.css";
 
@@ -56,6 +61,9 @@ function setRootPx(name: string, px: number): void {
   document.documentElement.style.setProperty(name, `${px}px`);
 }
 
+/** App ставит сохранённую прокрутку экрана и сообщает об этом (см. App, pendingScroll). */
+export const SCROLL_RESTORED_EVENT = "app:scroll-restored";
+
 // Гистерезис порога (px), чтобы класс не «дёргался» при остановке ровно на границе.
 const COLLAPSE_HYSTERESIS = 8;
 
@@ -63,28 +71,47 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
   const titleExpandedRef = useRef<HTMLHeadingElement>(null);
 
-  useEffect(() => {
+  // Layout-эффект: начальное состояние шапки ставится до первой отрисовки экрана.
+  useLayoutEffect(() => {
     const headerEl = headerRef.current;
-    const titleEl = anchorRef ? anchorRef.current : titleExpandedRef.current;
-    if (!headerEl || !titleEl) {
+    if (!headerEl) {
       return;
     }
 
     let collapseThreshold = Number.POSITIVE_INFINITY;
-    let collapsed = false;
+    // Эффект перезапускается (смена языка) при уже свёрнутой шапке — берём её состояние.
+    let collapsed = headerEl.classList.contains(styles.collapsed);
 
-    const updateState = (): void => {
+    // instant — без анимации: стили применяются с выключенными переходами (чтение
+    // offsetWidth), после чего переходы возвращаются для обычной прокрутки.
+    const updateState = (instant = false): void => {
       const y = window.scrollY;
       const next = collapsed
         ? y > collapseThreshold - COLLAPSE_HYSTERESIS
         : y >= collapseThreshold;
-      if (next !== collapsed) {
-        collapsed = next;
-        headerEl.classList.toggle(styles.collapsed, collapsed);
+      if (next === collapsed) {
+        return;
+      }
+      collapsed = next;
+      if (instant) {
+        headerEl.classList.add(styles.instant);
+      }
+      headerEl.classList.toggle(styles.collapsed, collapsed);
+      if (instant) {
+        void headerEl.offsetWidth;
+        headerEl.classList.remove(styles.instant);
       }
     };
+    const onScroll = (): void => updateState();
+    const onScrollRestored = (): void => updateState(true);
 
-    const recompute = (): void => {
+    const recompute = (instant = false): void => {
+      // Якорь берётся при каждом пересчёте: элемент экрана ниже шапки в момент этого
+      // эффекта ещё не подключён к ref (React подключает их по порядку дерева).
+      const titleEl = anchorRef ? anchorRef.current : titleExpandedRef.current;
+      if (!titleEl) {
+        return;
+      }
       // Как в CSS: в Mini App — отступ от Telegram, в веб-приложении — env() браузера.
       const safeTop = readPxVar("--app-safe-area-top", "env(safe-area-inset-top, 0px)");
       const contentTop = readPxVar("--app-content-safe-area-top");
@@ -110,17 +137,28 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
       const rect = titleEl.getBoundingClientRect();
       const expandedCenterY = rect.top + window.scrollY + rect.height / 2; // в координатах документа
       collapseThreshold = Math.max(1, expandedCenterY - collapsedCenterY);
-      updateState();
+      updateState(instant);
     };
+    const onResize = (): void => recompute();
 
-    recompute();
-    window.addEventListener("scroll", updateState, { passive: true });
-    window.addEventListener("resize", recompute);
-    window.addEventListener("app:insets", recompute);
+    // Первый расчёт — сразу после фиксации всего дерева (refs подключены, App поставил
+    // прокрутку), но до отрисовки кадра.
+    let active = true;
+    queueMicrotask(() => {
+      if (active) {
+        recompute(true);
+      }
+    });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener(SCROLL_RESTORED_EVENT, onScrollRestored);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("app:insets", onResize);
     return () => {
-      window.removeEventListener("scroll", updateState);
-      window.removeEventListener("resize", recompute);
-      window.removeEventListener("app:insets", recompute);
+      active = false;
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener(SCROLL_RESTORED_EVENT, onScrollRestored);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("app:insets", onResize);
     };
   }, [title, anchorRef]);
 
