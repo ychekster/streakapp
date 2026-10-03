@@ -415,10 +415,18 @@
 :root[data-app="web"] {
   --app-content-safe-area-top: 46px;
   --header-bar-overhang: 8px;
-  /* Collapsed header bar: a solid fill in the page color, no blur — one piece with the
-     opaque status bar strip above it (WebChrome .topEdge). */
-  --header-bar-backdrop: none;
-  --header-bar-tint: var(--color-background);
+  /* Collapsed header bar: the usual frosted glass (blur from :root), its tint running
+     from the page color at the top edge — exactly the opaque status bar strip above it
+     (WebChrome .topEdge) — to the 80% glass tint --web-header-fade lower, so strip and
+     bar read as one piece with no seam. iOS 26+ lets nothing but that solid strip or its
+     own haze sit under the clock (WebKit fixedContainerEdges / WKColorExtensionView). */
+  --header-bar-tint: linear-gradient(
+    to bottom,
+    var(--color-background),
+    var(--web-header-glass) var(--web-header-fade)
+  );
+  --web-header-glass: rgba(242, 242, 247, 0.8); /* --color-background at 80% */
+  --web-header-fade: 24px;
   --space-screen-top: 11px; /* row + 11 + SF Pro's 8.4px above the cap = 65.5 */
   --space-header-bottom: 7px; /* 34px title line (40.6px) + 7 = first card at 105 */
   /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
@@ -441,6 +449,7 @@
 
 :root[data-app="web"][data-theme="dark"] {
   --brand-blue-soft: rgba(47, 143, 245, 0.18);
+  --web-header-glass: rgba(0, 0, 0, 0.8); /* --color-background at 80% */
   /* Inactive bottom button, from the reference: gray glass and dimmed label. */
   --main-button-disabled-bg: #505052;
   --main-button-disabled-text: #9c9c9e;
