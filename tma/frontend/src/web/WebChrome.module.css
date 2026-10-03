@@ -41,7 +41,7 @@
   background: var(--glass-fill);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--web-back-shadow);
   color: var(--glass-icon);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;

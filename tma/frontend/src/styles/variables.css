@@ -210,6 +210,7 @@
   --radius-list-row-icon: 7.25px;
   --list-row-icon-inset: 14px; /* от края карточки до плашки */
   --list-row-icon-gap: 14px; /* от плашки до подписи */
+  --list-row-trailing-gap: 8px; /* между элементами правой части ряда (значение и ›) */
   --list-row-disabled-opacity: 0.4; /* недоступное действие */
 
   /* --- Экран «Настройки» (значения сняты со скриншота-эталона «Настроек» iOS 26) --- */
@@ -218,6 +219,9 @@
   --line-height-list-footer: 1.37;
   --disclosure-width: 8px; /* значок › у ряда, открывающего вложенный экран */
   --disclosure-height: 14px;
+  --disclosure-stroke: 1.9px;
+  --disclosure-trailing: 0px; /* дополнительный отступ › от правого края ряда */
+  --color-disclosure: currentColor; /* приглушённый цвет правой части ряда */
   --list-check-size: 16px; /* галочка выбранного варианта (часовой пояс) */
   --color-search-clear: rgba(60, 60, 67, 0.36); /* кружок крестика в поле поиска */
   --search-height: 40px;
@@ -246,6 +250,7 @@
   --switch-height: 28px;
   --switch-thumb-width: 38px;
   --switch-inset: 2px;
+  --switch-trailing: 0px; /* сдвиг от правого отступа ряда (отрицательный — ближе к краю) */
   --switch-thumb-color: #ffffff;
   --switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.16), 0 1px 1px rgba(0, 0, 0, 0.1);
   --switch-anim: 240ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -433,6 +438,30 @@
   --web-back-size: 44px;
   --web-back-left: 15px;
   --web-back-stroke: 2.4px;
+  /* The glass shadow, but cast only downward and to the sides: the button sits 1pt below
+     the opaque status bar strip, and a shadow reaching up under it would draw the strip's
+     edge. Each drop shadow's blur minus its offset and spread is 0, so nothing goes above
+     the circle; the 0.5px rim stays inside the 1pt gap. */
+  --web-back-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+    0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 8px 12px -4px rgba(0, 0, 0, 0.08),
+    0 2px 3px -1px rgba(0, 0, 0, 0.05);
+  /* Settings screen, measured from the iOS 26 Settings reference (402pt-wide iPhone):
+     52pt rows, a 28pt icon tile with an ~18pt glyph, the › chevron 6.7×11.6pt ending 18.6pt
+     from the card edge and 12pt after the value, the 63×28 switch 14pt from the edge. */
+  --web-settings-row-height: 52px;
+  --web-settings-icon-size: 28px;
+  --web-settings-icon-glyph: 22.5px; /* 24-unit icons: a 19-unit circle comes out 17.8px */
+  --web-settings-icon-radius: 6.75px; /* the 30px tile's 7.25px, scaled */
+  --web-settings-trailing-gap: 12px;
+  --web-settings-disclosure-width: 8.2px; /* centreline 5.1 × 10 inside the 8×14 viewBox */
+  --web-settings-disclosure-height: 12.7px;
+  --web-settings-disclosure-stroke: 1.6px;
+  --web-settings-disclosure-trailing: 1.9px;
+  --web-settings-disclosure-color: rgba(60, 60, 67, 0.36);
+  --web-settings-switch-width: 63px;
+  --web-settings-switch-thumb-width: 37px;
+  --web-settings-switch-trailing: -2px;
+  --web-settings-switch-off: rgba(120, 120, 128, 0.43);
   /* Tab bar 20.5pt above the bottom edge, like the iOS 26 tab bar (34 · 0.37 + 8). */
   --tabbar-safe-area-share: 0.37;
   /* Bottom action button, measured from the iOS 26 reference (Wallet «Продолжить»): a
@@ -450,6 +479,12 @@
 :root[data-app="web"][data-theme="dark"] {
   --brand-blue-soft: rgba(47, 143, 245, 0.18);
   --web-header-glass: rgba(0, 0, 0, 0.8); /* --color-background at 80% */
+  --web-back-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 8px 12px -4px rgba(0, 0, 0, 0.5),
+    0 2px 3px -1px rgba(0, 0, 0, 0.3);
+  /* Same weight as the light chevron; the dark switch keeps its own off color. */
+  --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
+  --web-settings-switch-off: var(--color-switch-off);
   /* Inactive bottom button, from the reference: gray glass and dimmed label. */
   --main-button-disabled-bg: #505052;
   --main-button-disabled-text: #9c9c9e;

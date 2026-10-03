@@ -19,3 +19,22 @@
   color: var(--color-danger);
   line-height: 1.35;
 }
+
+/* Web app: rows, icon tiles, the › chevron and the switch as in the iOS 26 Settings
+   reference (values in variables.css, :root[data-app="web"]). */
+:global(:root[data-app="web"]) .settings {
+  --list-row-min-height: var(--web-settings-row-height);
+  --list-row-icon-size: var(--web-settings-icon-size);
+  --list-row-icon-glyph: var(--web-settings-icon-glyph);
+  --radius-list-row-icon: var(--web-settings-icon-radius);
+  --list-row-trailing-gap: var(--web-settings-trailing-gap);
+  --disclosure-width: var(--web-settings-disclosure-width);
+  --disclosure-height: var(--web-settings-disclosure-height);
+  --disclosure-stroke: var(--web-settings-disclosure-stroke);
+  --disclosure-trailing: var(--web-settings-disclosure-trailing);
+  --color-disclosure: var(--web-settings-disclosure-color);
+  --switch-width: var(--web-settings-switch-width);
+  --switch-thumb-width: var(--web-settings-switch-thumb-width);
+  --switch-trailing: var(--web-settings-switch-trailing);
+  --color-switch-off: var(--web-settings-switch-off);
+}

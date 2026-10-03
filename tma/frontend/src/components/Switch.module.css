@@ -2,6 +2,7 @@
   flex-shrink: 0;
   width: var(--switch-width);
   height: var(--switch-height);
+  margin-right: var(--switch-trailing);
   padding: var(--switch-inset);
   border-radius: var(--radius-pill);
   background-color: var(--color-switch-off);
