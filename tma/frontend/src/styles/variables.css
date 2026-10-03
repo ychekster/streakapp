@@ -415,6 +415,10 @@
 :root[data-app="web"] {
   --app-content-safe-area-top: 46px;
   --header-bar-overhang: 8px;
+  /* Collapsed header bar: a solid fill in the page color, no blur — one piece with the
+     opaque status bar strip above it (WebChrome .topEdge). */
+  --header-bar-backdrop: none;
+  --header-bar-tint: var(--color-background);
   --space-screen-top: 11px; /* row + 11 + SF Pro's 8.4px above the cap = 65.5 */
   --space-header-bottom: 7px; /* 34px title line (40.6px) + 7 = first card at 105 */
   /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
@@ -423,7 +427,13 @@
   --web-back-stroke: 2.4px;
   /* Tab bar 20.5pt above the bottom edge, like the iOS 26 tab bar (34 · 0.37 + 8). */
   --tabbar-safe-area-share: 0.37;
-  --web-main-height: 50px;
+  /* Bottom action button, measured from the iOS 26 reference (Wallet «Продолжить»): a
+     52pt capsule 37pt from the side and bottom edges, with a thin glass rim; the page
+     color behind it fades out over --web-main-fade above it. */
+  --web-main-height: 52px;
+  --web-main-inset: 37px;
+  --web-main-fade: 16px;
+  --web-main-rim: rgba(255, 255, 255, 0.3);
   /* Brand colors of the landing and the save-account banner. */
   --brand-blue: #2f8ff5;
   --brand-blue-soft: #eaf3fe;
@@ -431,9 +441,15 @@
 
 :root[data-app="web"][data-theme="dark"] {
   --brand-blue-soft: rgba(47, 143, 245, 0.18);
+  /* Inactive bottom button, from the reference: gray glass and dimmed label. */
+  --main-button-disabled-bg: #505052;
+  --main-button-disabled-text: #9c9c9e;
 }
 
-/* While the web app's bottom action button is shown (WebChrome), screens end above it. */
+/* While the web app's bottom action button is shown (WebChrome), screens end 28pt above
+   it. Screen adds the bottom safe area itself, so it is taken back out here. */
 :root[data-app="web"][data-main-button] {
-  --space-screen-bottom: calc(var(--web-main-height) + 40px);
+  --space-screen-bottom: calc(
+    var(--web-main-inset) + var(--web-main-height) + 28px - env(safe-area-inset-bottom, 0px)
+  );
 }

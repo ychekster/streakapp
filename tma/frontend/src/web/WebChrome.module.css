@@ -63,19 +63,27 @@
   transform: scale(0.94);
 }
 
-/* Bottom action (Telegram MainButton in the Mini App): full width above the home
-   indicator. */
+/* Bottom action (Telegram MainButton in the Mini App), as the iOS 26 reference: a
+   full-width capsule --web-main-inset from the side and bottom edges. Behind it the page
+   color, as the bottom bar Telegram paints in it (setBottomBarColor), fading out just
+   above the button. */
 .mainBar {
   position: fixed;
   z-index: 20;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 10px var(--space-screen-x) calc(env(safe-area-inset-bottom, 0px) + 10px);
-  background: linear-gradient(to top, var(--color-background) 60%, transparent);
+  padding: var(--web-main-fade) calc(env(safe-area-inset-right, 0px) + var(--web-main-inset))
+    var(--web-main-inset) calc(env(safe-area-inset-left, 0px) + var(--web-main-inset));
+  background: linear-gradient(
+    to top,
+    var(--color-background) calc(100% - var(--web-main-fade)),
+    transparent
+  );
   pointer-events: none;
 }
 
+/* Glass rim: a hairline highlight on the top and bottom edges, fainter on the sides. */
 .main {
   width: 100%;
   height: var(--web-main-height);
@@ -84,6 +92,8 @@
   justify-content: center;
   border: none;
   border-radius: var(--radius-pill);
+  box-shadow: inset 0 0.67px 0 var(--web-main-rim), inset 0 -0.67px 0 var(--web-main-rim),
+    inset 0 0 0 0.67px rgba(255, 255, 255, 0.06);
   font: inherit;
   font-size: 17px;
   font-weight: 600;

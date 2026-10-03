@@ -17,10 +17,10 @@ import { StatusMessage } from "./components/StatusMessage";
 import { captureInstallPrompt } from "./landing/installPrompt";
 import { Landing } from "./landing/Landing";
 import { isInstalled, isTelegram } from "./platform";
-import { readSavedPreferences } from "./preferences";
+import { readSavedPreferences, resolveTheme } from "./preferences";
 import { installPressFeedback } from "./pressFeedback";
 import { STRINGS } from "./strings";
-import { applyPlatform } from "./telegram/webapp";
+import { applyPlatform, setTelegramColors } from "./telegram/webapp";
 import { startWebApp } from "./web/bootstrap";
 // Порядок важен: сначала дизайн-токены (переменные), затем глобальные стили.
 import "./styles/variables.css";
@@ -50,6 +50,14 @@ if (entry === "landing") {
   captureInstallPrompt();
 }
 if (entry === "web") {
+  // The saved theme right away, so the start screen (before App applies the settings)
+  // and the status bar strip are already in it.
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = resolveTheme(readSavedPreferences().theme, dark);
+  const background = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-background")
+    .trim();
+  setTelegramColors(background || "#f2f2f7");
   // Scroll is the app's own: each tab and the screen under a nested one reopen where they
   // were left (App). The browser must not restore its saved position when «Назад» steps
   // back through history (web/WebChrome.tsx) — it would throw the list back to the top.

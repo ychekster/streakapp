@@ -151,6 +151,11 @@ export function getTelegramLanguageCode(): string | undefined {
 
 /** Светлая или тёмная тема Telegram сейчас; null вне Telegram или в старом клиенте. */
 export function getTelegramColorScheme(): "light" | "dark" | null {
+  // Outside Telegram the SDK is loaded too and always reports "light" — the web app must
+  // follow the system theme instead.
+  if (!isTelegramAvailable()) {
+    return null;
+  }
   return getWebApp()?.colorScheme ?? null;
 }
 
