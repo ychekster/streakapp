@@ -63,6 +63,32 @@
   transform: scale(0.94);
 }
 
+/* Scroll indicator (ScrollIndicator.tsx). The track is the bar's range; the bar is
+   placed in it by transform and fades in while the page scrolls. */
+.indicatorTrack {
+  position: fixed;
+  z-index: 25;
+  top: calc(var(--header-bar-bottom) + var(--scroll-indicator-top-gap));
+  bottom: var(--scroll-indicator-bottom);
+  right: calc(env(safe-area-inset-right, 0px) + var(--scroll-indicator-right));
+  width: var(--scroll-indicator-width);
+  pointer-events: none;
+}
+
+.indicator {
+  width: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--scroll-indicator-color);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  will-change: transform;
+}
+
+.indicatorShown {
+  opacity: 1;
+  transition-duration: 80ms;
+}
+
 /* Bottom action (Telegram MainButton in the Mini App), as the iOS 26 reference: a
    full-width capsule --web-main-inset from the side and bottom edges. Behind it the page
    color, as the bottom bar Telegram paints in it (setBottomBarColor), fading out just

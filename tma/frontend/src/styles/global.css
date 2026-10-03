@@ -47,6 +47,19 @@ body {
    * не доходит, поэтому край пружинит, как раньше.
    */
   overscroll-behavior: none;
+  /* An app, not a page: a long press on a habit or a title selects nothing and opens no
+     Copy / Look Up menu. The press highlight of buttons (pressFeedback.ts) stays. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Text being typed stays selectable. */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 button {

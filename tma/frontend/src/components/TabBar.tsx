@@ -81,7 +81,11 @@ export function TabBar<K extends string>({
   }, [activeIndex, tabs]);
 
   const thumbStyle = thumb
-    ? ({ width: thumb.width, transform: `translateX(${thumb.x}px)` } as CSSProperties)
+    ? ({
+        // Шире вкладки на --tabbar-thumb-overhang с каждой стороны (сдвиг влево — в CSS).
+        width: `calc(${thumb.width}px + 2 * var(--tabbar-thumb-overhang))`,
+        transform: `translateX(${thumb.x}px)`,
+      } as CSSProperties)
     : undefined;
 
   return (

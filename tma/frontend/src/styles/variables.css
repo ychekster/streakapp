@@ -175,7 +175,11 @@
   --tabbar-gap: 7px; /* между таблеткой и кнопкой «+» */
   --tabbar-content-gap: 21px; /* от конца контента (последней привычки) до навигации */
   --tabbar-inset: 4px; /* поля таблетки вокруг подложки активной вкладки */
-  --tabbar-tab-width: 92px; /* минимальная ширина вкладки (обе вкладки равной ширины) */
+  /* Две вкладки — как на эталоне: таблетка 192pt, центры вкладок в 52pt от краёв (88pt
+     друг от друга), подложка шире вкладки на 4pt с каждой стороны (96pt). */
+  --tabbar-tab-width: 88px; /* минимальная ширина вкладки (обе вкладки равной ширины) */
+  --tabbar-pad-x: 8px; /* поля таблетки слева и справа */
+  --tabbar-thumb-overhang: 4px; /* на сколько подложка выходит за края вкладки */
   --tabbar-wide-max-width: 460px; /* таблетка без «+» (админ-панель) — во всю ширину, не шире */
   --tabbar-wide-tab-pad: 2px; /* поля вкладки в широкой таблетке (свободное место — поровну) */
   --tabbar-thumb: rgba(118, 118, 128, 0.16); /* серая подложка активной вкладки */
@@ -349,13 +353,14 @@
 
   --shadow-card: none;
 
-  /* Тёмное матовое стекло нижней навигации: светлый блик по кромке и светлый ободок. */
-  --glass-fill: linear-gradient(180deg, rgba(58, 58, 60, 0.86), rgba(44, 44, 46, 0.8));
+  /* Тёмное матовое стекло нижней навигации: светлый блик по кромке и светлый ободок.
+     Цвета — по эталону: над чёрным фоном стекло 31, подложка активной вкладки темнее его. */
+  --glass-fill: linear-gradient(180deg, rgba(40, 40, 42, 0.74), rgba(40, 40, 42, 0.8));
   --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
     0 0 0 0.5px rgba(255, 255, 255, 0.1),
     0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
   --glass-icon: #ffffff;
-  --tabbar-thumb: rgba(255, 255, 255, 0.14);
+  --tabbar-thumb: rgba(0, 0, 0, 0.66);
 
   --color-switch-on: #30d158;
   --color-switch-off: rgba(120, 120, 128, 0.36);
@@ -404,8 +409,8 @@
 }
 
 :root[data-platform="android"][data-theme="dark"] {
-  /* rgba(58,58,60,0.86) и rgba(44,44,46,0.8) поверх --color-background (#000000). */
-  --glass-fill: linear-gradient(180deg, #323234, #232325);
+  /* rgba(40,40,42,0.74) и 0.8 поверх --color-background (#000000). */
+  --glass-fill: linear-gradient(180deg, #1e1e1f, #202022);
 }
 
 /*
@@ -445,6 +450,14 @@
   --web-back-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
     0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 8px 12px -4px rgba(0, 0, 0, 0.08),
     0 2px 3px -1px rgba(0, 0, 0, 0.05);
+  /* Page scroll indicator (ScrollIndicator): from just under the collapsed header bar
+     to where the screen's corner rounding starts (a 55pt corner meets a line 3pt from the
+     edge ~37pt above the bottom: the home indicator area plus 3pt). */
+  --scroll-indicator-width: 3px;
+  --scroll-indicator-right: 3px;
+  --scroll-indicator-top-gap: 2px;
+  --scroll-indicator-bottom: calc(env(safe-area-inset-bottom, 0px) + 3px);
+  --scroll-indicator-color: rgba(0, 0, 0, 0.35);
   /* Settings screen, measured from the iOS 26 Settings reference (402pt-wide iPhone):
      52pt rows, a 28pt icon tile with an ~18pt glyph, the › chevron 6.7×11.6pt ending 18.6pt
      from the card edge and 12pt after the value, the 63×28 switch 14pt from the edge. */
@@ -482,6 +495,7 @@
   --web-back-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
     0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 8px 12px -4px rgba(0, 0, 0, 0.5),
     0 2px 3px -1px rgba(0, 0, 0, 0.3);
+  --scroll-indicator-color: rgba(255, 255, 255, 0.35);
   /* Same weight as the light chevron; the dark switch keeps its own off color. */
   --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
   --web-settings-switch-off: var(--color-switch-off);

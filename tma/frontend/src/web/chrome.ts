@@ -11,12 +11,14 @@ import type { MainButtonState } from "../telegram/webapp";
 
 export interface ChromeSnapshot {
   backVisible: boolean;
+  /** Bumped by every new back handler — each screen level registers its own (WebChrome). */
+  backKey: number;
   main: MainButtonState | null;
 }
 
 type Handler = () => void;
 
-let snapshot: ChromeSnapshot = { backVisible: false, main: null };
+let snapshot: ChromeSnapshot = { backVisible: false, backKey: 0, main: null };
 const listeners = new Set<Handler>();
 const backHandlers = new Set<Handler>();
 const mainHandlers = new Set<Handler>();
@@ -41,6 +43,7 @@ export const webChrome = {
   },
   onBack(handler: Handler): () => void {
     backHandlers.add(handler);
+    update({ backKey: snapshot.backKey + 1 });
     return () => backHandlers.delete(handler);
   },
   pressBack(): void {
