@@ -12,14 +12,6 @@
   text-overflow: ellipsis;
 }
 
-.error {
-  margin-top: var(--space-list-footer-top);
-  padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-secondary);
-  color: var(--color-danger);
-  line-height: 1.35;
-}
-
 /* Web app: rows, icon tiles, the › chevron and the switch as in the iOS 26 Settings
    reference (values in variables.css, :root[data-app="web"]). */
 :global(:root[data-app="web"]) .settings {

@@ -49,7 +49,7 @@ import {
   useState,
 } from "react";
 
-import { ApiRequestError } from "./api/client";
+import { ApiRequestError, type ApiErrorCode } from "./api/client";
 import { deleteHabit } from "./api/habits";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
@@ -80,10 +80,12 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./session";
-import { STRINGS, type Strings } from "./strings";
+import { describeError } from "./errors";
+import { STRINGS } from "./strings";
 import {
   hapticNotification,
   initTelegram,
+  showAlert,
   isTelegramAvailable,
   setTelegramColors,
 } from "./telegram/webapp";
@@ -143,19 +145,9 @@ function startHabit(): number | null {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
-/** Why linking Telegram failed (an API error code), for Settings. */
-function linkErrorText(code: string | null, strings: Strings): string | null {
-  if (code === null) {
-    return null;
-  }
-  return strings.apiErrors[code as keyof typeof strings.apiErrors] ?? strings.accountActionFailed;
-}
-
-/** A bot login that failed while the app was closed (bootstrap): its error code. */
-function startLinkError(): string | null {
-  const notice = authNotice();
-  return notice?.kind === "error" ? notice.code : null;
-}
+// A bot login that failed while the app was closed (bootstrap) has been shown — once per
+// run (StrictMode runs effects twice).
+let startLinkErrorShown = false;
 
 /** Открытая форма привычки: редактируемая привычка или null — новая. */
 interface Editor {
@@ -176,10 +168,7 @@ export function App() {
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).
   const [start] = useState(startScreen);
-  // Linking Telegram failed (error code) — shown in Settings; a failure picked up at start
-  // (bootstrap) opens Settings.
-  const [linkError, setLinkError] = useState<string | null>(startLinkError);
-  const startsInSettings = start === "review" || start === "install" || linkError !== null;
+  const startsInSettings = start === "review" || start === "install";
   const [tab, setTab] = useState<TabKey>(startsInSettings ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
@@ -423,18 +412,48 @@ export function App() {
   // A bot login confirmed: switch to that account.
   const telegramLinked = useCallback(() => {
     hapticNotification("success");
-    setLinkError(null);
     reloadAccountData();
   }, [reloadAccountData]);
   useTelegramLoginWatcher(web, telegramLinked);
 
+  // Errors are shown in a dialog: linking Telegram (now, or a bot login that failed while
+  // the app was closed) and saving a setting (the admin panel shows its own).
   const linkTelegram = useCallback(() => {
-    setLinkError(null);
     beginTelegramBotLogin().catch((error: unknown) => {
       hapticNotification("error");
-      setLinkError(error instanceof ApiRequestError ? error.code : "network_error");
+      void showAlert({
+        title: strings.accountLinkFailed,
+        message: describeError(strings, error, strings.accountActionFailed),
+      });
     });
+  }, [strings]);
+  useEffect(() => {
+    const notice = authNotice();
+    if (notice?.kind === "error" && !startLinkErrorShown) {
+      startLinkErrorShown = true;
+      void showAlert({
+        title: strings.accountLinkFailed,
+        message: describeError(
+          strings,
+          new ApiRequestError(0, notice.code as ApiErrorCode, ""),
+          strings.accountActionFailed,
+        ),
+      });
+    }
+    // Once, at start.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const saveError = settingsState.saveError;
+  useEffect(() => {
+    if (saveError && !adminMode) {
+      void showAlert({
+        title: strings.settingsSaveFailed,
+        message: describeError(strings, saveError, strings.accountActionFailed),
+      });
+    }
+    // Only a new error, not a change of language or mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveError]);
 
   // A notification tap opens its habit: at launch (`habit=<id>` in the address) or, with
   // the app already open, by a message from the service worker (sw.ts).
@@ -598,7 +617,6 @@ export function App() {
           install={telegramAvailable ? install : null}
           account={web && account ? { guest: account.is_guest, label: telegramLabel } : null}
           onLinkTelegram={linkTelegram}
-          linkError={linkErrorText(linkError, strings)}
         />
       );
     }

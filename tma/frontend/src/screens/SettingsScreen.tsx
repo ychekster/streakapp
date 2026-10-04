@@ -17,7 +17,7 @@
  *
  * Настройки хранит App (от них зависят язык и тема всего приложения): изменение
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
- * и под карточками появляется ошибка.
+ * и App показывает ошибку окошком.
  */
 
 import { AttentionBadge } from "../components/AttentionBadge";
@@ -70,8 +70,6 @@ interface SettingsScreenProps {
   account: AccountState | null;
   /** Web app: link Telegram (opens the bot). */
   onLinkTelegram: () => void;
-  /** Linking Telegram failed: why (shown under the cards). */
-  linkError: string | null;
 }
 
 export function SettingsScreen({
@@ -82,10 +80,9 @@ export function SettingsScreen({
   install,
   account,
   onLinkTelegram,
-  linkError,
 }: SettingsScreenProps) {
   const strings = useStrings();
-  const { settings, status, error, saveError, reload } = state;
+  const { settings, status, error, reload } = state;
   const web = usePlatform() === "web";
   const push = usePushToggle(web);
 
@@ -215,22 +212,6 @@ export function SettingsScreen({
               <Disclosure />
             </ListItem>
           </ListGroup>
-        ) : null}
-
-        {saveError ? (
-          <p className={styles.error} role="alert">
-            {describeError(strings, saveError, strings.settingsSaveFailed)}
-          </p>
-        ) : null}
-        {push.failed ? (
-          <p className={styles.error} role="alert">
-            {strings.accountActionFailed}
-          </p>
-        ) : null}
-        {linkError ? (
-          <p className={styles.error} role="alert">
-            {linkError}
-          </p>
         ) : null}
       </div>
     );

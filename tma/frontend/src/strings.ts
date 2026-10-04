@@ -76,10 +76,17 @@ const RU = {
   accountLogoutMessage: "Привычки останутся в вашем Telegram — войдите снова, и они вернутся.",
   accountLogoutConfirm: "Выйти",
   accountLogoutCancel: "Отмена",
-  accountActionFailed: "Не получилось. Попробуйте ещё раз.",
+  accountActionFailed: "Что-то пошло не так. Попробуйте ещё раз чуть позже.",
+  accountLogoutFailed: "Не удалось выйти",
+  accountLinkFailed: "Не удалось привязать Telegram",
   notificationsRow: "Уведомления",
   notificationsDenied:
     "Уведомления запрещены. Разрешите их в настройках телефона: «Настройки» → «Уведомления» → StreakApp.",
+  notificationsDeniedTitle: "Уведомления запрещены",
+  notificationsDeniedHint:
+    "Телефон больше не спрашивает разрешение. Включите их сами: «Настройки» → «Уведомления» → StreakApp.",
+  notificationsOnFailed: "Не удалось включить уведомления",
+  notificationsOffFailed: "Не удалось выключить уведомления",
   notificationsOffTitle: "Выключить уведомления?",
   notificationsOffMessage: "Напоминания о привычках перестанут приходить на этот телефон.",
   notificationsOffConfirm: "Выключить",
@@ -185,7 +192,7 @@ const RU = {
   // Ошибки API по кодам (см. errors.ts). Кода нет в списке — показывается текст,
   // который подходит к действию («Не удалось сохранить привычку» и т.п.).
   apiErrors: {
-    network_error: "Нет связи с сервером",
+    network_error: "Нет подключения к интернету. Проверьте связь и попробуйте ещё раз.",
     invalid_init_data: "Не удалось подтвердить личность Telegram. Откройте приложение заново.",
     missing_init_data: "Не удалось подтвердить личность Telegram. Откройте приложение заново.",
     task_not_found: "Привычка не найдена — возможно, её уже удалили",
@@ -273,10 +280,17 @@ const EN: Strings = {
   accountLogoutMessage: "Your habits stay with your Telegram — log in again to get them back.",
   accountLogoutConfirm: "Log Out",
   accountLogoutCancel: "Cancel",
-  accountActionFailed: "That didn’t work. Please try again.",
+  accountActionFailed: "Something went wrong. Please try again a bit later.",
+  accountLogoutFailed: "Couldn’t log out",
+  accountLinkFailed: "Couldn’t link Telegram",
   notificationsRow: "Notifications",
   notificationsDenied:
     "Notifications aren’t allowed. Allow them in your phone’s Settings → Notifications → StreakApp.",
+  notificationsDeniedTitle: "Notifications are blocked",
+  notificationsDeniedHint:
+    "Your phone won’t ask again. Turn them on yourself: Settings → Notifications → StreakApp.",
+  notificationsOnFailed: "Couldn’t turn on notifications",
+  notificationsOffFailed: "Couldn’t turn off notifications",
   notificationsOffTitle: "Turn off notifications?",
   notificationsOffMessage: "Habit reminders will stop arriving on this phone.",
   notificationsOffConfirm: "Turn Off",
@@ -371,7 +385,7 @@ const EN: Strings = {
   },
 
   apiErrors: {
-    network_error: "No connection to the server",
+    network_error: "No internet connection. Check your connection and try again.",
     invalid_init_data: "Couldn’t verify your Telegram account. Please reopen the app.",
     missing_init_data: "Couldn’t verify your Telegram account. Please reopen the app.",
     task_not_found: "Habit not found — it may have been deleted",

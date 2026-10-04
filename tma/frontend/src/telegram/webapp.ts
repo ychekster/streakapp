@@ -358,6 +358,32 @@ export function onMainButtonClick(handler: () => void): () => void {
 const CONFIRM_BUTTON_ID = "confirm";
 
 /**
+ * Сообщить об ошибке системным диалогом: в Telegram — `showPopup` с кнопкой «OK», в
+ * браузере — alert. Промис — диалог закрыт.
+ */
+export function showAlert(options: { title: string; message: string }): Promise<void> {
+  const webApp = getWebApp();
+  const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
+  const fallback = (): void => window.alert(`${options.title}\n\n${options.message}`);
+  if (!showPopup) {
+    fallback();
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    try {
+      showPopup(
+        { title: options.title, message: options.message, buttons: [{ id: "ok", type: "ok" }] },
+        () => resolve(),
+      );
+    } catch {
+      // Другой диалог уже открыт или клиент не принял параметры.
+      fallback();
+      resolve();
+    }
+  });
+}
+
+/**
  * Спросить подтверждение системным диалогом клиента Telegram (`showPopup`): на iPhone
  * это стандартный алерт iOS — он рисуется самим Telegram, поэтому появляется мгновенно и
  * не зависит от вёрстки приложения. Промис — нажал ли пользователь кнопку действия.

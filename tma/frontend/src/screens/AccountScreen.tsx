@@ -3,7 +3,8 @@
  * and «Выйти из аккаунта». The place for the profile to grow into later.
  *
  * Logging out asks first, then the app continues as a new guest (web/login.ts logOut);
- * `onLoggedOut` reloads everything and returns to Settings.
+ * `onLoggedOut` reloads everything and returns to Settings. A failure is shown in a
+ * dialog.
  */
 
 import { useState } from "react";
@@ -14,7 +15,7 @@ import { Screen } from "../components/Screen";
 import { PersonIcon } from "../components/SettingsIcons";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
-import { confirmAction, hapticNotification } from "../telegram/webapp";
+import { confirmAction, hapticNotification, showAlert } from "../telegram/webapp";
 import { logOut } from "../web/login";
 import styles from "./SettingsScreen.module.css";
 
@@ -27,7 +28,6 @@ interface AccountScreenProps {
 export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
   const strings = useStrings();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function confirmLogOut(): Promise<void> {
     const confirmed = await confirmAction({
@@ -41,14 +41,16 @@ export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       await logOut();
       onLoggedOut();
     } catch (caught) {
       hapticNotification("error");
-      setError(describeError(strings, caught, strings.accountActionFailed));
       setBusy(false);
+      void showAlert({
+        title: strings.accountLogoutFailed,
+        message: describeError(strings, caught, strings.accountActionFailed),
+      });
     }
   }
 
@@ -68,11 +70,6 @@ export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
             onPress={() => void confirmLogOut()}
           />
         </ListGroup>
-        {error ? (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        ) : null}
       </div>
     </Screen>
   );
