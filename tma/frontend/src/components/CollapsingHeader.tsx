@@ -5,8 +5,9 @@
  * Поведение:
  *  - Заголовок А находится в обычном потоке и при скролле просто уплывает вверх
  *    вместе с контентом (нативная прокрутка — идеально плавно).
- *  - Когда центр А достигает уровня кнопки Close, А плавно растворяется (fade out),
- *    а заголовок Б одновременно всплывает снизу: сначала чуть размытый, затем чёткий.
+ *  - Когда верх контента под А (карточка привычек, форма) доходит до нижнего края шапки,
+ *    А плавно растворяется (fade out), а заголовок Б одновременно всплывает снизу:
+ *    сначала чуть размытый, затем чёткий.
  *    Вместе с ними проявляется подложка шапки (.bar): матовое стекло с жёстким нижним
  *    краем и тонкой линией-разделителем — как шапка «Чаты» в WhatsApp на iOS 26.
  *  - При обратном скролле всё проигрывается в обратном порядке. В исходном положении
@@ -21,9 +22,9 @@
  * ставится до первой отрисовки, а о прокрутке, которую App ставит после монтирования,
  * он сообщает событием SCROLL_RESTORED_EVENT.
  *
- * Экран без крупного заголовка (экран привычки) передаёт `anchorRef` — элемент в потоке,
- * который играет роль А: порог считается по нему, а сам он не растворяется, а уходит под
- * подложку вместе с контентом.
+ * Экран без крупного заголовка (экран привычки) передаёт `anchorRef`: А там нет, и шапка
+ * сворачивается после той же прокрутки, что и на экране с крупным заголовком, — её
+ * считает невидимая проба заголовка А (см. standardTitleHeight).
  */
 
 import { type RefObject, useLayoutEffect, useRef } from "react";
@@ -59,6 +60,28 @@ function readPxVar(name: string, fallback = "0px"): number {
 /** Установить CSS-переменную (в px) на корневом элементе — её читает подложка .bar. */
 function setRootPx(name: string, px: number): void {
   document.documentElement.style.setProperty(name, `${px}px`);
+}
+
+/** Верх элемента в координатах документа. */
+function documentTop(element: Element): number {
+  return element.getBoundingClientRect().top + window.scrollY;
+}
+
+/**
+ * Сколько места занимает крупный заголовок А в одну строку вместе с отступом под ним —
+ * невидимой пробой внутри `container` (те же стили, без влияния на вёрстку).
+ */
+function standardTitleHeight(container: HTMLElement): number {
+  const title = document.createElement("h1");
+  title.className = styles.titleExpanded;
+  title.setAttribute("aria-hidden", "true");
+  title.textContent = "А";
+  title.style.cssText =
+    "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:nowrap";
+  container.appendChild(title);
+  const height = title.offsetHeight + Number.parseFloat(getComputedStyle(title).marginBottom);
+  title.remove();
+  return height;
 }
 
 /** App ставит сохранённую прокрутку экрана и сообщает об этом (см. App, pendingScroll). */
@@ -106,10 +129,9 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
     const onScrollRestored = (): void => updateState(true);
 
     const recompute = (instant = false): void => {
-      // Якорь берётся при каждом пересчёте: элемент экрана ниже шапки в момент этого
-      // эффекта ещё не подключён к ref (React подключает их по порядку дерева).
-      const titleEl = anchorRef ? anchorRef.current : titleExpandedRef.current;
-      if (!titleEl) {
+      // Контент экрана (Screen: обёртка сразу за шапкой); при пересчёте — заново.
+      const contentEl = headerEl.nextElementSibling;
+      if (!contentEl) {
         return;
       }
       // Как в CSS: в Mini App — отступ от Telegram, в веб-приложении — env() браузера.
@@ -120,23 +142,20 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
       const dpr = window.devicePixelRatio || 1;
 
       const contentBand = contentTop > 0 ? contentTop : rowHeight;
-      // Центр свёрнутого заголовка Б — для порога сворачивания (кросс-фейд А↔Б срабатывает
-      // ровно в позиции Б, поэтому здесь именно центр строки).
-      const collapsedCenterY = safeTop + contentBand / 2;
       // Нижний край шапки — низ зоны кнопок Telegram (в веб-приложении — чуть ниже, как у
       // шапки iOS, см. --header-bar-overhang). Округляем до физического пикселя, чтобы
       // линия-разделитель не размазывалась на два пикселя.
-      setRootPx(
-        "--header-bar-bottom",
-        Math.round((safeTop + contentBand + overhang) * dpr) / dpr,
-      );
+      const barBottom = Math.round((safeTop + contentBand + overhang) * dpr) / dpr;
+      setRootPx("--header-bar-bottom", barBottom);
       document.documentElement.style.setProperty("--header-hairline-scale", String(1 / dpr));
 
-      // Порог сворачивания: scrollY, при котором центр заголовка А (в потоке) достигает
-      // уровня кнопки Close (центра свёрнутого положения Б).
-      const rect = titleEl.getBoundingClientRect();
-      const expandedCenterY = rect.top + window.scrollY + rect.height / 2; // в координатах документа
-      collapseThreshold = Math.max(1, expandedCenterY - collapsedCenterY);
+      // Порог сворачивания: scrollY, при котором верх контента под А касается нижнего
+      // края шапки. Без А (экран с якорем) — та же прокрутка, что у экрана с А в одну
+      // строку: контент там начинался бы ниже на высоту А.
+      const blockTop = anchorRef
+        ? documentTop(headerEl) + standardTitleHeight(headerEl)
+        : documentTop(contentEl);
+      collapseThreshold = Math.max(1, blockTop - barBottom);
       updateState(instant);
     };
     const onResize = (): void => recompute();
