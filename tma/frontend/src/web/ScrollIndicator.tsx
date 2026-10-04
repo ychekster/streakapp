@@ -5,8 +5,8 @@
  * page is pulled past its end.
  *
  * Its track runs from just under the collapsed header bar (--header-bar-bottom, set by
- * CollapsingHeader), so it never goes under the blurred header, down to where the
- * screen's rounded corner begins (just above the home indicator).
+ * CollapsingHeader), so it never goes under the blurred header, down to just above the
+ * tab bar — on every screen, the same length (--scroll-indicator-bottom).
  */
 
 import { useEffect, useRef } from "react";
