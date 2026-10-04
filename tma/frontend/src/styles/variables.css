@@ -554,6 +554,16 @@
   --header-bar-overhang: 6px;
 }
 
+/*
+ * Telegram on iPhone puts its control row 8pt higher than the web app's: it reports a
+ * 54pt top safe area where iOS gives the web app 62pt (measured on a 402×874 iPhone). The
+ * header stays on Telegram's row; the screen below it (large title, first card) starts
+ * 8pt lower, where it is in the web app.
+ */
+:root[data-app="telegram"][data-platform="ios"] {
+  --space-screen-top: 19px; /* the shared 11px + 8 */
+}
+
 /* While the bottom action button is shown (MainButtonBar), screens end 28pt above it.
    Screen adds the bottom safe area itself, so it is taken back out here — the same one
    Screen adds: the web app's env() value, or the Mini App's from Telegram. */

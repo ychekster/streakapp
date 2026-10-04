@@ -195,10 +195,11 @@ def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
     habit in the app.
 
     The text is the title and there is no body: iOS puts «from StreakApp» under the
-    title itself (it can't be turned off), so an app-name title would only repeat it."""
+    title itself (it can't be turned off), so an app-name title would only repeat it.
+    Plain text, without the bot message's 🔔."""
     template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
     return notification(
-        f"{REMINDER_EMOJI.fallback} {template.format(name=reminder.habit_name)}",
+        template.format(name=reminder.habit_name),
         "",
         f"{base_url}/app?pwa=1&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
