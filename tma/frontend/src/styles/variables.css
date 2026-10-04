@@ -480,6 +480,25 @@
   --web-settings-switch-thumb-width: 37px;
   --web-settings-switch-trailing: -2px;
   --web-settings-switch-off: rgba(120, 120, 128, 0.43);
+  /* Settings is the reference for the whole web app: every list row, icon tile, ›
+     chevron and switch (habit form, habit screen, account, time zone, admin…) takes the
+     values above. Screens that make their rows taller (--form-row-min-height) get the
+     same 52pt. */
+  --list-row-min-height: var(--web-settings-row-height);
+  --form-row-min-height: var(--web-settings-row-height);
+  --list-row-icon-size: var(--web-settings-icon-size);
+  --list-row-icon-glyph: var(--web-settings-icon-glyph);
+  --radius-list-row-icon: var(--web-settings-icon-radius);
+  --list-row-trailing-gap: var(--web-settings-trailing-gap);
+  --disclosure-width: var(--web-settings-disclosure-width);
+  --disclosure-height: var(--web-settings-disclosure-height);
+  --disclosure-stroke: var(--web-settings-disclosure-stroke);
+  --disclosure-trailing: var(--web-settings-disclosure-trailing);
+  --color-disclosure: var(--web-settings-disclosure-color);
+  --switch-width: var(--web-settings-switch-width);
+  --switch-thumb-width: var(--web-settings-switch-thumb-width);
+  --switch-trailing: var(--web-settings-switch-trailing);
+  --color-switch-off: var(--web-settings-switch-off);
   /* Tab bar 20.5pt above the bottom edge, like the iOS 26 tab bar (34 · 0.37 + 8). */
   --tabbar-safe-area-share: 0.37;
   /* Bottom action button, measured from the iOS 26 reference (Wallet «Продолжить»): a
@@ -503,7 +522,8 @@
   --scroll-indicator-color: rgba(255, 255, 255, 0.27);
   /* Same weight as the light chevron; the dark switch keeps its own off color. */
   --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
-  --web-settings-switch-off: var(--color-switch-off);
+  /* The dark --color-switch-off itself: it is defined from this variable above. */
+  --web-settings-switch-off: rgba(120, 120, 128, 0.36);
   /* Inactive bottom button, from the reference: gray glass and dimmed label. */
   --main-button-disabled-bg: #505052;
   --main-button-disabled-text: #9c9c9e;
