@@ -122,7 +122,7 @@
    *   --header-hairline-scale — сжатие 1px-линии до 1 физического пикселя (1 / devicePixelRatio).
    */
   --header-bar-bottom: 0px;
-  --header-bar-overhang: 0px; /* на сколько подложка ниже строки кнопок (веб-приложение) */
+  --header-bar-overhang: 0px; /* на сколько подложка ниже строки кнопок (задают веб-приложение и Mini App) */
   --header-bar-blur: 3px;
   --header-bar-saturate: 180%;
   /* Эффект матового стекла целиком одним токеном: платформа может заменить его на none,
@@ -419,42 +419,16 @@
 }
 
 /*
- * Installed web app (main.tsx sets data-app="web"). The top is laid out like an iOS 26
- * navigation bar, the values measured from the reference screenshots of iOS Settings
- * (below the status bar, in pt): a 46pt row with the back button and the collapsed
- * title centred on it, the blurred bar 8pt deeper (54pt), the large title's cap top at
- * 65.5 and its baseline at 89, the first card at 105. Safe-area insets: --app-safe-area-*
- * stay unset here, so every rule falls back to the browser's live env() values (never a
- * snapshot taken at launch, when iOS may not have reported them yet).
+ * The app's look in both the installed web app and the Telegram Mini App (main.tsx sets
+ * data-app="web" or "telegram"): sizes, insets and colors worked out against the iOS 26
+ * references for the web app and shared with the Mini App, so the two look the same.
+ * Only the top of the screen differs — Telegram draws its own control row there (Close /
+ * Back, ⌄, ⋯), the web app draws its own (blocks below).
  */
-:root[data-app="web"] {
-  --app-content-safe-area-top: 46px;
-  --header-bar-overhang: 8px;
-  /* Collapsed header bar: the usual frosted glass (blur from :root), its tint running
-     from the page color at the top edge — exactly the opaque status bar strip above it
-     (WebChrome .topEdge) — to the 80% glass tint --web-header-fade lower, so strip and
-     bar read as one piece with no seam. iOS 26+ lets nothing but that solid strip or its
-     own haze sit under the clock (WebKit fixedContainerEdges / WKColorExtensionView). */
-  --header-bar-tint: linear-gradient(
-    to bottom,
-    var(--color-background),
-    var(--web-header-glass) var(--web-header-fade)
-  );
-  --web-header-glass: rgba(242, 242, 247, 0.8); /* --color-background at 80% */
-  --web-header-fade: 24px;
+:root[data-app="web"],
+:root[data-app="telegram"] {
   --space-screen-top: 11px; /* row + 11 + SF Pro's 8.4px above the cap = 65.5 */
   --space-header-bottom: 7px; /* 34px title line (40.6px) + 7 = first card at 105 */
-  /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
-  --web-back-size: 44px;
-  --web-back-left: 15px;
-  --web-back-stroke: 2.4px;
-  /* The glass shadow, but cast only downward and to the sides: the button sits 1pt below
-     the opaque status bar strip, and a shadow reaching up under it would draw the strip's
-     edge. Each drop shadow's blur minus its offset and spread is 0, so nothing goes above
-     the circle; the 0.5px rim stays inside the 1pt gap. */
-  --web-back-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
-    0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 8px 12px -4px rgba(0, 0, 0, 0.08),
-    0 2px 3px -1px rgba(0, 0, 0, 0.05);
   /* Page scroll indicator (ScrollIndicator): from just under the collapsed header bar
      to 4pt above the tab bar's top — on every screen, also where the tab bar is hidden
      (the bottom button's top is at the same height). */
@@ -480,10 +454,9 @@
   --web-settings-switch-thumb-width: 37px;
   --web-settings-switch-trailing: -2px;
   --web-settings-switch-off: rgba(120, 120, 128, 0.43);
-  /* Settings is the reference for the whole web app: every list row, icon tile, ›
-     chevron and switch (habit form, habit screen, account, time zone, admin…) takes the
-     values above. Screens that make their rows taller (--form-row-min-height) get the
-     same 52pt. */
+  /* Settings is the reference for the whole app: every list row, icon tile, › chevron
+     and switch (habit form, habit screen, account, time zone, admin…) takes the values
+     above. Screens that make their rows taller (--form-row-min-height) get the same 52pt. */
   --list-row-min-height: var(--web-settings-row-height);
   --form-row-min-height: var(--web-settings-row-height);
   --list-row-icon-size: var(--web-settings-icon-size);
@@ -508,6 +481,55 @@
   --web-main-inset: 37px;
   --web-main-fade: 16px;
   --web-main-rim: rgba(255, 255, 255, 0.3);
+}
+
+:root[data-app="web"][data-theme="dark"],
+:root[data-app="telegram"][data-theme="dark"] {
+  --scroll-indicator-color: rgba(255, 255, 255, 0.27);
+  /* Same weight as the light chevron; the dark switch keeps its own off color. */
+  --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
+  /* The dark --color-switch-off itself: it is defined from this variable above. */
+  --web-settings-switch-off: rgba(120, 120, 128, 0.36);
+  /* Inactive bottom button, from the reference: gray glass and dimmed label. */
+  --main-button-disabled-bg: #505052;
+  --main-button-disabled-text: #9c9c9e;
+}
+
+/*
+ * Installed web app: the top is laid out like an iOS 26 navigation bar, the values
+ * measured from the reference screenshots of iOS Settings (below the status bar, in pt):
+ * a 46pt row with the back button and the collapsed title centred on it, the blurred bar
+ * 8pt deeper (54pt), the large title's cap top at 65.5 and its baseline at 89, the first
+ * card at 105. Safe-area insets: --app-safe-area-* stay unset here, so every rule falls
+ * back to the browser's live env() values (never a snapshot taken at launch, when iOS
+ * may not have reported them yet).
+ */
+:root[data-app="web"] {
+  --app-content-safe-area-top: 46px;
+  --header-bar-overhang: 8px;
+  /* Collapsed header bar: the usual frosted glass (blur from :root), its tint running
+     from the page color at the top edge — exactly the opaque status bar strip above it
+     (WebChrome .topEdge) — to the 80% glass tint --web-header-fade lower, so strip and
+     bar read as one piece with no seam. iOS 26+ lets nothing but that solid strip or its
+     own haze sit under the clock (WebKit fixedContainerEdges / WKColorExtensionView). */
+  --header-bar-tint: linear-gradient(
+    to bottom,
+    var(--color-background),
+    var(--web-header-glass) var(--web-header-fade)
+  );
+  --web-header-glass: rgba(242, 242, 247, 0.8); /* --color-background at 80% */
+  --web-header-fade: 24px;
+  /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
+  --web-back-size: 44px;
+  --web-back-left: 15px;
+  --web-back-stroke: 2.4px;
+  /* The glass shadow, but cast only downward and to the sides: the button sits 1pt below
+     the opaque status bar strip, and a shadow reaching up under it would draw the strip's
+     edge. Each drop shadow's blur minus its offset and spread is 0, so nothing goes above
+     the circle; the 0.5px rim stays inside the 1pt gap. */
+  --web-back-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+    0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 8px 12px -4px rgba(0, 0, 0, 0.08),
+    0 2px 3px -1px rgba(0, 0, 0, 0.05);
   /* Brand colors of the landing and the save-account banner. */
   --brand-blue: #2f8ff5;
   --brand-blue-soft: #eaf3fe;
@@ -519,20 +541,26 @@
   --web-back-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
     0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 8px 12px -4px rgba(0, 0, 0, 0.5),
     0 2px 3px -1px rgba(0, 0, 0, 0.3);
-  --scroll-indicator-color: rgba(255, 255, 255, 0.27);
-  /* Same weight as the light chevron; the dark switch keeps its own off color. */
-  --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
-  /* The dark --color-switch-off itself: it is defined from this variable above. */
-  --web-settings-switch-off: rgba(120, 120, 128, 0.36);
-  /* Inactive bottom button, from the reference: gray glass and dimmed label. */
-  --main-button-disabled-bg: #505052;
-  --main-button-disabled-text: #9c9c9e;
 }
 
-/* While the web app's bottom action button is shown (WebChrome), screens end 28pt above
-   it. Screen adds the bottom safe area itself, so it is taken back out here. */
-:root[data-app="web"][data-main-button] {
+/*
+ * Telegram Mini App: the collapsed header bar reaches 6pt below Telegram's control row
+ * (the web app's goes 8pt below its own): a bar ending right under Telegram's buttons
+ * left more room above the collapsed title than below it. The title stays on the row,
+ * level with Telegram's buttons; the collapse point and the scroll indicator follow the
+ * bar's edge by themselves (CollapsingHeader).
+ */
+:root[data-app="telegram"] {
+  --header-bar-overhang: 6px;
+}
+
+/* While the bottom action button is shown (MainButtonBar), screens end 28pt above it.
+   Screen adds the bottom safe area itself, so it is taken back out here — the same one
+   Screen adds: the web app's env() value, or the Mini App's from Telegram. */
+:root[data-app="web"][data-main-button],
+:root[data-app="telegram"][data-main-button] {
   --space-screen-bottom: calc(
-    var(--web-main-inset) + var(--web-main-height) + 28px - env(safe-area-inset-bottom, 0px)
+    var(--web-main-inset) + var(--web-main-height) + 28px -
+      var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px))
   );
 }

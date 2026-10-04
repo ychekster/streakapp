@@ -3,6 +3,9 @@
  * action button of the web app — drawn from the webChrome store (see chrome.ts). Same
  * glass and pill shapes as the rest of the app. Rendered only in web mode. Also the
  * page's scroll indicator (ScrollIndicator).
+ *
+ * The bottom button (MainButtonBar) and the scroll indicator are drawn in the Telegram
+ * Mini App too (App), so both look the same there; the back button stays Telegram's.
  */
 
 import { useEffect, useSyncExternalStore } from "react";
@@ -60,22 +63,7 @@ function syncHistory(backVisible: boolean): void {
 
 export function WebChrome() {
   const strings = useStrings();
-  const { backVisible, backKey, main } = useSyncExternalStore(
-    webChrome.subscribe,
-    webChrome.getSnapshot,
-  );
-
-  // Screens leave room for the bottom button while it is shown (variables.css).
-  const mainShown = main !== null;
-  useEffect(() => {
-    if (!mainShown) {
-      return undefined;
-    }
-    document.documentElement.dataset.mainButton = "";
-    return () => {
-      delete document.documentElement.dataset.mainButton;
-    };
-  }, [mainShown]);
+  const { backVisible, backKey } = useSyncExternalStore(webChrome.subscribe, webChrome.getSnapshot);
 
   // Browser history (see USE_HISTORY): kept in step with the back target — re-checked
   // with every new screen level (backKey).
@@ -118,19 +106,41 @@ export function WebChrome() {
           </svg>
         </button>
       ) : null}
-      {main ? (
-        <div className={styles.mainBar}>
-          <button
-            type="button"
-            className={styles.main}
-            style={{ background: main.color, color: main.textColor }}
-            disabled={!main.active || main.progress}
-            onClick={() => webChrome.pressMain()}
-          >
-            {main.progress ? <span className={styles.spinner} aria-hidden="true" /> : main.text}
-          </button>
-        </div>
-      ) : null}
+      <MainButtonBar />
     </>
+  );
+}
+
+/** The bottom action button (useMainButton), in the web app and the Telegram Mini App. */
+export function MainButtonBar() {
+  const { main } = useSyncExternalStore(webChrome.subscribe, webChrome.getSnapshot);
+
+  // Screens leave room for the bottom button while it is shown (variables.css).
+  const mainShown = main !== null;
+  useEffect(() => {
+    if (!mainShown) {
+      return undefined;
+    }
+    document.documentElement.dataset.mainButton = "";
+    return () => {
+      delete document.documentElement.dataset.mainButton;
+    };
+  }, [mainShown]);
+
+  if (!main) {
+    return null;
+  }
+  return (
+    <div className={styles.mainBar}>
+      <button
+        type="button"
+        className={styles.main}
+        style={{ background: main.color, color: main.textColor }}
+        disabled={!main.active || main.progress}
+        onClick={() => webChrome.pressMain()}
+      >
+        {main.progress ? <span className={styles.spinner} aria-hidden="true" /> : main.text}
+      </button>
+    </div>
   );
 }

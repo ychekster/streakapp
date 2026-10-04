@@ -6,14 +6,15 @@
  * экран (полноэкранный режим — и на iPhone, и на Android), отметить платформу на <html>
  * для оформления, прокинуть отступы безопасных зон в
  * CSS, красить фон и шапку Telegram под тему, следить за светлой/тёмной темой Telegram,
- * управлять кнопками Telegram («Назад» и нижней MainButton), спросить подтверждение
+ * управлять кнопкой «Назад» Telegram, спросить подтверждение
  * системным диалогом и дать тактильный отклик.
  * Все обращения к SDK защищены проверками на наличие — приложение не падает, если
  * открыто вне Telegram или в старом клиенте.
  *
- * Outside Telegram (the installed web app) the back and bottom buttons are the app's own
- * (web/chrome.ts, drawn by WebChrome), haptics use navigator.vibrate where available, and
- * links open in the browser — screens call the same functions on both platforms.
+ * Outside Telegram (the installed web app) the back button is the app's own (web/chrome.ts,
+ * drawn by WebChrome), haptics use navigator.vibrate where available, and links open in
+ * the browser — screens call the same functions on both platforms. The bottom action
+ * button is the app's own on both (MainButtonBar), so the Mini App's matches the web app's.
  */
 
 import { webChrome } from "../web/chrome";
@@ -30,25 +31,6 @@ interface TelegramHapticFeedback {
 interface TelegramBackButton {
   show(): void;
   hide(): void;
-  onClick(handler: () => void): void;
-  offClick(handler: () => void): void;
-}
-
-/** Параметры нижней кнопки Telegram. Цвета — только «#RRGGBB». */
-interface BottomButtonParams {
-  text?: string;
-  color?: string;
-  text_color?: string;
-  is_active?: boolean;
-  is_visible?: boolean;
-}
-
-/** Нижняя кнопка Telegram (MainButton, Bot API 6.0+) — нативная, над клавиатурой. */
-interface TelegramBottomButton {
-  setParams(params: BottomButtonParams): void;
-  /** Спиннер в кнопке; `leaveActive: false` — кнопка неактивна, пока он крутится. */
-  showProgress(leaveActive?: boolean): void;
-  hideProgress(): void;
   onClick(handler: () => void): void;
   offClick(handler: () => void): void;
 }
@@ -99,7 +81,6 @@ interface TelegramWebApp {
   openLink?(url: string): void;
   openTelegramLink?(url: string): void;
   BackButton?: TelegramBackButton;
-  MainButton?: TelegramBottomButton;
   HapticFeedback?: TelegramHapticFeedback;
 }
 
@@ -166,6 +147,26 @@ export function onTelegramThemeChanged(handler: () => void): () => void {
   return () => webApp?.offEvent?.("themeChanged", handler);
 }
 
+// Home indicator zone iOS gives every app on a Face ID iPhone in portrait (pt).
+const IPHONE_HOME_INDICATOR_INSET = 34;
+// Narrowest side below this — a phone, not an iPad (whose own zone is 20pt).
+const PHONE_MAX_SHORT_SIDE = 600;
+
+/**
+ * Нижний отступ для вёрстки. Telegram на iPhone сообщает зону home indicator как 20pt, а
+ * iOS отдаёт любому приложению (и веб-приложению) 34pt — с ним таб-бар и низ экрана
+ * Mini App стоят ровно там же, где в веб-приложении (замерено по скриншотам: иначе на
+ * 5pt и 14pt ниже).
+ */
+function layoutBottomInset(webApp: TelegramWebApp, bottom: number | undefined): number | undefined {
+  const iPhone =
+    webApp.platform === "ios" && Math.min(screen.width, screen.height) < PHONE_MAX_SHORT_SIDE;
+  if (iPhone && typeof bottom === "number" && bottom > 0) {
+    return Math.max(bottom, IPHONE_HOME_INDICATOR_INSET);
+  }
+  return bottom;
+}
+
 /**
  * Прокинуть отступы безопасных зон Telegram в CSS-переменные:
  *  --app-safe-area-* — вырез устройства (чёлка, home indicator);
@@ -183,7 +184,7 @@ function applySafeAreaInsets(webApp: TelegramWebApp): void {
   const safe = webApp.safeAreaInset;
   const content = webApp.contentSafeAreaInset;
   setInset("--app-safe-area-top", safe?.top);
-  setInset("--app-safe-area-bottom", safe?.bottom);
+  setInset("--app-safe-area-bottom", layoutBottomInset(webApp, safe?.bottom));
   setInset("--app-content-safe-area-top", content?.top);
   setInset("--app-content-safe-area-bottom", content?.bottom);
   // Уведомляем UI (сворачивающийся заголовок) о новых отступах, чтобы он пересчитал
@@ -296,7 +297,7 @@ export function onBackButtonClick(handler: () => void): () => void {
   return () => backButton?.offClick(handler);
 }
 
-/** Состояние нижней кнопки Telegram. Цвета — «#RRGGBB». */
+/** Состояние нижней кнопки (MainButtonBar). Цвета — «#RRGGBB». */
 export interface MainButtonState {
   text: string;
   color: string;
@@ -307,52 +308,24 @@ export interface MainButtonState {
   progress: boolean;
 }
 
-/** Показать нижнюю кнопку Telegram в заданном состоянии (или обновить показанную). */
+/*
+ * Нижняя кнопка действия — своя и в веб-приложении, и в Mini App (MainButtonBar рисует её
+ * из webChrome): капсула iOS 26 без полосы, которую Telegram проводит над своей MainButton.
+ */
+
+/** Показать нижнюю кнопку в заданном состоянии (или обновить показанную). */
 export function showMainButton(state: MainButtonState): void {
-  if (!isTelegramAvailable()) {
-    webChrome.showMain(state);
-    return;
-  }
-  const mainButton = getWebApp()?.MainButton;
-  if (!mainButton) {
-    return;
-  }
-  // Спиннер — до параметров: hideProgress() в SDK снова делает кнопку активной, и заданная
-  // после него активность это исправляет. showProgress(false) сам делает её неактивной.
-  if (!state.progress) {
-    mainButton.hideProgress();
-  }
-  mainButton.setParams({
-    text: state.text,
-    color: state.color,
-    text_color: state.textColor,
-    is_active: state.active,
-    is_visible: true,
-  });
-  if (state.progress) {
-    mainButton.showProgress(false);
-  }
+  webChrome.showMain(state);
 }
 
-/** Спрятать нижнюю кнопку Telegram. */
+/** Спрятать нижнюю кнопку. */
 export function hideMainButton(): void {
-  if (!isTelegramAvailable()) {
-    webChrome.hideMain();
-    return;
-  }
-  const mainButton = getWebApp()?.MainButton;
-  mainButton?.hideProgress();
-  mainButton?.setParams({ is_visible: false });
+  webChrome.hideMain();
 }
 
 /** Подписаться на нажатие нижней кнопки; возвращает функцию отписки. */
 export function onMainButtonClick(handler: () => void): () => void {
-  if (!isTelegramAvailable()) {
-    return webChrome.onMain(handler);
-  }
-  const mainButton = getWebApp()?.MainButton;
-  mainButton?.onClick(handler);
-  return () => mainButton?.offClick(handler);
+  return webChrome.onMain(handler);
 }
 
 const CONFIRM_BUTTON_ID = "confirm";

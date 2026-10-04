@@ -94,7 +94,8 @@ import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
 import { authNotice } from "./web/bootstrap";
 import { beginTelegramBotLogin } from "./web/login";
-import { WebChrome } from "./web/WebChrome";
+import { ScrollIndicator } from "./web/ScrollIndicator";
+import { MainButtonBar, WebChrome } from "./web/WebChrome";
 import styles from "./App.module.css";
 
 // Цвет фона берём из дизайн-токена (CSS-переменной), а не хардкодим в коде.
@@ -155,6 +156,16 @@ interface Editor {
 }
 
 type TabKey = "habits" | "settings";
+
+/** The Mini App's share of WebChrome: the scroll indicator and the bottom button. */
+function TelegramChrome() {
+  return (
+    <>
+      <ScrollIndicator />
+      <MainButtonBar />
+    </>
+  );
+}
 
 export function App() {
   const { habits, status, error, setHabits, reload, refresh } = useHabits();
@@ -643,7 +654,8 @@ export function App() {
             onExit={exitAdmin}
           />
         </Suspense>
-        {web ? <WebChrome /> : null}
+        {/* Telegram draws its own back button; the bottom button and scroll indicator are ours. */}
+        {web ? <WebChrome /> : <TelegramChrome />}
       </PreferencesContext.Provider>
     );
   }
@@ -660,7 +672,7 @@ export function App() {
         onAdd={() => showEditor(null)}
         addLabel={strings.addHabit}
       />
-      {web ? <WebChrome /> : null}
+      {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );
 }
