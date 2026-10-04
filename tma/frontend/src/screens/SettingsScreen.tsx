@@ -1,29 +1,33 @@
 /**
- * Экран «Настройки» в стиле «Настроек» iOS: под заголовком — три белые карточки без
+ * Экран «Настройки» в стиле «Настроек» iOS: под заголовком — белые карточки без
  * подписей над ними, у каждого ряда — иконка в цветной плашке.
+ *  0. Web app only: «Аккаунт». A guest sees «Не привязан» with a red «!» (the Settings
+ *     tab has it too) and a footer; a tap opens the bot to link Telegram — the only
+ *     login. Linked — the Telegram name; a tap opens the account (AccountScreen: log out).
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
- *     (светлая, тёмная или адаптивная — как в системе) — системными меню.
+ *     (светлая, тёмная или адаптивная — как в системе) — системными меню. Under them:
+ *     in Telegram «Добавить на рабочий стол» (opens the install page in the phone's
+ *     browser with a single-use login link, so the installed app opens this account);
+ *     in the web app «Уведомления» — a switch (usePushToggle).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
  *  4. «Админ-панель» — только у администраторов: переключает приложение в режим
  *     админ-панели (см. AdminApp).
  *
- * Above them (spec §7): «Аккаунт» — logins of the account (AccountScreen), in both the
- * Mini App and the web app; «Установить на рабочий стол» — only in Telegram: opens the
- * install page in the phone's browser with a single-use login link.
- *
  * Настройки хранит App (от них зависят язык и тема всего приложения): изменение
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
  * и под карточками появляется ошибка.
  */
 
+import { AttentionBadge } from "../components/AttentionBadge";
 import { Disclosure } from "../components/Disclosure";
 import { ListGroup } from "../components/ListGroup";
 import { ListItem } from "../components/ListItem";
 import { LanguageRow, ThemeRow } from "../components/PreferenceRows";
 import { Screen } from "../components/Screen";
 import {
+  BellIcon,
   CalendarBackIcon,
   ClockIcon,
   DocumentIcon,
@@ -37,13 +41,22 @@ import { StatusMessage } from "../components/StatusMessage";
 import { Switch } from "../components/Switch";
 import { describeError } from "../errors";
 import type { HandoffLink } from "../hooks/useHandoffLink";
+import { usePushToggle } from "../hooks/usePushToggle";
 import type { UseSettingsResult } from "../hooks/useSettings";
+import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
 import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
 /** Вложенные экраны настроек. */
-export type SettingsPage = "timezone" | "review" | "privacy" | "terms" | "account" | "install";
+export type SettingsPage = "timezone" | "review" | "privacy" | "terms" | "install" | "account";
+
+/** Web app: the account in the «Аккаунт» row. */
+export interface AccountState {
+  guest: boolean;
+  /** The Telegram name it is linked as. */
+  label: string | null;
+}
 
 interface SettingsScreenProps {
   state: UseSettingsResult;
@@ -53,8 +66,12 @@ interface SettingsScreenProps {
   onOpenAdmin: () => void;
   /** Install link (Telegram only; null — the row is hidden: the web app is installed). */
   install: HandoffLink | null;
-  /** The web account is still a guest (shown next to «Аккаунт»). */
-  guest: boolean;
+  /** Web app: the account (null — inside Telegram, or not loaded yet). */
+  account: AccountState | null;
+  /** Web app: link Telegram (opens the bot). */
+  onLinkTelegram: () => void;
+  /** Linking Telegram failed: why (shown under the cards). */
+  linkError: string | null;
 }
 
 export function SettingsScreen({
@@ -63,10 +80,14 @@ export function SettingsScreen({
   onOpen,
   onOpenAdmin,
   install,
-  guest,
+  account,
+  onLinkTelegram,
+  linkError,
 }: SettingsScreenProps) {
   const strings = useStrings();
   const { settings, status, error, saveError, reload } = state;
+  const web = usePlatform() === "web";
+  const push = usePushToggle(web);
 
   return <Screen title={strings.settingsTitle}>{renderContent()}</Screen>;
 
@@ -90,27 +111,26 @@ export function SettingsScreen({
 
     return (
       <div className={styles.settings}>
-        <ListGroup>
-          <ListItem
-            icon={<PersonIcon />}
-            iconColor="blue"
-            label={strings.settingsAccount}
-            onPress={() => onOpen("account")}
-          >
-            {guest ? <span className={styles.value}>{strings.settingsAccountGuest}</span> : null}
-            <Disclosure />
-          </ListItem>
-          {install ? (
+        {account ? (
+          <ListGroup footer={account.guest ? strings.settingsAccountFooter : undefined}>
             <ListItem
-              icon={<InstallIcon />}
-              iconColor="teal"
-              label={strings.settingsInstall}
-              onPress={install.ready ? install.open : () => onOpen("install")}
+              icon={<PersonIcon />}
+              iconColor="blue"
+              label={strings.settingsAccount}
+              onPress={account.guest ? onLinkTelegram : () => onOpen("account")}
             >
+              {account.guest ? (
+                <>
+                  <span className={styles.value}>{strings.settingsAccountGuest}</span>
+                  <AttentionBadge />
+                </>
+              ) : (
+                <span className={styles.value}>{account.label ?? "Telegram"}</span>
+              )}
               <Disclosure />
             </ListItem>
-          ) : null}
-        </ListGroup>
+          </ListGroup>
+        ) : null}
 
         <ListGroup>
           <ListItem
@@ -126,6 +146,21 @@ export function SettingsScreen({
           </ListItem>
           <LanguageRow value={settings.language} onChange={(language) => onSave({ language })} />
           <ThemeRow value={settings.theme} onChange={(theme) => onSave({ theme })} />
+          {install ? (
+            <ListItem
+              icon={<InstallIcon />}
+              iconColor="indigo"
+              label={strings.settingsInstall}
+              onPress={install.ready ? install.open : () => onOpen("install")}
+            >
+              <Disclosure />
+            </ListItem>
+          ) : null}
+          {web ? (
+            <ListItem icon={<BellIcon />} iconColor="red" label={strings.notificationsRow}>
+              <Switch checked={push.on} onChange={push.change} label={strings.notificationsRow} />
+            </ListItem>
+          ) : null}
         </ListGroup>
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>
@@ -185,6 +220,16 @@ export function SettingsScreen({
         {saveError ? (
           <p className={styles.error} role="alert">
             {describeError(strings, saveError, strings.settingsSaveFailed)}
+          </p>
+        ) : null}
+        {push.failed ? (
+          <p className={styles.error} role="alert">
+            {strings.accountActionFailed}
+          </p>
+        ) : null}
+        {linkError ? (
+          <p className={styles.error} role="alert">
+            {linkError}
           </p>
         ) : null}
       </div>

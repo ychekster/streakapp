@@ -2,6 +2,7 @@
 
     POST   /auth/guest                — first launch of the installed app: a guest + session
     GET    /auth/account              — logins of the account (Settings → Account)
+    POST   /auth/logout               — app: leave the account on this device
     POST   /auth/handoff              — Mini App: single-use link to install the web app
     POST   /auth/handoff/redeem       — browser/app: log in with that link
     POST   /auth/complete             — app: exchange a redirect login result for a session
@@ -22,7 +23,7 @@ from __future__ import annotations
 import zlib
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.responses import RedirectResponse
 from loguru import logger
 
@@ -45,6 +46,7 @@ from tma.backend.accounts import (
     create_guest,
     end_session,
     find_code,
+    is_guest,
     issue_session,
     link_login,
     take_code,
@@ -70,6 +72,7 @@ from tma.backend.schemas import (
     HandoffCreate,
     HandoffResponse,
     LinkResult,
+    LogoutRequest,
     RedirectUrl,
     TelegramLoginPoll,
     TelegramLoginStart,
@@ -185,6 +188,27 @@ async def read_account(
     return await account_info(repo, get_settings(request), db_user)
 
 
+@router.post("/logout", status_code=204, response_class=Response)
+async def logout(
+    payload: LogoutRequest,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> Response:
+    """Web app: leave the account on this device — its session ends and this device's
+    push subscription stops getting the account's reminders. A guest cannot log out: it
+    has no login to come back with, its habits would be lost."""
+    if principal.session_token is None:
+        raise ApiError(409, "web_only", "Доступно только в приложении на телефоне")
+    if await is_guest(repo, db_user):
+        raise ApiError(409, "guest_logout", "Сначала привяжите Telegram")
+    if payload.endpoint:
+        await repo.delete_push_subscriptions([payload.endpoint], user_id=db_user.telegram_id)
+    await end_session(repo, get_settings(request), principal.session_token)
+    return Response(status_code=204)
+
+
 # --------------------------------------------------------------------------- #
 #  Telegram → web handoff (spec 6.5)
 # --------------------------------------------------------------------------- #
@@ -210,7 +234,7 @@ async def create_handoff(
     src = "".join(char for char in payload.src if char.isalnum() or char in "_-")[:32] or "settings"
     return HandoffResponse(
         token=token,
-        url=f"{settings.web_base_url}/?src={src}&h={token}",
+        url=f"{settings.web_base_url}/install?src={src}&h={token}",
         expires_in=ttl * 60,
     )
 

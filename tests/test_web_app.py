@@ -158,7 +158,7 @@ def test_handoff_logs_the_app_into_the_telegram_account(client: TestClient, user
     created = client.post("/auth/handoff", json={"src": "bot"}, headers=user.headers)
     assert created.status_code == 200, created.text
     token = created.json()["token"]
-    assert "src=bot" in created.json()["url"] and f"h={token}" in created.json()["url"]
+    assert "/install?src=bot" in created.json()["url"] and f"h={token}" in created.json()["url"]
 
     redeemed = client.post("/auth/handoff/redeem", json={"token": token})
     assert redeemed.status_code == 200, redeemed.text
@@ -167,6 +167,38 @@ def test_handoff_logs_the_app_into_the_telegram_account(client: TestClient, user
     # Single use.
     again = client.post("/auth/handoff/redeem", json={"token": token})
     assert again.status_code == 410
+
+
+def test_manifest_carries_the_handoff_into_the_installed_app(
+    client: TestClient, user: AuthUser
+) -> None:
+    token = client.post("/auth/handoff", json={}, headers=user.headers).json()["token"]
+    manifest = client.get("/web/manifest", params={"h": token})
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert manifest.json()["start_url"] == f"/app?pwa=1&h={token}"
+    assert manifest.json()["id"] == "/app"
+    # Anything that is not a token — the plain start address.
+    junk = client.get("/web/manifest", params={"h": "x&evil=1"})
+    assert junk.json()["start_url"] == "/app?pwa=1"
+
+
+def test_logout_ends_the_session_of_a_linked_account(client: TestClient, user: AuthUser) -> None:
+    token = client.post("/auth/handoff", json={}, headers=user.headers).json()["token"]
+    redeemed = client.post("/auth/handoff/redeem", json={"token": token})
+    session = _bearer(redeemed.json()["session"]["token"])
+
+    logout = client.post("/auth/logout", json={"endpoint": None}, headers=session)
+    assert logout.status_code == 204, logout.text
+    assert client.get("/auth/account", headers=session).status_code == 401
+
+
+def test_a_guest_or_the_mini_app_cannot_log_out(client: TestClient, user: AuthUser) -> None:
+    guest = client.post("/auth/logout", json={}, headers=_guest(client))
+    assert guest.status_code == 409
+    assert guest.json()["error"]["code"] == "guest_logout"
+    mini_app = client.post("/auth/logout", json={}, headers=user.headers)
+    assert mini_app.json()["error"]["code"] == "web_only"
 
 
 def test_handoff_is_created_only_in_telegram(client: TestClient) -> None:

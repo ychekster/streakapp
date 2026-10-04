@@ -1,6 +1,7 @@
 """Web app (PWA) support endpoints.
 
     GET  /web/config            — public settings (push key, bot for Telegram login)
+    GET  /web/manifest          — the app manifest whose start address carries a handoff
     GET  /web/push              — does the account get push reminders
     POST /web/push/subscribe    — store this device's push subscription
     POST /web/push/unsubscribe  — forget it
@@ -10,7 +11,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Response
+import re
+
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from tma.backend.dependencies import (
     Principal,
@@ -39,6 +43,34 @@ router = APIRouter(tags=["web"])
 _TEST_TITLE = "StreakApp"
 _TEST_BODY = "Уведомления работают — напоминания будут приходить сюда"
 
+# A handoff token as webauth.new_token makes it (URL-safe base64).
+_HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")
+
+# Same app as the static manifest of the build (tma/frontend/vite.config.ts — keep the two
+# in step); only start_url differs.
+_MANIFEST: dict[str, object] = {
+    "id": "/app",
+    "name": "StreakApp",
+    "short_name": "StreakApp",
+    "description": "Трекер привычек: отмечайте дни и копите стрики",
+    "lang": "ru",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#2f8ff5",
+    "theme_color": "#f2f2f7",
+    "icons": [
+        {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+        {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+        {
+            "src": "/icons/maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable",
+        },
+    ],
+}
+
 
 @router.get("/web/config", response_model=WebConfig)
 async def read_web_config(request: Request) -> WebConfig:
@@ -50,6 +82,21 @@ async def read_web_config(request: Request) -> WebConfig:
         telegram_bot_username=settings.telegram_bot_username.lstrip("@") or None,
         telegram_bot_id=int(bot_id) if bot_id.isdigit() else None,
         google_available=bool(settings.google_client_id),
+    )
+
+
+@router.get("/web/manifest")
+async def read_manifest(h: str = Query(default="")) -> JSONResponse:
+    """Manifest for an install from the Mini App (iPhone): the home screen app starts at
+    an address with the handoff token and logs into that Telegram account on its first
+    launch (Safari's storage, where the landing could log in, is not shared with it)."""
+    start = "/app?pwa=1"
+    if _HANDOFF_TOKEN.fullmatch(h):
+        start += f"&h={h}"
+    return JSONResponse(
+        {**_MANIFEST, "start_url": start},
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-store"},
     )
 
 

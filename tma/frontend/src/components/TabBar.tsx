@@ -17,6 +17,7 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { AttentionBadge } from "./AttentionBadge";
 import { PlusIcon } from "./TabIcons";
 import styles from "./TabBar.module.css";
 
@@ -25,6 +26,8 @@ export interface TabItem<K extends string> {
   label: string;
   /** Иконка вкладки; `active` — вкладка выбрана (залитый вариант). */
   icon: (active: boolean) => ReactNode;
+  /** Красный «!» на иконке: во вкладке что-то требует внимания. */
+  badge?: boolean;
 }
 
 interface TabBarProps<K extends string> {
@@ -104,7 +107,10 @@ export function TabBar<K extends string>({
               className={`${styles.tab} ${selected ? styles.tabActive : ""}`}
               onClick={() => onSelect(tab.key)}
             >
-              {tab.icon(selected)}
+              <span className={styles.iconWrap}>
+                {tab.icon(selected)}
+                {tab.badge ? <AttentionBadge className={styles.badge} /> : null}
+              </span>
               <span className={styles.label}>{tab.label}</span>
             </button>
           );

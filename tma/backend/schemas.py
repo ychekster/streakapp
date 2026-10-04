@@ -550,6 +550,12 @@ class PushSubscriptionIn(BaseModel):
     keys: PushKeys
 
 
+class LogoutRequest(BaseModel):
+    """This device's push subscription, to detach from the account (none — no push)."""
+
+    endpoint: str | None = Field(default=None, max_length=1024)
+
+
 class PushUnsubscribe(BaseModel):
     endpoint: str = Field(..., max_length=1024)
 

@@ -56,13 +56,13 @@ const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.strin
 
 export const createGuest = () => apiRequest<WebSession>("/auth/guest", { method: "POST" });
 export const fetchAccount = () => apiRequest<Account>("/auth/account", { method: "GET" });
+export const logout = (endpoint: string | null) =>
+  apiRequest<null>("/auth/logout", post({ endpoint }));
 export const fetchWebConfig = () => apiRequest<WebConfig>("/web/config", { method: "GET" });
 
 export const createHandoff = (src: string) => apiRequest<Handoff>("/auth/handoff", post({ src }));
 export const redeemHandoff = (token: string) =>
   apiRequest<LinkResult>("/auth/handoff/redeem", post({ token }));
-export const completeLogin = (token: string) =>
-  apiRequest<LinkResult>("/auth/complete", post({ token }));
 
 export const startTelegramLogin = () =>
   apiRequest<TelegramLoginStart>("/auth/telegram/start", { method: "POST" });
@@ -71,19 +71,7 @@ export const pollTelegramLogin = (code: string) =>
     "/auth/telegram/poll",
     post({ token: code }),
   );
-export const telegramWidgetLogin = (data: Record<string, unknown>) =>
-  apiRequest<LinkResult>("/auth/telegram/widget", post(data));
-
-export const startGoogleLogin = (mode: "web" | "telegram") =>
-  apiRequest<{ url: string }>("/auth/google/start", post({ mode }));
-
-export const unlinkLogin = (provider: LoginProvider) =>
-  apiRequest<LinkResult>(`/auth/logins/${provider}`, { method: "DELETE" });
-
-export const fetchPushStatus = () => apiRequest<{ subscribed: boolean }>("/web/push", { method: "GET" });
 export const savePushSubscription = (subscription: PushSubscriptionJSON) =>
   apiRequest<{ subscribed: boolean }>("/web/push/subscribe", post(subscription));
 export const removePushSubscription = (endpoint: string) =>
   apiRequest<{ subscribed: boolean }>("/web/push/unsubscribe", post({ endpoint }));
-export const sendTestPush = () =>
-  apiRequest<{ subscribed: boolean }>("/web/push/test", { method: "POST" });

@@ -144,31 +144,15 @@ export function InstallIcon() {
   );
 }
 
-/** Telegram (бумажный самолётик). */
-export function TelegramIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path {...STROKE} d="M20.5 4.5 3.5 11l6 2 2 6.5 3-4.5 4.5 3.5 1.5-14z" />
-      <path {...STROKE} d="M9.5 13l9-6.5" />
-    </svg>
-  );
-}
-
-/** Google (буква G). */
-export function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path {...STROKE} d="M19 12h-6.5M19 12a7 7 0 1 1-2.05-4.95" />
-    </svg>
-  );
-}
-
-/** Уведомления. */
+/** Уведомления: залитый колокольчик, как bell.fill в «Настройках» iOS. */
 export function BellIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path {...STROKE} d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15L6 16.5z" />
-      <path {...STROKE} d="M10 20.5a2 2 0 0 0 4 0" />
+      <path
+        fill="currentColor"
+        d="M12 2.8a1.4 1.4 0 0 0-1.4 1.4v.35C7.95 5.2 6.2 7.6 6.2 10.5v3.7c0 .75-.3 1.47-.83 2l-.85.85c-.55.55-.16 1.5.62 1.5h13.72c.78 0 1.17-.95.62-1.5l-.85-.85a2.83 2.83 0 0 1-.83-2v-3.7c0-2.9-1.75-5.3-4.4-5.95V4.2A1.4 1.4 0 0 0 12 2.8z"
+      />
+      <path fill="currentColor" d="M9.55 19.55a2.5 2.5 0 0 0 4.9 0z" />
     </svg>
   );
 }

@@ -1,27 +1,24 @@
 /**
- * Logins from the web app and the Mini App (spec 6.3–6.5).
+ * Linking the web app to Telegram — the only login (spec 6.3–6.5): the app opens the bot
+ * with a one-time code (`tg://…`, falling back to t.me), the user confirms there, and the
+ * app picks the result up by polling. The code is remembered on the device, so the
+ * result is picked up even if the phone closed the app while the user was in Telegram.
+ * (Installing from the Mini App logs in by itself — the handoff link, web/bootstrap.ts.)
  *
- * - Telegram via the bot: the app opens the bot with a one-time code (`tg://…`, falling
- *   back to t.me), the user confirms there, and the app picks the result up by polling.
- *   The code is remembered on the device, so the result is picked up even if the phone
- *   closed the app while the user was in Telegram.
- * - Telegram's official web login (oauth.telegram.org): a redirect back to the app with
- *   a signed result. Needs the domain set for the bot in BotFather — the bot route
- *   above does not.
- * - Google: a redirect to Google and back (the API links it right away).
+ * Logging out (Settings → Аккаунт) ends the session on this device and leaves a fresh
+ * guest in its place, as on a first launch; the habits stay with the Telegram account.
  */
 
 import { ApiRequestError } from "../api/client";
 import {
+  createGuest,
+  logout,
   pollTelegramLogin,
-  startGoogleLogin,
   startTelegramLogin,
-  telegramWidgetLogin,
   type LinkResult,
 } from "../api/web";
 import { setSessionToken } from "../session";
-import { isTelegram } from "../platform";
-import { openExternalLink } from "../telegram/webapp";
+import { pushEndpoint, subscribePush } from "./push";
 
 const PENDING_KEY = "streak:tg-login";
 // Telegram app not installed: if the page is still visible this long after `tg://`,
@@ -105,47 +102,13 @@ export async function checkTelegramBotLogin(): Promise<LinkResult | null> {
   }
 }
 
-/** Forget a pending bot login (the user cancelled). */
-export function cancelTelegramBotLogin(): void {
+/** Leave the linked account on this device: its reminders stop coming here, and the app
+ *  continues as a new guest (this device's notifications move to it). */
+export async function logOut(): Promise<void> {
+  // The guest first: if the network fails halfway, the device still has an account.
+  const guest = await createGuest();
+  await logout(await pushEndpoint());
   writePending(null);
-}
-
-/** Address of Telegram's official web login, returning into the installed app. */
-export function telegramWebLoginUrl(botId: number): string {
-  const origin = window.location.origin;
-  const query = new URLSearchParams({
-    bot_id: String(botId),
-    origin,
-    request_access: "write",
-    return_to: `${origin}/app?pwa=1&tglogin=1`,
-  });
-  return `https://oauth.telegram.org/auth?${query.toString()}`;
-}
-
-/** Finish Telegram's web login if the address carries its result (`#tgAuthResult=`).
- *  Returns the result, or null when there is none. */
-export async function finishTelegramWebLogin(): Promise<LinkResult | null> {
-  const match = window.location.hash.match(/tgAuthResult=([^&]+)/);
-  if (!match) {
-    return null;
-  }
-  const base64 = decodeURIComponent(match[1]).replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-  const data = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-  const result = await telegramWidgetLogin(data);
-  applyLinkResult(result);
-  return result;
-}
-
-/** Link Google: the installed app goes to Google and comes back; the Mini App finishes
- *  it in the phone's browser (Google does not allow its login inside Telegram). */
-export async function beginGoogleLogin(): Promise<void> {
-  const telegram = isTelegram();
-  const { url } = await startGoogleLogin(telegram ? "telegram" : "web");
-  if (telegram) {
-    openExternalLink(url);
-  } else {
-    window.location.href = url;
-  }
+  setSessionToken(guest.token);
+  void subscribePush();
 }

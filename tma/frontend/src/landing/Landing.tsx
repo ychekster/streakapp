@@ -11,15 +11,19 @@
  *   installed (Android)    → «Готово! Откройте StreakApp с рабочего стола»
  *   `/linked`              → Google linked from Telegram: «вернитесь в Telegram»
  *
- * A Telegram user arrives with a single-use handoff token (`h`). It is redeemed only in
- * a real browser (never inside Threads/Instagram — it would be spent there) and carried
- * through the jump; the session it gives is stored on the device, which on Android the
- * installed app shares. Every step is a funnel event; `src` travels along.
+ * A Telegram user arrives with a single-use handoff token (`h`), straight on `/install`.
+ * On Android it is redeemed here, in a real browser (never inside Threads/Instagram — it
+ * would be spent there): the session is stored on the device, which the installed app
+ * shares. The iPhone home screen app does not share Safari's storage — so there the token
+ * is not spent: it goes into the app's start address (the manifest from the API) and the
+ * app logs in on its first launch (web/bootstrap.ts). Every step is a funnel event; `src`
+ * travels along.
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { installSource, track } from "../analytics";
+import { API_BASE_URL } from "../api/client";
 import { redeemHandoff } from "../api/web";
 import { devicePlatform, inAppBrowser } from "../platform";
 import { setSessionToken } from "../session";
@@ -60,12 +64,28 @@ function flowUrl(path: string): string {
   return url.toString();
 }
 
-/** Redeem the handoff token once, in a real browser. */
+/** iPhone: the app added to the home screen starts with the handoff token. */
+function carryHandoffToInstalledApp(token: string): void {
+  let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "manifest";
+    document.head.appendChild(link);
+  }
+  link.href = `${API_BASE_URL}/web/manifest?h=${encodeURIComponent(token)}`;
+}
+
+/** Use the handoff token once, in a real browser (see the module comment). */
 function useHandoff(): void {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("h");
     if (!token || inAppBrowser()) {
+      return;
+    }
+    if (devicePlatform() === "ios") {
+      // Kept in the address too: older iOS starts the app at the page's own address.
+      carryHandoffToInstalledApp(token);
       return;
     }
     redeemHandoff(token)

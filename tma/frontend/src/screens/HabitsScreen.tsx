@@ -1,8 +1,6 @@
 /** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр).
  *  Сам список — HabitsList: тот же, что показывает админ-панель. */
 
-import type { ReactNode } from "react";
-
 import { HabitsList } from "../components/HabitsList";
 import { Screen } from "../components/Screen";
 import { Skeleton } from "../components/Skeleton";
@@ -22,10 +20,6 @@ interface HabitsScreenProps {
   /** Открыть экран привычки. */
   onOpen: (taskId: number) => void;
   onReload: () => void;
-  /** Shown above the list when there are habits (web app: save-account banner). */
-  banner?: ReactNode;
-  /** Empty list of a new web guest: «Уже пользуетесь в Telegram? Войти через Telegram». */
-  onTelegramLogin?: () => void;
 }
 
 export function HabitsScreen({
@@ -36,8 +30,6 @@ export function HabitsScreen({
   onToggle,
   onOpen,
   onReload,
-  banner,
-  onTelegramLogin,
 }: HabitsScreenProps) {
   const strings = useStrings();
   return <Screen title={strings.screenTitle}>{renderContent()}</Screen>;
@@ -62,23 +54,18 @@ export function HabitsScreen({
         <StatusMessage
           icon="check"
           title={strings.emptyTitle}
-          description={onTelegramLogin ? strings.webEmptyTelegramHint : strings.emptyDescription}
-          actionLabel={onTelegramLogin ? strings.webEmptyTelegramLogin : undefined}
-          onAction={onTelegramLogin}
+          description={strings.emptyDescription}
         />
       );
     }
     return (
-      <>
-        {banner}
-        <HabitsList
-          habits={habits}
-          markYesterday={markYesterday}
-          interactive
-          onToggle={onToggle}
-          onOpen={onOpen}
-        />
-      </>
+      <HabitsList
+        habits={habits}
+        markYesterday={markYesterday}
+        interactive
+        onToggle={onToggle}
+        onOpen={onOpen}
+      />
     );
   }
 }

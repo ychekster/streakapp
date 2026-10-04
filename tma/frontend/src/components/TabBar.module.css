@@ -47,7 +47,7 @@
    активной вкладке; переезжает сдвигом (и меняет ширину, если вкладки разной ширины). */
 .thumb {
   position: absolute;
-  top: var(--tabbar-inset);
+  top: var(--tabbar-thumb-top);
   bottom: var(--tabbar-inset);
   left: calc(-1 * var(--tabbar-thumb-overhang));
   border-radius: var(--radius-pill);
@@ -104,6 +104,21 @@
 
 .tab[data-pressed] {
   opacity: 0.6;
+}
+
+/* Иконка со значком «!» в правом верхнем углу. */
+.iconWrap {
+  position: relative;
+  display: flex;
+}
+
+.iconWrap .badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
 }
 
 .icon {

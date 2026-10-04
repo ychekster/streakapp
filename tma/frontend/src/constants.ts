@@ -138,14 +138,9 @@ export const ACTIVE_NOW_MINUTES = 5;
 //  Web app (PWA)
 // --------------------------------------------------------------------------- //
 
-/** Save-account banner (guests only): after the user collapses it, it comes back after
- *  this many days (spec 7.3). */
-export const SAVE_BANNER_SNOOZE_DAYS = 3;
-
 /** "Log in via Telegram" through the bot: how often the app asks whether the bot has
- *  confirmed it (ms), and for how long at most (ms) — the code lives 10 minutes. */
+ *  confirmed it (ms) — while the code lives (web/login.ts). */
 export const TELEGRAM_LOGIN_POLL_MS = 2_000;
-export const TELEGRAM_LOGIN_POLL_LIMIT_MS = 10 * 60_000;
 
 /** Handoff link for «Установить на рабочий стол» in the Mini App is fetched ahead of the
  *  tap (so the tap opens the browser at once) and refreshed when older than this (ms). */

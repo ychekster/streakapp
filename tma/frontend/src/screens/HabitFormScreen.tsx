@@ -45,7 +45,7 @@ import { useResolvedTheme, useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
 import { habitColorHex, habitColorStyle, readRootVariable } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
-import { askPermissionFromTap, pushPermission, subscribePush } from "../web/push";
+import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import styles from "./HabitFormScreen.module.css";
 
 interface HabitFormScreenProps {
@@ -127,10 +127,11 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     }
     submittingRef.current = true;
     setSubmitting(true);
-    // Web app: ask for notifications right from this tap (Safari needs the gesture).
-    if (web && reminderOn) {
+    // Web app: ask for notifications right from this tap (Safari needs the gesture) —
+    // with the first new habit, or a reminder. Turned off in Settings — not asked.
+    if (web && (!habit || reminderOn)) {
       if (permission === "default") {
-        void askPermissionFromTap().then(setPermission);
+        void askPermissionUnlessOff().then(setPermission);
       } else if (permission === "granted") {
         void subscribePush();
       }
