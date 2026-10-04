@@ -80,9 +80,10 @@ DEFAULT_LANGUAGE = "ru"
 TIMEZONE_SEARCH_LIMIT = 50
 TIMEZONE_QUERY_MAX_LENGTH = 100
 
-# Темы оформления: светлая, тёмная и адаптивная ("system" — следует за системой).
+# Темы оформления: светлая, тёмная и системная ("system" — следует за системой).
 THEMES: tuple[str, ...] = ("light", "dark", "system")
-DEFAULT_THEME = "light"
+# Тема нового пользователя: как в системе (в Telegram — как в Telegram).
+DEFAULT_THEME = "system"
 
 # --------------------------------------------------------------------------- #
 #  Отзывы

@@ -76,9 +76,6 @@ CATCH_UP_LIMIT = timedelta(minutes=5)
 PER_CHAT_INTERVAL = 1.0
 
 
-# Title of the reminder push notification.
-PUSH_TITLE = "StreakApp"
-
 PushSender = Callable[[PushTarget, dict[str, object], VapidKeys], Awaitable[PushOutcome]]
 
 
@@ -195,11 +192,14 @@ async def _send_due(
 
 def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
     """Push notification of a reminder: same text as the bot message; a tap opens the
-    habit in the app."""
+    habit in the app.
+
+    The text is the title and there is no body: iOS puts «from StreakApp» under the
+    title itself (it can't be turned off), so an app-name title would only repeat it."""
     template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
     return notification(
-        PUSH_TITLE,
         f"{REMINDER_EMOJI.fallback} {template.format(name=reminder.habit_name)}",
+        "",
         f"{base_url}/app?pwa=1&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
     )

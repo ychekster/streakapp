@@ -28,7 +28,7 @@ interface Preferences {
 export const PreferencesContext = createContext<Preferences>({
   language: DEFAULT_LANGUAGE,
   strings: STRINGS[DEFAULT_LANGUAGE],
-  theme: DEFAULT_THEME,
+  theme: "light",
 });
 
 /** Строки интерфейса на текущем языке. */
@@ -46,7 +46,7 @@ export function useResolvedTheme(): ResolvedTheme {
   return useContext(PreferencesContext).theme;
 }
 
-/** Тема на экране: выбранная, а для адаптивной — как в системе. */
+/** Тема на экране: выбранная, а для системной — как в системе. */
 export function resolveTheme(preference: ThemePreference, systemDark: boolean): ResolvedTheme {
   if (preference === "system") {
     return systemDark ? "dark" : "light";

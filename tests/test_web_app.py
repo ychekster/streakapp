@@ -502,7 +502,8 @@ def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
         ["https://push.example/web", "https://push.example/tg", gone_endpoint]
     )
     payload = pushed[0][1]
-    assert payload["title"] == "StreakApp" and "«Вода»" in payload["body"]
+    # The reminder is the title: iOS shows «from StreakApp» under it by itself.
+    assert "«Вода»" in payload["title"] and payload["body"] == ""
     assert "/app?pwa=1&habit=" in payload["url"]
     # The gone subscription is deleted.
     assert 503 not in left and len(left) == 2

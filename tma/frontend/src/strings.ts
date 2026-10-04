@@ -51,7 +51,7 @@ const RU = {
   settingsTimezoneNone: "Не выбран",
   settingsLanguage: "Язык",
   settingsTheme: "Тема",
-  themeNames: { light: "Светлая", dark: "Тёмная", system: "Адаптивная" },
+  themeNames: { light: "Светлая", dark: "Тёмная", system: "Системная" },
   settingsMarkYesterday: "Отмечать за вчера",
   settingsMarkYesterdayFooter:
     "Отметки ставятся за вчерашний день, а не за сегодняшний. Удобно, если вы подводите итоги дня на следующее утро.",
@@ -257,7 +257,7 @@ const EN: Strings = {
   settingsTimezoneNone: "Not Set",
   settingsLanguage: "Language",
   settingsTheme: "Theme",
-  themeNames: { light: "Light", dark: "Dark", system: "Adaptive" },
+  themeNames: { light: "Light", dark: "Dark", system: "System" },
   settingsMarkYesterday: "Mark as Yesterday",
   settingsMarkYesterdayFooter:
     "Habits are marked for the previous day instead of today. Handy if you review your day the next morning.",

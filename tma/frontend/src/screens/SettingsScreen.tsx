@@ -5,7 +5,7 @@
  *     tab has it too) and a footer; a tap opens the bot to link Telegram — the only
  *     login. Linked — the Telegram name; a tap opens the account (AccountScreen: log out).
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
- *     (светлая, тёмная или адаптивная — как в системе) — системными меню. Under them:
+ *     (светлая, тёмная или системная — как в системе) — системными меню. Under them:
  *     in Telegram «Добавить на рабочий стол» (opens the install page in the phone's
  *     browser with a single-use login link, so the installed app opens this account);
  *     in the web app «Уведомления» — a switch (usePushToggle).

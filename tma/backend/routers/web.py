@@ -40,8 +40,9 @@ from tma.backend.webpush import PushOutcome, PushTarget, VapidKeys, notification
 router = APIRouter(tags=["web"])
 
 # Test notification text (Russian, like the rest of the web app's push texts).
-_TEST_TITLE = "StreakApp"
-_TEST_BODY = "Уведомления работают — напоминания будут приходить сюда"
+# Not the app name as the title: iOS adds «from StreakApp» under the title itself.
+_TEST_TITLE = "Уведомления работают"
+_TEST_BODY = "Напоминания будут приходить сюда"
 
 # A handoff token as webauth.new_token makes it (URL-safe base64).
 _HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")

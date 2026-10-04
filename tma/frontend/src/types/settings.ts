@@ -5,10 +5,10 @@ import type { LANGUAGES, THEMES } from "../constants";
 /** Язык интерфейса. */
 export type Language = (typeof LANGUAGES)[number];
 
-/** Выбранная тема оформления; "system" — адаптивная, как в системе. */
+/** Выбранная тема оформления; "system" — системная, как в системе. */
 export type ThemePreference = (typeof THEMES)[number];
 
-/** Тема, которая сейчас на экране (адаптивная уже разрешена по системе). */
+/** Тема, которая сейчас на экране (системная уже разрешена по системе). */
 export type ResolvedTheme = "light" | "dark";
 
 export interface Settings {
