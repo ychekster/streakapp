@@ -44,12 +44,21 @@ type Entry = "telegram" | "web" | "landing";
 const entry: Entry = isTelegram() ? "telegram" : isInstalled() ? "web" : "landing";
 document.documentElement.dataset.app = entry;
 
-if (entry !== "telegram") {
+// The web app lives at its own address (VITE_WEB_APP_URL): the home screen icon belongs
+// to the site it was added from. The Mini App's address opened in a plain browser goes
+// there — same path and parameters — so nobody installs the app from the wrong one.
+const webAppUrl = import.meta.env.VITE_WEB_APP_URL?.replace(/\/$/, "");
+const elsewhere = entry === "landing" && webAppUrl && new URL(webAppUrl).origin !== window.location.origin;
+if (elsewhere) {
+  window.location.replace(`${webAppUrl}${window.location.pathname}${window.location.search}`);
+}
+
+if (entry !== "telegram" && !elsewhere) {
   // Service worker (sw.ts): app shell cache and push notifications. Never inside
   // Telegram — the Mini App works exactly as before.
   registerSW({ immediate: true });
 }
-if (entry === "landing") {
+if (entry === "landing" && !elsewhere) {
   captureInstallPrompt();
   // The landing has no settings: light or dark with the system, switching along with it.
   const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -116,7 +125,7 @@ function WebRoot() {
 createRoot(container).render(
   <StrictMode>
     <ErrorBoundary>
-      {entry === "telegram" ? (
+      {elsewhere ? null : entry === "telegram" ? (
         <App />
       ) : entry === "web" ? (
         <WebRoot />

@@ -123,7 +123,14 @@ sudo -u streakbot /opt/streakbot/venv/bin/python -m alembic upgrade head
 ```dotenv
 VITE_API_BASE_URL=/api
 VITE_TELEGRAM_BOT_URL=https://t.me/<имя бота>
+VITE_WEB_APP_URL=https://pwa.example.com
 ```
+
+**Адреса.** Одна и та же сборка отдаётся на двух поддоменах: Mini App — `tma.example.com`
+(кнопка бота, `TMA_URL`), веб-приложение и страница установки — `pwa.example.com`
+(`PUBLIC_BASE_URL`, `VITE_WEB_APP_URL`). Иконка на рабочем столе принадлежит сайту, с
+которого её добавили, поэтому адрес Mini App, открытый в обычном браузере, сам уходит на
+`pwa.` (main.tsx). Корневой домен nginx перенаправляет туда же (301 с тем же путём).
 
 ```bash
 cd frontend
