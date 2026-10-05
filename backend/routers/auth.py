@@ -27,7 +27,6 @@ from backend.accounts import (
     CODE_TELEGRAM_LOGIN,
     TELEGRAM_LOGIN_TTL,
     account_info,
-    client_platform,
     confirmed_telegram,
     create_code,
     create_guest,
@@ -294,16 +293,8 @@ async def start_telegram_login(
     _require_web(principal)
     settings = get_settings(request)
     username = await bot_username(request)
-    # The device is shown in the bot's confirmation, so a stranger's request stands out.
-    device = client_platform(request.headers.get("user-agent"))
     code = await create_code(
-        repo,
-        settings,
-        CODE_TELEGRAM_LOGIN,
-        principal.user_id,
-        TELEGRAM_LOGIN_TTL,
-        {"device": device},
-        short=True,
+        repo, settings, CODE_TELEGRAM_LOGIN, principal.user_id, TELEGRAM_LOGIN_TTL, short=True
     )
     start = f"login_{code}"
     return TelegramLoginStart(

@@ -97,21 +97,9 @@ REMINDER_BUTTONS: dict[str, str] = {
 #  "Log in via Telegram" from the web app (bot/handlers/web_login.py)
 # --------------------------------------------------------------------------- #
 
-# The web app opens the bot with /start login_<code>; the user confirms here. Asking first
-# protects from someone sending a victim their own login link.
-LOGIN_CONFIRM_TEXT = (
-    "Войти в приложение Knot с этим аккаунтом Telegram?\n\n"
-    "Запрос пришёл только что с устройства: {device}.\n\n"
-    "Подтвердите, только если вход начали вы — в приложении на своём телефоне. "
-    "Если ссылку вам прислал кто-то другой, нажмите «Отмена»: подтверждение отдаст "
-    "ему доступ к вашим привычкам."
-)
-# The device that asked to log in (backend/accounts.client_platform → text).
-LOGIN_DEVICES: dict[str, str] = {
-    "ios": "iPhone или iPad",
-    "android": "Android",
-    "desktop": "компьютер",
-}
+# The web app opens the bot with /start login_<code>; the user confirms here (a press
+# links the app to this Telegram account).
+LOGIN_CONFIRM_TEXT = "Войти в приложение Knot с этим аккаунтом Telegram?"
 LOGIN_CONFIRM_BUTTON = "Подтвердить вход"
 LOGIN_CANCEL_BUTTON = "Отмена"
 LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение Knot — вход выполнен."

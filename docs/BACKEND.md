@@ -102,7 +102,7 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 | `POST` | `/auth/logout` | Выйти из аккаунта на этом устройстве; `everywhere` — на всех (все сессии и push-подписки аккаунта). |
 | `POST` | `/auth/handoff` | Mini App: одноразовая ссылка для установки веб-приложения (`HANDOFF_TTL_MINUTES`). Только если Mini App открыта не больше часа назад (`initData`), иначе `409 stale_init_data`. |
 | `POST` | `/auth/handoff/redeem` | Браузер/приложение: войти по этой ссылке. Гость с привычками сначала получает `409 handoff_merge` (ссылка не тратится) и повторяет с `merge: true`, если человек согласился. |
-| `POST` | `/auth/telegram/start`, `/auth/telegram/poll` | «Войти через Telegram» через бота: начать и опрашивать, подтвердил ли бот (`bot/handlers/web_login.py`). Бот называет устройство запроса и принимает подтверждение один раз и в первые 3 минуты. |
+| `POST` | `/auth/telegram/start`, `/auth/telegram/poll` | «Войти через Telegram» через бота: начать и опрашивать, подтвердил ли бот (`bot/handlers/web_login.py`). Бот принимает подтверждение один раз и в первые 3 минуты. |
 | `POST` | `/auth/telegram/widget` | Результат входа через сайт Telegram (проверка подписи, данные не старше 10 минут). |
 | `GET` | `/web/config` | Публичные настройки: ключ push (VAPID), бот для входа. Без авторизации. |
 | `GET` | `/web/manifest` | Манифест приложения, чей стартовый адрес несёт handoff. |

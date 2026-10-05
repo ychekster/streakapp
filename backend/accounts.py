@@ -295,12 +295,6 @@ async def telegram_login_request(
     return found
 
 
-def login_device(code: AuthCode) -> str | None:
-    """ios / android / desktop — the device that asked to log in (shown by the bot)."""
-    device = code_payload(code).get("device")
-    return device if isinstance(device, str) else None
-
-
 async def confirm_telegram_login(
     repo: Repository,
     settings: Settings,

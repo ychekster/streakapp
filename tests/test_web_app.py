@@ -25,7 +25,6 @@ from backend.accounts import (
     SESSION_MAX_AGE,
     TELEGRAM_LOGIN_CONFIRM_WINDOW,
     confirm_telegram_login,
-    login_device,
     telegram_login_request,
 )
 from backend.config import load_settings
@@ -397,11 +396,9 @@ def test_two_telegram_accounts_never_merge(client: TestClient, user: AuthUser) -
 
 def test_bot_login_is_confirmed_once_and_only_while_fresh(client: TestClient) -> None:
     guest = _guest(client)
-    iphone = {**guest, "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"}
-    code = client.post("/auth/telegram/start", headers=iphone).json()["code"]
+    code = client.post("/auth/telegram/start", headers=guest).json()["code"]
     settings = load_settings()
-    request = _run(lambda repo: telegram_login_request(repo, settings, code))
-    assert request is not None and login_device(request) == "ios"
+    assert _run(lambda repo: telegram_login_request(repo, settings, code)) is not None
 
     victim, attacker = new_user(), new_user()
     assert _run(lambda repo: confirm_telegram_login(repo, settings, code, victim.id, "v", "V"))
