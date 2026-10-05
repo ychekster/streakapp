@@ -1,24 +1,34 @@
 /**
- * Сетка выполнения по 26 кружков в ряд: 7 рядов (182 дня) в списке привычек,
- * 14 рядов (364 дня) на экране привычки.
+ * Сетка выполнения: 8 рядов по 23 кружка (184 дня) в списке привычек,
+ * 14 рядов по 26 кружков (364 дня) на экране привычки.
  *
  * Раскладка построчная: индекс 0 истории — левый верхний угол (самый старый день),
  * последний — правый нижний (сегодня). Закрашенный кружок — день выполнен,
  * полупрозрачный — пропущен/нет данных. Кружки масштабируются под ширину карточки.
  */
 
+import type { CSSProperties } from "react";
+
+import { GRID_COLUMNS } from "../constants";
 import { useStrings } from "../preferences";
 import styles from "./YearGrid.module.css";
 
 interface YearGridProps {
-  /** История выполнения (старое → сегодня); длина кратна 26. */
+  /** История выполнения (старое → сегодня); длина кратна `columns`. */
   history: boolean[];
+  /** Кружков в ряду. */
+  columns?: number;
 }
 
-export function YearGrid({ history }: YearGridProps) {
+export function YearGrid({ history, columns = GRID_COLUMNS }: YearGridProps) {
   const strings = useStrings();
   return (
-    <div className={styles.grid} role="img" aria-label={strings.habitHistoryLabel}>
+    <div
+      className={styles.grid}
+      style={{ "--grid-columns": columns } as CSSProperties}
+      role="img"
+      aria-label={strings.habitHistoryLabel}
+    >
       {history.map((done, index) => (
         <span
           key={index}

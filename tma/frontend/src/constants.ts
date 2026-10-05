@@ -8,9 +8,11 @@
  *  с HISTORY_DAYS на бэкенде (tma/backend/constants.py). Экран привычки показывает
  *  её целиком. */
 export const HISTORY_DAYS = 364;
+export const HISTORY_COLUMNS = 26;
 
-/** Сетка на карточке в списке привычек: последние 7 рядов × 26 столбцов истории. */
-export const GRID_DAYS = 182;
+/** Сетка на карточке в списке привычек: последние 8 рядов × 23 столбца истории. */
+export const GRID_COLUMNS = 23;
+export const GRID_DAYS = 184;
 
 /** Сколько карточек-заглушек показывать во время первичной загрузки. */
 export const SKELETON_HABIT_COUNT = 3;

@@ -27,7 +27,7 @@ import {
   TargetIcon,
   TrophyIcon,
 } from "../components/StatIcons";
-import { HISTORY_DAYS, WEEKDAYS } from "../constants";
+import { HISTORY_COLUMNS, HISTORY_DAYS, WEEKDAYS } from "../constants";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
 import type { Strings } from "../strings";
@@ -113,6 +113,7 @@ export function HabitScreen({
               habit={habit}
               interactive={habit.scheduled_today}
               gridDays={HISTORY_DAYS}
+              gridColumns={HISTORY_COLUMNS}
               onToggle={onToggle}
             />
           </Card>

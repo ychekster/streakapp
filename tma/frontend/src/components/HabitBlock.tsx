@@ -13,7 +13,7 @@
 
 import { memo } from "react";
 
-import { GRID_DAYS } from "../constants";
+import { GRID_COLUMNS, GRID_DAYS } from "../constants";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
@@ -27,6 +27,8 @@ interface HabitBlockProps {
   interactive: boolean;
   /** Сколько последних дней истории показать в сетке (по умолчанию — сетка списка). */
   gridDays?: number;
+  /** Кружков в ряду сетки. */
+  gridColumns?: number;
   onToggle?: (taskId: number) => void;
   /** Открыть экран привычки по нажатию на блок. */
   onOpen?: (taskId: number) => void;
@@ -36,6 +38,7 @@ export const HabitBlock = memo(function HabitBlock({
   habit,
   interactive,
   gridDays = GRID_DAYS,
+  gridColumns = GRID_COLUMNS,
   onToggle,
   onOpen,
 }: HabitBlockProps) {
@@ -62,7 +65,7 @@ export const HabitBlock = memo(function HabitBlock({
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>
-      <YearGrid history={habit.history.slice(-gridDays)} />
+      <YearGrid history={habit.history.slice(-gridDays)} columns={gridColumns} />
     </article>
   );
 });
