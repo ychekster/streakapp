@@ -13,6 +13,11 @@
   background: transparent;
 }
 
+/* Ряд над выбором дней недели («Повтор», «Время») — высоты эталона (DayPicker). */
+.row:has(+ .row [data-day-picker]) {
+  min-height: var(--day-picker-row-above-height);
+}
+
 .alignTop {
   align-items: flex-start;
 }

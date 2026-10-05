@@ -33,11 +33,13 @@ export function MenuSelect<T extends string>({
     <>
       <span className={styles.display}>
         <span className={styles.value}>{selected?.label}</span>
-        <svg className={styles.chevron} viewBox="0 0 11 16" fill="none" aria-hidden="true">
+        {/* iOS 26 ⌃⌄ (chevron.up.chevron.down), traced from the reference at 3×: the
+            viewBox is in its pixels — 26×38, two 45° chevrons, a 1.5pt line. */}
+        <svg className={styles.chevron} viewBox="0 0 26 38" fill="none" aria-hidden="true">
           <path
-            d="M1.5 5.5L5.5 1.5l4 4M1.5 10.5l4 4 4-4"
+            d="M2.75 13 13 2.75 23.25 13M2.75 25 13 35.25 23.25 25"
             stroke="currentColor"
-            strokeWidth="1.8"
+            strokeWidth="4.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />

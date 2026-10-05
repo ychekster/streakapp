@@ -45,7 +45,8 @@ import styles from "./Landing.module.css";
 type Screen = "desktop" | "main" | "escapeHint" | "install" | "done";
 
 const INSTALL_PATH = "/install";
-const APP_ICON = "/icons/icon-512.png";
+// 360px WebP (the largest icon here is 120pt at 3×): a fraction of the 512px PNG.
+const APP_ICON = "/icons/app-icon.webp";
 
 function initialScreen(): Screen {
   if (devicePlatform() === "desktop") {

@@ -45,7 +45,7 @@ export function InstallFromTelegramScreen({ src }: { src: string }) {
   return (
     <Screen title={strings.installTitle} withTabBar={false} enterAnimation>
       <div className={styles.hero}>
-        <img className={styles.icon} src="/icons/icon-512.png" alt="" />
+        <img className={styles.icon} src="/icons/app-icon.webp" alt="" />
         <p className={styles.description}>
           {link.failed && !link.ready ? strings.installFailed : strings.installDescription}
         </p>

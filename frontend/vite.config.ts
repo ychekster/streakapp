@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -6,9 +6,34 @@ import { VitePWA } from "vite-plugin-pwa";
 // Базовый URL API задаётся переменной окружения VITE_API_BASE_URL (см. .env.example)
 // и читается в коде через import.meta.env — здесь хардкода адресов нет.
 // `vite preview` берёт host, allowedHosts и proxy отсюда же (из `server`).
+/**
+ * `vite preview` (the local stack) caches the hashed /assets/ files for good, as nginx
+ * does in production (DEPLOYMENT.md). Its own answer is «no-cache»: every launch through
+ * the tunnel asked again for each file.
+ */
+function immutableAssets(): Plugin {
+  return {
+    name: "immutable-assets",
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith("/assets/")) {
+          const setHeader = res.setHeader.bind(res);
+          res.setHeader = (name, value) =>
+            name.toLowerCase() === "cache-control"
+              ? res
+              : setHeader(name, value);
+          setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    immutableAssets(),
     // Installable web app (spec §4): manifest + service worker (src/sw.ts — app shell
     // cache and push). The worker is registered in main.tsx, never inside Telegram.
     VitePWA({
@@ -17,10 +42,12 @@ export default defineConfig({
       filename: "sw.ts",
       injectRegister: false,
       registerType: "autoUpdate",
+      // The shell and what screens show (the WebP icon); the PNG icons are for the
+      // system only (home screen, notifications) — not downloaded with every update.
       injectManifest: {
-        globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,svg,ico,webp,webmanifest}"],
       },
-      includeAssets: ["icons/apple-touch-icon.png", "icons/favicon-32.png"],
+      includeAssets: ["icons/favicon-32.png"],
       manifest: {
         id: "/app",
         name: "Knot",

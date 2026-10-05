@@ -69,6 +69,7 @@ const RU = {
   settingsInstall: "Добавить на рабочий стол",
   settingsAccount: "Аккаунт",
   settingsAccountGuest: "Не привязан",
+  settingsAccountOffline: "Нет связи",
   settingsAccountFooter:
     "Привяжите Telegram, чтобы не потерять привычки: они будут и здесь, и в Telegram-боте, и на новом телефоне.",
   settingsAttention: "Требует внимания",
@@ -175,13 +176,13 @@ const RU = {
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
   // («Пн, Ср, Пт») и для скринридеров.
   weekdays: {
-    mon: { short: "ПН", abbr: "Пн", full: "Понедельник" },
-    tue: { short: "ВТ", abbr: "Вт", full: "Вторник" },
-    wed: { short: "СР", abbr: "Ср", full: "Среда" },
-    thu: { short: "ЧТ", abbr: "Чт", full: "Четверг" },
-    fri: { short: "ПТ", abbr: "Пт", full: "Пятница" },
-    sat: { short: "СБ", abbr: "Сб", full: "Суббота" },
-    sun: { short: "ВС", abbr: "Вс", full: "Воскресенье" },
+    mon: { short: "Пн", abbr: "Пн", full: "Понедельник" },
+    tue: { short: "Вт", abbr: "Вт", full: "Вторник" },
+    wed: { short: "Ср", abbr: "Ср", full: "Среда" },
+    thu: { short: "Чт", abbr: "Чт", full: "Четверг" },
+    fri: { short: "Пт", abbr: "Пт", full: "Пятница" },
+    sat: { short: "Сб", abbr: "Сб", full: "Суббота" },
+    sun: { short: "Вс", abbr: "Вс", full: "Воскресенье" },
   },
   // Подписи цветов для скринридеров (ключи — HABIT_COLORS в constants.ts).
   colorNames: {
@@ -280,6 +281,7 @@ const EN: Strings = {
   settingsInstall: "Add to Home Screen",
   settingsAccount: "Account",
   settingsAccountGuest: "Not linked",
+  settingsAccountOffline: "No connection",
   settingsAccountFooter:
     "Link Telegram so you don’t lose your habits: they’ll be here, in the Telegram bot and on a new phone.",
   settingsAttention: "Needs attention",
@@ -377,13 +379,13 @@ const EN: Strings = {
   formThemeHeading: "Color",
 
   weekdays: {
-    mon: { short: "MO", abbr: "Mon", full: "Monday" },
-    tue: { short: "TU", abbr: "Tue", full: "Tuesday" },
-    wed: { short: "WE", abbr: "Wed", full: "Wednesday" },
-    thu: { short: "TH", abbr: "Thu", full: "Thursday" },
-    fri: { short: "FR", abbr: "Fri", full: "Friday" },
-    sat: { short: "SA", abbr: "Sat", full: "Saturday" },
-    sun: { short: "SU", abbr: "Sun", full: "Sunday" },
+    mon: { short: "Mo", abbr: "Mon", full: "Monday" },
+    tue: { short: "Tu", abbr: "Tue", full: "Tuesday" },
+    wed: { short: "We", abbr: "Wed", full: "Wednesday" },
+    thu: { short: "Th", abbr: "Thu", full: "Thursday" },
+    fri: { short: "Fr", abbr: "Fri", full: "Friday" },
+    sat: { short: "Sa", abbr: "Sat", full: "Saturday" },
+    sun: { short: "Su", abbr: "Sun", full: "Sunday" },
   },
   colorNames: {
     blue: "Blue",

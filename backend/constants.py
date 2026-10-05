@@ -39,6 +39,9 @@ MAX_HABITS_PER_USER = 50
 # (BROADCAST_UPLOAD_MAX_BYTES ниже).
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 
+# Ответы API больше этого размера сжимаются (gzip).
+GZIP_MIN_BYTES = 1024
+
 # Запросы дольше этого порога (в секундах) пишутся в лог предупреждением.
 SLOW_REQUEST_SECONDS = 1.0
 

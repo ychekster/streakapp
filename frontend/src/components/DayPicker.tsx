@@ -1,4 +1,5 @@
-/** Выбор дней недели: ряд круглых переключателей (ПН…ВС) на языке интерфейса. */
+/** Выбор дней недели: ряд круглых переключателей (Пн…Вс) на языке интерфейса, как в
+ *  «Будильнике» iOS. Ряд над ним (ListItem) — той же высоты, что в эталоне. */
 
 import { WEEKDAYS } from "../constants";
 import { useStrings } from "../preferences";
@@ -12,7 +13,7 @@ interface DayPickerProps {
 export function DayPicker({ selected, onToggle }: DayPickerProps) {
   const strings = useStrings();
   return (
-    <div className={styles.days}>
+    <div className={styles.days} data-day-picker="">
       {WEEKDAYS.map((code) => {
         const isSelected = selected.has(code);
         const day = strings.weekdays[code];

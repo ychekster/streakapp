@@ -241,12 +241,24 @@
   --form-row-min-height: 50px; /* ряды формы выше обычных — как в эталоне (iOS 26) */
   --color-placeholder: rgba(60, 60, 67, 0.3); /* плейсхолдер поля ввода (iOS) */
   --color-fill: rgba(118, 118, 128, 0.12); /* серая заливка: таблетка времени, дни недели */
-  --menu-chevron-width: 11px; /* значок ⌃⌄ у значения с меню */
-  --menu-chevron-height: 16px;
+  /* Значок ⌃⌄ у значения с меню — по эталону iOS 26 (тема в настройках, 3×): 8.67×12.67pt,
+     в 7pt после значения и в 18.33pt от края карточки (на 2.33pt дальше, чем текст). */
+  --menu-chevron-width: 8.67px;
+  --menu-chevron-height: 12.67px;
+  --menu-chevron-gap: 7px;
+  --menu-chevron-trailing: 2.33px;
   --space-menu-chevron: 6px; /* между значением и значком ⌃⌄ */
   --time-pill-pad-y: 6px;
   --time-pill-pad-x: 12px;
-  --day-picker-size: 36px; /* кружок дня недели */
+  /* Дни недели — по эталону «Будильника» iOS (3×): кружки 35pt по всей ширине ряда,
+     подпись 17pt жирная; ряд дней — 67pt (кружок по центру под линией), ряд над ним —
+     50.33pt. */
+  --day-picker-size: 35px; /* кружок дня недели */
+  --day-picker-font-size: 17px;
+  --day-picker-font-weight: 700;
+  --day-picker-pad-top: 16.67px; /* от верха ряда (с линией) до кружка */
+  --day-picker-pad-bottom: 15.33px;
+  --day-picker-row-above-height: 50.33px;
   --day-picker-gap: 6px; /* наименьший зазор между кружками */
   /* Переключатель iOS 26: вытянутая дорожка и ползунок-капсула. */
   --switch-width: 64px;

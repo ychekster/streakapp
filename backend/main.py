@@ -23,6 +23,7 @@ from typing import AsyncIterator
 from aiogram import Bot
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
@@ -32,6 +33,7 @@ from backend.constants import (
     BROADCAST_UPLOAD_PATH,
     EVENT_RATE_LIMIT,
     GUEST_RATE_LIMIT,
+    GZIP_MIN_BYTES,
     MAX_REQUEST_BODY_BYTES,
     SEED_ADMIN_IDS,
     SLOW_REQUEST_SECONDS,
@@ -136,6 +138,9 @@ def create_app() -> FastAPI:
         max_bytes=MAX_REQUEST_BODY_BYTES,
         path_limits={BROADCAST_UPLOAD_PATH: BROADCAST_UPLOAD_MAX_BYTES},
     )
+    # Large answers (the time zone catalog, a year of habits) go compressed — several
+    # times smaller on a slow connection. nginx leaves an already compressed answer as is.
+    app.add_middleware(GZipMiddleware, minimum_size=GZIP_MIN_BYTES)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

@@ -1,6 +1,9 @@
 /* Отступы задаёт ряд ListItem, в котором стоит выбор. Кружки не крупнее --day-picker-size
    и расставлены по всей ширине; на узком экране сжимаются, сохраняя зазор. */
 .days {
+  /* Ряд дней по эталону: padding ряда ListItem заменён своими отступами. */
+  margin: calc(var(--day-picker-pad-top) - var(--list-row-pad-y)) 0
+    calc(var(--day-picker-pad-bottom) - var(--list-row-pad-y));
   display: grid;
   grid-template-columns: repeat(7, minmax(0, var(--day-picker-size)));
   justify-content: space-between;
@@ -13,8 +16,8 @@
   border-radius: 50%;
   background-color: var(--color-fill);
   color: var(--color-text-primary);
-  font-size: var(--font-size-secondary);
-  font-weight: 600;
+  font-size: var(--day-picker-font-size);
+  font-weight: var(--day-picker-font-weight);
   display: flex;
   align-items: center;
   justify-content: center;

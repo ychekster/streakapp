@@ -7,7 +7,7 @@
  *  - anything else (a browser tab, Threads, desktop) — the landing and install flow.
  */
 
-import { StrictMode, useCallback, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 
@@ -15,7 +15,6 @@ import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StatusMessage } from "./components/StatusMessage";
 import { captureInstallPrompt } from "./landing/installPrompt";
-import { Landing } from "./landing/Landing";
 import { isInstalled, isTelegram } from "./platform";
 import { readSavedPreferences, resolveTheme } from "./preferences";
 import { installPressFeedback } from "./pressFeedback";
@@ -31,6 +30,10 @@ import "./styles/global.css";
 applyPlatform();
 // Подсветка нажатий, не срабатывающая при прокрутке (см. pressFeedback.ts).
 installPressFeedback();
+
+// The install page is a file of its own: the app (Telegram, installed) never loads it,
+// so it starts with less code.
+const Landing = lazy(() => import("./landing/Landing").then((module) => ({ default: module.Landing })));
 
 const container = document.getElementById("root");
 if (!container) {
@@ -113,7 +116,15 @@ function WebRoot() {
 createRoot(container).render(
   <StrictMode>
     <ErrorBoundary>
-      {entry === "telegram" ? <App /> : entry === "web" ? <WebRoot /> : <Landing />}
+      {entry === "telegram" ? (
+        <App />
+      ) : entry === "web" ? (
+        <WebRoot />
+      ) : (
+        <Suspense fallback={null}>
+          <Landing />
+        </Suspense>
+      )}
     </ErrorBoundary>
   </StrictMode>,
 );

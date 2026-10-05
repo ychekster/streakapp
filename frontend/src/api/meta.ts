@@ -1,4 +1,7 @@
-/** Запросы справочных данных + модульный кеш (данные неизменны за сессию). */
+/** Запросы справочных данных + модульный кеш (данные неизменны за сессию). Каталог
+ *  поясов ещё и хранится на устройстве: экран выбора пояса открывается сразу, в том
+ *  числе без связи, а устаревший каталог (смещения меняются с летним временем) тихо
+ *  обновляется. */
 
 import type { Language } from "../types/settings";
 import type { Meta, TimezoneEntry } from "../types/meta";
@@ -27,24 +30,71 @@ export function loadMeta(): Promise<Meta> {
 
 // Каталоги поясов по языкам: названия городов и стран зависят от языка интерфейса.
 const timezones = new Map<Language, TimezoneEntry[]>();
+const timezonesInFlight = new Map<Language, Promise<TimezoneEntry[]>>();
 
-/** Уже загруженный каталог поясов на этом языке (или null). */
-export function cachedTimezones(language: Language): TimezoneEntry[] | null {
-  return timezones.get(language) ?? null;
+const TIMEZONES_KEY = "streak:timezones:";
+// Сохранённый каталог старше этого обновляется (смещения меняются с летним временем), мс.
+const TIMEZONES_FRESH_MS = 12 * 60 * 60 * 1000;
+
+interface KeptTimezones {
+  saved: number;
+  timezones: TimezoneEntry[];
 }
 
-/** Загрузить каталог часовых поясов на языке интерфейса (один раз за сессию на язык). */
-export async function loadTimezones(language: Language): Promise<TimezoneEntry[]> {
+function readKeptTimezones(language: Language): KeptTimezones | null {
+  try {
+    const kept = JSON.parse(localStorage.getItem(TIMEZONES_KEY + language) ?? "null") as KeptTimezones | null;
+    return kept && Array.isArray(kept.timezones) && typeof kept.saved === "number" ? kept : null;
+  } catch {
+    return null;
+  }
+}
+
+function fetchTimezones(language: Language): Promise<TimezoneEntry[]> {
+  let request = timezonesInFlight.get(language);
+  if (!request) {
+    request = apiRequest<{ timezones: TimezoneEntry[] }>(`/meta/timezones?language=${language}`, {
+      method: "GET",
+    })
+      .then((data) => {
+        timezones.set(language, data.timezones);
+        try {
+          localStorage.setItem(
+            TIMEZONES_KEY + language,
+            JSON.stringify({ saved: Date.now(), timezones: data.timezones }),
+          );
+        } catch {
+          // Не сохранился — в следующий раз загрузится снова.
+        }
+        return data.timezones;
+      })
+      .finally(() => timezonesInFlight.delete(language));
+    timezonesInFlight.set(language, request);
+  }
+  return request;
+}
+
+/** Уже известный каталог поясов на этом языке — загруженный или сохранённый (или null).
+ *  Сохранённый давно — тихо обновляется. */
+export function cachedTimezones(language: Language): TimezoneEntry[] | null {
   const known = timezones.get(language);
   if (known) {
     return known;
   }
-  const data = await apiRequest<{ timezones: TimezoneEntry[] }>(
-    `/meta/timezones?language=${language}`,
-    { method: "GET" },
-  );
-  timezones.set(language, data.timezones);
-  return data.timezones;
+  const kept = readKeptTimezones(language);
+  if (!kept) {
+    return null;
+  }
+  timezones.set(language, kept.timezones);
+  if (Date.now() - kept.saved > TIMEZONES_FRESH_MS) {
+    fetchTimezones(language).catch(() => undefined);
+  }
+  return kept.timezones;
+}
+
+/** Загрузить каталог часовых поясов на языке интерфейса (один раз за сессию на язык). */
+export async function loadTimezones(language: Language): Promise<TimezoneEntry[]> {
+  return cachedTimezones(language) ?? fetchTimezones(language);
 }
 
 // Результаты поиска поясов по «языку и запросу»: повтор запроса (стёр букву и набрал

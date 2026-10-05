@@ -308,6 +308,10 @@ def timezone_display(tz_string: str, language: str, city: City | None) -> str:
 
 
 def warm_up() -> None:
-    """Загрузить справочник городов и связать зоны каталога с городами — при старте API,
-    чтобы первый запрос не ждал."""
+    """Загрузить справочник городов, связать зоны каталога с городами и один раз собрать
+    каталог и поиск на каждом языке (названия городов и стран кешируются) — при старте
+    API, чтобы первый запрос не ждал (без этого — больше секунды)."""
     _zone_cities()
+    for language in LANGUAGES:
+        timezone_catalog(language)
+        search_timezones("mos", language, 1)

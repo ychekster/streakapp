@@ -50,6 +50,7 @@ import {
 } from "react";
 
 import { ApiRequestError, type ApiErrorCode } from "./api/client";
+import { loadMeta, loadTimezones } from "./api/meta";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
 import { StatusMessage } from "./components/StatusMessage";
@@ -82,6 +83,7 @@ import { CheckinReminderScreen } from "./screens/CheckinReminderScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
+import { PREFETCH_DELAY_MS } from "./constants";
 import { describeError } from "./errors";
 import { STRINGS } from "./strings";
 import {
@@ -94,6 +96,7 @@ import {
 import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
+import { keepAccount, keptAccount } from "./web/account";
 import { authNotice, SESSION_CHANGED_EVENT } from "./web/bootstrap";
 import { beginTelegramBotLogin } from "./web/login";
 import { ScrollIndicator } from "./web/ScrollIndicator";
@@ -194,7 +197,9 @@ export function App() {
     start === "review" ? "review" : start === "install" ? "install" : null,
   );
   // Web app: the account (guest or not) — for the «!» on the Settings tab and Settings.
-  const [account, setAccount] = useState<Account | null>(null);
+  const [account, setAccount] = useState<Account | null>(keptAccount);
+  // The account could not be loaded (no connection) and none is kept: the row says so.
+  const [accountOffline, setAccountOffline] = useState(false);
   const pendingHabit = useRef(startHabit());
   const install = useHandoffLink("settings", telegramAvailable && tab === "settings");
   const [adminMode, setAdminMode] = useState(false);
@@ -383,8 +388,16 @@ export function App() {
   const loadAccount = useCallback(() => {
     if (web) {
       fetchAccount()
-        .then(setAccount)
-        .catch(() => undefined);
+        .then((loaded) => {
+          keepAccount(loaded);
+          setAccount(loaded);
+          setAccountOffline(false);
+        })
+        .catch(() => {
+          // After a login switch the kept one is another session's.
+          setAccount(keptAccount());
+          setAccountOffline(true);
+        });
     }
   }, [web]);
   const hasHabits = habits.length > 0;
@@ -510,6 +523,16 @@ export function App() {
       loadAdminApp().catch(() => undefined);
     }
   }, [settings?.is_admin]);
+
+  // Справочники форм (лимит названия, каталог поясов) — заранее, когда приложение уже
+  // открылось: форма привычки и выбор пояса потом открываются без ожидания сети.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadMeta().catch(() => undefined);
+      loadTimezones(language).catch(() => undefined);
+    }, PREFETCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [language]);
 
   // Разворачиваем приложение один раз при монтировании.
   useEffect(() => {
@@ -639,7 +662,14 @@ export function App() {
           onOpen={showSettingsPage}
           onOpenAdmin={enterAdmin}
           install={telegramAvailable ? install : null}
-          account={web && account ? { guest: account.is_guest, label: telegramLabel } : null}
+          account={
+            !web
+              ? null
+              : account
+                ? { guest: account.is_guest, label: telegramLabel, status: "known" }
+                : { guest: false, label: null, status: accountOffline ? "offline" : "loading" }
+          }
+          onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />
       );

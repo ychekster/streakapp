@@ -65,6 +65,10 @@ export interface AccountState {
   guest: boolean;
   /** The Telegram name it is linked as. */
   label: string | null;
+  /** Not known on this device yet: being loaded ("loading", no value) or the server
+   *  can't be reached ("offline": the row stays and says «Нет связи»; a tap tries
+   *  again); "known" — as loaded or kept. */
+  status: "known" | "loading" | "offline";
 }
 
 interface SettingsScreenProps {
@@ -75,8 +79,10 @@ interface SettingsScreenProps {
   onOpenAdmin: () => void;
   /** Install link (Telegram only; null — the row is hidden: the web app is installed). */
   install: HandoffLink | null;
-  /** Web app: the account (null — inside Telegram, or not loaded yet). */
+  /** Web app: the account (null — inside Telegram). */
   account: AccountState | null;
+  /** Web app: load the account again («Нет связи» row). */
+  onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
   onLinkTelegram: () => void;
 }
@@ -88,6 +94,7 @@ export function SettingsScreen({
   onOpenAdmin,
   install,
   account,
+  onRetryAccount,
   onLinkTelegram,
 }: SettingsScreenProps) {
   const strings = useStrings();
@@ -123,9 +130,17 @@ export function SettingsScreen({
               icon={<PersonIcon />}
               iconColor="blue"
               label={strings.settingsAccount}
-              onPress={account.guest ? onLinkTelegram : () => onOpen("account")}
+              onPress={
+                account.status !== "known"
+                  ? onRetryAccount
+                  : account.guest
+                    ? onLinkTelegram
+                    : () => onOpen("account")
+              }
             >
-              {account.guest ? (
+              {account.status === "offline" ? (
+                <span className={styles.value}>{strings.settingsAccountOffline}</span>
+              ) : account.status === "loading" ? null : account.guest ? (
                 <>
                   <span className={styles.value}>{strings.settingsAccountGuest}</span>
                   <AttentionBadge />
