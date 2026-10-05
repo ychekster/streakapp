@@ -10,6 +10,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
+import { useTextFieldFocused } from "../hooks/useTextFieldFocused";
 import { devicePlatform } from "../platform";
 import { useStrings } from "../preferences";
 import { webChrome } from "./chrome";
@@ -111,9 +112,15 @@ export function WebChrome() {
   );
 }
 
-/** The bottom action button (useMainButton), in the web app and the Telegram Mini App. */
+/** The bottom action button (useMainButton), in the web app and the Telegram Mini App.
+ *
+ * While the keyboard is open (focus in a text field) the button is hidden: Telegram's
+ * webview lifts fixed-bottom elements above the keyboard, and the button would jump up
+ * over it. It stays at the bottom of the screen and is back once the keyboard closes —
+ * the same as the tab bar (useTextFieldFocused). */
 export function MainButtonBar() {
   const { main } = useSyncExternalStore(webChrome.subscribe, webChrome.getSnapshot);
+  const typing = useTextFieldFocused();
 
   // Screens leave room for the bottom button while it is shown (variables.css).
   const mainShown = main !== null;
@@ -127,7 +134,7 @@ export function MainButtonBar() {
     };
   }, [mainShown]);
 
-  if (!main) {
+  if (!main || typing) {
     return null;
   }
   return (
