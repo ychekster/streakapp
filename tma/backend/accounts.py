@@ -1,11 +1,10 @@
 """Accounts across Telegram and the web app.
 
 One account can be opened from the Telegram Mini App and from the installed web app,
-with any of its logins:
+with one login, Telegram:
 
 - **Telegram** — a Telegram account's id is its Telegram id (`users.telegram_id`), so the
   Telegram login is the id itself; the Mini App authenticates with `initData`;
-- **Google** — a row in `user_identities`;
 - **guest** — a web-only account with a random negative id and no login yet. It is
   created silently on the first launch of the installed app.
 
@@ -18,8 +17,6 @@ Linking rules (spec 6.6), see `link_login`:
    habits and check-ins move, nothing is deleted) and the user continues in the merged
    one. The account holding Telegram always survives, because its id is the Telegram id;
    two different Telegram accounts never merge (409 `account_conflict`).
-
-Unlinking the last login is refused (409 `last_login`).
 
 Web sessions and one-time codes are random tokens; only their keyed hashes are stored.
 """
@@ -39,19 +36,13 @@ from tma.backend.schemas import AccountLogin, AccountResponse
 from tma.backend.webauth import hash_token, new_link_code, new_token
 
 PROVIDER_TELEGRAM = "telegram"
-PROVIDER_GOOGLE = "google"
-PROVIDERS: tuple[str, ...] = (PROVIDER_TELEGRAM, PROVIDER_GOOGLE)
 
 # One-time code kinds (auth_codes.kind).
 CODE_HANDOFF = "handoff"  # Telegram Mini App → browser → installed app, same account
 CODE_TELEGRAM_LOGIN = "tg_login"  # "log in via Telegram" through the bot
-CODE_GOOGLE_STATE = "google_state"  # OAuth state: who links Google and from where
-CODE_LOGIN_RESULT = "login_result"  # result of a redirect login, exchanged for a session
 
 # Lifetimes of codes that are not configurable.
 TELEGRAM_LOGIN_TTL = timedelta(minutes=10)
-GOOGLE_STATE_TTL = timedelta(minutes=15)
-LOGIN_RESULT_TTL = timedelta(minutes=5)
 
 # A session's expiry is pushed forward at most this often (not on every request).
 _SESSION_REFRESH_INTERVAL = timedelta(hours=12)
@@ -63,7 +54,6 @@ class LoginProfile:
 
     provider: str
     provider_user_id: str
-    email: str | None = None
     display_name: str | None = None
     # Telegram only: synced into the account like the Mini App does.
     username: str | None = None
@@ -185,37 +175,25 @@ def code_payload(code: AuthCode) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-#  Logins: linking, merging, unlinking
+#  Logins: linking and merging
 # --------------------------------------------------------------------------- #
 
 
 async def is_guest(repo: Repository, user: User) -> bool:
     """A web account without any login yet."""
-    return user.telegram_id < 0 and not await repo.user_identities(user.telegram_id)
+    return user.telegram_id < 0
 
 
 async def _owner(repo: Repository, profile: LoginProfile) -> User | None:
     """The account the login belongs to, if any."""
-    if profile.provider == PROVIDER_TELEGRAM:
-        return await repo.get_user(int(profile.provider_user_id))
-    identity = await repo.get_identity(profile.provider, profile.provider_user_id)
-    return await repo.get_user(identity.user_id) if identity is not None else None
-
-
-async def _providers(repo: Repository, user: User) -> set[str]:
-    """Logins the account has."""
-    providers = {identity.provider for identity in await repo.user_identities(user.telegram_id)}
-    if user.telegram_id > 0:
-        providers.add(PROVIDER_TELEGRAM)
-    return providers
+    return await repo.get_user(int(profile.provider_user_id))
 
 
 async def _sync_profile(repo: Repository, user: User, profile: LoginProfile) -> None:
     """Keep the Telegram name of the account fresh (as the Mini App does)."""
-    if profile.provider == PROVIDER_TELEGRAM:
-        user.username = profile.username
-        user.first_name = profile.first_name
-        await repo.session.flush()
+    user.username = profile.username
+    user.first_name = profile.first_name
+    await repo.session.flush()
 
 
 async def link_login(repo: Repository, current: User, profile: LoginProfile) -> User:
@@ -230,28 +208,15 @@ async def link_login(repo: Repository, current: User, profile: LoginProfile) -> 
         return current
 
     if owner is None:
-        if profile.provider == PROVIDER_TELEGRAM:
-            if current.telegram_id > 0:
-                raise ApiError(
-                    409, "telegram_already_linked", "К аккаунту уже привязан другой Telegram"
-                )
-            # The account takes the Telegram id: create it and move everything there.
-            target = await repo.clone_user(
-                current, int(profile.provider_user_id), profile.username, profile.first_name
+        if current.telegram_id > 0:
+            raise ApiError(
+                409, "telegram_already_linked", "К аккаунту уже привязан другой Telegram"
             )
-            return await _record_link(
-                repo, await repo.move_user_data(current, target), profile
-            )
-        if profile.provider in await _providers(repo, current):
-            raise ApiError(409, "provider_already_linked", "Этот способ входа уже привязан")
-        await repo.add_identity(
-            current.telegram_id,
-            profile.provider,
-            profile.provider_user_id,
-            profile.email,
-            profile.display_name,
+        # The account takes the Telegram id: create it and move everything there.
+        target = await repo.clone_user(
+            current, int(profile.provider_user_id), profile.username, profile.first_name
         )
-        return await _record_link(repo, current, profile)
+        return await _record_link(repo, await repo.move_user_data(current, target), profile)
 
     # The login belongs to another account.
     if await is_guest(repo, current) and not await repo.user_has_data(current.telegram_id):
@@ -259,10 +224,6 @@ async def link_login(repo: Repository, current: User, profile: LoginProfile) -> 
         await _sync_profile(repo, owner, profile)
         return owner
     if current.telegram_id > 0 and owner.telegram_id > 0:
-        raise ApiError(409, "account_conflict", "Этот вход уже используется другим аккаунтом")
-    if PROVIDER_GOOGLE in await _providers(repo, current) and PROVIDER_GOOGLE in await _providers(
-        repo, owner
-    ):
         raise ApiError(409, "account_conflict", "Этот вход уже используется другим аккаунтом")
     # Merge into the account that holds Telegram (its id cannot change).
     source, target = (owner, current) if current.telegram_id > 0 else (current, owner)
@@ -279,35 +240,12 @@ async def _record_link(repo: Repository, user: User, profile: LoginProfile) -> U
     return user
 
 
-async def unlink_login(repo: Repository, user: User, provider: str) -> User:
-    """Unlink a login. The last one cannot be unlinked: the account would be lost.
-
-    Unlinking Telegram moves the account to a new web id (its id was the Telegram id);
-    the Mini App of that Telegram user then starts a new, empty account. Returns the
-    account the user continues in.
-    """
-    providers = await _providers(repo, user)
-    if provider not in providers:
-        raise ApiError(404, "login_not_linked", "Этот способ входа не привязан")
-    if len(providers) <= 1:
-        raise ApiError(409, "last_login", "Нельзя отвязать единственный способ входа")
-    if provider == PROVIDER_TELEGRAM:
-        target = await repo.create_web_user(user.language, utc_now())
-        target.timezone, target.timezone_city = user.timezone, user.timezone_city
-        target.theme, target.mark_yesterday = user.theme, user.mark_yesterday
-        return await repo.move_user_data(user, target)
-    await repo.delete_identities(user.telegram_id, provider)
-    return user
-
-
 async def account_info(repo: Repository, settings: Settings, user: User) -> AccountResponse:
     """What Settings → Account shows."""
-    identities = await repo.user_identities(user.telegram_id)
-    google = next((item for item in identities if item.provider == PROVIDER_GOOGLE), None)
     telegram_linked = user.telegram_id > 0
     return AccountResponse(
         user_id=user.telegram_id,
-        is_guest=not telegram_linked and not identities,
+        is_guest=not telegram_linked,
         has_habits=await repo.user_has_data(user.telegram_id),
         logins=[
             AccountLogin(
@@ -319,13 +257,7 @@ async def account_info(repo: Repository, settings: Settings, user: User) -> Acco
                     else None
                 ),
             ),
-            AccountLogin(
-                provider=PROVIDER_GOOGLE,
-                linked=google is not None,
-                label=(google.email or google.display_name) if google is not None else None,
-            ),
         ],
-        google_available=bool(settings.google_client_id),
     )
 
 

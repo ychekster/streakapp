@@ -3,12 +3,10 @@
 
 import { apiRequest } from "./client";
 
-export type LoginProvider = "telegram" | "google";
-
 export interface AccountLogin {
-  provider: LoginProvider;
+  provider: "telegram";
   linked: boolean;
-  /** @username, name or e-mail it is linked as. */
+  /** @username or name it is linked as. */
   label: string | null;
 }
 
@@ -17,7 +15,6 @@ export interface Account {
   is_guest: boolean;
   has_habits: boolean;
   logins: AccountLogin[];
-  google_available: boolean;
 }
 
 export interface WebSession {
@@ -36,7 +33,6 @@ export interface WebConfig {
   vapid_public_key: string | null;
   telegram_bot_username: string | null;
   telegram_bot_id: number | null;
-  google_available: boolean;
 }
 
 export interface TelegramLoginStart {

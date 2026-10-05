@@ -45,26 +45,40 @@ export const INSTALL_PROMPT_WAIT_MS = 3500;
 /** Analytics source when the link has none. */
 export const DEFAULT_SRC = "direct";
 
+/** Glyph of an install step's icon tile (see StepIcon in Landing.tsx); `app` — the app
+ *  icon itself. */
+export type StepIcon = "browser" | "share" | "addSquare" | "add" | "more" | "app";
+
+export interface InstallStep {
+  icon: StepIcon;
+  text: string;
+}
+
 /**
- * iPhone install instruction (spec 3.5): a short looping video and numbered steps.
- * `video` — a file in /public (the owner records it on a current iPhone); null — the
- * placeholder frame is shown. `arrow` — where the screen's button is: Safari's «⋯» /
- * «Поделиться» sits at the bottom on recent iOS, at the top on iPad.
+ * iPhone install instruction (spec 3.5): numbered steps and, optionally, a short looping
+ * video above them. `video` — a file in /public (the owner records it on a current
+ * iPhone); null — no video.
+ *
+ * The steps name the buttons, not where they are: their place and look differ between
+ * iOS versions and browsers (Safari's «Поделиться» may sit in the ⋯ or ☰ menu, «На экран
+ * Домой» behind «Показать больше»). The first step sends the user to Safari: Telegram's built-in
+ * browser cannot install an app and cannot be told apart from Safari by the page.
  */
 export const IOS_INSTALL = {
   video: null as string | null,
-  arrow: "bottom" as "bottom" | "top",
   steps: [
-    "Нажмите «⋯» внизу справа, а затем «Поделиться» (или сразу значок «Поделиться» □↑)",
-    "Прокрутите вниз и выберите «На экран «Домой»»",
-    "Нажмите «Добавить» в правом верхнем углу",
-    "Откройте StreakApp с рабочего стола",
-  ],
+    { icon: "browser", text: "Убедитесь, что страница открыта в Safari" },
+    { icon: "share", text: "Откройте меню ⋯ или ☰ и нажмите «Поделиться»" },
+    { icon: "addSquare", text: "Нажмите «Показать больше» и выберите «На экран Домой»" },
+    { icon: "add", text: "Нажмите «Добавить»" },
+    { icon: "app", text: "Откройте StreakApp с рабочего стола" },
+  ] as InstallStep[],
 };
 
-/** Android without the native install button (Firefox, Samsung Internet…). */
-export const ANDROID_MANUAL_STEPS = [
-  "Нажмите «⋮» в правом верхнем углу браузера",
-  "Выберите «Добавить на главный экран» или «Установить приложение»",
-  "Подтвердите — и откройте StreakApp с рабочего стола",
+/** Android without the native install button (Telegram's built-in browser, Firefox…). */
+export const ANDROID_MANUAL_STEPS: InstallStep[] = [
+  { icon: "browser", text: "Убедитесь, что страница открыта в Chrome" },
+  { icon: "more", text: "Откройте меню ⋮ или ☰" },
+  { icon: "addSquare", text: "Выберите «Установить» или «Добавить на главный экран»" },
+  { icon: "app", text: "Откройте StreakApp с рабочего стола" },
 ];

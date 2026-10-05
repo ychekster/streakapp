@@ -48,6 +48,18 @@ if (entry !== "telegram") {
 }
 if (entry === "landing") {
   captureInstallPrompt();
+  // The landing has no settings: light or dark with the system, switching along with it.
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const applySystemTheme = (): void => {
+    document.documentElement.dataset.theme = darkQuery.matches ? "dark" : "light";
+    // Safari's bars take the page color.
+    const background = getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-background")
+      .trim();
+    setTelegramColors(background || "#f2f2f7");
+  };
+  applySystemTheme();
+  darkQuery.addEventListener("change", applySystemTheme);
 }
 if (entry === "web") {
   // The saved theme right away, so the start screen (before App applies the settings)

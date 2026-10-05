@@ -51,7 +51,6 @@ from tma.backend.models import (
     TaskStatus,
     User,
     UserActivity,
-    UserIdentity,
     WebSession,
 )
 
@@ -340,8 +339,7 @@ class Repository:
             Task,
             Review,
             UserActivity,
-            UserIdentity,
-            WebSession,
+                    WebSession,
             PushSubscription,
         ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
@@ -1008,7 +1006,7 @@ class Repository:
             target.install_offer_sent_at = source.install_offer_sent_at
         await self.session.flush()
 
-        for model in (Task, TaskLog, Review, UserIdentity, WebSession, PushSubscription, Event):
+        for model in (Task, TaskLog, Review, WebSession, PushSubscription, Event):
             await self.session.execute(
                 update(model)
                 .where(model.user_id == source_id)
@@ -1057,54 +1055,6 @@ class Repository:
             .execution_options(synchronize_session=False)
         )
         return result.rowcount > 0
-
-    # ------------------------------------------------------------------ #
-    #  Web app: linked logins
-    # ------------------------------------------------------------------ #
-
-    async def get_identity(self, provider: str, provider_user_id: str) -> UserIdentity | None:
-        """The login `provider`/`provider_user_id`, if it is linked to an account."""
-        return await self.session.scalar(
-            select(UserIdentity).where(
-                UserIdentity.provider == provider,
-                UserIdentity.provider_user_id == provider_user_id,
-            )
-        )
-
-    async def user_identities(self, user_id: int) -> list[UserIdentity]:
-        """Logins linked to the account (besides Telegram, which is the id itself)."""
-        result = await self.session.scalars(
-            select(UserIdentity).where(UserIdentity.user_id == user_id).order_by(UserIdentity.id)
-        )
-        return list(result.all())
-
-    async def add_identity(
-        self,
-        user_id: int,
-        provider: str,
-        provider_user_id: str,
-        email: str | None,
-        display_name: str | None,
-    ) -> UserIdentity:
-        """Link a login to the account."""
-        identity = UserIdentity(
-            user_id=user_id,
-            provider=provider,
-            provider_user_id=provider_user_id,
-            email=email,
-            display_name=display_name,
-        )
-        self.session.add(identity)
-        await self.session.flush()
-        return identity
-
-    async def delete_identities(self, user_id: int, provider: str) -> None:
-        """Unlink the account's logins of `provider`."""
-        await self.session.execute(
-            delete(UserIdentity).where(
-                UserIdentity.user_id == user_id, UserIdentity.provider == provider
-            )
-        )
 
     # ------------------------------------------------------------------ #
     #  Web app: sessions and one-time codes

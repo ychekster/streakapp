@@ -1,254 +1,370 @@
-/* Landing and install flow: white page, soft muted blue brand, big buttons. Light only —
-   it is the brand's first impression, the same in every system theme. */
+/* Landing and install flow in the app's own look (iOS 26): the page color, cards, accent
+   and text colors are the app's tokens, light or dark with the system (main.tsx sets
+   data-theme). Phone screens follow the iOS onboarding layout — icon, title, one line,
+   the bottom capsule; desktop is a macOS-like card. */
 .page {
-  --landing-blue: #2f8ff5;
-  --landing-blue-dark: #1c3f6e;
-  --landing-blue-soft: #eaf3fe;
-  --landing-text: #1c2533;
-  --landing-muted: #6b7a90;
+  --landing-side: 24px; /* screen side margins */
+  --landing-button-inset: 37px; /* capsule from the screen edge, as the app's bottom button */
+  --landing-button-height: 52px;
+  --landing-icon-large: 120px;
+  --landing-icon-medium: 76px;
+  --landing-icon-radius: 22.5%; /* the iOS app icon's rounding */
+  --landing-icon-rim: rgba(0, 0, 0, 0.06);
+  --landing-tint: rgba(0, 122, 255, 0.12);
+  --landing-success: #34c759;
+  --landing-window-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 24px 64px rgba(0, 0, 0, 0.1),
+    0 6px 16px rgba(0, 0, 0, 0.05);
+  --landing-qr-rim: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
-  background: linear-gradient(180deg, #f3f8ff 0%, #ffffff 45%);
-  color: var(--landing-text);
-  font-family: var(--font-family);
+  background: var(--color-background);
+  color: var(--color-text-primary);
 }
+
+:global(:root[data-theme="dark"]) .page {
+  --landing-icon-rim: rgba(255, 255, 255, 0.1);
+  --landing-tint: rgba(10, 132, 255, 0.2);
+  --landing-success: #30d158;
+  --landing-window-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 24px 64px rgba(0, 0, 0, 0.6);
+  --landing-qr-rim: none;
+}
+
+/* --- Phone screen --- */
 
 .screen {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 32px;
-  padding: calc(env(safe-area-inset-top, 0px) + 48px) 24px
-    calc(env(safe-area-inset-bottom, 0px) + 28px);
-  box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px)
+    calc(env(safe-area-inset-right, 0px) + var(--landing-side))
+    max(24px, calc(env(safe-area-inset-bottom, 0px) + 12px))
+    calc(env(safe-area-inset-left, 0px) + var(--landing-side));
 }
 
-.center {
+/* The content, centred in the space the buttons leave. */
+.hero {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 24px 0;
   text-align: center;
-  gap: 14px;
-  margin: auto 0;
 }
 
-.brand,
-.brandSmall {
+.iconLarge,
+.iconMedium {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--landing-icon-large);
+  height: var(--landing-icon-large);
+}
+
+.iconMedium {
+  width: var(--landing-icon-medium);
+  height: var(--landing-icon-medium);
+}
+
+.icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--landing-icon-radius);
+  box-shadow: 0 0 0 0.5px var(--landing-icon-rim);
+}
+
+/* Installed: a green check on the icon's corner, cut out of the page by its ring. */
+.iconBadge {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 40px;
+  height: 40px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
+  border: 3px solid var(--color-background);
+  border-radius: 50%;
+  background: var(--landing-success);
 }
 
-.logo {
-  border-radius: 22%;
-  box-shadow: 0 10px 30px rgba(47, 143, 245, 0.28);
-}
-
-.name {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.brandSmall .name {
-  font-size: 22px;
+.iconBadge svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .title {
-  margin: 8px 0 0;
-  font-size: 24px;
+  max-width: 340px;
+  margin-top: 24px;
+  font-size: 28px;
   font-weight: 700;
+  line-height: 34px;
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  text-wrap: balance;
 }
 
-.lead {
-  margin: 0;
-  max-width: 330px;
-  font-size: 17px;
-  line-height: 1.4;
-  color: var(--landing-muted);
+.iconMedium + .title {
+  margin-top: 20px;
 }
+
+.subtitle {
+  max-width: 300px;
+  margin-top: 8px;
+  font-size: 17px;
+  line-height: 22px;
+  color: var(--color-text-secondary);
+  text-wrap: balance;
+}
+
+/* --- Buttons: the app's bottom capsule, a plain text button under it --- */
 
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  margin: 0 calc(var(--landing-button-inset) - var(--landing-side));
 }
 
 .primary,
-.secondary {
-  width: 100%;
-  min-height: 56px;
-  border: none;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 18px;
+.tinted {
+  height: var(--landing-button-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  font-size: 17px;
   font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 120ms ease, opacity 120ms ease;
+  transition: opacity var(--transition-fast);
 }
 
 .primary {
-  background: var(--landing-blue);
+  background: var(--color-accent);
   color: #ffffff;
-  box-shadow: 0 8px 22px rgba(47, 143, 245, 0.32);
+  /* The app's glass rim: a hairline highlight on the top and bottom edges. */
+  box-shadow: inset 0 0.67px 0 rgba(255, 255, 255, 0.3), inset 0 -0.67px 0 rgba(255, 255, 255, 0.3);
 }
 
-.secondary {
-  background: var(--landing-blue-soft);
-  color: var(--landing-blue);
+.tinted {
+  background: var(--landing-tint);
+  color: var(--color-accent);
 }
 
-.primary:active,
-.secondary:active {
-  transform: scale(0.98);
-  opacity: 0.9;
+.plain {
+  height: 44px;
+  font-size: 17px;
+  color: var(--color-accent);
+  transition: opacity var(--transition-fast);
+}
+
+.primary:disabled {
+  cursor: default;
+}
+
+.primary:not(:disabled):active,
+.tinted:active,
+.plain:active {
+  opacity: 0.6;
 }
 
 .footnote {
-  margin: 4px 0 0;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 18px;
   text-align: center;
-  font-size: 14px;
-  color: var(--landing-muted);
+  color: var(--color-text-secondary);
 }
 
-/* Desktop: QR code. */
-.qrFrame {
-  width: 240px;
-  height: 240px;
-  margin-top: 8px;
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Install steps: a Settings-style card --- */
+
+.steps {
+  width: 100%;
+  margin-top: 28px;
+  padding-left: 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  list-style: none;
+  text-align: left;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--web-settings-row-height, 52px);
+}
+
+/* The separator starts at the text, as in iOS lists, and runs to the card's edge. */
+.stepText {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 11px 16px 11px 0;
+  font-size: 17px;
+  line-height: 22px;
+}
+
+.step + .step .stepText {
+  border-top: 0.5px solid var(--color-separator);
+}
+
+.stepTile,
+.stepAppIcon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6.75px;
+}
+
+.stepTile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+}
+
+.stepTile svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stepTile .needle {
+  fill: #ffffff;
+  stroke-width: 1.5;
+}
+
+.stepTile .dots {
+  fill: #ffffff;
+  stroke: none;
+}
+
+.video {
+  width: 100%;
+  max-width: 260px;
+  max-height: 36vh;
+  margin-top: 24px;
+  border-radius: 20px;
+  background: var(--color-card);
+  object-fit: cover;
+}
+
+/* --- Desktop: a macOS-like card with the QR code --- */
+
+.desktop {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.window {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 40px 44px;
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  box-shadow: var(--landing-window-shadow);
+  text-align: center;
+}
+
+.window .iconMedium {
+  width: 64px;
+  height: 64px;
+}
+
+.desktopTitle {
+  margin-top: 16px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.desktopText {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--color-text-secondary);
+}
+
+/* White in both themes: phone cameras read dark modules on a light ground. */
+.qrTile {
+  width: 216px;
+  aspect-ratio: 1;
+  margin-top: 28px;
   padding: 14px;
-  border-radius: 28px;
+  border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 12px 40px rgba(28, 63, 110, 0.12);
+  box-shadow: var(--landing-qr-rim);
 }
 
 .qr {
+  display: block;
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
 }
 
-/* Install steps. */
-.steps {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  text-align: left;
+/* Short screens (iPhone SE, landscape): smaller icons and gaps so the steps fit. */
+@media (max-height: 620px) {
+  .page {
+    --landing-icon-large: 96px;
+    --landing-icon-medium: 56px;
+  }
+
+  .hero {
+    padding: 8px 0;
+  }
+
+  .title,
+  .iconMedium + .title {
+    margin-top: 14px;
+  }
+
+  .steps {
+    margin-top: 20px;
+  }
 }
 
-.steps li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 16px;
-  line-height: 1.4;
-}
-
-.stepNumber {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--landing-blue-soft);
-  color: var(--landing-blue);
-  font-weight: 700;
-  font-size: 15px;
-}
-
-/* iPhone video slot (16:10 phone recording, looping). */
-.video {
-  width: 100%;
-  aspect-ratio: 9 / 10;
-  max-height: 38vh;
-  border-radius: 24px;
-  overflow: hidden;
-  background: var(--landing-blue-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.video video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.videoPlaceholder {
-  padding: 0 24px;
-  font-size: 15px;
-  color: var(--landing-muted);
-}
-
-/* Arrow toward where Safari's button is. */
-.arrowBottom,
-.arrowTop {
-  position: fixed;
-  left: 50%;
-  width: 36px;
-  height: 48px;
-  margin-left: -18px;
-  color: var(--landing-blue);
-  animation: bob 1.4s ease-in-out infinite;
-}
-
-.arrowBottom {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
-}
-
-.arrowTop {
-  top: calc(env(safe-area-inset-top, 0px) + 4px);
-  transform: rotate(180deg);
-}
-
-.arrowBottom svg,
-.arrowTop svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* In-app browser hint: points at the menu in the top right corner. */
-.menuPointer {
-  position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 4px);
-  right: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: var(--landing-blue);
-}
-
-.menuDots {
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 700;
-}
-
-.pointerArrow {
-  width: 30px;
-  height: 46px;
-  animation: bob 1.4s ease-in-out infinite;
-}
-
-@keyframes bob {
-  50% {
-    translate: 0 8px;
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
   }
 }

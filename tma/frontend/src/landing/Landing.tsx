@@ -2,14 +2,13 @@
  * Landing and install flow of the web app (spec §2–3): one link for everyone, exactly
  * one relevant screen at a time.
  *
- *   desktop                → «StreakApp живёт в телефоне» + QR code to this link
- *   phone, `/`             → «Открыть в Telegram» / «Установить приложение»
+ *   desktop                → QR code to this link, «наведите камеру телефона»
+ *   phone, `/`             → «Установить приложение» / «Открыть в Telegram»
  *   «Установить», in-app   → jump to the system browser on `/install` (Android: Chrome
  *                            intent; iPhone: x-safari-https), else a hint + copy link
  *   `/install`, Android    → native install button, or manual steps
- *   `/install`, iPhone     → video slot + numbered steps, arrow to Safari's button
- *   installed (Android)    → «Готово! Откройте StreakApp с рабочего стола»
- *   `/linked`              → Google linked from Telegram: «вернитесь в Telegram»
+ *   `/install`, iPhone     → steps (and an optional video)
+ *   installed (Android)    → «Готово», open it from the home screen
  *
  * A Telegram user arrives with a single-use handoff token (`h`), straight on `/install`.
  * On Android it is redeemed here, in a real browser (never inside Threads/Instagram — it
@@ -18,9 +17,13 @@
  * is not spent: it goes into the app's start address (the manifest from the API) and the
  * app logs in on its first launch (web/bootstrap.ts). Every step is a funnel event; `src`
  * travels along.
+ *
+ * The look is the app's own (iOS 26, light or dark with the system): an onboarding
+ * screen with the app icon, a title, one line of text and the bottom capsule button;
+ * install steps sit in a Settings-style card. Desktop is a macOS-like card with the QR.
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { installSource, track } from "../analytics";
 import { API_BASE_URL } from "../api/client";
@@ -33,23 +36,22 @@ import {
   INSTALL_PROMPT_WAIT_MS,
   IOS_INSTALL,
   TELEGRAM_BOT_URL,
+  type InstallStep,
+  type StepIcon as StepIconName,
 } from "./config";
 import { installPrompt } from "./installPrompt";
 import styles from "./Landing.module.css";
 
-type Screen = "desktop" | "main" | "escapeHint" | "install" | "done" | "linked";
+type Screen = "desktop" | "main" | "escapeHint" | "install" | "done";
 
 const INSTALL_PATH = "/install";
-const LINKED_PATH = "/linked";
+const APP_ICON = "/icons/icon-512.png";
 
 function initialScreen(): Screen {
-  const path = window.location.pathname.replace(/\/+$/, "");
-  if (path === LINKED_PATH) {
-    return "linked";
-  }
   if (devicePlatform() === "desktop") {
     return "desktop";
   }
+  const path = window.location.pathname.replace(/\/+$/, "");
   return path === INSTALL_PATH ? "install" : "main";
 }
 
@@ -160,37 +162,54 @@ export function Landing() {
       {screen === "escapeHint" ? <EscapeHint /> : null}
       {screen === "install" ? <InstallScreen onDone={() => setScreen("done")} /> : null}
       {screen === "done" ? <DoneScreen /> : null}
-      {screen === "linked" ? <LinkedScreen /> : null}
     </div>
   );
 }
 
-function Brand({ small = false }: { small?: boolean }) {
+/** The app icon; `badge` — a green check on its corner (installed). */
+function AppIcon({ size, badge = false }: { size: "large" | "medium"; badge?: boolean }) {
   return (
-    <div className={small ? styles.brandSmall : styles.brand}>
-      <img className={styles.logo} src="/icons/icon-192.png" alt="" width={small ? 56 : 88} height={small ? 56 : 88} />
-      <h1 className={styles.name}>StreakApp</h1>
-    </div>
+    <span className={size === "large" ? styles.iconLarge : styles.iconMedium}>
+      <img className={styles.icon} src={APP_ICON} alt="" />
+      {badge ? (
+        <span className={styles.iconBadge} aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="m6.5 12.5 3.5 3.5 7.5-8" />
+          </svg>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** A phone screen: the content centred in the free space, the buttons at the bottom. */
+function PhoneScreen({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
+  return (
+    <main className={styles.screen}>
+      <div className={styles.hero}>{children}</div>
+      {actions ? <div className={styles.actions}>{actions}</div> : null}
+    </main>
   );
 }
 
 function MainScreen({ onTelegram, onInstall }: { onTelegram: () => void; onInstall: () => void }) {
   return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <Brand />
-        <p className={styles.lead}>Отмечайте привычки в одно касание и смотрите, как растёт ваш стрик</p>
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.primary} onClick={onInstall}>
-          Установить приложение
-        </button>
-        <button type="button" className={styles.secondary} onClick={onTelegram}>
-          Открыть в Telegram
-        </button>
-        <p className={styles.footnote}>Бесплатно. Работает в Telegram и как приложение на телефоне</p>
-      </div>
-    </main>
+    <PhoneScreen
+      actions={
+        <>
+          <button type="button" className={styles.primary} onClick={onInstall}>
+            Установить приложение
+          </button>
+          <button type="button" className={styles.plain} onClick={onTelegram}>
+            Открыть в Telegram
+          </button>
+        </>
+      }
+    >
+      <AppIcon size="large" />
+      <h1 className={styles.title}>StreakApp</h1>
+      <p className={styles.subtitle}>Отмечайте привычки и копите стрики</p>
+    </PhoneScreen>
   );
 }
 
@@ -201,20 +220,24 @@ function DesktopScreen() {
     url.searchParams.set("src", installSource());
     import("qrcode")
       .then((QRCode) =>
-        QRCode.toDataURL(url.toString(), { width: 480, margin: 1, color: { dark: "#1c3f6e", light: "#ffffff" } }),
+        QRCode.toDataURL(url.toString(), {
+          width: 440,
+          margin: 0,
+          color: { dark: "#1c1c1e", light: "#ffffff" },
+        }),
       )
       .then(setQr)
       .catch(() => setQr(null));
   }, []);
   return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <Brand small />
-        <h2 className={styles.title}>StreakApp живёт в телефоне</h2>
-        <div className={styles.qrFrame}>
+    <main className={styles.desktop}>
+      <div className={styles.window}>
+        <AppIcon size="medium" />
+        <h1 className={styles.desktopTitle}>StreakApp живёт в телефоне</h1>
+        <p className={styles.desktopText}>Наведите камеру телефона на код</p>
+        <div className={styles.qrTile}>
           {qr ? <img className={styles.qr} src={qr} alt="QR-код ссылки на StreakApp" /> : null}
         </div>
-        <p className={styles.lead}>Наведите камеру телефона</p>
       </div>
     </main>
   );
@@ -233,29 +256,28 @@ function EscapeHint() {
     setCopied(true);
   }
   return (
-    <main className={styles.screen}>
-      {/* Points at the in-app browser's menu: top right in Threads and Instagram. */}
-      <div className={styles.menuPointer} aria-hidden="true">
-        <span className={styles.menuDots}>⋯</span>
-        <svg viewBox="0 0 60 80" className={styles.pointerArrow}>
-          <path d="M30 76V8M30 8 12 26M30 8l18 18" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-      <div className={styles.center}>
-        <h2 className={styles.title}>Откройте в браузере</h2>
-        <p className={styles.lead}>
-          {ios
-            ? "Нажмите ⋯ и выберите «Открыть в браузере» — там можно установить приложение."
-            : "Нажмите ⋮ и выберите «Открыть в браузере» (или «Открыть в Chrome»)."}
-        </p>
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.secondary} onClick={() => void copy()}>
-          {copied ? "Ссылка скопирована" : "Скопировать ссылку"}
-        </button>
-        {copied ? <p className={styles.footnote}>Вставьте её в адресную строку {ios ? "Safari" : "Chrome"}</p> : null}
-      </div>
-    </main>
+    <PhoneScreen
+      actions={
+        <>
+          {copied ? (
+            <p className={styles.footnote}>
+              Вставьте её в адресную строку {ios ? "Safari" : "Chrome"}
+            </p>
+          ) : null}
+          <button type="button" className={styles.tinted} onClick={() => void copy()}>
+            {copied ? "Ссылка скопирована" : "Скопировать ссылку"}
+          </button>
+        </>
+      }
+    >
+      <AppIcon size="medium" />
+      <h1 className={styles.title}>Откройте в браузере</h1>
+      <p className={styles.subtitle}>
+        {ios
+          ? "Откройте меню этого приложения (⋯) и выберите «Открыть в браузере»"
+          : "Откройте меню этого приложения (⋮) и выберите «Открыть в браузере» или «Открыть в Chrome»"}
+      </p>
+    </PhoneScreen>
   );
 }
 
@@ -301,110 +323,107 @@ function AndroidInstall({ onDone }: { onDone: () => void }) {
     }
   }
 
-  if (available) {
-    return (
-      <main className={styles.screen}>
-        <div className={styles.center}>
-          <Brand />
-          <p className={styles.lead}>Иконка появится на рабочем столе — открывайте StreakApp как обычное приложение</p>
-        </div>
-        <div className={styles.actions}>
-          <button type="button" className={styles.primary} onClick={() => void install()}>
-            Установить
-          </button>
-        </div>
-      </main>
-    );
+  if (!available && waited) {
+    return <StepsScreen title="Добавьте на главный экран" steps={ANDROID_MANUAL_STEPS} />;
   }
-  if (!waited) {
-    return (
-      <main className={styles.screen}>
-        <div className={styles.center}>
-          <Brand />
-          <p className={styles.lead}>Готовим установку…</p>
-        </div>
-      </main>
-    );
-  }
+  // While the browser's install prompt is on its way: the same screen with a spinner in
+  // the button, so nothing moves when it arrives.
   return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <Brand small />
-        <h2 className={styles.title}>Добавьте на главный экран</h2>
-        <Steps steps={ANDROID_MANUAL_STEPS} />
-      </div>
-    </main>
+    <PhoneScreen
+      actions={
+        <button
+          type="button"
+          className={styles.primary}
+          disabled={!available}
+          onClick={() => void install()}
+        >
+          {available ? "Установить" : <span className={styles.spinner} aria-label="Загрузка" />}
+        </button>
+      }
+    >
+      <AppIcon size="large" />
+      <h1 className={styles.title}>StreakApp</h1>
+      <p className={styles.subtitle}>Иконка появится на рабочем столе</p>
+    </PhoneScreen>
   );
 }
 
 function IosInstall() {
   return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <h2 className={styles.title}>Добавьте StreakApp на экран «Домой»</h2>
-        <div className={styles.video}>
-          {IOS_INSTALL.video ? (
-            <video src={IOS_INSTALL.video} autoPlay loop muted playsInline />
-          ) : (
-            // Placeholder: the owner records the real clip on a current iPhone and sets
-            // IOS_INSTALL.video in landing/config.ts.
-            <span className={styles.videoPlaceholder}>Здесь будет короткое видео-инструкция</span>
-          )}
-        </div>
-        <Steps steps={IOS_INSTALL.steps} />
-      </div>
-      <div
-        className={IOS_INSTALL.arrow === "bottom" ? styles.arrowBottom : styles.arrowTop}
-        aria-hidden="true"
-      >
-        <svg viewBox="0 0 60 80">
-          <path d="M30 4v68M30 72 12 54M30 72l18-18" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    </main>
+    <StepsScreen
+      title="Добавьте на экран Домой"
+      steps={IOS_INSTALL.steps}
+      video={IOS_INSTALL.video}
+    />
   );
 }
 
-function Steps({ steps }: { steps: readonly string[] }) {
+/** Install instruction: the title, an optional video and the steps in a card. */
+function StepsScreen({
+  title,
+  steps,
+  video = null,
+}: {
+  title: string;
+  steps: readonly InstallStep[];
+  video?: string | null;
+}) {
   return (
-    <ol className={styles.steps}>
-      {steps.map((step, index) => (
-        <li key={step}>
-          <span className={styles.stepNumber}>{index + 1}</span>
-          <span>{step}</span>
-        </li>
-      ))}
-    </ol>
+    <PhoneScreen>
+      <AppIcon size="medium" />
+      <h1 className={styles.title}>{title}</h1>
+      {video ? <video className={styles.video} src={video} autoPlay loop muted playsInline /> : null}
+      <ol className={styles.steps}>
+        {steps.map((step) => (
+          <li key={step.text} className={styles.step}>
+            <StepIcon name={step.icon} />
+            <span className={styles.stepText}>{step.text}</span>
+          </li>
+        ))}
+      </ol>
+    </PhoneScreen>
+  );
+}
+
+/** A step's icon: a Settings-style tile with a glyph, or the app icon itself. */
+function StepIcon({ name }: { name: StepIconName }) {
+  if (name === "app") {
+    return <img className={styles.stepAppIcon} src={APP_ICON} alt="" />;
+  }
+  return (
+    <span className={styles.stepTile} aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        {name === "browser" ? (
+          <>
+            <circle cx="12" cy="12" r="8.25" />
+            <path className={styles.needle} d="m15.25 8.75-2 4.5-4.5 2 2-4.5Z" />
+          </>
+        ) : null}
+        {name === "share" ? (
+          <path d="M12 3.5v11M8.25 7.25 12 3.5l3.75 3.75M9 10H7.5A1.5 1.5 0 0 0 6 11.5v7A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H15" />
+        ) : null}
+        {name === "addSquare" ? (
+          <path d="M8 4.75h8A3.25 3.25 0 0 1 19.25 8v8A3.25 3.25 0 0 1 16 19.25H8A3.25 3.25 0 0 1 4.75 16V8A3.25 3.25 0 0 1 8 4.75ZM12 8.5v7M8.5 12h7" />
+        ) : null}
+        {name === "add" ? <path d="M12 5.5v13M5.5 12h13" /> : null}
+        {name === "more" ? (
+          <g className={styles.dots}>
+            <circle cx="12" cy="6" r="1.75" />
+            <circle cx="12" cy="12" r="1.75" />
+            <circle cx="12" cy="18" r="1.75" />
+          </g>
+        ) : null}
+      </svg>
+    </span>
   );
 }
 
 function DoneScreen() {
   return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <Brand />
-        <h2 className={styles.title}>Готово!</h2>
-        <p className={styles.lead}>Откройте StreakApp с рабочего стола</p>
-      </div>
-    </main>
-  );
-}
-
-function LinkedScreen() {
-  const error = new URLSearchParams(window.location.search).get("error");
-  return (
-    <main className={styles.screen}>
-      <div className={styles.center}>
-        <Brand small />
-        <h2 className={styles.title}>{error ? "Не получилось" : "Готово!"}</h2>
-        <p className={styles.lead}>
-          {error === "account_conflict"
-            ? "Этот Google-аккаунт уже привязан к другому аккаунту Telegram."
-            : error
-              ? "Не удалось привязать Google. Вернитесь в Telegram и попробуйте ещё раз."
-              : "Google-аккаунт привязан. Вернитесь в Telegram — всё уже на месте."}
-        </p>
-      </div>
-    </main>
+    <PhoneScreen>
+      <AppIcon size="large" badge />
+      <h1 className={styles.title}>Готово</h1>
+      <p className={styles.subtitle}>Откройте StreakApp с рабочего стола</p>
+    </PhoneScreen>
   );
 }

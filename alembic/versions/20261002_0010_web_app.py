@@ -1,4 +1,4 @@
-"""Web app (PWA): linked logins, web sessions, one-time codes, push, funnel events
+"""Web app (PWA): web sessions, one-time codes, push, funnel events
 
 Additive only — no existing row is changed except two new nullable user columns:
 
@@ -6,10 +6,8 @@ Additive only — no existing row is changed except two new nullable user column
   existing `done` logs, so users who already checked in never get the one-time
   "install the app" offer from the bot;
 - `users.install_offer_sent_at` — when the bot sent that offer;
-- `user_identities` — Google logins linked to an account (a Telegram account's id is its
-  Telegram id, so Telegram needs no row here);
 - `web_sessions` — web logins (hashed tokens);
-- `auth_codes` — short-lived single-use codes (handoff, bot login, OAuth state);
+- `auth_codes` — short-lived single-use codes (handoff, bot login);
 - `push_subscriptions` — Web Push subscriptions per device;
 - `events` — funnel analytics.
 
@@ -45,21 +43,6 @@ def upgrade() -> None:
         )
         """
     )
-
-    op.create_table(
-        "user_identities",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "user_id", sa.BigInteger(), sa.ForeignKey("users.telegram_id"), nullable=False
-        ),
-        sa.Column("provider", sa.String(16), nullable=False),
-        sa.Column("provider_user_id", sa.String(255), nullable=False),
-        sa.Column("email", sa.String(255), nullable=True),
-        sa.Column("display_name", sa.String(255), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.UniqueConstraint("provider", "provider_user_id", name="uq_identity_provider_user"),
-    )
-    op.create_index("ix_user_identities_user_id", "user_identities", ["user_id"])
 
     op.create_table(
         "web_sessions",
@@ -128,7 +111,6 @@ def downgrade() -> None:
     op.drop_table("push_subscriptions")
     op.drop_table("auth_codes")
     op.drop_table("web_sessions")
-    op.drop_table("user_identities")
     with op.batch_alter_table("users") as batch_op:
         batch_op.drop_column("install_offer_sent_at")
         batch_op.drop_column("first_checkin_at")

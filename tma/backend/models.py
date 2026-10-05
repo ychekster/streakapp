@@ -74,8 +74,8 @@ class User(Base):
     """Пользователь и его настройки.
 
     `telegram_id` is the internal account id. Telegram accounts keep their (positive)
-    Telegram id, so the Telegram identity is the id itself. Web-only accounts — guests and
-    Google-only accounts — get a random negative id (see accounts.py), which can never
+    Telegram id, so the Telegram identity is the id itself. Web-only accounts (guests) get a
+    random negative id (see accounts.py), which can never
     collide with a Telegram user id.
     """
 
@@ -306,31 +306,8 @@ class Broadcast(Base):
 
 
 # --------------------------------------------------------------------------- #
-#  Web app (PWA): identities, sessions, one-time codes, push, funnel events
+#  Web app (PWA): sessions, one-time codes, push, funnel events
 # --------------------------------------------------------------------------- #
-
-
-class UserIdentity(Base):
-    """A login linked to an account (Google). The Telegram identity is not stored here:
-    a Telegram account's id *is* its Telegram id (see User)."""
-
-    __tablename__ = "user_identities"
-    __table_args__ = (
-        UniqueConstraint("provider", "provider_user_id", name="uq_identity_provider_user"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
-    )
-    provider: Mapped[str] = mapped_column(String(16), nullable=False)
-    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Shown in Settings → Account ("linked as …").
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
-    )
 
 
 class WebSession(Base):
@@ -353,9 +330,8 @@ class WebSession(Base):
 
 
 class AuthCode(Base):
-    """A short-lived, single-use code: Telegram → web handoff, bot login request, Google
-    OAuth state and the login result handed back to the app. Stored hashed, like
-    sessions. `user_id` has no foreign key: the account may be merged away meanwhile."""
+    """A short-lived, single-use code: Telegram → web handoff or bot login request.
+    Stored hashed, like sessions. `user_id` has no foreign key: the account may be merged away meanwhile."""
 
     __tablename__ = "auth_codes"
 

@@ -5,13 +5,9 @@
     POST   /auth/logout               — app: leave the account on this device
     POST   /auth/handoff              — Mini App: single-use link to install the web app
     POST   /auth/handoff/redeem       — browser/app: log in with that link
-    POST   /auth/complete             — app: exchange a redirect login result for a session
     POST   /auth/telegram/start       — app: "log in via Telegram" through the bot
     POST   /auth/telegram/poll        — app: has the bot confirmed it?
     POST   /auth/telegram/widget      — app: Telegram web login result (hash-checked)
-    POST   /auth/google/start         — app or Mini App: where to sign in with Google
-    GET    /auth/google/callback      — Google sends the browser back here
-    DELETE /auth/logins/{provider}    — unlink a login (never the last one)
 
 Logins always attach to the account the request is made from; linking may switch to
 or merge with another account (see accounts.py). The web app then gets a new session,
@@ -23,24 +19,13 @@ from __future__ import annotations
 import zlib
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Path, Request, Response
-from fastapi.responses import RedirectResponse
-from loguru import logger
+from fastapi import APIRouter, Depends, Request, Response
 
-from tma.backend import google_oauth
 from tma.backend.accounts import (
-    CODE_GOOGLE_STATE,
     CODE_HANDOFF,
-    CODE_LOGIN_RESULT,
     CODE_TELEGRAM_LOGIN,
-    GOOGLE_STATE_TTL,
-    LOGIN_RESULT_TTL,
-    PROVIDER_TELEGRAM,
-    PROVIDERS,
     TELEGRAM_LOGIN_TTL,
-    LoginProfile,
     account_info,
-    code_payload,
     confirmed_telegram,
     create_code,
     create_guest,
@@ -51,9 +36,7 @@ from tma.backend.accounts import (
     link_login,
     take_code,
     telegram_profile,
-    unlink_login,
 )
-from tma.backend.config import Settings
 from tma.backend.dependencies import (
     Principal,
     RepositoryDep,
@@ -68,12 +51,10 @@ from tma.backend.ratelimit import RateLimiter, retry_after_header
 from tma.backend.repository import Repository, utc_now
 from tma.backend.schemas import (
     AccountResponse,
-    GoogleStart,
     HandoffCreate,
     HandoffResponse,
     LinkResult,
     LogoutRequest,
-    RedirectUrl,
     TelegramLoginPoll,
     TelegramLoginStart,
     TelegramWidgetLogin,
@@ -264,23 +245,6 @@ async def redeem_handoff(
     return await _result(request, repo, web, account)
 
 
-@router.post("/complete", response_model=LinkResult)
-async def complete_login(
-    payload: TokenRequest,
-    request: Request,
-    principal: Principal | None = Depends(get_optional_principal),
-    repo: Repository = RepositoryDep,
-) -> LinkResult:
-    """After a redirect login (Google) the app gets a one-time result code in its address
-    and exchanges it here for a session of the (possibly switched) account."""
-    code = await take_code(repo, get_settings(request), payload.token, CODE_LOGIN_RESULT)
-    account = await repo.get_user(code.user_id) if code and code.user_id is not None else None
-    if account is None:
-        raise ApiError(410, "login_expired", "Вход устарел — попробуйте ещё раз")
-    web = principal if principal is not None and principal.telegram is None else None
-    return await _result(request, repo, web, account)
-
-
 # --------------------------------------------------------------------------- #
 #  Telegram login on the web (spec 6.4)
 # --------------------------------------------------------------------------- #
@@ -353,100 +317,3 @@ async def telegram_widget_login(
     profile = telegram_profile(telegram.id, telegram.username, telegram.first_name)
     account = await link_login(repo, await _current_user(repo, principal), profile)
     return await _result(request, repo, principal, account)
-
-
-# --------------------------------------------------------------------------- #
-#  Google (spec 6.3)
-# --------------------------------------------------------------------------- #
-
-
-@router.post("/google/start", response_model=RedirectUrl)
-async def start_google_login(
-    payload: GoogleStart,
-    request: Request,
-    db_user: User = Depends(get_db_user),
-    principal: Principal = Depends(get_principal),
-    repo: Repository = RepositoryDep,
-) -> RedirectUrl:
-    """Where to send the browser to link Google to this account."""
-    settings = get_settings(request)
-    if not settings.google_client_id:
-        raise ApiError(404, "google_unavailable", "Вход через Google не настроен")
-    mode = "telegram" if principal.telegram is not None else payload.mode
-    state = await create_code(
-        repo, settings, CODE_GOOGLE_STATE, db_user.telegram_id, GOOGLE_STATE_TTL, {"mode": mode}
-    )
-    return RedirectUrl(url=google_oauth.authorization_url(settings, state))
-
-
-@router.get("/google/callback", include_in_schema=False)
-async def google_callback(
-    request: Request,
-    code: str | None = None,
-    state: str | None = None,
-    error: str | None = None,
-    repo: Repository = RepositoryDep,
-) -> RedirectResponse:
-    """Google sends the browser back here. The login is linked on the server right away;
-    the installed app then gets a one-time result code to switch its session, and a
-    login started in Telegram ends on a "return to Telegram" page."""
-    settings: Settings = get_settings(request)
-    base = settings.web_base_url
-    state_code = await take_code(repo, settings, state or "", CODE_GOOGLE_STATE)
-    mode = code_payload(state_code).get("mode") if state_code is not None else "web"
-
-    def finish(error_code: str | None = None, result: str | None = None) -> RedirectResponse:
-        if mode == "telegram":
-            url = f"{base}/linked?provider=google" + (f"&error={error_code}" if error_code else "")
-        elif error_code:
-            url = f"{base}/app?pwa=1&auth_error={error_code}"
-        else:
-            url = f"{base}/app?pwa=1&auth={result}"
-        return RedirectResponse(url, status_code=303)
-
-    if state_code is None or state_code.user_id is None:
-        return finish("login_expired")
-    if error or not code:
-        return finish("cancelled")
-    current = await repo.get_user(state_code.user_id)
-    if current is None:
-        return finish("login_expired")
-    try:
-        profile: LoginProfile = await google_oauth.exchange_code(settings, code)
-    except google_oauth.GoogleAuthError as exc:
-        logger.warning("Google login failed: {}", exc)
-        return finish("google_failed")
-    try:
-        account = await link_login(repo, current, profile)
-    except ApiError as exc:
-        return finish(exc.code)
-    if mode == "telegram":
-        return finish()
-    result = await create_code(
-        repo, settings, CODE_LOGIN_RESULT, account.telegram_id, LOGIN_RESULT_TTL
-    )
-    return finish(result=result)
-
-
-# --------------------------------------------------------------------------- #
-#  Unlinking
-# --------------------------------------------------------------------------- #
-
-
-@router.delete("/logins/{provider}", response_model=LinkResult)
-async def unlink(
-    request: Request,
-    provider: str = Path(..., max_length=16),
-    db_user: User = Depends(get_db_user),
-    principal: Principal = Depends(get_principal),
-    repo: Repository = RepositoryDep,
-) -> LinkResult:
-    """Unlink a login; the last one cannot be unlinked. Telegram is unlinked only from the
-    web app: inside Telegram it is the very login in use."""
-    if provider not in PROVIDERS:
-        raise ApiError(404, "login_not_linked", "Этот способ входа не привязан")
-    if provider == PROVIDER_TELEGRAM and principal.telegram is not None:
-        raise ApiError(409, "web_only", "Доступно только в приложении на телефоне")
-    account = await unlink_login(repo, db_user, provider)
-    return await _result(request, repo, principal, account)
-

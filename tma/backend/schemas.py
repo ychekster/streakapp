@@ -441,9 +441,9 @@ class WebSessionResponse(BaseModel):
 class AccountLogin(BaseModel):
     """A login method of the account and its state."""
 
-    provider: Literal["telegram", "google"]
+    provider: Literal["telegram"]
     linked: bool
-    # What it is linked as: @username, name or e-mail; null — not linked.
+    # What it is linked as: @username or name; null — not linked.
     label: str | None = None
 
 
@@ -454,8 +454,6 @@ class AccountResponse(BaseModel):
     is_guest: bool
     has_habits: bool
     logins: list[AccountLogin]
-    # Google login is configured on the server (GOOGLE_CLIENT_ID).
-    google_available: bool
 
 
 class LinkResult(BaseModel):
@@ -481,7 +479,7 @@ class HandoffResponse(BaseModel):
 
 
 class TokenRequest(BaseModel):
-    """A one-time token or code from a link or a redirect."""
+    """A one-time token or code from a link."""
 
     token: str = Field(..., min_length=1, max_length=256)
 
@@ -515,19 +513,6 @@ class TelegramWidgetLogin(BaseModel):
     hash: str = Field(..., max_length=128)
 
 
-class GoogleStart(BaseModel):
-    """`POST /auth/google/start`: `web` — the installed app (redirects back into it),
-    `telegram` — from the Mini App (finishes in the browser)."""
-
-    mode: Literal["web", "telegram"] = "web"
-
-
-class RedirectUrl(BaseModel):
-    """Where to send the browser."""
-
-    url: str
-
-
 class WebConfig(BaseModel):
     """Public settings the web app needs."""
 
@@ -535,7 +520,6 @@ class WebConfig(BaseModel):
     telegram_bot_username: str | None
     # Numeric bot id for Telegram's web login (public: it is the bot's user id).
     telegram_bot_id: int | None
-    google_available: bool
 
 
 class PushKeys(BaseModel):

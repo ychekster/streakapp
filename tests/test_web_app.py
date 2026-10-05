@@ -1,6 +1,6 @@
-"""Web app (PWA): guest accounts, web sessions, Telegram → web handoff, logins (bot,
-Telegram web login, Google), linking and merging rules, unlinking, funnel events, the
-one-time install offer and push reminders. Bot API and Google are faked."""
+"""Web app (PWA): guest accounts, web sessions, Telegram → web handoff, Telegram logins
+(bot, Telegram web login), linking and merging rules, funnel events, the one-time install
+offer and push reminders. Bot API is faked."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import os
 import time
 from collections.abc import Iterator
 from datetime import datetime, time as clock, timezone
-from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,8 +20,7 @@ from bot.pacing import Pacer
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
 from tests.helpers import TEST_BOT_TOKEN
-from tma.backend import google_oauth
-from tma.backend.accounts import PROVIDER_GOOGLE, LoginProfile, confirm_telegram_login
+from tma.backend.accounts import confirm_telegram_login
 from tma.backend.config import load_settings
 from tma.backend.constants import SEED_ADMIN_IDS
 from tma.backend.database import Database
@@ -135,7 +133,7 @@ def test_guest_keeps_habits_on_the_server(client: TestClient) -> None:
     assert _names(client, guest) == ["Вода"]
     account = _account(client, guest)
     assert account["is_guest"] is True
-    assert [login["linked"] for login in account["logins"]] == [False, False]
+    assert [login["linked"] for login in account["logins"]] == [False]
 
 
 def test_unknown_session_is_401(client: TestClient) -> None:
@@ -283,97 +281,20 @@ def test_telegram_web_login_checks_the_hash(client: TestClient) -> None:
     assert response.json()["account"]["user_id"] == telegram_user.id
 
 
-@pytest.fixture
-def google(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    """Google login configured; the code exchange returns the profile set by the test."""
-    monkeypatch.setattr(client.app.state.settings, "google_client_id", "test-client")
-    profile: dict[str, LoginProfile] = {}
-
-    async def exchange(settings, code: str) -> LoginProfile:
-        return profile["next"]
-
-    monkeypatch.setattr(google_oauth, "exchange_code", exchange)
-    return profile
-
-
-def _google_link(client: TestClient, headers: dict[str, str], subject: str) -> str:
-    """Run the Google redirect; returns where the browser lands."""
-    start = client.post("/auth/google/start", json={"mode": "web"}, headers=headers)
-    assert start.status_code == 200, start.text
-    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
-    callback = client.get(
-        "/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False
+def test_two_telegram_accounts_never_merge(client: TestClient, user: AuthUser) -> None:
+    _account(client, user.headers)  # `user` has an account (opened the Mini App)
+    first = new_user()
+    session = _bearer(_bot_login(client, _guest(client), first)["session"]["token"])
+    # Logging into another Telegram account from this one is a conflict, not a merge.
+    start = client.post("/auth/telegram/start", headers=session)
+    code = start.json()["code"]
+    assert _run(
+        lambda repo: confirm_telegram_login(repo, load_settings(), code, user.id, "b", "B")
     )
-    assert callback.status_code == 303
-    return callback.headers["location"]
-
-
-def test_google_links_the_guest_and_keeps_its_habits(client: TestClient, google) -> None:
-    guest = _guest(client)
-    _habit(client, guest, "Вода")
-    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-1", email="a@example.com")
-    location = _google_link(client, guest, "g-1")
-    assert "/app?pwa=1&auth=" in location
-    code = parse_qs(urlsplit(location).query)["auth"][0]
-    result = client.post("/auth/complete", json={"token": code}, headers=guest)
-    assert result.status_code == 200, result.text
-    session = _bearer(result.json()["session"]["token"])
-    account = _account(client, session)
-    assert account["is_guest"] is False
-    assert account["logins"][1] == {"provider": "google", "linked": True, "label": "a@example.com"}
-    assert _names(client, session) == ["Вода"]
-    # The result code is single-use.
-    assert client.post("/auth/complete", json={"token": code}).status_code == 410
-
-
-def test_google_login_on_a_new_phone_opens_the_same_account(client: TestClient, google) -> None:
-    first_phone = _guest(client)
-    _habit(client, first_phone, "Чтение")
-    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-2")
-    _google_link(client, first_phone, "g-2")
-
-    new_phone = _guest(client)
-    location = _google_link(client, new_phone, "g-2")
-    code = parse_qs(urlsplit(location).query)["auth"][0]
-    session = _bearer(client.post("/auth/complete", json={"token": code}).json()["session"]["token"])
-    assert _names(client, session) == ["Чтение"]
-
-
-def test_two_telegram_accounts_never_merge(client: TestClient, google, user: AuthUser) -> None:
-    other = new_user()
-    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-3")
-    # Google linked to `user` from the Mini App (finishes in the browser).
-    start = client.post("/auth/google/start", json={}, headers=user.headers)
-    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
-    landed = client.get("/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False)
-    assert landed.headers["location"].endswith("/linked?provider=google")
-    # The same Google from another Telegram account is a conflict.
-    start = client.post("/auth/google/start", json={}, headers=other.headers)
-    state = parse_qs(urlsplit(start.json()["url"]).query)["state"][0]
-    landed = client.get("/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False)
-    assert landed.headers["location"].endswith("error=account_conflict")
-
-
-def test_last_login_cannot_be_unlinked(client: TestClient, google) -> None:
-    guest = _guest(client)
-    google["next"] = LoginProfile(PROVIDER_GOOGLE, "g-4")
-    location = _google_link(client, guest, "g-4")
-    code = parse_qs(urlsplit(location).query)["auth"][0]
-    session = _bearer(client.post("/auth/complete", json={"token": code}).json()["session"]["token"])
-    response = client.delete("/auth/logins/google", headers=session)
+    response = client.post("/auth/telegram/poll", json={"token": code}, headers=session)
     assert response.status_code == 409
-    assert response.json()["error"]["code"] == "last_login"
-
-    telegram_user = new_user()
-    session = _bearer(_bot_login(client, session, telegram_user)["session"]["token"])
-    unlinked = client.delete("/auth/logins/google", headers=session)
-    assert unlinked.status_code == 200, unlinked.text
-    assert unlinked.json()["account"]["logins"][1]["linked"] is False
-
-
-def test_telegram_is_not_unlinked_from_inside_telegram(client: TestClient, user: AuthUser) -> None:
-    response = client.delete("/auth/logins/telegram", headers=user.headers)
-    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "account_conflict"
+    assert _account(client, session)["user_id"] == first.id
 
 
 # --------------------------------------------------------------------------- #

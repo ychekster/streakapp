@@ -1,0 +1,25 @@
+/* The app icon and one line, centred in the space above the bottom button. */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px var(--space-screen-x);
+  text-align: center;
+}
+
+.icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 22.5%; /* the iOS app icon's rounding */
+}
+
+.description {
+  max-width: var(--status-description-max-width);
+  margin-top: 20px;
+  font-size: 17px;
+  line-height: 22px;
+  color: var(--color-text-secondary);
+  text-wrap: balance;
+}

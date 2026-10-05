@@ -94,9 +94,6 @@ class Settings(BaseSettings):
     # Bot username without "@" (deep links for "log in via Telegram"). Empty — asked
     # from Telegram (getMe) on first use.
     telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
-    # Google OAuth client (Google Cloud Console → Credentials). Empty — Google login off.
-    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
-    google_client_secret: SecretStr | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
     # Web Push (VAPID) keys: the public one is handed to browsers, the private one signs
     # pushes (the bot sends reminders with it, the API only a test notification).
     # Generate with scripts/generate_vapid_keys.py. Empty — push off.
