@@ -11,9 +11,13 @@
  *    каждый второй день;
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py);
- *    В веб-приложении вместо бота — уведомление: разрешение спрашивается тем же нажатием
- *    «Создать привычку» / «Сохранить» (никогда — при первом запуске); если уведомления
- *    запрещены, под переключателем — как их включить (spec §9);
+ *    В веб-приложении вместо бота — уведомление. Включённое напоминание (у новой
+ *    привычки или впервые у старой) при «Создать привычку» / «Сохранить» включает
+ *    уведомления: спрашивает разрешение, а если его уже не дали — окошко, как включить в
+ *    настройках телефона; выключенные в настройках приложения — включает обратно
+ *    (useReminderPush). Первая привычка и без напоминания спрашивает разрешение, если
+ *    уведомления не выключены (никогда — при первом запуске). Если уведомления запрещены,
+ *    под переключателем — как их включить (spec §9);
  *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка).
  *
  * Открывается кнопкой «+» (новая привычка) или рядом «Редактировать привычку» на экране
@@ -44,6 +48,7 @@ import {
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
+import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
 import { useResolvedTheme, useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
@@ -79,6 +84,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
+  const enableReminderPush = useReminderPush();
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   // Отправка уже идёт: состояние `submitting` обновится только со следующим рендером, а
@@ -134,9 +140,12 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     }
     submittingRef.current = true;
     setSubmitting(true);
-    // Web app: ask for notifications right from this tap (Safari needs the gesture) —
-    // with the first new habit, or a reminder. Turned off in Settings — not asked.
-    if (web && (!habit || reminderOn)) {
+    // Web app: right from this tap (Safari needs the gesture). A reminder just turned on
+    // turns notifications on; a new habit without one only asks, unless turned off in
+    // Settings.
+    if (web && reminderOn && habit?.reminder_time == null) {
+      void enableReminderPush().then(setPermission);
+    } else if (web && (!habit || reminderOn)) {
       if (permission === "default") {
         void askPermissionUnlessOff().then(setPermission);
       } else if (permission === "granted") {

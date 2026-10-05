@@ -1,8 +1,9 @@
 /**
  * Push reminders in the web app (spec §9).
  *
- * Permission is asked when the user creates their first habit, or turns «Уведомления» on
- * in Settings — from that tap (`askPermissionFromTap` must be called synchronously in the
+ * Permission is asked when the user creates their first habit, turns a reminder on (a
+ * habit's or «Напоминать отмечать» — this also undoes «off» in Settings), or turns
+ * «Уведомления» on in Settings — from that tap (`askPermissionFromTap` must be called synchronously in the
  * click handler: Safari requires a user gesture), never on first launch. Once granted,
  * the device subscribes with the server's VAPID key and the subscription is stored for
  * the account; from then on the account's reminders come as push notifications instead
@@ -116,6 +117,22 @@ export async function pushEnabled(): Promise<boolean> {
  *  turned them off in Settings. Resolves with the permission. */
 export function askPermissionUnlessOff(): Promise<NotificationPermission | "unsupported"> {
   return optedOut() ? Promise.resolve(pushPermission()) : askPermissionFromTap();
+}
+
+/**
+ * A reminder was just turned on (a habit's or «Напоминать отмечать»), so notifications
+ * must work: undo «off» in Settings, ask for permission if it was never asked, subscribe.
+ * Call it synchronously inside the click handler. Resolves with the permission; "denied"
+ * — refused earlier, only the phone's settings can allow them now (no prompt is shown).
+ */
+export function enablePushForReminder(): Promise<NotificationPermission | "unsupported"> {
+  setOptedOut(false);
+  return askPermissionFromTap().then(async (permission) => {
+    if (permission === "granted") {
+      await subscribePush();
+    }
+    return permission;
+  });
 }
 
 /**
