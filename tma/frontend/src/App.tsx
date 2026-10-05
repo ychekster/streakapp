@@ -77,6 +77,7 @@ import { HabitScreen } from "./screens/HabitScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
+import { CheckinReminderScreen } from "./screens/CheckinReminderScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./session";
@@ -593,6 +594,19 @@ export function App() {
             currentZone={settings?.timezone ?? null}
             currentCity={settings?.timezone_city ?? null}
             onSelect={selectTimezone}
+          />
+        );
+      }
+      if (settingsPage === "checkinReminder" && settings) {
+        return (
+          <CheckinReminderScreen
+            settings={settings}
+            onSave={(reminder) =>
+              void saveSettings(
+                { checkin_reminder: reminder },
+                { checkin_reminder_time: reminder.time, checkin_reminder_days: reminder.days },
+              )
+            }
           />
         );
       }

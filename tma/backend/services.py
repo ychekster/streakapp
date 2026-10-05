@@ -23,11 +23,12 @@ from tma.backend.constants import (
     MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
     TIMEZONE_SEARCH_LIMIT,
+    WEEKDAYS,
 )
 from tma.backend.errors import ApiError
 from tma.backend.models import FrequencyType, Task, TaskStatus, User
 from tma.backend.repository import Repository, utc_now
-from tma.backend.schedule import due_weekdays, is_due_on, task_days
+from tma.backend.schedule import due_check, is_due_on, task_days
 from tma.backend.schemas import (
     Habit,
     HabitCreate,
@@ -93,20 +94,20 @@ def compute_streaks(task: Task, done_dates: set[date], today: date) -> tuple[int
     """Текущая и лучшая серии выполнения (в днях).
 
     Серия — подряд идущие выполненные дни. Прерывает её только пропущенный
-    запланированный день: незапланированные дни (у привычек «по дням недели») серию
-    не рвут, а выполнение в такой день её продолжает. Сегодняшний день ещё не
+    запланированный день: незапланированные дни (у привычек «по дням недели» и «через
+    день») серию не рвут, а выполнение в такой день её продолжает. Сегодняшний день ещё не
     закончился, поэтому пока он не отмечен, текущая серия тянется со вчерашнего.
     """
     if not done_dates:
         return 0, 0
-    due = due_weekdays(task)
+    is_due = due_check(task)
     current = best = 0
     day = min(done_dates)
     while day <= today:
         if day in done_dates:
             current += 1
             best = max(best, current)
-        elif day < today and day.weekday() in due:
+        elif day < today and is_due(day):
             current = 0
         day += timedelta(days=1)
     return current, best
@@ -127,6 +128,7 @@ def build_habit(task: Task, done_dates: set[date], today: date) -> Habit:
         scheduled_today=is_due_on(task, today),
         frequency_type=task.frequency_type.value,
         days=task_days(task),
+        start_date=task.start_date,
         history=build_history(done_dates, today),
         current_streak=current_streak,
         best_streak=best_streak,
@@ -177,6 +179,7 @@ class HabitFields:
     name: str
     frequency_type: FrequencyType
     days: str | None
+    start_date: date | None
     reminder_time: time | None
     color: str
 
@@ -190,8 +193,8 @@ async def _validate_habit_fields(
     регистра); `task_id` — изменяемая привычка, сама себе она не дубликат.
     """
     name = validation.validate_name(payload.name)
-    frequency_type, days = validation.validate_frequency(
-        payload.frequency_type, payload.days
+    frequency_type, days, start_date = validation.validate_frequency(
+        payload.frequency_type, payload.days, payload.start_date, user_today(user)
     )
     reminder_time = validation.validate_reminder_time(payload.reminder_time)
     color = validation.validate_color(payload.color)
@@ -203,6 +206,7 @@ async def _validate_habit_fields(
         name=name,
         frequency_type=frequency_type,
         days=days,
+        start_date=start_date,
         reminder_time=reminder_time,
         color=color,
     )
@@ -220,6 +224,7 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
         name=fields.name,
         frequency_type=fields.frequency_type,
         days=fields.days,
+        start_date=fields.start_date,
         reminder_time=fields.reminder_time,
         color=fields.color,
     )
@@ -240,6 +245,7 @@ async def update_habit(
         name=fields.name,
         frequency_type=fields.frequency_type,
         days=fields.days,
+        start_date=fields.start_date,
         reminder_time=fields.reminder_time,
         color=fields.color,
     )
@@ -248,11 +254,15 @@ async def update_habit(
 
 @dataclass(frozen=True)
 class DueReminder:
-    """Напоминание, которое пора прислать: кому, о какой привычке и на каком языке."""
+    """Напоминание, которое пора прислать: кому, о какой привычке и на каком языке.
 
-    task_id: int
+    Без привычки (`task_id` и `habit_name` — None) — напоминание «Пора отметить
+    привычки» из настроек (см. `due_checkin_reminders`).
+    """
+
+    task_id: int | None
     user_id: int
-    habit_name: str
+    habit_name: str | None
     language: str
 
 
@@ -289,7 +299,7 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
         reminder = task.reminder_time
         if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
             continue
-        day = local.date() - timedelta(days=1) if task.user.mark_yesterday else local.date()
+        day = _reminder_day(task.user, local)
         if is_due_on(task, day):
             candidates.append((task, day))
     if not candidates:
@@ -307,6 +317,45 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     ]
 
 
+def _reminder_day(user: User, local: datetime) -> date:
+    """День отметки, о котором напоминание в момент `local` (время в поясе пользователя):
+    в режиме «Отмечать за вчера» — вчерашний (см. `due_reminders`)."""
+    return local.date() - timedelta(days=1) if user.mark_yesterday else local.date()
+
+
+async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
+    """Напоминания «Пора отметить привычки» на минуту `moment` (как `due_reminders`).
+
+    Наступило, если в поясе пользователя `moment` — ровно время напоминания, а сегодня
+    (по его календарю) — один из выбранных дней недели. Приходит, только если на день
+    отметки запланирована хотя бы одна привычка и не все такие уже отмечены: иначе
+    отмечать нечего.
+    """
+    candidates: dict[int, tuple[User, date]] = {}
+    for user in await repo.get_users_with_checkin_reminder_at(_clock_times(moment)):
+        local = moment.astimezone(resolve_timezone(user.timezone))
+        reminder = user.checkin_reminder_time
+        if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
+            continue
+        days = (user.checkin_reminder_days or "").split(",")
+        if WEEKDAYS[local.weekday()] in days:
+            candidates[user.telegram_id] = (user, _reminder_day(user, local))
+    if not candidates:
+        return []
+    pending = [
+        (task.id, candidates[task.user_id][1], task.user_id)
+        for task in await repo.get_active_tasks_of(candidates)
+        if is_due_on(task, candidates[task.user_id][1])
+    ]
+    done = await repo.get_done_task_days({(task_id, day) for task_id, day, _ in pending})
+    waiting = {user_id for task_id, day, user_id in pending if (task_id, day) not in done}
+    return [
+        DueReminder(task_id=None, user_id=user_id, habit_name=None, language=user.language)
+        for user_id, (user, _) in candidates.items()
+        if user_id in waiting
+    ]
+
+
 def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
     """Собрать ответ настроек; пояс подписан на языке пользователя."""
     has_timezone = bool(user.timezone)
@@ -321,6 +370,14 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         language=user.language,
         theme=user.theme,
         mark_yesterday=user.mark_yesterday,
+        checkin_reminder_time=(
+            user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
+            if user.checkin_reminder_time is not None
+            else None
+        ),
+        checkin_reminder_days=[
+            code for code in (user.checkin_reminder_days or "").split(",") if code
+        ],
         is_admin=is_admin,
     )
 
@@ -355,6 +412,14 @@ async def update_settings(
         ),
         theme=validation.validate_theme(payload.theme) if payload.theme is not None else None,
         mark_yesterday=payload.mark_yesterday,
+        checkin_reminder=(
+            (
+                validation.validate_reminder_time(payload.checkin_reminder.time),
+                validation.validate_days(payload.checkin_reminder.days),
+            )
+            if payload.checkin_reminder is not None
+            else None
+        ),
     )
     return await read_settings(repo, user)
 

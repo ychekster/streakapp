@@ -22,11 +22,13 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections import Counter
+from collections.abc import Callable
 from datetime import date, datetime, time, timedelta
 
 from tma.backend.constants import HABITS_DISTRIBUTION_MAX
 from tma.backend.repository import Repository, TaskSchedule
-from tma.backend.schedule import due_weekdays
+from tma.backend.models import FrequencyType
+from tma.backend.schedule import due_check, due_weekdays
 from tma.backend.schemas import (
     AnalyticsActivity,
     AnalyticsAudience,
@@ -54,13 +56,18 @@ def completion_by_day(
 
     Сколько привычек запланировано на день, считается двоичным поиском по отсортированным
     датам создания привычек этого дня недели, а не перебором всех привычек на каждый день.
+    Привычки «через день» к дню недели не привязаны — их дни проверяются по каждой.
     """
     created_by_weekday: list[list[date]] = [[] for _ in range(_WEEK_DAYS)]
-    due: dict[int, tuple[date, frozenset[int]]] = {}
+    alternating: list[tuple[date, Callable[[date], bool]]] = []
+    due: dict[int, tuple[date, Callable[[date], bool]]] = {}
     for schedule in schedules:
-        weekdays = due_weekdays(schedule)  # у TaskSchedule те же поля расписания, что у Task
-        due[schedule.id] = (schedule.created_on, weekdays)
-        for weekday in weekdays:
+        # У TaskSchedule те же поля расписания, что у Task.
+        due[schedule.id] = (schedule.created_on, due_check(schedule))
+        if schedule.frequency_type == FrequencyType.every_other_day:
+            alternating.append(due[schedule.id])
+            continue
+        for weekday in due_weekdays(schedule):
             created_by_weekday[weekday].append(schedule.created_on)
     for dates in created_by_weekday:
         dates.sort()
@@ -68,11 +75,16 @@ def completion_by_day(
     completed: Counter[date] = Counter()
     for task_id, day in done:
         info = due.get(task_id)
-        if info is not None and info[0] <= day and day.weekday() in info[1]:
+        if info is not None and info[0] <= day and info[1](day):
             completed[day] += 1
 
     return [
-        (bisect_right(created_by_weekday[day.weekday()], day), completed[day]) for day in days
+        (
+            bisect_right(created_by_weekday[day.weekday()], day)
+            + sum(1 for created, is_due in alternating if created <= day and is_due(day)),
+            completed[day],
+        )
+        for day in days
     ]
 
 

@@ -14,14 +14,17 @@ from tma.backend.errors import ApiError
 from tma.backend.database import Database
 from tma.backend.models import FrequencyType, TaskStatus
 from tma.backend.repository import Repository, TaskSchedule
+from tma.backend.schedule import is_due_on
 from tma.backend.services import compute_streaks
-from tma.backend.validation import resolve_timezone, validate_name
+from tma.backend.validation import resolve_timezone, validate_frequency, validate_name
 
 TODAY = date(2026, 9, 22)  # вторник
 
 
-def _task(frequency: FrequencyType, days: str | None = None) -> SimpleNamespace:
-    return SimpleNamespace(frequency_type=frequency, days=days)
+def _task(
+    frequency: FrequencyType, days: str | None = None, start_date: date | None = None
+) -> SimpleNamespace:
+    return SimpleNamespace(frequency_type=frequency, days=days, start_date=start_date)
 
 
 def _days_ago(*offsets: int) -> set[date]:
@@ -41,6 +44,28 @@ def test_unscheduled_days_do_not_break_streak() -> None:
     task = _task(FrequencyType.specific_days, "mon,wed")
     monday, last_wednesday = TODAY - timedelta(days=1), TODAY - timedelta(days=6)
     assert compute_streaks(task, {monday, last_wednesday}, TODAY) == (2, 2)
+
+
+def test_every_other_day_schedule_and_streak() -> None:
+    # Через день с позавчера: запланированы позавчера и сегодня, вчера и раньше начала —
+    # нет; вчерашний пропуск серию не рвёт.
+    task = _task(FrequencyType.every_other_day, start_date=TODAY - timedelta(days=2))
+    assert [is_due_on(task, TODAY - timedelta(days=offset)) for offset in range(4)] == [
+        True, False, True, False,
+    ]
+    assert compute_streaks(task, _days_ago(2), TODAY) == (1, 1)
+    # Пропущенный запланированный день (позавчера) серию прерывает.
+    task = _task(FrequencyType.every_other_day, start_date=TODAY - timedelta(days=4))
+    assert compute_streaks(task, _days_ago(4), TODAY) == (0, 1)
+
+
+def test_every_other_day_needs_a_start_date() -> None:
+    assert validate_frequency("every_other_day", [], TODAY, TODAY) == (
+        FrequencyType.every_other_day, None, TODAY,
+    )
+    for start in (None, TODAY + timedelta(days=400)):
+        with pytest.raises(ApiError):
+            validate_frequency("every_other_day", [], start, TODAY)
 
 
 def test_name_is_cleaned() -> None:
@@ -94,6 +119,15 @@ def test_completion_counts_only_scheduled_days_of_existing_habits() -> None:
         (3, days[2]),
     ]
     assert completion_by_day(schedules, done, days) == [(2, 2), (1, 0), (3, 1)]
+
+
+def test_completion_counts_every_other_day_habits() -> None:
+    monday = date(2026, 9, 21)
+    days = [monday + timedelta(days=offset) for offset in range(3)]  # пн, вт, ср
+    # Через день со вторника: в понедельник ещё нет, во вторник да, в среду нет.
+    schedules = [TaskSchedule(1, monday, FrequencyType.every_other_day, None, days[1])]
+    done = [(1, days[1]), (1, days[2])]  # отметка в среду — вне расписания
+    assert completion_by_day(schedules, done, days) == [(0, 0), (1, 1), (0, 0)]
 
 
 def test_habits_distribution_groups_the_tail() -> None:

@@ -70,6 +70,12 @@ export const REVIEW_MAX_LENGTH = 2000;
 
 /** Время, которое предлагается при включении напоминания. */
 export const DEFAULT_REMINDER_TIME = "09:00";
+/** Первый день привычки «через день» — не дальше стольких дней от сегодня
+ *  (START_DATE_MAX_AHEAD_DAYS в tma/backend/constants.py). */
+export const START_DATE_MAX_AHEAD_DAYS = 366;
+/** Время напоминания «Пора отметить привычки» при первом включении — вечер, когда
+ *  подводят итоги дня. */
+export const DEFAULT_CHECKIN_REMINDER_TIME = "21:00";
 
 /* --- Админ-панель --- */
 

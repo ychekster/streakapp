@@ -6,7 +6,9 @@
  * «Настройки»; под ним — секции в стиле экрана привычки, но с заголовками как в эталоне:
  * с заглавной буквы (не капсом) и со сдвигом до конца скругления карточки:
  *  - Информация — название;
- *  - Частота — каждый день или по дням; «по дням» добавляет выбор дней недели;
+ *  - Частота — каждый день, по дням или через день; «по дням» добавляет выбор дней
+ *    недели, «через день» — дату начала (системный календарь): с неё привычка идёт
+ *    каждый второй день;
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py);
  *    В веб-приложении вместо бота — уведомление: разрешение спрашивается тем же нажатием
@@ -24,6 +26,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { createHabit, updateHabit } from "../api/habits";
 import { ColorPicker } from "../components/ColorPicker";
+import { DateField, localDate } from "../components/DateField";
 import { DayPicker } from "../components/DayPicker";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
@@ -35,6 +38,7 @@ import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_NAME_MAX_LENGTH,
   DEFAULT_REMINDER_TIME,
+  START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
 import { describeError } from "../errors";
@@ -64,6 +68,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     habit?.frequency_type ?? "daily",
   );
   const [days, setDays] = useState<Set<string>>(() => new Set(habit?.days));
+  // Первый день «через день»: по умолчанию сегодня; помнится при смене частоты.
+  const [startDate, setStartDate] = useState(() => habit?.start_date ?? localDate());
   const [reminderOn, setReminderOn] = useState(habit?.reminder_time != null);
   // Время помнится, даже если напоминание выключить и включить снова.
   const [reminderTime, setReminderTime] = useState(
@@ -80,10 +86,11 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const submittingRef = useRef(false);
 
   const nameMaxLength = meta?.name_max_length ?? DEFAULT_NAME_MAX_LENGTH;
-  const valid = name.trim().length > 0 && (frequency === "daily" || days.size > 0);
+  const valid = name.trim().length > 0 && (frequency !== "specific_days" || days.size > 0);
   const frequencyOptions = [
     { value: "daily", label: strings.formDaily },
     { value: "specific_days", label: strings.formSpecificDays },
+    { value: "every_other_day", label: strings.formEveryOtherDay },
   ] as const;
 
   // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»); у
@@ -142,6 +149,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       frequency_type: frequency,
       // Дни — в порядке недели, как их показывает выбор.
       days: frequency === "specific_days" ? WEEKDAYS.filter((code) => days.has(code)) : [],
+      start_date: frequency === "every_other_day" ? startDate : null,
       reminder_time: reminderOn ? reminderTime : null,
       color,
     };
@@ -208,6 +216,16 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
             {frequency === "specific_days" ? (
               <ListItem>
                 <DayPicker selected={days} onToggle={toggleDay} />
+              </ListItem>
+            ) : null}
+            {frequency === "every_other_day" ? (
+              <ListItem label={strings.formStartDate}>
+                <DateField
+                  value={startDate}
+                  onChange={setStartDate}
+                  label={strings.formStartDate}
+                  max={localDate(START_DATE_MAX_AHEAD_DAYS)}
+                />
               </ListItem>
             ) : null}
           </Card>

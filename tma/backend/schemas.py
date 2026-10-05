@@ -43,12 +43,16 @@ class Habit(BaseModel):
             "True — задачу можно отмечать; False — только просмотр прогресса."
         ),
     )
-    frequency_type: Literal["daily", "specific_days"] = Field(
-        ..., description="Каждый день или конкретные дни недели"
+    frequency_type: Literal["daily", "specific_days", "every_other_day"] = Field(
+        ..., description="Каждый день, конкретные дни недели или через день"
     )
     days: list[str] = Field(
         ...,
-        description="Коды дней недели (mon..sun) для specific_days; для daily — пустой список",
+        description="Коды дней недели (mon..sun) для specific_days; для остальных — пустой список",
+    )
+    start_date: date | None = Field(
+        None,
+        description="Первый день привычки every_other_day (дальше — каждый второй); иначе null",
     )
     history: list[bool] = Field(
         ...,
@@ -90,12 +94,16 @@ class HabitCreate(BaseModel):
     """Запрос `POST /tasks` — создание привычки."""
 
     name: str = Field(..., description="Название привычки")
-    frequency_type: Literal["daily", "specific_days"] = Field(
-        ..., description="Каждый день или конкретные дни недели"
+    frequency_type: Literal["daily", "specific_days", "every_other_day"] = Field(
+        ..., description="Каждый день, конкретные дни недели или через день"
     )
     days: list[str] = Field(
         default_factory=list,
-        description="Коды дней недели (mon..sun) для specific_days; для daily игнорируется",
+        description="Коды дней недели (mon..sun) для specific_days; для остальных игнорируется",
+    )
+    start_date: date | None = Field(
+        None,
+        description="Первый день привычки every_other_day (ГГГГ-ММ-ДД); для остальных игнорируется",
     )
     reminder_time: str | None = Field(
         None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"
@@ -124,9 +132,25 @@ class SettingsResponse(BaseModel):
     mark_yesterday: bool = Field(
         ..., description="«Отмечать за вчера»: отметки ставятся за вчерашний день"
     )
+    checkin_reminder_time: str | None = Field(
+        None,
+        description="Напоминание «Пора отметить привычки»: «ЧЧ:ММ» в поясе пользователя; "
+        "null — выключено",
+    )
+    checkin_reminder_days: list[str] = Field(
+        default_factory=list,
+        description="Дни недели напоминания (mon..sun); помнятся и при выключенном",
+    )
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
+
+
+class CheckinReminderUpdate(BaseModel):
+    """Напоминание «Пора отметить привычки» в `PUT /settings`."""
+
+    time: str | None = Field(..., description="«ЧЧ:ММ» в поясе пользователя; null — выключить")
+    days: list[str] = Field(..., description="Дни недели (mon..sun), хотя бы один")
 
 
 class SettingsUpdate(BaseModel):
@@ -139,6 +163,9 @@ class SettingsUpdate(BaseModel):
     language: str | None = Field(None, description="Язык интерфейса: ru, en")
     theme: str | None = Field(None, description="Тема оформления: light, dark, system")
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
+    checkin_reminder: CheckinReminderUpdate | None = Field(
+        None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
+    )
 
 
 class TimezoneEntry(BaseModel):

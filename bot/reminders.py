@@ -1,5 +1,9 @@
 """Напоминания о привычках: в заданное время бот пишет в чат «🔔 Пора выполнить «…»».
 
+Так же приходит и напоминание «🔔 Пора отметить привычки» из настроек приложения
+(`tma.backend.services.due_checkin_reminders`) — в выбранные дни и время, если на день
+отметки есть неотмеченные привычки.
+
 Время напоминания пользователь задаёт в Mini App, хранит его API (`tasks.reminder_time`,
 в поясе пользователя). Раз в минуту бот спрашивает у базы, чьё время наступило
 (`tma.backend.services.due_reminders`): напоминание приходит только в запланированные
@@ -49,7 +53,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.formatting import CustomEmoji, Text
 from loguru import logger
 
-from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS, REMINDER_EMOJI, REMINDER_TEXTS
+from bot.constants import (
+    CHECKIN_REMINDER_TEXTS,
+    OPEN_APP_EMOJI,
+    REMINDER_BUTTONS,
+    REMINDER_EMOJI,
+    REMINDER_TEXTS,
+)
 from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
 from tma.backend.constants import DEFAULT_LANGUAGE
@@ -57,7 +67,7 @@ from tma.backend.database import Database
 from tma.backend.repository import Repository
 from tma.backend.models import PushSubscription
 from tma.backend.repository import utc_now
-from tma.backend.services import DueReminder, due_reminders
+from tma.backend.services import DueReminder, due_checkin_reminders, due_reminders
 from tma.backend.webpush import (
     PushOutcome,
     PushTarget,
@@ -162,7 +172,9 @@ async def _send_due(
     # Сессия только на чтение и закрывается до отправки: сеть не держит соединение с БД.
     async with database.session_factory() as session:
         repo = Repository(session)
-        reminders = await due_reminders(repo, minute)
+        reminders = await due_reminders(repo, minute) + await due_checkin_reminders(
+            repo, minute
+        )
         subscriptions = (
             await repo.push_subscriptions_for({item.user_id for item in reminders})
             if reminders and push is not None
@@ -190,16 +202,27 @@ async def _send_due(
             await session.commit()
 
 
+def reminder_text(reminder: DueReminder) -> str:
+    """Текст напоминания на языке пользователя: о привычке или «Пора отметить привычки»."""
+    if reminder.habit_name is None:
+        return CHECKIN_REMINDER_TEXTS.get(
+            reminder.language, CHECKIN_REMINDER_TEXTS[DEFAULT_LANGUAGE]
+        )
+    template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
+    return template.format(name=reminder.habit_name)
+
+
 def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
     """Push notification of a reminder: same text as the bot message; a tap opens the
-    habit in the app.
+    habit in the app (the check-in reminder — the habit list).
 
     The text is the title and there is no body: iOS puts «from StreakApp» under the
     title itself (it can't be turned off), so an app-name title would only repeat it.
     Plain text, without the bot message's 🔔."""
-    template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
+    if reminder.task_id is None:
+        return notification(reminder_text(reminder), "", f"{base_url}/app?pwa=1", tag="checkin")
     return notification(
-        template.format(name=reminder.habit_name),
+        reminder_text(reminder),
         "",
         f"{base_url}/app?pwa=1&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
@@ -307,13 +330,12 @@ async def _send(
 ) -> bool:
     """Отправить одно напоминание; сбой доставки логируется и не мешает остальным. True —
     пользователь заблокировал бота."""
-    template = REMINDER_TEXTS.get(reminder.language, REMINDER_TEXTS[DEFAULT_LANGUAGE])
     # Анимированный эмодзи — сущностью (entities): название привычки остаётся простым
     # текстом, экранировать его не нужно.
     content = Text(
         CustomEmoji(REMINDER_EMOJI.fallback, custom_emoji_id=REMINDER_EMOJI.id),
         " ",
-        template.format(name=reminder.habit_name),
+        reminder_text(reminder),
     ).as_kwargs()
     markup = _keyboard(keyboards, reminder.language)
     try:

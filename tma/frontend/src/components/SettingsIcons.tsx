@@ -156,3 +156,14 @@ export function BellIcon() {
     </svg>
   );
 }
+
+/** Напоминание «Пора отметить привычки»: будильник. */
+export function AlarmIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle {...STROKE} cx="12" cy="13" r="7.5" />
+      <path {...STROKE} d="M12 9v4l2.5 1.5" />
+      <path {...STROKE} d="M4 5.5 6.5 3M20 5.5 17.5 3" />
+    </svg>
+  );
+}

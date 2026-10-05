@@ -24,6 +24,10 @@ export interface Settings {
   theme: ThemePreference;
   /** «Отмечать за вчера»: отметки ставятся за вчерашний день. */
   mark_yesterday: boolean;
+  /** Напоминание «Пора отметить привычки»: «ЧЧ:ММ»; null — выключено. */
+  checkin_reminder_time: string | null;
+  /** Дни недели напоминания (mon..sun); помнятся и при выключенном. */
+  checkin_reminder_days: string[];
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
 }
@@ -36,4 +40,13 @@ export interface SettingsUpdate {
   language?: Language;
   theme?: ThemePreference;
   mark_yesterday?: boolean;
+  /** Напоминание «Пора отметить привычки» — время и дни целиком. */
+  checkin_reminder?: CheckinReminder;
+}
+
+export interface CheckinReminder {
+  /** «ЧЧ:ММ»; null — выключить. */
+  time: string | null;
+  /** Хотя бы один день (mon..sun). */
+  days: string[];
 }

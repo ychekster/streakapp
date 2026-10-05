@@ -47,6 +47,7 @@ class FrequencyType(str, enum.Enum):
 
     daily = "daily"                  # каждый день
     specific_days = "specific_days"  # конкретные дни недели
+    every_other_day = "every_other_day"  # через день, начиная с Task.start_date
 
 
 class TaskStatus(str, enum.Enum):
@@ -102,6 +103,11 @@ class User(Base):
     mark_yesterday: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Напоминание «Пора отметить привычки» (настройки): время в поясе пользователя, None —
+    # выключено; дни недели — строка вида "mon,wed,fri" (помнятся и при выключенном).
+    # Присылает бот (bot/reminders.py); индекс — как у Task.reminder_time.
+    checkin_reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True, index=True)
+    checkin_reminder_days: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
     # (/start записывает пользователя, см. bot/handlers/start.py).
@@ -153,6 +159,8 @@ class Task(Base):
     )
     # Для specific_days: строка вида "mon,wed,fri".
     days: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Для every_other_day: первый день привычки; дальше — каждый второй день от него.
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Время напоминания в поясе пользователя; None — без напоминания. Напоминание
     # присылает бот (bot/reminders.py) в запланированные дни, если привычка не выполнена.

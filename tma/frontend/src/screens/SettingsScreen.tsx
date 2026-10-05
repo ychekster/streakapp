@@ -5,7 +5,8 @@
  *     tab has it too) and a footer; a tap opens the bot to link Telegram — the only
  *     login. Linked — the Telegram name; a tap opens the account (AccountScreen: log out).
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
- *     (светлая, тёмная или системная — как в системе) — системными меню. Under them:
+ *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминать
+ *     отмечать» — время или «Выкл.», открывает CheckinReminderScreen. Under them:
  *     in Telegram «Добавить на рабочий стол» (opens the install page in the phone's
  *     browser with a single-use login link, so the installed app opens this account);
  *     in the web app «Уведомления» — a switch (usePushToggle).
@@ -27,6 +28,7 @@ import { ListItem } from "../components/ListItem";
 import { LanguageRow, ThemeRow } from "../components/PreferenceRows";
 import { Screen } from "../components/Screen";
 import {
+  AlarmIcon,
   BellIcon,
   CalendarBackIcon,
   ClockIcon,
@@ -49,7 +51,14 @@ import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
 /** Вложенные экраны настроек. */
-export type SettingsPage = "timezone" | "review" | "privacy" | "terms" | "install" | "account";
+export type SettingsPage =
+  | "timezone"
+  | "checkinReminder"
+  | "review"
+  | "privacy"
+  | "terms"
+  | "install"
+  | "account";
 
 /** Web app: the account in the «Аккаунт» row. */
 export interface AccountState {
@@ -143,6 +152,17 @@ export function SettingsScreen({
           </ListItem>
           <LanguageRow value={settings.language} onChange={(language) => onSave({ language })} />
           <ThemeRow value={settings.theme} onChange={(theme) => onSave({ theme })} />
+          <ListItem
+            icon={<AlarmIcon />}
+            iconColor="purple"
+            label={strings.settingsCheckinReminder}
+            onPress={() => onOpen("checkinReminder")}
+          >
+            <span className={styles.value}>
+              {settings.checkin_reminder_time ?? strings.settingsCheckinReminderOff}
+            </span>
+            <Disclosure />
+          </ListItem>
           {install ? (
             <ListItem
               icon={<InstallIcon />}

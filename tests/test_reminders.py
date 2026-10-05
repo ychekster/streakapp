@@ -18,7 +18,7 @@ from tma.backend.constants import WEEKDAYS
 from tma.backend.database import Database
 from tma.backend.models import FrequencyType, TaskStatus
 from tma.backend.repository import Repository
-from tma.backend.services import DueReminder, due_reminders
+from tma.backend.services import DueReminder, due_checkin_reminders, due_reminders
 
 # 06:00 UTC = 09:00 в Москве (UTC+3) = 11:00 в Алматы (UTC+5).
 MOMENT = datetime(2026, 9, 22, 6, 0, tzinfo=timezone.utc)
@@ -102,6 +102,51 @@ def test_mark_yesterday_reminder_is_about_the_app_day(db_url: str) -> None:
 
     due = asyncio.run(_due(db_url, setup))
     assert [item.habit_name for item in due] == ["unmarked"]
+
+
+async def _due_checkin(db_url: str, setup) -> list[DueReminder]:
+    database = Database(db_url)
+    await database.create_tables()
+    try:
+        async with database.session_factory() as session:
+            await setup(Repository(session))
+            await session.commit()
+        async with database.session_factory() as session:
+            return await due_checkin_reminders(Repository(session), MOMENT)
+    finally:
+        await database.dispose()
+
+
+def test_checkin_reminder_needs_its_day_time_and_something_to_mark(db_url: str) -> None:
+    """«Пора отметить привычки» приходит в выбранные день и время, только если на день
+    отметки есть неотмеченная запланированная привычка."""
+    today = MOMENT.astimezone(timezone.utc).date()  # 09:00 в Москве — тот же день
+    weekday, other_day = WEEKDAYS[today.weekday()], WEEKDAYS[(today.weekday() + 1) % 7]
+    nine = time(9, 0)
+
+    async def setup(repo: Repository) -> None:
+        for user_id, reminder in [
+            (1, (nine, weekday)),        # есть что отметить — приходит
+            (2, (nine, other_day)),      # не тот день недели
+            (3, (time(10, 0), weekday)), # не то время
+            (4, (nine, weekday)),        # всё отмечено
+            (5, (nine, weekday)),        # нет запланированных привычек
+            (6, (None, weekday)),        # выключено
+        ]:
+            user = await repo.get_or_create_user(user_id, None, "U", language="en")
+            await repo.update_settings(user, timezone="Europe/Moscow", checkin_reminder=reminder)
+        for user_id in (1, 2, 3, 6):
+            await repo.create_task(user_id, "habit", FrequencyType.daily)
+        done = await repo.create_task(4, "done", FrequencyType.daily)
+        await repo.set_log_status(await repo.get_or_create_log(done.id, 4, today), TaskStatus.done)
+        await repo.create_task(5, "other day", FrequencyType.specific_days, days=other_day)
+
+    due = asyncio.run(_due_checkin(db_url, setup))
+    assert due == [DueReminder(task_id=None, user_id=1, habit_name=None, language="en")]
+    assert bot_reminders.reminder_text(due[0]) == "Time to check off your habits"
+    assert bot_reminders.push_payload(due[0], "https://app.example")["url"] == (
+        "https://app.example/app?pwa=1"
+    )
 
 
 class _FakeBot:

@@ -187,6 +187,7 @@ class TaskSchedule:
     created_on: date
     frequency_type: FrequencyType
     days: str | None
+    start_date: date | None = None
 
 
 class Repository:
@@ -266,9 +267,11 @@ class Repository:
         language: str | None = None,
         theme: str | None = None,
         mark_yesterday: bool | None = None,
+        checkin_reminder: tuple[time | None, str] | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
-        меняется вместе с поясом (None у нового пояса — пояс без города)."""
+        меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
+        «Пора отметить привычки» — (время или None — выключено, дни «mon,wed»)."""
         if timezone is not None:
             user.timezone = timezone
             user.timezone_city = timezone_city
@@ -278,6 +281,8 @@ class Repository:
             user.theme = theme
         if mark_yesterday is not None:
             user.mark_yesterday = mark_yesterday
+        if checkin_reminder is not None:
+            user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
         await self.session.flush()
 
     async def touch_user(self, user: User, now: datetime) -> None:
@@ -357,6 +362,7 @@ class Repository:
         days: str | None = None,
         reminder_time: time | None = None,
         color: str = DEFAULT_HABIT_COLOR,
+        start_date: date | None = None,
     ) -> Task:
         """Создать активную задачу."""
         task = Task(
@@ -364,6 +370,7 @@ class Repository:
             name=name,
             frequency_type=frequency_type,
             days=days,
+            start_date=start_date,
             reminder_time=reminder_time,
             color=color,
             is_active=True,
@@ -380,11 +387,13 @@ class Repository:
         days: str | None,
         reminder_time: time | None,
         color: str,
+        start_date: date | None = None,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.name = name
         task.frequency_type = frequency_type
         task.days = days
+        task.start_date = start_date
         task.reminder_time = reminder_time
         task.color = color
         await self.session.flush()
@@ -455,6 +464,30 @@ class Repository:
             .order_by(Task.id)
         )
         return list(result.scalars().all())
+
+    async def get_users_with_checkin_reminder_at(self, times: Collection[time]) -> list[User]:
+        """Незаблокированные администратором пользователи с напоминанием «Пора отметить
+        привычки» в одно из `times`."""
+        if not times:
+            return []
+        result = await self.session.execute(
+            select(User)
+            .where(User.checkin_reminder_time.in_(sorted(times)), User.blocked_at.is_(None))
+            .order_by(User.telegram_id)
+        )
+        return list(result.scalars().all())
+
+    async def get_active_tasks_of(self, user_ids: Collection[int]) -> list[Task]:
+        """Активные задачи этих пользователей (по пачкам, как отметки)."""
+        tasks: list[Task] = []
+        for batch in _batches(set(user_ids)):
+            result = await self.session.execute(
+                select(Task)
+                .where(Task.user_id.in_(batch), Task.is_active.is_(True))
+                .order_by(Task.id)
+            )
+            tasks += result.scalars().all()
+        return tasks
 
     # ------------------------------------------------------------------ #
     #  TaskLogs
@@ -799,13 +832,19 @@ class Repository:
     async def active_task_schedules(self) -> list[TaskSchedule]:
         """Расписания всех активных привычек (без названий и отметок)."""
         result = await self.session.execute(
-            select(Task.id, Task.created_at, Task.frequency_type, Task.days).where(
-                Task.is_active.is_(True)
-            )
+            select(
+                Task.id, Task.created_at, Task.frequency_type, Task.days, Task.start_date
+            ).where(Task.is_active.is_(True))
         )
         return [
-            TaskSchedule(id=task_id, created_on=created.date(), frequency_type=kind, days=days)
-            for task_id, created, kind, days in result.tuples()
+            TaskSchedule(
+                id=task_id,
+                created_on=created.date(),
+                frequency_type=kind,
+                days=days,
+                start_date=start,
+            )
+            for task_id, created, kind, days, start in result.tuples()
         ]
 
     async def done_task_days_since(self, since: date) -> list[tuple[int, date]]:

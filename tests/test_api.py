@@ -77,6 +77,63 @@ def test_habit_lifecycle(client: TestClient, user: AuthUser) -> None:
     assert client.get("/tasks", headers=user.headers).json()["habits"] == []
 
 
+def test_every_other_day_habit(client: TestClient, user: AuthUser) -> None:
+    from datetime import date, timedelta
+
+    today = date.today()  # пояс не выбран — UTC; тест не идёт ровно в полночь
+    created = client.post(
+        "/tasks",
+        json=_habit(frequency_type="every_other_day", start_date=today.isoformat()),
+        headers=user.headers,
+    )
+    assert created.status_code == 201, created.text
+    habit = created.json()["habit"]
+    assert (habit["frequency_type"], habit["start_date"], habit["scheduled_today"]) == (
+        "every_other_day", today.isoformat(), True,
+    )
+
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    moved = client.put(
+        f"/tasks/{habit['id']}",
+        json=_habit(frequency_type="every_other_day", start_date=tomorrow),
+        headers=user.headers,
+    ).json()["habit"]
+    assert (moved["start_date"], moved["scheduled_today"]) == (tomorrow, False)
+
+    missing = client.post(
+        "/tasks", json=_habit("Сон", frequency_type="every_other_day"), headers=user.headers
+    )
+    assert missing.status_code == 422
+    assert missing.json()["error"]["code"] == "invalid_start_date"
+
+
+def test_checkin_reminder_setting(client: TestClient, user: AuthUser) -> None:
+    settings = client.get("/settings", headers=user.headers).json()
+    assert (settings["checkin_reminder_time"], settings["checkin_reminder_days"]) == (None, [])
+
+    updated = client.put(
+        "/settings",
+        json={"checkin_reminder": {"time": "21:30", "days": ["fri", "mon", "xyz"]}},
+        headers=user.headers,
+    ).json()
+    assert (updated["checkin_reminder_time"], updated["checkin_reminder_days"]) == (
+        "21:30", ["mon", "fri"],
+    )
+
+    # Выключенное напоминание помнит дни.
+    off = client.put(
+        "/settings",
+        json={"checkin_reminder": {"time": None, "days": ["mon", "fri"]}},
+        headers=user.headers,
+    ).json()
+    assert (off["checkin_reminder_time"], off["checkin_reminder_days"]) == (None, ["mon", "fri"])
+
+    no_days = client.put(
+        "/settings", json={"checkin_reminder": {"time": "21:30", "days": []}}, headers=user.headers
+    )
+    assert no_days.status_code == 422
+
+
 def test_other_users_habit_is_not_accessible(
     client: TestClient, user: AuthUser, other_user: AuthUser
 ) -> None:

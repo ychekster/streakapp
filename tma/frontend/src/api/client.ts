@@ -42,6 +42,7 @@ export type ApiErrorCode =
   | "invalid_name"
   | "invalid_days"
   | "invalid_frequency"
+  | "invalid_start_date"
   | "invalid_reminder_time"
   | "invalid_color"
   | "invalid_timezone"

@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import unicodedata
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 
 import pytz
 
@@ -19,6 +19,7 @@ from tma.backend.constants import (
     LANGUAGES,
     REMINDER_TIME_FORMAT,
     REVIEW_MAX_LENGTH,
+    START_DATE_MAX_AHEAD_DAYS,
     THEMES,
     WEEKDAYS,
 )
@@ -48,22 +49,37 @@ def validate_name(name: str) -> str:
 
 
 def validate_frequency(
-    frequency_type: str, days: list[str]
-) -> tuple[FrequencyType, str | None]:
-    """Проверить частоту и собрать строку дней.
+    frequency_type: str, days: list[str], start_date: date | None, today: date
+) -> tuple[FrequencyType, str | None, date | None]:
+    """Проверить частоту и собрать строку дней и первый день.
 
-    Для `daily` дни не нужны (возвращается None). Для `specific_days` — хотя бы один
-    валидный код; возвращается строка кодов в каноническом порядке («mon,wed,fri»).
+    Для `daily` дни и первый день не нужны (возвращается None). Для `specific_days` —
+    хотя бы один валидный код; возвращается строка кодов в каноническом порядке
+    («mon,wed,fri»). Для `every_other_day` — первый день: любой прошедший (так его
+    сохраняет и изменение старой привычки) и не дальше `START_DATE_MAX_AHEAD_DAYS` вперёд.
     """
     if frequency_type == "daily":
-        return FrequencyType.daily, None
+        return FrequencyType.daily, None, None
     if frequency_type == "specific_days":
         chosen = {code for code in days if code in WEEKDAYS}
         if not chosen:
             raise ApiError(422, "invalid_days", "Выберите хотя бы один день недели")
         ordered = ",".join(code for code in WEEKDAYS if code in chosen)
-        return FrequencyType.specific_days, ordered
+        return FrequencyType.specific_days, ordered, None
+    if frequency_type == "every_other_day":
+        if start_date is None or start_date > today + timedelta(days=START_DATE_MAX_AHEAD_DAYS):
+            raise ApiError(422, "invalid_start_date", "Выберите дату начала")
+        return FrequencyType.every_other_day, None, start_date
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
+
+
+def validate_days(days: list[str]) -> str:
+    """Дни недели напоминания «Пора отметить привычки»: хотя бы один валидный код;
+    строка кодов в каноническом порядке («mon,wed,fri»)."""
+    chosen = {code for code in days if code in WEEKDAYS}
+    if not chosen:
+        raise ApiError(422, "invalid_days", "Выберите хотя бы один день недели")
+    return ",".join(code for code in WEEKDAYS if code in chosen)
 
 
 def validate_reminder_time(value: str | None) -> time | None:

@@ -17,10 +17,12 @@ export interface Habit {
    * false — только просмотр прогресса (кнопка отметки неактивна).
    */
   scheduled_today: boolean;
-  /** Частота: каждый день или конкретные дни недели. */
+  /** Частота: каждый день, конкретные дни недели или через день. */
   frequency_type: FrequencyType;
-  /** Коды дней недели (mon..sun) для specific_days; для daily — пустой массив. */
+  /** Коды дней недели (mon..sun) для specific_days; для остальных — пустой массив. */
   days: string[];
+  /** Первый день привычки every_other_day («ГГГГ-ММ-ДД»), дальше — каждый второй; иначе null. */
+  start_date: string | null;
   /**
    * Выполнение за последние HISTORY_DAYS дней (старое → сегодня).
    * true — день выполнен, false — пропущен/нет данных.
@@ -53,14 +55,16 @@ export interface HabitResponse {
 }
 
 /** Частота выполнения привычки. */
-export type FrequencyType = "daily" | "specific_days";
+export type FrequencyType = "daily" | "specific_days" | "every_other_day";
 
 /** Тело запроса POST /tasks (создание) и PUT /tasks/{id} (изменение) — поля формы привычки. */
 export interface HabitInput {
   name: string;
   frequency_type: FrequencyType;
-  /** Коды дней недели (mon..sun) для specific_days; для daily игнорируется. */
+  /** Коды дней недели (mon..sun) для specific_days; для остальных игнорируется. */
   days: string[];
+  /** Первый день («ГГГГ-ММ-ДД») для every_other_day; для остальных — null. */
+  start_date: string | null;
   /** Время напоминания «ЧЧ:ММ»; null — без напоминания. */
   reminder_time: string | null;
   color: HabitColor;
