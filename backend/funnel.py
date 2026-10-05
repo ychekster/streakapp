@@ -15,14 +15,18 @@ from typing import Any
 
 from backend.accounts import client_platform
 from backend.constants import (
+    APP_OPEN_EVENT,
+    APP_OPEN_SOURCES,
     EVENT_CONTEXTS,
     EVENT_PLATFORMS,
     EVENT_PROPS_MAX_BYTES,
     FUNNEL_EVENTS,
+    MAX_DB_INT,
 )
 from backend.errors import ApiError
 from backend.repository import Repository
 from backend.schemas import EventIn, FunnelResponse, FunnelRow
+from backend.sources import parse_source
 
 # Shown instead of an empty platform or source in the report.
 UNKNOWN = "unknown"
@@ -40,8 +44,39 @@ def _clean_src(value: str | None) -> str | None:
     return cleaned[:32] or None
 
 
+async def _remember_source(repo: Repository, user_id: int, src: str | None) -> None:
+    """A web account without a source takes the one its device came with (first touch:
+    the landing keeps `src` on the device). Telegram accounts get theirs from the bot."""
+    user = await repo.get_user(user_id)
+    if user is None or user.source is not None or (user.signup_platform or "web") != "web":
+        return
+    parsed = parse_source(src)
+    if parsed is not None:
+        await repo.set_source(user, parsed)
+
+
+async def _record_app_open(repo: Repository, payload: EventIn, user_id: int) -> None:
+    """«Opened the app» and from where (the button's `from=`) — into the action log."""
+    props = payload.props or {}
+    origin = props.get("from")
+    broadcast = props.get("b")
+    await repo.log_action(
+        user_id,
+        APP_OPEN_EVENT,
+        detail=origin if origin in APP_OPEN_SOURCES else None,
+        ref_id=int(broadcast) if str(broadcast).isdigit() and int(str(broadcast)) <= MAX_DB_INT else None,
+    )
+
+
 async def record_client_event(repo: Repository, payload: EventIn, user_id: int | None) -> None:
-    """Store an event sent by the landing or the app; unknown names are rejected."""
+    """Store an event sent by the landing or the app; unknown names are rejected. The app's
+    «opened» event goes to the action log instead of the funnel."""
+    if user_id is not None:
+        await _remember_source(repo, user_id, payload.src)
+    if payload.event == APP_OPEN_EVENT:
+        if user_id is not None:
+            await _record_app_open(repo, payload, user_id)
+        return
     if payload.event not in FUNNEL_EVENTS:
         raise ApiError(422, "invalid_event", "Неизвестное событие")
     props: dict[str, Any] | None = payload.props or None

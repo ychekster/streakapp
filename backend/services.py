@@ -166,6 +166,14 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
     return [build_habit(task, done[task.id], today) for task in tasks]
 
 
+async def _record_mark(repo: Repository, user: User, task: Task, done: bool) -> None:
+    """Отметка поставлена или снята: в ленту действий и, если поставлена, — день отметки
+    (аналитика: отмечающие за день, активация, удержание)."""
+    await repo.log_action(user.telegram_id, "checkin" if done else "uncheck", ref_id=task.id)
+    if done:
+        await repo.record_checkin_day(user.telegram_id, utc_now())
+
+
 async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     """Переключить отметку выполнения задачи за сегодня и вернуть обновлённую привычку.
 
@@ -176,6 +184,7 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     log = await repo.get_or_create_log(task.id, user.telegram_id, today)
     target = TaskStatus.pending if log.status == TaskStatus.done else TaskStatus.done
     await repo.set_log_status(log, target)
+    await _record_mark(repo, user, task, target == TaskStatus.done)
     return await _built_habit(repo, task, today)
 
 
@@ -228,7 +237,7 @@ async def _create_task(
             409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
         )
     fields = await _validate_habit_fields(repo, user, payload)
-    return await repo.create_task(
+    task = await repo.create_task(
         user_id=user.telegram_id,
         name=fields.name,
         frequency_type=fields.frequency_type,
@@ -238,6 +247,8 @@ async def _create_task(
         color=fields.color,
         client_ref=client_ref,
     )
+    await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
+    return task
 
 
 async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
@@ -264,7 +275,14 @@ async def update_habit(
         reminder_time=fields.reminder_time,
         color=fields.color,
     )
+    await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
     return await _built_habit(repo, task, user_today(user))
+
+
+async def delete_habit(repo: Repository, user: User, task: Task) -> None:
+    """Удалить привычку (мягко) и записать это в ленту."""
+    await repo.soft_delete_task(task)
+    await repo.log_action(user.telegram_id, "habit_deleted", ref_id=task.id)
 
 
 @dataclass
@@ -309,6 +327,7 @@ async def _apply_sync_op(
         target = TaskStatus.done if op.done else TaskStatus.pending
         if log.status != target:
             await repo.set_log_status(log, target)
+            await _record_mark(repo, user, task, op.done)
         outcome.checked_in = outcome.checked_in or op.done
         return SyncResult(ok=True)
     if isinstance(op, SyncCreate):
@@ -328,7 +347,7 @@ async def _apply_sync_op(
         # Уже удалённая (или так и не созданная) привычка — цель достигнута.
         task = await _task_by_ref(repo, user, op.task)
         if task is not None:
-            await repo.soft_delete_task(task)
+            await delete_habit(repo, user, task)
         return SyncResult(ok=True)
     await update_settings(repo, user, op.patch)
     return SyncResult(ok=True)
@@ -521,6 +540,9 @@ async def update_settings(
             else None
         ),
     )
+    changed = sorted(payload.model_dump(exclude_none=True))
+    if changed:
+        await repo.log_action(user.telegram_id, "settings", detail=",".join(changed))
     return await read_settings(repo, user)
 
 
@@ -535,6 +557,7 @@ async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> 
     if await repo.count_reviews_since(user.telegram_id, since) >= MAX_REVIEWS_PER_DAY:
         raise ApiError(429, "review_limit", "Слишком много отзывов за сутки")
     review = await repo.create_review(user.telegram_id, text)
+    await repo.log_action(user.telegram_id, "review", ref_id=review.id)
     return ReviewCreated(id=review.id, created_at=review.created_at)
 
 

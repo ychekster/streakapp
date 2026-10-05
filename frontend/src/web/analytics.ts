@@ -12,7 +12,8 @@
 
 import { authorizationHeader } from "../api/client";
 import { DEFAULT_SRC } from "../landing/config";
-import { browserContext, devicePlatform } from "../platform";
+import { browserContext, devicePlatform, isTelegram } from "../platform";
+import { openedByLink } from "../telegram/webapp";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const ANON_KEY = "streak:anon";
@@ -92,6 +93,73 @@ export function track(event: string, props?: Record<string, unknown>): void {
     }).catch(() => undefined);
   } catch {
     // Analytics must never break the page.
+  }
+}
+
+/** Where the app was opened from — `from=` of the address: the bot's buttons and push
+ *  notifications put it there (backend/messaging.py, bot/reminders.py). */
+const APP_OPEN_ORIGINS = [
+  "menu",
+  "welcome",
+  "reminder",
+  "broadcast",
+  "push",
+  "install_offer",
+  "link",
+  "icon",
+];
+
+let appOpenTracked = false;
+
+/** «Opened the app» for the admin panel's analytics, once per launch: where from (the
+ *  address's `from`; without it — the bot's menu button or a direct link in Telegram, the
+ *  home screen icon on the web) and which broadcast (`b`). The two parameters are then
+ *  dropped from the address, so a reload is not counted as a new open from there. */
+export function trackAppOpen(): void {
+  if (appOpenTracked) {
+    return;
+  }
+  appOpenTracked = true;
+  try {
+    const url = new URL(window.location.href);
+    const from = url.searchParams.get("from");
+    const origin =
+      from && APP_OPEN_ORIGINS.includes(from)
+        ? from
+        : isTelegram()
+          ? openedByLink()
+            ? "link"
+            : "menu"
+          : "icon";
+    track("app_open", { from: origin, b: url.searchParams.get("b") });
+    if (url.searchParams.has("from") || url.searchParams.has("b")) {
+      url.searchParams.delete("from");
+      url.searchParams.delete("b");
+      window.history.replaceState(window.history.state, "", url.toString());
+    }
+  } catch {
+    // Analytics must never break the app.
+  }
+}
+
+/** A push notification was tapped while the app was already open. */
+export function trackPushOpen(): void {
+  track("app_open", { from: "push" });
+}
+
+/** Link to the bot that keeps the install source: `?start=src_<source>` (the bot remembers
+ *  it for a new user, backend/sources.py). Without a real source — the plain link. */
+export function botLinkWithSource(botUrl: string): string {
+  const source = installSource();
+  if (!source || source === DEFAULT_SRC) {
+    return botUrl;
+  }
+  try {
+    const url = new URL(botUrl);
+    url.searchParams.set("start", `src_${source}`);
+    return url.toString();
+  } catch {
+    return botUrl;
   }
 }
 

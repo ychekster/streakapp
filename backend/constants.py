@@ -125,10 +125,60 @@ ACTIVE_NOW_MINUTES = 5
 # Дальше список ведут сами администраторы в админ-панели.
 SEED_ADMIN_IDS: tuple[int, ...] = (6422071424,)
 
-# Периоды графиков аналитики, дней: по умолчанию — месяц.
-ANALYTICS_PERIODS: tuple[int, ...] = (7, 30, 90)
-DEFAULT_ANALYTICS_PERIOD = 30
-# Распределение числа привычек у пользователей: 0, 1, …, «N и больше».
+# --------------------------------------------------------------------------- #
+#  Аналитика админ-панели (backend/analytics/)
+# --------------------------------------------------------------------------- #
+
+# Дни аналитики считаются по времени владельца — Алматы, а не по UTC: день активности
+# (user_activity), день отметки (checkin_days) и границы периодов.
+ANALYTICS_TIMEZONE = "Asia/Almaty"
+# Периоды аналитики: сегодня, последние 7 / 30 / 90 дней (сегодня включительно), всё время.
+ANALYTICS_PERIODS: tuple[str, ...] = ("today", "7", "30", "90", "all")
+DEFAULT_ANALYTICS_PERIOD = "30"
+# Платформа, на которой пользователь появился впервые (users.signup_platform).
+PLATFORMS: tuple[str, ...] = ("telegram", "web")
+# Устройство по последнему запросу (users.device).
+DEVICES: tuple[str, ...] = ("ios", "android", "desktop")
+
+# «Активирован»: в первые ACTIVATION_WINDOW_DAYS дней (день прихода — первый) отметил
+# привычку хотя бы в ACTIVATION_MIN_DAYS разных дней. Значения по умолчанию — админ
+# меняет их в настройках панели (таблица app_config).
+DEFAULT_ACTIVATION_WINDOW_DAYS = 3
+DEFAULT_ACTIVATION_MIN_DAYS = 2
+ACTIVATION_WINDOW_MAX_DAYS = 14
+# «Живой пользователь»: отмечал привычки хотя бы LIVE_MIN_DAYS разных дней за последние
+# LIVE_WINDOW_DAYS дней. Главный показатель здоровья приложения.
+LIVE_WINDOW_DAYS = 7
+LIVE_MIN_DAYS = 3
+# «Ушёл»: не открывал приложение столько дней (бота не блокировал).
+CHURN_DAYS = 14
+# Напоминание «сработало», если привычку отметили в течение стольких часов после него.
+REMINDER_EFFECT_HOURS = 2
+
+# Источники трафика. Источник запоминается при первом приходе и больше не меняется;
+# без метки — «напрямую» (direct). Метка в ссылке: у бота — /start src_<источник>_<подпись>,
+# у веб-версии — ?src=<источник>_<подпись> (лендинг передаёт её дальше). Источник — латиница
+# и цифры, подпись (номер поста) — ещё и «_», «-».
+SOURCE_DIRECT = "direct"
+# Готовые источники генератора ссылок и фильтра «Источник»; «other» в фильтре — любой
+# другой источник, кроме перечисленных и «напрямую».
+SOURCE_PRESETS: tuple[str, ...] = ("threads", "instagram", "friends")
+SOURCE_OTHER = "other"
+SOURCE_MAX_LENGTH = 16
+SOURCE_TAG_MAX_LENGTH = 32
+# Префикс параметра /start (и startapp Mini App) с источником.
+SOURCE_START_PREFIX = "src_"
+# Внутренние значения `src` веб-воронки (переход из Telegram в установку) — это не
+# источник трафика.
+INTERNAL_SOURCES: tuple[str, ...] = ("direct", "bot", "settings", "install", "unknown")
+
+# Группа людей из аналитики (таблица segments): не больше стольких id.
+SEGMENT_MAX_USERS = 20_000
+SEGMENT_TITLE_MAX_LENGTH = 160
+# Лента действий в профиле — страницами по столько записей.
+TIMELINE_PAGE_SIZE = 50
+
+# Распределение числа привычек у пользователей (старая сводка): 0, 1, …, «N и больше».
 HABITS_DISTRIBUTION_MAX = 5
 
 # Страницы списков пользователей и отзывов (бесконечная прокрутка).
@@ -148,16 +198,34 @@ CAPTION_MAX_LENGTH = 1024
 AUDIENCE_FILTERS: dict[str, tuple[str, ...]] = {
     "app": ("opened", "never"),  # открывали приложение / только запустили бота
     "habits": ("any", "none"),  # добавили хотя бы одну привычку / ни одной
-    # Были в приложении за 1, 7, 30 дней / открывали его, но не заходят 7 или 30 дней.
-    "activity": ("1d", "7d", "30d", "inactive_7d", "inactive_30d"),
-    "joined": ("1d", "7d", "30d"),  # появились за 1, 7, 30 дней
+    # Были в приложении за 1, 7, 30 дней / открывали его, но не заходят 3, 7, 14, 30 дней.
+    "activity": (
+        "1d", "7d", "30d", "inactive_3d", "inactive_7d", "inactive_14d", "inactive_30d",
+    ),
+    # Появились сегодня (по Алматы), за 24 часа, 7, 30, 90 дней.
+    "joined": ("today", "1d", "7d", "30d", "90d"),
+    "platform": PLATFORMS,  # пришли из Telegram / из веб-приложения
+    "device": DEVICES,  # iPhone / Android / компьютер
+    # Источник: готовые, «напрямую» и любой другой.
+    "source": (*SOURCE_PRESETS, SOURCE_DIRECT, SOURCE_OTHER),
+    "activated": ("yes", "no"),  # активирован (см. ACTIVATION_*) / нет
+    # На каком шаге воронки застрял: запустил бота, но не открыл приложение; открыл, но
+    # не добавил привычку; добавил, но ни разу не отметил; отмечал, но не активирован.
+    "stuck": ("no_open", "no_habit", "no_checkin", "not_activated"),
+    "uninstalled": ("likely",),  # вероятно удалил веб-приложение
+    "reminders": ("any", "none"),  # есть напоминания (о привычке или «пора отметить») / нет
+    "streak": ("3", "7", "14", "30"),  # текущая серия от N дней
     "language": LANGUAGES,  # язык интерфейса
     "reviews": ("any", "none"),  # оставляли отзыв / нет
     "bot": ("ok", "blocked"),  # заблокировали бота / нет
     "access": ("ok", "blocked"),  # заблокированы администратором / нет
+    "test": ("yes", "no"),  # тестовый аккаунт (не входит в аналитику) / нет
 }
-# Самая длинная строка фильтра в запросе (все признаки сразу — меньше 150 символов).
-AUDIENCE_MAX_LENGTH = 200
+# Группа людей из аналитики: признак «segment», значение — id группы (segments.id).
+# Значения у него не перечислены — проверяется число.
+SEGMENT_FILTER = "segment"
+# Самая длинная строка фильтра в запросе (все признаки сразу — меньше 300 символов).
+AUDIENCE_MAX_LENGTH = 300
 # Признаки, которых нет у рассылки: заблокировавшие бота и заблокированные
 # администратором рассылок не получают никогда.
 BROADCAST_EXCLUDED_FILTERS: tuple[str, ...] = ("bot", "access")
@@ -201,6 +269,13 @@ FUNNEL_EVENTS: tuple[str, ...] = (
     "push_permission_granted",
     "push_permission_denied",
     "account_linked",
+)
+# «Открыл приложение» (POST /events, событие app_open) — откуда: кнопка меню бота,
+# приветствие, напоминание, рассылка, push-уведомление, предложение установить, прямая
+# ссылка на Mini App, иконка веб-приложения. Пишется в ленту действий, не в воронку.
+APP_OPEN_EVENT = "app_open"
+APP_OPEN_SOURCES: tuple[str, ...] = (
+    "menu", "welcome", "reminder", "broadcast", "push", "install_offer", "link", "icon",
 )
 # Accepted values of the event context fields (anything else is stored as null).
 EVENT_PLATFORMS: tuple[str, ...] = ("ios", "android", "desktop")

@@ -55,7 +55,11 @@ interface TelegramWebApp {
   initData: string;
   /** Неподписанная копия initData — для оформления (язык) и чьи данные хранить на
    *  устройстве (id), не для авторизации. */
-  initDataUnsafe?: { user?: { id?: number; language_code?: string } };
+  initDataUnsafe?: {
+    user?: { id?: number; language_code?: string };
+    /** Параметр прямой ссылки на Mini App (`startapp=`). */
+    start_param?: string;
+  };
   platform: string;
   /** Светлая или тёмная тема Telegram сейчас; меняется с событием themeChanged. */
   colorScheme?: "light" | "dark";
@@ -129,6 +133,11 @@ export function getInitData(): string {
 /** Код языка Telegram пользователя («ru», «en», …) или undefined вне Telegram. */
 export function getTelegramLanguageCode(): string | undefined {
   return getWebApp()?.initDataUnsafe?.user?.language_code;
+}
+
+/** Mini App открыта прямой ссылкой (`t.me/<бот>/<app>?startapp=…`) — для аналитики. */
+export function openedByLink(): boolean {
+  return Boolean(getWebApp()?.initDataUnsafe?.start_param);
 }
 
 /** Id пользователя Telegram (чьи данные хранятся на устройстве, см. data/store.ts) или

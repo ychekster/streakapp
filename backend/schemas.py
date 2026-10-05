@@ -12,10 +12,12 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, Field
 
 from backend.constants import (
+    ACTIVATION_WINDOW_MAX_DAYS,
     CLIENT_REF_MAX_LENGTH,
     DEFAULT_HABIT_COLOR,
     HISTORY_DAYS,
     MAX_DB_INT,
+    SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
 )
 
@@ -321,6 +323,7 @@ class AdminUserSummary(AdminUserRef):
     created_at: UtcDateTime
     last_seen_at: UtcDateTime | None
     blocked: bool = Field(..., description="Заблокирован администратором")
+    is_test: bool = Field(False, description="Тестовый аккаунт")
 
 
 class AdminUsersPage(BaseModel):
@@ -374,6 +377,20 @@ class AdminUserProfile(AdminUserRef):
     is_admin: bool
     habits: int = Field(..., description="Активных привычек")
     reviews: list[AdminReview]
+    # --- Сводка аналитики ---
+    source: str = Field("direct", description="Откуда пришёл; direct — без метки")
+    source_tag: str | None = Field(None, description="Подпись ссылки (номер поста)")
+    platform: Literal["telegram", "web"] = "telegram"
+    device: str | None = Field(None, description="ios / android / desktop")
+    is_test: bool = Field(False, description="Тестовый аккаунт — не входит в аналитику")
+    status: Literal["active", "not_opened", "churned", "bot_blocked", "uninstalled"] = "active"
+    activated: bool | None = Field(None, description="Активирован; null — окно ещё идёт")
+    live: bool = False
+    current_streak: int = 0
+    best_streak: int = 0
+    checkin_days: int = Field(0, description="Сколько разных дней отмечал привычки")
+    completion_30d: float | None = Field(None, description="Доля выполнения за 30 дней")
+    last_checkin: date | None = None
 
 
 class AdminUserResponse(BaseModel):
@@ -449,87 +466,314 @@ class BroadcastResponse(BaseModel):
     broadcast: BroadcastInfo
 
 
-class AnalyticsUsers(BaseModel):
-    """Пользователи: всего, открывшие приложение, заблокировавшие бота и т.д."""
-
-    total: int
-    opened_app: int = Field(..., description="Открывали приложение")
-    never_opened: int = Field(..., description="Только запустили бота")
-    blocked_bot: int = Field(..., description="Заблокировали бота")
-    blocked: int = Field(..., description="Заблокированы администратором")
-    active_now: int = Field(..., description="Были в приложении последние минуты")
+# --------------------------------------------------------------------------- #
+#  Аналитика админ-панели (/admin/analytics/*, backend/analytics/)
+# --------------------------------------------------------------------------- #
+#
+# Доли — от 0 до 1 (null — делить не на что), дни — «ГГГГ-ММ-ДД» по Алматы. У цифр с
+# изменением к прошлому периоду `previous` — значение за такой же период до этого (null —
+# у «всего времени» его нет).
 
 
-class AnalyticsFunnel(BaseModel):
-    """Новые пользователи за период: запустили бота → из них открыли приложение → из них
-    добавили хотя бы одну привычку (удалённые тоже считаются)."""
+class Metric(BaseModel):
+    """Цифра и она же за прошлый такой же период."""
 
-    started_bot: int
-    opened_app: int
-    added_habit: int
+    value: float | None
+    previous: float | None = None
 
 
-class AnalyticsAudience(BaseModel):
-    """Все пользователи без пересечений: пользуются приложением, ещё не открывали его,
-    заблокировали бота (открывали приложение или нет)."""
-
-    uses_app: int
-    never_opened: int
-    blocked_bot: int
-
-
-class AnalyticsActivity(BaseModel):
-    """Разные пользователи, открывавшие приложение: сегодня, за 7 и за 30 дней (UTC)."""
-
-    dau: int
-    wau: int
-    mau: int
-
-
-class HabitsBucket(BaseModel):
-    """Сколько пользователей приложения завели столько привычек (`open_ended` — «и больше»)."""
-
-    habits: int
-    users: int
-    open_ended: bool
-
-
-class AnalyticsHabits(BaseModel):
-    """Привычки тех, кто пользуется приложением (открывал его и не заблокировал бота): в
-    среднем на такого пользователя, всего и распределение — в сумме оно равно
-    `audience.uses_app`."""
-
-    average: float
-    total: int
-    distribution: list[HabitsBucket]
-
-
-class AnalyticsDay(BaseModel):
-    """День графиков (UTC)."""
-
+class DayValue(BaseModel):
     date: date
-    new_users: int
-    total_users: int = Field(..., description="Пользователей к концу дня")
-    active_users: int = Field(..., description="DAU")
-    scheduled: int = Field(..., description="Запланированных на день выполнений привычек")
-    completed: int = Field(..., description="Из них выполнено")
-    completion_rate: float | None = Field(
-        ..., description="completed / scheduled; null — ничего не запланировано"
-    )
+    value: float | None
 
 
-class AnalyticsResponse(BaseModel):
-    """Ответ `GET /admin/analytics`."""
+class AnalyticsMeta(BaseModel):
+    """Общее у всех разделов: период, фильтр, источники для фильтра и с какого момента
+    собираются новые данные (null — с самого начала)."""
 
-    period_days: int
+    period: str
+    start: date | None
+    end: date
     generated_at: UtcDateTime
-    users: AnalyticsUsers
-    funnel: AnalyticsFunnel
-    audience: AnalyticsAudience
-    activity: AnalyticsActivity
-    habits: AnalyticsHabits
-    completion_rate: float | None = Field(..., description="Доля выполнения за период")
-    days: list[AnalyticsDay]
+    tracking_since: UtcDateTime | None
+    sources: list[str]
+    activation_window_days: int
+    activation_min_days: int
+
+
+class SummaryToday(BaseModel):
+    opened: int
+    checked_in: int
+    online: int
+    opened_yesterday: int
+    checked_in_yesterday: int
+
+
+class ChangeItem(BaseModel):
+    """Заметное изменение для блока «Что изменилось» (текст собирает фронтенд)."""
+
+    kind: Literal["new_users", "activation", "blocked", "live", "d7", "inactive"]
+    current: float
+    previous: float
+    source: str | None = Field(None, description="Источник, который дал больше всего изменения")
+
+
+class AnalyticsSummary(BaseModel):
+    """`GET /admin/analytics/summary` — главный экран."""
+
+    meta: AnalyticsMeta
+    live: Metric
+    live_weeks: list[DayValue] = Field(..., description="«Живые» в конце каждой из 8 недель")
+    new_users: Metric
+    activation: Metric
+    activation_pending: int = Field(..., description="Новые, у кого окно активации ещё идёт")
+    d7: Metric
+    d7_cohort: int
+    today: SummaryToday
+    blocked_bot: Metric
+    became_inactive: Metric
+    uninstalled: Metric
+    changes: list[ChangeItem]
+
+
+class FunnelStep(BaseModel):
+    key: str
+    users: int
+    from_previous: float | None
+    from_start: float | None
+    # Обычно проходит до следующего шага (медиана), минут; null — не считается.
+    median_minutes_to_next: float | None = None
+    # Можно ли открыть людей шага (у шагов страницы установки людей ещё нет).
+    people: bool = True
+
+
+class FunnelSourceRow(BaseModel):
+    source: str
+    steps: list[int]
+
+
+class FunnelReport(BaseModel):
+    platform: Literal["telegram", "web"]
+    steps: list[FunnelStep]
+    by_source: list[FunnelSourceRow]
+
+
+class AnalyticsFunnelResponse(BaseModel):
+    """`GET /admin/analytics/funnel`."""
+
+    meta: AnalyticsMeta
+    funnels: list[FunnelReport]
+
+
+class RetentionWeek(BaseModel):
+    start: date
+    size: int
+    cells: list[float | None] = Field(..., description="Доля активных на неделе 0, 1, …")
+
+
+class RetentionCurve(BaseModel):
+    key: str
+    size: int
+    points: list[float | None] = Field(..., description="Доля активных на день 0…30")
+
+
+class LeaveBucket(BaseModel):
+    key: str
+    users: int
+
+
+class AnalyticsRetentionResponse(BaseModel):
+    """`GET /admin/analytics/retention`."""
+
+    meta: AnalyticsMeta
+    basis: Literal["open", "checkin"]
+    weeks: list[RetentionWeek]
+    curves: list[RetentionCurve]
+    d1: Metric
+    d7: Metric
+    d30: Metric
+    leave: list[LeaveBucket]
+    still_active: int
+
+
+class ReturnReason(BaseModel):
+    key: str
+    users: int
+
+
+class AnalyticsChurnResponse(BaseModel):
+    """`GET /admin/analytics/churn`."""
+
+    meta: AnalyticsMeta
+    blocked: Metric
+    blocked_days: list[DayValue]
+    blocked_had_habit: int
+    blocked_activated: int
+    inactive_total: int
+    became_inactive: Metric
+    inactive_buckets: list[LeaveBucket]
+    uninstalled_total: int
+    uninstalled: Metric
+    returned: Metric
+    return_reasons: list[ReturnReason]
+    groups: list[LeaveBucket]
+
+
+class NamedCount(BaseModel):
+    key: str
+    name: str
+    users: int
+    habits: int = 0
+
+
+class AnalyticsHabitsResponse(BaseModel):
+    """`GET /admin/analytics/habits`."""
+
+    meta: AnalyticsMeta
+    average: float | None
+    with_habits: int
+    without_habits: int
+    per_user: list[LeaveBucket]
+    top_names: list[NamedCount]
+    frequency: list[LeaveBucket]
+    total_habits: int
+    with_reminder: int
+    reminder_hours: list[int]
+    deleted: Metric
+    deleted_median_days: float | None
+    deleted_first_week: float | None
+    deleted_top: list[NamedCount]
+    streaks_current: list[LeaveBucket]
+    streaks_best: list[LeaveBucket]
+    streak_7: int
+    streak_30: int
+    streak_100: int
+    longest_streak: int
+    completion: Metric
+    completion_days: list[DayValue]
+    completion_weekdays: list[float | None] = Field(..., description="Пн…Вс")
+    checkin_hours: list[int] = Field(..., description="Отметок по часам (время пользователя)")
+    features: list[NamedCount]
+    app_users: int
+
+
+class SourceRow(BaseModel):
+    source: str
+    tag: str | None
+    new_users: int
+    opened_rate: float | None
+    activated_rate: float | None
+    d7_rate: float | None
+    live: int
+
+
+class AnalyticsSourcesResponse(BaseModel):
+    """`GET /admin/analytics/sources`."""
+
+    meta: AnalyticsMeta
+    rows: list[SourceRow]
+    platforms: list[LeaveBucket]
+    devices: list[LeaveBucket]
+    languages: list[LeaveBucket]
+    timezones: list[NamedCount]
+    web_users: int
+    web_linked: int
+    cohort: int
+
+
+class BroadcastStats(BaseModel):
+    id: int
+    created_at: UtcDateTime
+    text: str | None
+    media_type: str | None
+    audience: str
+    button: str | None
+    total: int
+    sent: int
+    failed: int
+    tracked: bool = Field(..., description="Есть данные о получателях (рассылка после начала сбора)")
+    opened_24h: int
+    opened_72h: int
+    checked_72h: int
+    blocked_24h: int
+    button_opens: int
+
+
+class AnalyticsMessagingResponse(BaseModel):
+    """`GET /admin/analytics/messaging` — напоминания, рассылки, предложение установки."""
+
+    meta: AnalyticsMeta
+    reminders_telegram: int
+    reminders_push: int
+    reminders_failed: int
+    reminders_followed: float | None
+    reminder_opens: int
+    reminder_open_users: int
+    push_opens: int
+    with_reminders: int
+    without_reminders: int
+    live_with: float | None
+    live_without: float | None
+    d7_with: float | None
+    d7_without: float | None
+    broadcasts: list[BroadcastStats]
+    offer_shown: int
+    offer_clicked: int
+    offer_installed: int
+    prompt_shown: int
+    prompt_accepted: int
+    prompt_installed: int
+
+
+class SegmentCreate(BaseModel):
+    """`POST /admin/segments` — люди за цифрой аналитики (metric — см. analytics/people.py)."""
+
+    metric: str = Field(..., max_length=64)
+    arg: str | None = Field(None, max_length=64)
+    period: str = Field("30", max_length=8)
+    platform: str | None = Field(None, max_length=16)
+    source: str | None = Field(None, max_length=32)
+    basis: str | None = Field(None, max_length=16)
+    title: str = Field(..., max_length=SEGMENT_TITLE_MAX_LENGTH)
+
+
+class SegmentInfo(BaseModel):
+    id: int
+    title: str
+    count: int
+
+
+class AnalyticsConfig(BaseModel):
+    """Пороги активации (настройки панели) и данные для генератора ссылок."""
+
+    activation_window_days: int
+    activation_min_days: int
+    bot_username: str | None
+    web_url: str
+    sources: list[str]
+
+
+class AnalyticsConfigUpdate(BaseModel):
+    activation_window_days: int = Field(..., ge=1, le=ACTIVATION_WINDOW_MAX_DAYS)
+    activation_min_days: int = Field(..., ge=1, le=ACTIVATION_WINDOW_MAX_DAYS)
+
+
+class TimelineItem(BaseModel):
+    at: UtcDateTime
+    kind: str
+    detail: str | None = None
+    habit: str | None = Field(None, description="Название привычки, если действие о ней")
+
+
+class TimelinePage(BaseModel):
+    items: list[TimelineItem]
+    next_offset: int | None
+
+
+class AdminTestUpdate(BaseModel):
+    """Запрос `PUT /admin/users/{id}/test`."""
+
+    is_test: bool
 
 
 class DeliveryResponse(BaseModel):

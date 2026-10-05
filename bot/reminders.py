@@ -33,6 +33,11 @@ Push subscription gets a push notification on its devices; otherwise, if it has 
 (a positive id), the bot message as before. Web-only accounts without push get nothing.
 Subscriptions the push service reports as gone (404/410) are deleted; if all of an
 account's subscriptions are gone, that reminder falls back to Telegram.
+
+Every reminder goes into the user's action log (reminder_sent / reminder_failed, with the
+channel), and a subscription that disappeared — as push_gone: the admin panel's
+analytics counts reminders, what they lead to and likely uninstalls from it. The button
+and the push open the app marked «from a reminder» (`from=reminder`).
 """
 
 from __future__ import annotations
@@ -64,6 +69,7 @@ from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
 from backend.constants import DEFAULT_LANGUAGE
 from backend.database import Database
+from backend.messaging import app_url
 from backend.repository import Repository
 from backend.models import PushSubscription
 from backend.repository import utc_now
@@ -116,7 +122,7 @@ def open_app_keyboards(tma_url: str) -> dict[str, InlineKeyboardMarkup]:
                     InlineKeyboardButton(
                         text=text,
                         icon_custom_emoji_id=OPEN_APP_EMOJI.id,
-                        web_app=WebAppInfo(url=tma_url),
+                        web_app=WebAppInfo(url=app_url(tma_url, None, "reminder")),
                     )
                 ]
             ]
@@ -186,20 +192,47 @@ async def _send_due(
     gone: list[str] = []
     delivered: list[str] = []
     fallback: list[DueReminder] = []
+    outcomes: list[tuple[DueReminder, str, bool]] = []
     if push is not None and by_push:
         gone, delivered, fallback = await _push_all(by_push, subscriptions, push, send)
+        dropped = {id(item) for item in fallback}
+        outcomes += [
+            (item, "push", any(sub.endpoint in delivered for sub in subscriptions[item.user_id]))
+            for item in by_push
+            if id(item) not in dropped
+        ]
     by_chat = [
         item for item in reminders if item.user_id not in subscriptions and item.user_id > 0
     ] + fallback
-    blocked = await _send_all(bot, pacer, by_chat, keyboards) if by_chat else set()
-    if blocked or gone or delivered:
-        async with database.session_factory() as session:
-            repo = Repository(session)
-            if blocked:
-                await repo.set_bot_blocked(blocked, blocked=True)
-            await repo.delete_push_subscriptions(gone)
-            await repo.mark_push_delivered(delivered, utc_now())
-            await session.commit()
+    results = await _send_all(bot, pacer, by_chat, keyboards) if by_chat else {}
+    blocked = {user_id for user_id, (is_blocked, _) in results.items() if is_blocked}
+    sent_ok = {key for _, (_, keys) in results.items() for key in keys}
+    outcomes += [(item, "telegram", _reminder_key(item) in sent_ok) for item in by_chat]
+    gone_users = {
+        user_id
+        for user_id, items in subscriptions.items()
+        if items and all(sub.endpoint in gone for sub in items)
+    }
+    async with database.session_factory() as session:
+        repo = Repository(session)
+        if blocked:
+            await repo.set_bot_blocked(blocked, blocked=True)
+        await repo.delete_push_subscriptions(gone)
+        await repo.mark_push_delivered(delivered, utc_now())
+        for user_id in gone_users:
+            await repo.log_action(user_id, "push_gone")
+        for item, channel, ok in outcomes:
+            await repo.log_action(
+                item.user_id,
+                "reminder_sent" if ok else "reminder_failed",
+                ref_id=item.task_id,
+                detail=channel,
+            )
+        await session.commit()
+
+
+def _reminder_key(reminder: DueReminder) -> tuple[int, int | None]:
+    return reminder.user_id, reminder.task_id
 
 
 def reminder_text(reminder: DueReminder) -> str:
@@ -220,11 +253,13 @@ def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
     title itself (it can't be turned off), so an app-name title would only repeat it.
     Plain text, without the bot message's 🔔."""
     if reminder.task_id is None:
-        return notification(reminder_text(reminder), "", f"{base_url}/app?pwa=1", tag="checkin")
+        return notification(
+            reminder_text(reminder), "", f"{base_url}/app?pwa=1&from=push", tag="checkin"
+        )
     return notification(
         reminder_text(reminder),
         "",
-        f"{base_url}/app?pwa=1&habit={reminder.task_id}",
+        f"{base_url}/app?pwa=1&from=push&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
     )
 
@@ -268,9 +303,9 @@ async def _send_all(
     pacer: Pacer,
     reminders: list[DueReminder],
     keyboards: Mapping[str, InlineKeyboardMarkup],
-) -> set[int]:
+) -> dict[int, tuple[bool, set[tuple[int, int | None]]]]:
     """Разослать напоминания: параллельно по пользователям, в пределах лимитов Bot API.
-    Возвращает id заблокировавших бота."""
+    Возвращает по пользователю: заблокировал ли он бота и какие напоминания дошли."""
     by_user: dict[int, list[DueReminder]] = {}
     for reminder in reminders:
         by_user.setdefault(reminder.user_id, []).append(reminder)
@@ -278,14 +313,15 @@ async def _send_all(
         *(_send_to_user(bot, pacer, own, keyboards) for own in by_user.values()),
         return_exceptions=True,
     )
-    blocked: set[int] = set()
+    outcome: dict[int, tuple[bool, set[tuple[int, int | None]]]] = {}
     for user_id, result in zip(by_user, results):
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.opt(exception=result).error("Reminder delivery failed: {}", result)
-        elif result:
-            blocked.add(user_id)
+            outcome[user_id] = (False, set())
+        else:
+            outcome[user_id] = result
     logger.info("Reminder batch done: {} reminders for {} users", len(reminders), len(by_user))
-    return blocked
+    return outcome
 
 
 async def _send_to_user(
@@ -293,15 +329,20 @@ async def _send_to_user(
     pacer: Pacer,
     reminders: list[DueReminder],
     keyboards: Mapping[str, InlineKeyboardMarkup],
-) -> bool:
-    """Напоминания одному пользователю — по очереди, с паузой между сообщениями. True —
-    пользователь заблокировал бота (остальные его напоминания не отправляются)."""
+) -> tuple[bool, set[tuple[int, int | None]]]:
+    """Напоминания одному пользователю — по очереди, с паузой между сообщениями.
+    Возвращает: заблокировал ли он бота (тогда остальные его напоминания не отправляются)
+    и какие напоминания дошли."""
+    sent: set[tuple[int, int | None]] = set()
     for index, reminder in enumerate(reminders):
         if index:
             await asyncio.sleep(PER_CHAT_INTERVAL)
-        if await _send(bot, pacer, reminder, keyboards):
-            return True
-    return False
+        result = await _send(bot, pacer, reminder, keyboards)
+        if result == "blocked":
+            return True, sent
+        if result == "sent":
+            sent.add(_reminder_key(reminder))
+    return False, sent
 
 
 async def _deliver(
@@ -327,9 +368,9 @@ async def _send(
     pacer: Pacer,
     reminder: DueReminder,
     keyboards: Mapping[str, InlineKeyboardMarkup],
-) -> bool:
-    """Отправить одно напоминание; сбой доставки логируется и не мешает остальным. True —
-    пользователь заблокировал бота."""
+) -> str:
+    """Отправить одно напоминание; сбой доставки логируется и не мешает остальным.
+    Возвращает sent, blocked (пользователь заблокировал бота) или failed."""
     # Анимированный эмодзи — сущностью (entities): название привычки остаётся простым
     # текстом, экранировать его не нужно.
     content = Text(
@@ -355,7 +396,7 @@ async def _send(
             reminder.task_id,
             reminder.user_id,
         )
-        return True
+        return "blocked"
     except TelegramAPIError as exc:
         logger.warning(
             "Reminder for task {} not delivered to user {}: {}",
@@ -363,6 +404,6 @@ async def _send(
             reminder.user_id,
             exc,
         )
-    else:
-        logger.info("Reminder for task {} sent to user {}", reminder.task_id, reminder.user_id)
-    return False
+        return "failed"
+    logger.info("Reminder for task {} sent to user {}", reminder.task_id, reminder.user_id)
+    return "sent"

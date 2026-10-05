@@ -1,7 +1,8 @@
 /**
  * Вкладка «Рассылка» админ-панели — форма в стиле формы привычки:
  *  - Кому — фильтр получателей, по ряду на признак (AudienceFilterRows; условия
- *    складываются), и сколько получателей под ним сейчас;
+ *    складываются), и сколько получателей под ним сейчас. Из аналитики сюда приходят с
+ *    группой людей («Рассылка этим людям») — она стоит первым рядом, её можно убрать;
  *  - Сообщение — текст (поле растёт вместе с ним), под ним — счётчик символов: у текста
  *    предел Telegram 4096, у подписи к фото или видео — 1024;
  *  - Фото или видео — необязательно: превью, размер и «Убрать»;
@@ -18,7 +19,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { audienceEntries, audienceParam } from "../audience";
+import { audienceEntries, audienceParam, segmentTitle, withoutSegment } from "../audience";
 import { createBroadcast, fetchBroadcast, fetchRecipients } from "../../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
@@ -160,10 +161,15 @@ export function AdminBroadcastScreen({
   }
 
   // Кому — для диалога подтверждения: выбранные условия через запятую или «всем».
+  const segment = draft.audience.segment;
+  const groupName = segment ? segmentTitle(segment) ?? strings.an.segmentFallback(segment) : null;
   const audienceText =
-    audienceEntries(draft.audience)
-      .map(([key, value]) => strings.filterValues[key][value].toLowerCase())
-      .join(", ") || strings.audienceAll;
+    [
+      ...(groupName ? [strings.an.segmentChip(groupName)] : []),
+      ...audienceEntries(draft.audience).map(([key, value]) =>
+        strings.filterValues[key][value].toLowerCase(),
+      ),
+    ].join(", ") || strings.audienceAll;
 
   async function send(): Promise<void> {
     if (counted === null || sending) {
@@ -227,6 +233,18 @@ export function AdminBroadcastScreen({
           footer={recipientsFooter}
         >
           <Card>
+            {groupName ? (
+              <>
+                <ListItem label={strings.an.segmentRow}>
+                  <span className={styles.segment}>{groupName}</span>
+                </ListItem>
+                <ListItem
+                  label={strings.an.removeSegment}
+                  destructive
+                  onPress={() => onDraftChange({ ...draft, audience: withoutSegment(draft.audience) })}
+                />
+              </>
+            ) : null}
             <AudienceFilterRows
               keys={BROADCAST_FILTER_KEYS}
               audience={draft.audience}

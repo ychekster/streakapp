@@ -1,5 +1,5 @@
 """ORM-модели: User, Task, TaskLog и данные админ-панели (Admin, Review, UserActivity,
-Broadcast).
+CheckinDay, ActivityLog, Broadcast, Segment, AppConfig).
 
 Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
 TaskLog (см. `services.build_history`). Это исключает рассинхронизацию данных.
@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     String,
@@ -127,6 +128,20 @@ class User(Base):
     # When the bot sent the "install the app" offer; None — not sent yet.
     install_offer_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # --- Аналитика админ-панели (backend/analytics/) ---
+    # Откуда пришёл (threads, instagram…) и подпись ссылки (номер поста) — запоминаются при
+    # первом приходе и больше не меняются; None — без метки («напрямую»).
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    source_tag: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Где появился впервые: "telegram" (бот или Mini App) или "web" (веб-приложение).
+    signup_platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Устройство последнего запроса: ios / android / desktop (по User-Agent).
+    device: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Тестовый аккаунт: не входит в аналитику (как и администраторы).
+    is_test: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+
     # Время — UTC без пояса, как и остальные отметки времени в базе. Индекс: список
     # пользователей в админ-панели отсортирован по дате регистрации.
     created_at: Mapped[datetime] = mapped_column(
@@ -184,6 +199,8 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+    # Когда привычку удалили (мягко, is_active=False). У удалённых до миграции 0014 — None.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="tasks")
     logs: Mapped[list["TaskLog"]] = relationship(
@@ -276,6 +293,76 @@ class UserActivity(Base):
         BigInteger, ForeignKey("users.telegram_id"), primary_key=True
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
+
+
+class CheckinDay(Base):
+    """День (по Алматы, constants.ANALYTICS_TIMEZONE), в который пользователь отметил
+    хотя бы одну привычку. Одна запись на пользователя и день — из них считаются
+    «отмечающие за день», активация, «живые пользователи» и удержание по отметкам.
+    Записывает `Repository.record_checkin_day` при каждой отметке выполнения."""
+
+    __tablename__ = "checkin_days"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
+
+
+class ActivityLog(Base):
+    """Действие пользователя — для ленты в профиле и аналитики панели.
+
+    `kind` — что случилось: start (запустил бота), app_open (открыл приложение; `detail` —
+    откуда: menu, welcome, reminder, broadcast, push, install_offer, link, icon),
+    habit_created / habit_updated / habit_deleted, checkin / uncheck (`ref_id` — привычка),
+    settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
+    вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
+    telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),
+    broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent.
+
+    `user_id` без внешнего ключа — как у events: запись пишется и тогда, когда строки
+    пользователя ещё нет (первое открытие).
+    """
+
+    __tablename__ = "activity_log"
+    __table_args__ = (
+        Index("ix_activity_log_kind_created", "kind", "created_at"),
+        Index("ix_activity_log_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    ref_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    detail: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class Segment(Base):
+    """Группа людей, выбранная в аналитике (нажали на цифру): список id на момент выбора.
+    По ней показывается список пользователей и делается рассылка (фильтр «segment:<id>»)."""
+
+    __tablename__ = "segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    user_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class AppConfig(Base):
+    """Настройки панели «ключ — значение»: пороги активации, с какого момента собираются
+    новые данные аналитики (tracking_since)."""
+
+    __tablename__ = "app_config"
+
+    key: Mapped[str] = mapped_column(String(48), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
 class Broadcast(Base):

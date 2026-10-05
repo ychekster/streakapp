@@ -1,5 +1,7 @@
 /**
  * Вкладка «Настройки» админ-панели:
+ *  - Аналитика — пороги активации («в первые N дней отметил хотя бы в M разных дней»,
+ *    по умолчанию 3 и 2) и вход в генератор ссылок с меткой (AdminLinksScreen);
  *  - Язык и тема — те же ряды, что в настройках приложения (PreferenceRows): настройки
  *    общие, поэтому смена сразу видна и в панели, и в приложении. Если сервер изменение не
  *    принял, оно откатывается, а под рядами появляется ошибка;
@@ -12,13 +14,16 @@
 
 import { useState } from "react";
 
-import { fetchAdmins, removeAdmin } from "../../api/admin";
+import { fetchAdmins, fetchAnalyticsConfig, removeAdmin, saveAnalyticsConfig } from "../../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { ExitIcon, KeyIcon, PlusRowIcon } from "../components/AdminIcons";
+import { Disclosure } from "../../components/Disclosure";
 import { ListGroup } from "../../components/ListGroup";
 import { ListItem } from "../../components/ListItem";
+import { MenuSelect } from "../../components/MenuSelect";
 import { LanguageRow, ThemeRow } from "../../components/PreferenceRows";
+import { ACTIVATION_WINDOW_MAX_DAYS } from "../../constants";
 import { Screen } from "../../components/Screen";
 import { Card, Section } from "../../components/Section";
 import { StatusMessage } from "../../components/StatusMessage";
@@ -37,6 +42,8 @@ interface AdminSettingsScreenProps {
   onSaveSettings: (patch: SettingsUpdate) => void;
   /** Открыть экран добавления администратора. */
   onAddAdmin: () => void;
+  /** Открыть генератор ссылок с меткой. */
+  onOpenLinks: () => void;
   onExit: () => void;
 }
 
@@ -44,12 +51,35 @@ export function AdminSettingsScreen({
   settings,
   onSaveSettings,
   onAddAdmin,
+  onOpenLinks,
   onExit,
 }: AdminSettingsScreenProps) {
   const strings = useAdminStrings();
   const appStrings = useStrings();
   const format = useAdminFormat();
   const admins = useResource(fetchAdmins, "admins");
+  const analytics = useResource(fetchAnalyticsConfig, "analytics-config");
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  async function saveActivation(windowDays: number, minDays: number): Promise<void> {
+    setConfigError(null);
+    const previous = analytics.data;
+    analytics.setData((current) => ({
+      ...current,
+      activation_window_days: windowDays,
+      activation_min_days: minDays,
+    }));
+    try {
+      const saved = await saveAnalyticsConfig(windowDays, minDays);
+      analytics.setData(() => saved);
+    } catch (error) {
+      if (previous) {
+        analytics.setData(() => previous);
+      }
+      setConfigError(describeAdminError(strings, error, strings.an.activationSaveFailed));
+      hapticNotification("error");
+    }
+  }
   const [busy, setBusy] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const preferences = settings.settings;
@@ -101,6 +131,7 @@ export function AdminSettingsScreen({
             ) : null}
           </div>
         ) : null}
+        <div className={styles.block}>{renderAnalytics()}</div>
         <div className={styles.block}>{renderAdmins()}</div>
         <div className={styles.block}>
           <ListGroup>
@@ -115,6 +146,57 @@ export function AdminSettingsScreen({
       </div>
     </Screen>
   );
+
+  function renderAnalytics() {
+    const an = strings.an;
+    const config = analytics.data;
+    const dayOptions = (max: number) =>
+      Array.from({ length: max }, (_, index) => ({
+        value: String(index + 1),
+        label: an.daysValue(index + 1),
+      }));
+    return (
+      <Section
+        title={an.settingsHeading}
+        footer={
+          configError ? (
+            <span className={styles.removeError}>{configError}</span>
+          ) : config ? (
+            an.activationFooter(config.activation_window_days, config.activation_min_days)
+          ) : undefined
+        }
+      >
+        <Card>
+          {config ? (
+            <>
+              <ListItem label={an.activationWindow}>
+                <MenuSelect
+                  options={dayOptions(ACTIVATION_WINDOW_MAX_DAYS)}
+                  value={String(config.activation_window_days)}
+                  onChange={(value) => {
+                    const days = Number(value);
+                    void saveActivation(days, Math.min(days, config.activation_min_days));
+                  }}
+                  label={an.activationWindow}
+                />
+              </ListItem>
+              <ListItem label={an.activationMin}>
+                <MenuSelect
+                  options={dayOptions(config.activation_window_days)}
+                  value={String(config.activation_min_days)}
+                  onChange={(value) => void saveActivation(config.activation_window_days, Number(value))}
+                  label={an.activationMin}
+                />
+              </ListItem>
+            </>
+          ) : null}
+          <ListItem label={an.linksRow} onPress={onOpenLinks}>
+            <Disclosure />
+          </ListItem>
+        </Card>
+      </Section>
+    );
+  }
 
   function renderAdmins() {
     if (!admins.data) {

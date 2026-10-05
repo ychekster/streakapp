@@ -26,6 +26,15 @@
   color: var(--color-placeholder);
 }
 
+/* Название группы из аналитики — справа в ряду, обрезается многоточием. */
+.segment {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}
+
 /* Превышен предел символов или файл не подходит. */
 .over {
   color: var(--color-danger);

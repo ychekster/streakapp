@@ -15,8 +15,13 @@
 Медиа уже загружено в Telegram (при отправке копии автору), поэтому фото и видео
 рассылаются по file_id — без повторной загрузки файла.
 
+Каждый получатель попадает в ленту действий (broadcast_sent / broadcast_failed с id
+рассылки): по ней аналитика панели считает, сколько открыли приложение, отметили привычку
+или заблокировали бота после рассылки. Признаки фильтра, которые считает аналитика
+(«активирован», «группа»…), считаются один раз на рассылку.
+
 Кнопка под рассылкой («Открыть приложение», «Написать отзыв» или «Добавить привычку»)
-подписана на языке получателя. Если Telegram не принял сообщение с анимированной иконкой
+подписана на языке получателя и открывает приложение с пометкой «из рассылки N». Если Telegram не принял сообщение с анимированной иконкой
 на кнопке (у владельца бота кончился Premium), оно отправляется ещё раз без иконки (см.
 bot/emoji.py).
 """
@@ -40,7 +45,7 @@ from loguru import logger
 
 from bot.emoji import without_icons
 from bot.pacing import Pacer
-from backend.audience import Audience, parse_audience
+from backend.audience import Audience, AudienceIds, parse_audience, resolve_audience
 from backend.database import Database
 from backend.errors import ApiError
 from backend.messaging import broadcast_keyboard
@@ -51,6 +56,10 @@ from backend.repository import Repository
 POLL_SECONDS = 3.0
 # Получателей в пачке: после каждой прогресс сохраняется в базе.
 BATCH_SIZE = 25
+
+# Посчитанные признаки фильтра рассылки (см. audience.resolve_audience): id рассылки → id.
+# Получатели считаются на момент создания рассылки, поэтому их хватает на всю рассылку.
+_resolved: dict[int, AudienceIds] = {}
 
 _Outcome = Literal["sent", "blocked", "failed"]
 
@@ -121,10 +130,13 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
             await repo.finish_broadcast(broadcast)
             await session.commit()
             return True
+        if job.id not in _resolved:
+            _resolved[job.id] = await resolve_audience(repo, job.audience, job.created_at)
         recipients = await repo.recipients_after(
-            job.audience, job.created_at, job.created_by, job.cursor, BATCH_SIZE
+            job.audience, job.created_at, job.created_by, job.cursor, BATCH_SIZE, _resolved[job.id]
         )
         if not recipients:
+            _resolved.pop(job.id, None)
             await repo.finish_broadcast(broadcast)
             await session.commit()
             logger.info(
@@ -134,7 +146,13 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
 
     outcomes = await asyncio.gather(
         *(
-            _send(bot, pacer, job, chat_id, broadcast_keyboard(job.button, language, tma_url))
+            _send(
+                bot,
+                pacer,
+                job,
+                chat_id,
+                broadcast_keyboard(job.button, language, tma_url, broadcast_id=job.id),
+            )
             for chat_id, language in recipients
         )
     )
@@ -155,6 +173,12 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
         )
         if blocked:
             await repo.set_bot_blocked(blocked, blocked=True)
+        for (chat_id, _), outcome in zip(recipients, outcomes):
+            await repo.log_action(
+                chat_id,
+                "broadcast_sent" if outcome == "sent" else "broadcast_failed",
+                ref_id=job.id,
+            )
         await session.commit()
     return True
 

@@ -97,6 +97,7 @@ import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
 import { keepAccount, keptAccount } from "./web/account";
+import { trackAppOpen, trackPushOpen } from "./web/analytics";
 import { authNotice, SESSION_CHANGED_EVENT } from "./web/bootstrap";
 import { beginTelegramBotLogin } from "./web/login";
 import { ScrollIndicator } from "./web/ScrollIndicator";
@@ -181,6 +182,8 @@ export function App() {
   const telegramAvailable = isTelegramAvailable();
   const platform = usePlatform();
   const web = platform === "web";
+  // «Открыл приложение» и откуда — для аналитики админ-панели (на экране ничего не меняет).
+  useEffect(trackAppOpen, []);
   // Открыто кнопкой под рассылкой: «Написать отзыв» — сразу экран отзыва (над
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).
@@ -507,6 +510,9 @@ export function App() {
     const onMessage = (event: MessageEvent): void => {
       const url = typeof event.data?.url === "string" ? event.data.url : "";
       const id = Number(new URL(url, window.location.origin).searchParams.get("habit"));
+      if (event.data?.type === "open-habit") {
+        trackPushOpen();
+      }
       if (event.data?.type === "open-habit" && Number.isInteger(id) && id > 0) {
         pendingHabit.current = id;
         void refresh();

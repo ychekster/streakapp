@@ -20,7 +20,8 @@ from aiogram import Bot
 from starlette.datastructures import UploadFile
 
 from backend import messaging, validation
-from backend.audience import audience_key, parse_audience
+from backend.analytics.profile import user_insights
+from backend.audience import audience_key, parse_audience, resolve_audience
 from backend.constants import (
     BROADCAST_PHOTO_MAX_BYTES,
     BROADCAST_PHOTO_TYPES,
@@ -116,7 +117,8 @@ async def list_users(
     offset = _parse_cursor(cursor) or 0
     filters = parse_audience(audience)
     moment = utc_now()
-    users = await repo.search_users(query, filters, moment, offset, limit + 1)
+    ids = await resolve_audience(repo, filters, moment)
+    users = await repo.search_users(query, filters, moment, offset, limit + 1, ids)
     more = len(users) > limit
     return AdminUsersPage(
         users=[
@@ -127,19 +129,21 @@ async def list_users(
                 created_at=user.created_at,
                 last_seen_at=user.last_seen_at,
                 blocked=user.blocked_at is not None,
+                is_test=user.is_test,
             )
             for user in users[:limit]
         ],
         next_cursor=str(offset + limit) if more else None,
-        total=await repo.count_users(query, filters, moment) if offset == 0 else None,
+        total=await repo.count_users(query, filters, moment, ids) if offset == 0 else None,
     )
 
 
 async def count_users(repo: Repository, query: str | None, audience: str | None) -> AdminUsersCount:
     """Сколько пользователей под поиском и фильтром."""
-    return AdminUsersCount(
-        count=await repo.count_users(query, parse_audience(audience), utc_now())
-    )
+    filters = parse_audience(audience)
+    moment = utc_now()
+    ids = await resolve_audience(repo, filters, moment)
+    return AdminUsersCount(count=await repo.count_users(query, filters, moment, ids))
 
 
 async def _get_user(repo: Repository, telegram_id: int) -> User:
@@ -150,11 +154,14 @@ async def _get_user(repo: Repository, telegram_id: int) -> User:
 
 
 async def user_profile(repo: Repository, telegram_id: int, language: str) -> AdminUserProfile:
-    """Профиль пользователя: данные, статус, число привычек и его отзывы. Пояс подписан на
-    языке интерфейса администратора (`language`)."""
+    """Профиль пользователя: данные, статус, число привычек, его отзывы и сводка
+    аналитики (откуда пришёл, активирован ли, серия, выполнение). Пояс подписан на языке
+    интерфейса администратора (`language`)."""
     user = await _get_user(repo, telegram_id)
     reviews = await repo.user_reviews(telegram_id)
     city = selected_city(user.timezone, user.timezone_city)
+    is_admin = await repo.is_admin(telegram_id)
+    insights = await user_insights(repo, user, is_admin, utc_now())
     return AdminUserProfile(
         telegram_id=user.telegram_id,
         first_name=user.first_name,
@@ -168,10 +175,20 @@ async def user_profile(repo: Repository, telegram_id: int, language: str) -> Adm
         last_seen_at=user.last_seen_at,
         blocked_at=user.blocked_at,
         bot_blocked_at=user.bot_blocked_at,
-        is_admin=await repo.is_admin(telegram_id),
+        is_admin=is_admin,
         habits=await repo.count_active_tasks(telegram_id),
         reviews=[_review(review) for review in reviews],
+        **insights,
     )
+
+
+async def set_user_test(
+    repo: Repository, telegram_id: int, is_test: bool, language: str
+) -> AdminUserProfile:
+    """Отметить тестовый аккаунт (он не входит в аналитику) или снять отметку."""
+    user = await _get_user(repo, telegram_id)
+    await repo.set_test(user, is_test)
+    return await user_profile(repo, telegram_id, language)
 
 
 async def user_habits(repo: Repository, telegram_id: int) -> AdminUserHabits:
@@ -318,8 +335,10 @@ async def broadcast_recipients(
 ) -> BroadcastRecipients:
     """Сколько получателей у рассылки с фильтром сейчас (без автора: ему приходит копия)."""
     filters = parse_audience(audience, broadcast=True)
+    moment = utc_now()
+    ids = await resolve_audience(repo, filters, moment)
     return BroadcastRecipients(
-        recipients=await repo.count_recipients(filters, utc_now(), viewer.telegram_id)
+        recipients=await repo.count_recipients(filters, moment, viewer.telegram_id, ids)
     )
 
 
@@ -362,7 +381,9 @@ async def create_broadcast(
         if media_type
         else validation.validate_message(text, MESSAGE_MAX_LENGTH)
     )
-    total = await repo.count_recipients(filters, utc_now(), admin.telegram_id)
+    moment = utc_now()
+    ids = await resolve_audience(repo, filters, moment)
+    total = await repo.count_recipients(filters, moment, admin.telegram_id, ids)
     if total == 0:
         raise ApiError(409, "no_recipients", "Под этот фильтр не попал ни один получатель")
     # Загрузка видео в Telegram идёт минутами — транзакцию БД на это время не держим,

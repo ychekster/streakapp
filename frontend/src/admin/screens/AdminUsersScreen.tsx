@@ -25,7 +25,7 @@ import { Card } from "../../components/Section";
 import { StatusMessage } from "../../components/StatusMessage";
 import { ADMIN_SEARCH_MAX_LENGTH } from "../../constants";
 import type { PagedList } from "../../hooks/usePagedList";
-import { withFilter } from "../audience";
+import { withFilter, withoutSegment } from "../audience";
 import type { AdminUserSummary, Audience } from "../../types/admin";
 import styles from "./AdminUsersScreen.module.css";
 
@@ -62,7 +62,9 @@ export function AdminUsersScreen({
       <FilterChips
         audience={audience}
         onOpen={onOpenFilters}
-        onRemove={(key) => onAudienceChange(withFilter(audience, key, ""))}
+        onRemove={(key) =>
+          onAudienceChange(key === "segment" ? withoutSegment(audience) : withFilter(audience, key, ""))
+        }
       />
       {renderList()}
     </Screen>

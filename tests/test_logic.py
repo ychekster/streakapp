@@ -9,7 +9,10 @@ from types import SimpleNamespace
 import pytest
 
 from backend import ratelimit
-from backend.analytics import completion_by_day, habits_distribution
+from backend.analytics import completion_by_day
+from backend.analytics.names import group_names, topic
+from backend.analytics.report import STREAK_BUCKETS, bucket_of
+from backend.sources import parse_source, parse_start_param, source_group
 from backend.errors import ApiError
 from backend.database import Database
 from backend.models import FrequencyType, TaskStatus
@@ -130,10 +133,31 @@ def test_completion_counts_every_other_day_habits() -> None:
     assert completion_by_day(schedules, done, days) == [(0, 0), (1, 1), (0, 0)]
 
 
-def test_habits_distribution_groups_the_tail() -> None:
-    buckets = habits_distribution([1, 1, 3, 7, 9], app_users=8)
-    assert [(bucket.habits, bucket.users) for bucket in buckets] == [
-        (0, 3), (1, 2), (2, 0), (3, 1), (4, 0), (5, 2),
+def test_similar_habit_names_are_grouped() -> None:
+    assert topic("Читать") == topic("читать 📚") == topic("Чтение") == topic("Read a book")
+    assert topic("Пить воду 💧") == topic("Water")
+    assert topic("Планка") == topic("Тренировка")  # планка — не «планирование»
+    assert topic("Вязание") == "вязание"  # без темы — само название
+    groups = group_names([("Читать", 1), ("читать 📚", 2), ("Чтение", 2), ("Бег", 3)])
+    label, habits, owners = groups[topic("Читать")]
+    assert (label, habits, owners) == ("Читать", 3, {1, 2})
+
+
+def test_source_labels() -> None:
+    assert parse_source("threads_post12") == ("threads", "post12")
+    assert parse_source("Instagram") == ("instagram", None)
+    assert parse_source("direct") is None and parse_source("settings") is None
+    assert parse_source("") is None and parse_source("тред") is None
+    assert parse_start_param("src_threads_post-3") == ("threads", "post-3")
+    assert parse_start_param("login_abc") is None
+    assert source_group("threads") == "threads"
+    assert source_group(None) == "direct"
+    assert source_group("tiktok") == "other"
+
+
+def test_buckets() -> None:
+    assert [bucket_of(value, STREAK_BUCKETS) for value in (0, 2, 7, 29, 30, 365)] == [
+        "0", "1-2", "7-13", "14-29", "30-59", "60+",
     ]
 
 

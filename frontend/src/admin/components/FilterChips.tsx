@@ -5,7 +5,7 @@
  * строкой, которая листается вбок.
  */
 
-import { audienceEntries } from "../audience";
+import { audienceEntries, segmentTitle } from "../audience";
 import { useAdminStrings } from "../adminStrings";
 import type { Audience, AudienceKey } from "../../types/admin";
 import { FilterIcon } from "./AdminIcons";
@@ -15,8 +15,8 @@ interface FilterChipsProps {
   audience: Audience;
   /** Открыть экран фильтров. */
   onOpen: () => void;
-  /** Снять условие признака. */
-  onRemove: (key: AudienceKey) => void;
+  /** Снять условие признака (или группу из аналитики). */
+  onRemove: (key: AudienceKey | "segment") => void;
 }
 
 export function FilterChips({ audience, onOpen, onRemove }: FilterChipsProps) {
@@ -34,6 +34,23 @@ export function FilterChips({ audience, onOpen, onRemove }: FilterChipsProps) {
         <span>{strings.filters}</span>
         {entries.length ? <span className={styles.count}>{entries.length}</span> : null}
       </button>
+      {audience.segment ? (
+        <button
+          type="button"
+          className={`${styles.chip} ${styles.active}`}
+          onClick={() => onRemove("segment")}
+          aria-label={strings.removeFilter(strings.an.segmentRow)}
+        >
+          <span className={styles.label}>
+            {strings.an.segmentChip(
+              segmentTitle(audience.segment) ?? strings.an.segmentFallback(audience.segment),
+            )}
+          </span>
+          <svg className={styles.remove} viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : null}
       {entries.map(([key, value]) => {
         const label = strings.filterValues[key][value];
         return (

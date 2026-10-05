@@ -6,13 +6,16 @@
 Запустивший бота записывается в базу (если его там ещё нет) — так админ-панель знает
 и тех, кто приложение ещё не открывал, а рассылка «не открывали приложение» находит их.
 /start означает и что бот не заблокирован: отметка о блокировке снимается.
+
+Ссылка с меткой `t.me/<бот>?start=src_threads_post12` запоминает источник нового
+пользователя (backend/sources.py); /start попадает и в ленту его действий.
 """
 
 from __future__ import annotations
 
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -34,30 +37,35 @@ from bot.constants import (
     WELCOME_TITLE,
 )
 from backend.database import Database
+from backend.messaging import app_url
 from backend.repository import Repository
 from backend.services import language_from_telegram
+from backend.sources import parse_start_param
 
 router = Router(name="start")
 
 
 def _open_app_kb(tma_url: str) -> InlineKeyboardMarkup:
-    """Inline-кнопка, открывающая Mini App, с анимированной иконкой."""
+    """Inline-кнопка, открывающая Mini App, с анимированной иконкой (с пометкой «из
+    приветствия» — для аналитики)."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=BTN_OPEN_APP,
                     icon_custom_emoji_id=OPEN_APP_EMOJI.id,
-                    web_app=WebAppInfo(url=tma_url),
+                    web_app=WebAppInfo(url=app_url(tma_url, None, "welcome")),
                 )
             ]
         ]
     )
 
 
-async def record_start(database: Database, user: TelegramUser) -> None:
-    """Записать запустившего бота (язык интерфейса — по языку Telegram, как в API) и
-    снять отметку о блокировке бота. Сбой не мешает приветствию."""
+async def record_start(database: Database, user: TelegramUser, args: str | None = None) -> None:
+    """Записать запустившего бота (язык интерфейса — по языку Telegram, как в API;
+    источник — по метке ссылки `args`, только у нового) и снять отметку о блокировке
+    бота. Сбой не мешает приветствию."""
+    source = parse_start_param(args)
     try:
         async with database.session_factory() as session:
             repo = Repository(session)
@@ -66,19 +74,23 @@ async def record_start(database: Database, user: TelegramUser) -> None:
                 user.username,
                 user.first_name,
                 language=language_from_telegram(user.language_code),
+                source=source,
             )
             await repo.set_bot_blocked([user.id], blocked=False)
+            await repo.log_action(user.id, "start", detail=args[:64] if args else None)
             await session.commit()
     except Exception:  # noqa: BLE001 — база недоступна: приветствие всё равно уходит
         logger.exception("Could not record /start of user {}", user.id)
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, config: Config, database: Database) -> None:
+async def cmd_start(
+    message: Message, config: Config, database: Database, command: CommandObject
+) -> None:
     """Приветствие: анимированный эмодзи и жирный заголовок, абзац о проекте, жирный
     призыв и кнопка."""
     if message.from_user is not None:
-        await record_start(database, message.from_user)
+        await record_start(database, message.from_user, command.args)
     content = Text(
         CustomEmoji(WELCOME_EMOJI.fallback, custom_emoji_id=WELCOME_EMOJI.id),
         " ",

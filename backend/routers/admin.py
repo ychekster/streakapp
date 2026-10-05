@@ -2,13 +2,21 @@
 `get_admin_user`: пользователь из проверенной `initData` есть в таблице `admins`, иначе
 403 `admin_required`).
 
-    GET    /admin/analytics?days=30          — аналитика: пользователи, активность, привычки
+    GET    /admin/analytics/{section}?period=&platform=&source=&basis=&compare=
+                                             — раздел аналитики: summary, funnel, retention,
+                                               churn, habits, sources, messaging
+    POST   /admin/segments                   — люди за цифрой аналитики (группа)
+    GET    /admin/segments/{id}              — группа: название и сколько людей
+    GET    /admin/analytics-config           — пороги активации, данные для ссылок с меткой
+    PUT    /admin/analytics-config           — изменить пороги активации
     GET    /admin/funnel?since=&until=       — web app funnel (landing → install → habit)
     GET    /admin/users?q=&filter=&cursor=&limit= — пользователи (поиск, фильтр, страницы)
     GET    /admin/users/count?q=&filter=     — сколько пользователей под поиском и фильтром
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
     GET    /admin/users/{id}/habits          — его привычки (как он видит их сам)
+    GET    /admin/users/{id}/timeline?offset= — лента действий, новые сначала
     PUT    /admin/users/{id}/block           — заблокировать / разблокировать
+    PUT    /admin/users/{id}/test            — тестовый аккаунт (не входит в аналитику)
     DELETE /admin/users/{id}                 — удалить со всеми данными
     POST   /admin/users/{id}/message         — личное сообщение от бота
     GET    /admin/reviews?cursor=&limit=     — отзывы всех пользователей (страницы)
@@ -31,21 +39,22 @@ from aiogram import Bot
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from starlette.datastructures import UploadFile
 
-from backend import admin as service
 from datetime import date, timedelta
 
-from backend.analytics import build_analytics
+from backend import admin as service
+from backend.analytics import service as analytics
+from backend.analytics.profile import timeline
 from backend.funnel import funnel_report
 from backend.constants import (
     ADMIN_PAGE_SIZE,
     ADMIN_PAGE_SIZE_MAX,
     ADMIN_SEARCH_MAX_LENGTH,
-    ANALYTICS_PERIODS,
     AUDIENCE_MAX_LENGTH,
     DEFAULT_ANALYTICS_PERIOD,
     MAX_DB_INT,
 )
 from backend.dependencies import RepositoryDep, get_admin_user, get_bot, get_settings
+from backend.routers.auth import bot_username
 from backend.errors import ApiError
 from backend.models import User
 from backend.repository import Repository, utc_now
@@ -56,16 +65,28 @@ from backend.schemas import (
     AdminReviewResponse,
     AdminReviewsPage,
     AdminsResponse,
+    AdminTestUpdate,
     AdminUserHabits,
     AdminUserResponse,
     AdminUsersCount,
     AdminUsersPage,
-    AnalyticsResponse,
+    AnalyticsChurnResponse,
+    AnalyticsConfig,
+    AnalyticsConfigUpdate,
+    AnalyticsFunnelResponse,
+    AnalyticsHabitsResponse,
+    AnalyticsMessagingResponse,
+    AnalyticsRetentionResponse,
+    AnalyticsSourcesResponse,
+    AnalyticsSummary,
     BroadcastRecipients,
     BroadcastResponse,
     DeliveryResponse,
     FunnelResponse,
     ReviewReplyResponse,
+    SegmentCreate,
+    SegmentInfo,
+    TimelinePage,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_admin_user)])
@@ -77,6 +98,7 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_ad
 _TelegramId = Path(..., ge=-MAX_DB_INT, le=MAX_DB_INT, description="id пользователя")
 _ReviewId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор отзыва")
 _BroadcastId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор рассылки")
+_SegmentId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор группы")
 _PageSize = Query(ADMIN_PAGE_SIZE, ge=1, le=ADMIN_PAGE_SIZE_MAX)
 _Cursor = Query(None, max_length=32, description="Курсор страницы из прошлого ответа")
 _Search = Query(None, max_length=ADMIN_SEARCH_MAX_LENGTH, description="Имя, @username или id")
@@ -87,15 +109,86 @@ _Filter = Query(None, max_length=AUDIENCE_MAX_LENGTH, description=_FILTER_DESCRI
 _Audience = Query(None, max_length=AUDIENCE_MAX_LENGTH, description=_FILTER_DESCRIPTION)
 
 
-@router.get("/analytics", response_model=AnalyticsResponse)
+# Разделы аналитики (схемы ответа — Analytics* в schemas.py).
+_SECTIONS = ("summary", "funnel", "retention", "churn", "habits", "sources", "messaging")
+_SectionResponse = (
+    AnalyticsSummary
+    | AnalyticsFunnelResponse
+    | AnalyticsRetentionResponse
+    | AnalyticsChurnResponse
+    | AnalyticsHabitsResponse
+    | AnalyticsSourcesResponse
+    | AnalyticsMessagingResponse
+)
+
+
+@router.get("/analytics/{section}", response_model=_SectionResponse)
 async def read_analytics(
-    days: int = Query(DEFAULT_ANALYTICS_PERIOD, description="Период графиков, дней: 7, 30, 90"),
+    section: str = Path(..., max_length=16, description="Раздел: " + ", ".join(_SECTIONS)),
+    period: str = Query(DEFAULT_ANALYTICS_PERIOD, max_length=8, description="today, 7, 30, 90, all"),
+    platform: str | None = Query(None, max_length=16, description="telegram или web"),
+    source: str | None = Query(None, max_length=32, description="Источник; direct — без метки"),
+    basis: str | None = Query(None, max_length=16, description="Удержание: open или checkin"),
+    compare: str | None = Query(None, max_length=16, description="Кривая: none, platform, source"),
+    admin: User = Depends(get_admin_user),
     repo: Repository = RepositoryDep,
-) -> AnalyticsResponse:
-    """Аналитика за период (дни — по UTC, сегодня включительно)."""
-    if days not in ANALYTICS_PERIODS:
-        raise ApiError(422, "invalid_period", "Период — 7, 30 или 90 дней")
-    return await build_analytics(repo, days, utc_now())
+) -> object:
+    """Раздел аналитики за период (дни — по Алматы, сегодня включительно) под фильтром
+    платформы и источника. Администраторы и тестовые аккаунты не считаются."""
+    if section not in _SECTIONS:
+        raise ApiError(404, "not_found", "Нет такого раздела аналитики")
+    return await analytics.section(
+        repo,
+        section,
+        now=utc_now(),
+        period=period,
+        platform=platform,
+        source=source,
+        basis=basis,
+        compare=compare,
+        language=admin.language,
+    )
+
+
+@router.post("/segments", response_model=SegmentInfo, status_code=201)
+async def create_segment(
+    payload: SegmentCreate,
+    admin: User = Depends(get_admin_user),
+    repo: Repository = RepositoryDep,
+) -> SegmentInfo:
+    """Люди за цифрой аналитики — группой: её показывает список пользователей с фильтром
+    «segment:<id>», ей же можно сделать рассылку."""
+    return await analytics.create_segment(repo, admin, payload, utc_now())
+
+
+@router.get("/segments/{segment_id}", response_model=SegmentInfo)
+async def read_segment(
+    segment_id: int = _SegmentId, repo: Repository = RepositoryDep
+) -> SegmentInfo:
+    return await analytics.get_segment(repo, segment_id)
+
+
+@router.get("/analytics-config", response_model=AnalyticsConfig)
+async def read_analytics_config(
+    request: Request, repo: Repository = RepositoryDep
+) -> AnalyticsConfig:
+    """Пороги активации и то, из чего собираются ссылки с меткой (бот, адрес веб-версии)."""
+    try:
+        username: str | None = await bot_username(request)
+    except ApiError:
+        username = None
+    return await analytics.read_config(
+        repo, username or None, get_settings(request).web_base_url, utc_now()
+    )
+
+
+@router.put("/analytics-config", response_model=AnalyticsConfig)
+async def write_analytics_config(
+    payload: AnalyticsConfigUpdate, request: Request, repo: Repository = RepositoryDep
+) -> AnalyticsConfig:
+    """Изменить пороги активации («в первые N дней отметил хотя бы в M разных дней»)."""
+    await analytics.update_config(repo, payload)
+    return await read_analytics_config(request, repo)
 
 
 # Longest funnel period, days.
@@ -163,6 +256,32 @@ async def read_user_habits(
     """Привычки пользователя — те же данные, что отдаёт ему `GET /tasks`: история,
     серии и день отметки считаются в его поясе. Только чтение."""
     return await service.user_habits(repo, telegram_id)
+
+
+@router.get("/users/{telegram_id}/timeline", response_model=TimelinePage)
+async def read_user_timeline(
+    telegram_id: int = _TelegramId,
+    offset: int = Query(0, ge=0, le=1_000_000),
+    repo: Repository = RepositoryDep,
+) -> TimelinePage:
+    """Лента действий пользователя, новые сначала (страницами)."""
+    user = await repo.get_user(telegram_id)
+    if user is None:
+        raise ApiError(404, "user_not_found", "Пользователь не найден")
+    return await timeline(repo, user, offset)
+
+
+@router.put("/users/{telegram_id}/test", response_model=AdminUserResponse)
+async def mark_test_user(
+    payload: AdminTestUpdate,
+    telegram_id: int = _TelegramId,
+    admin: User = Depends(get_admin_user),
+    repo: Repository = RepositoryDep,
+) -> AdminUserResponse:
+    """Отметить тестовый аккаунт: он не входит в аналитику."""
+    return AdminUserResponse(
+        user=await service.set_user_test(repo, telegram_id, payload.is_test, admin.language)
+    )
 
 
 @router.put("/users/{telegram_id}/block", response_model=AdminUserResponse)

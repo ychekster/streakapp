@@ -46,6 +46,8 @@ _TEST_BODY = "Напоминания будут приходить сюда"
 
 # A handoff token as webauth.new_token makes it (URL-safe base64).
 _HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")
+# Install source of the landing (`src=threads_post12`, see sources.py).
+_SOURCE = re.compile(r"[a-z0-9_-]{1,32}")
 
 # Same app as the static manifest of the build (frontend/vite.config.ts — keep the two
 # in step); only start_url differs.
@@ -86,13 +88,16 @@ async def read_web_config(request: Request) -> WebConfig:
 
 
 @router.get("/web/manifest")
-async def read_manifest(h: str = Query(default="")) -> JSONResponse:
-    """Manifest for an install from the Mini App (iPhone): the home screen app starts at
-    an address with the handoff token and logs into that Telegram account on its first
-    launch (Safari's storage, where the landing could log in, is not shared with it)."""
+async def read_manifest(h: str = Query(default=""), s: str = Query(default="")) -> JSONResponse:
+    """Manifest for an install from an iPhone: the home screen app starts at an address
+    with the handoff token (from the Mini App: it logs into that Telegram account on its
+    first launch — Safari's storage is not shared with it) and the install source `s`
+    (the link's `src=`, for analytics)."""
     start = "/app?pwa=1"
     if _HANDOFF_TOKEN.fullmatch(h):
         start += f"&h={h}"
+    if _SOURCE.fullmatch(s):
+        start += f"&src={s}"
     return JSONResponse(
         {**_MANIFEST, "start_url": start},
         media_type="application/manifest+json",
@@ -119,6 +124,8 @@ async def subscribe_push(
     account's reminders come as push notifications instead of bot messages."""
     if not payload.endpoint.startswith("https://"):
         raise ApiError(422, "invalid_subscription", "Некорректная подписка на уведомления")
+    if not await repo.has_push_subscription(db_user.telegram_id):
+        await repo.log_action(db_user.telegram_id, "push_on")
     await repo.save_push_subscription(
         db_user.telegram_id,
         payload.endpoint,
@@ -137,7 +144,10 @@ async def unsubscribe_push(
 ) -> PushStatus:
     """Forget this device's subscription (the account's own only)."""
     await repo.delete_push_subscriptions([payload.endpoint], user_id=db_user.telegram_id)
-    return PushStatus(subscribed=await repo.has_push_subscription(db_user.telegram_id))
+    subscribed = await repo.has_push_subscription(db_user.telegram_id)
+    if not subscribed:
+        await repo.log_action(db_user.telegram_id, "push_off")
+    return PushStatus(subscribed=subscribed)
 
 
 @router.post("/web/push/test", response_model=PushStatus)
@@ -162,6 +172,8 @@ async def test_push(
     gone = [t.endpoint for t, outcome in zip(targets, outcomes) if outcome is PushOutcome.gone]
     sent = [t.endpoint for t, outcome in zip(targets, outcomes) if outcome is PushOutcome.sent]
     await repo.delete_push_subscriptions(gone)
+    if gone and not await repo.has_push_subscription(db_user.telegram_id):
+        await repo.log_action(db_user.telegram_id, "push_gone")
     await repo.mark_push_delivered(sent, utc_now())
     if not sent:
         raise ApiError(409, "push_not_delivered", "Не удалось доставить уведомление")

@@ -92,22 +92,54 @@ export const ADMIN_SEARCH_DELAY_MS = 250;
 /** Самый длинный поисковый запрос по пользователям (ADMIN_SEARCH_MAX_LENGTH на бэкенде). */
 export const ADMIN_SEARCH_MAX_LENGTH = 100;
 
-/** Периоды графиков аналитики, дней (ANALYTICS_PERIODS на бэкенде); по умолчанию — месяц. */
-export const ANALYTICS_PERIODS = [7, 30, 90] as const;
-export const DEFAULT_ANALYTICS_PERIOD = 30;
+/** Периоды аналитики (ANALYTICS_PERIODS на бэкенде): сегодня, 7, 30, 90 дней, всё время;
+ *  по умолчанию — месяц. Дни — по Алматы. */
+export const ANALYTICS_PERIODS = ["today", "7", "30", "90", "all"] as const;
+export const DEFAULT_ANALYTICS_PERIOD = "30";
+
+/** Платформа, на которой человек появился (PLATFORMS на бэкенде). */
+export const PLATFORMS = ["telegram", "web"] as const;
+
+/** Готовые источники генератора ссылок (SOURCE_PRESETS на бэкенде) и пределы метки:
+ *  источник — латиница и цифры, подпись (номер поста) — ещё «_» и «-». У веб-ссылки метка
+ *  «источник_подпись» целиком — не длиннее SOURCE_LINK_MAX_LENGTH (её так хранит лендинг). */
+export const SOURCE_PRESETS = ["threads", "instagram", "friends"] as const;
+export const SOURCE_MAX_LENGTH = 16;
+export const SOURCE_LINK_MAX_LENGTH = 32;
+
+/** Окно активации — не длиннее стольких дней (ACTIVATION_WINDOW_MAX_DAYS на бэкенде). */
+export const ACTIVATION_WINDOW_MAX_DAYS = 14;
 
 /** Фильтры пользователей — в списке пользователей и в получателях рассылки
  *  (AUDIENCE_FILTERS на бэкенде): признак → его значения, в том же порядке. Условия разных
- *  признаков складываются через «и». */
+ *  признаков складываются через «и». Ещё есть признак «segment» — группа людей из
+ *  аналитики (значение — её id), он не перечисляется. */
 export const AUDIENCE_FILTERS = {
   app: ["opened", "never"],
   habits: ["any", "none"],
-  activity: ["1d", "7d", "30d", "inactive_7d", "inactive_30d"],
-  joined: ["1d", "7d", "30d"],
+  activity: [
+    "1d",
+    "7d",
+    "30d",
+    "inactive_3d",
+    "inactive_7d",
+    "inactive_14d",
+    "inactive_30d",
+  ],
+  joined: ["today", "1d", "7d", "30d", "90d"],
+  platform: ["telegram", "web"],
+  device: ["ios", "android", "desktop"],
+  source: ["threads", "instagram", "friends", "direct", "other"],
+  activated: ["yes", "no"],
+  stuck: ["no_open", "no_habit", "no_checkin", "not_activated"],
+  uninstalled: ["likely"],
+  reminders: ["any", "none"],
+  streak: ["3", "7", "14", "30"],
   language: ["ru", "en"],
   reviews: ["any", "none"],
   bot: ["ok", "blocked"],
   access: ["ok", "blocked"],
+  test: ["yes", "no"],
 } as const;
 
 /** Признаки фильтра рассылки: заблокировавшие бота и заблокированные администратором
@@ -117,6 +149,14 @@ export const BROADCAST_FILTER_KEYS = [
   "habits",
   "activity",
   "joined",
+  "platform",
+  "device",
+  "source",
+  "activated",
+  "stuck",
+  "uninstalled",
+  "reminders",
+  "streak",
   "language",
   "reviews",
 ] as const;

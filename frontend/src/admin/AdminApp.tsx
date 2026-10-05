@@ -8,6 +8,9 @@
  * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
  * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
  * верхний экран):
+ *  - Аналитика → нажатая цифра → люди за ней (AdminPeopleScreen) → профиль → …; оттуда
+ *    «Рассылка этим людям» переключает на вкладку «Рассылка» с этой группой получателей;
+ *  - Аналитика → Источники (или Настройки) → «Ссылки с меткой» (AdminLinksScreen);
  *  - Пользователи → «Фильтры» (условия списка, см. AdminUserFiltersScreen);
  *  - Пользователи → профиль → его привычки (тот же список, что он видит сам, только
  *    для просмотра) или его отзыв → …;
@@ -16,8 +19,8 @@
  *    администратора» (см. ComposeScreen).
  * При возврате экран открывается на той же позиции прокрутки.
  *
- * Состояние, которое должно пережить переходы, живёт здесь: аналитика выбранного
- * периода, списки пользователей (с запросом поиска и фильтром) и отзывов, черновик и ход последней
+ * Состояние, которое должно пережить переходы, живёт здесь: фильтр и раздел аналитики,
+ * списки пользователей (с запросом поиска и фильтром) и отзывов, черновик и ход последней
  * рассылки. Списки загружаются при первом открытии вкладки и обновляются при повторном.
  * Действия в профиле и отзыве (блокировка, удаление, ответ) сразу видны в списках — без
  * повторной загрузки. Настройки (язык, тема) — общие с приложением: их хранит App.
@@ -28,7 +31,7 @@
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { fetchAnalytics, fetchReviews, fetchUsers } from "../api/admin";
+import { fetchReviews, fetchUsers } from "../api/admin";
 import { audienceParam } from "./audience";
 import { useAdminStrings } from "./adminStrings";
 import { TabBar, type TabItem } from "../components/TabBar";
@@ -43,11 +46,12 @@ import { ADMIN_SEARCH_DELAY_MS, DEFAULT_ANALYTICS_PERIOD } from "../constants";
 import { useBackButton } from "../hooks/useBackButton";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePagedList } from "../hooks/usePagedList";
-import { useResource } from "../hooks/useResource";
 import { useTextFieldFocused } from "../hooks/useTextFieldFocused";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
-import { AdminAnalyticsScreen } from "./screens/AdminAnalyticsScreen";
+import { AnalyticsScreen, type AnalyticsView } from "./analytics/AnalyticsScreen";
+import { AdminLinksScreen } from "./screens/AdminLinksScreen";
+import { AdminPeopleScreen } from "./screens/AdminPeopleScreen";
 import {
   AdminBroadcastScreen,
   EMPTY_DRAFT,
@@ -62,13 +66,23 @@ import { AdminUserFiltersScreen } from "./screens/AdminUserFiltersScreen";
 import { AdminUserHabitsScreen } from "./screens/AdminUserHabitsScreen";
 import { AdminUserScreen } from "./screens/AdminUserScreen";
 import { AdminUsersScreen } from "./screens/AdminUsersScreen";
-import type { AdminReview, AdminUserRef, Audience, Broadcast } from "../types/admin";
+import type {
+  AdminReview,
+  AdminUserRef,
+  AnalyticsFilter,
+  Audience,
+  Broadcast,
+  PeopleQuery,
+  Segment,
+} from "../types/admin";
 import type { SettingsUpdate } from "../types/settings";
 
 type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
+  | { kind: "people"; query: PeopleQuery; filter: AnalyticsFilter }
+  | { kind: "links" }
   | { kind: "userFilters" }
   | { kind: "user"; id: number; initial: AdminUserRef | null }
   | { kind: "habits"; id: number }
@@ -93,8 +107,12 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   const scrollStack = useRef<number[]>([]);
   const pendingScroll = useRef<number | null>(null);
 
-  const [period, setPeriod] = useState(DEFAULT_ANALYTICS_PERIOD);
-  const analytics = useResource(() => fetchAnalytics(period), String(period));
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsView>({
+    filter: { period: DEFAULT_ANALYTICS_PERIOD, platform: null, source: null },
+    section: "summary",
+    basis: "checkin",
+    compare: "none",
+  });
 
   const [usersOpened, setUsersOpened] = useState(false);
   const [reviewsOpened, setReviewsOpened] = useState(false);
@@ -153,9 +171,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   // видны, пока загружаются новые).
   function selectTab(next: AdminTab): void {
     if (next !== tab) {
-      if (next === "analytics") {
-        analytics.reload();
-      } else if (next === "users") {
+      if (next === "users") {
         if (usersOpened) {
           users.reload();
         }
@@ -196,6 +212,16 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     push({ kind: "review", id: review.id, initial: review });
   }
 
+  // «Рассылка этим людям»: вкладка «Рассылка» с этой группой получателей (остальные
+  // условия фильтра снимаются — получатели ровно эти люди).
+  function broadcastTo(segment: Segment): void {
+    setDraft((current) => ({ ...current, audience: { segment: String(segment.id) } }));
+    scrollStack.current = [];
+    setStack([]);
+    pendingScroll.current = 0;
+    setTab("broadcast");
+  }
+
   // Отправленный ответ виден и в списке отзывов, и на экране отзыва под этим — туда он
   // попадает как «уже известный» отзыв (`initial`), пока экран перечитывает свежий.
   function applyReply(updated: AdminReview): void {
@@ -211,6 +237,18 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
 
   function renderPage(page: AdminPage) {
     switch (page.kind) {
+      case "people":
+        return (
+          <AdminPeopleScreen
+            key={`people-${stack.length}`}
+            query={page.query}
+            filter={page.filter}
+            onOpenUser={openUser}
+            onBroadcast={broadcastTo}
+          />
+        );
+      case "links":
+        return <AdminLinksScreen />;
       case "userFilters":
         return (
           <AdminUserFiltersScreen
@@ -271,7 +309,12 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     switch (tab) {
       case "analytics":
         return (
-          <AdminAnalyticsScreen analytics={analytics} period={period} onPeriodChange={setPeriod} />
+          <AnalyticsScreen
+            view={analyticsView}
+            onViewChange={setAnalyticsView}
+            onOpenPeople={(query, filter) => push({ kind: "people", query, filter })}
+            onOpenLinks={() => push({ kind: "links" })}
+          />
         );
       case "users":
         return (
@@ -302,6 +345,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             settings={settings}
             onSaveSettings={onSaveSettings}
             onAddAdmin={() => push({ kind: "newAdmin" })}
+            onOpenLinks={() => push({ kind: "links" })}
             onExit={onExit}
           />
         );

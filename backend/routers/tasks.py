@@ -28,7 +28,7 @@ from backend.schemas import (
     HabitsResponse,
     HabitUpdate,
 )
-from backend.services import create_habit, list_habits, toggle_today, update_habit
+from backend.services import create_habit, delete_habit, list_habits, toggle_today, update_habit
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -90,7 +90,7 @@ async def delete_task(
     task = await repo.get_active_task(task_id, db_user.telegram_id)
     if task is None:
         raise ApiError(404, "task_not_found", "Задача не найдена")
-    await repo.soft_delete_task(task)
+    await delete_habit(repo, db_user, task)
     return Response(status_code=204)
 
 
@@ -164,5 +164,9 @@ async def _offer_install(app: FastAPI, user_id: int, language: str) -> None:
         if claimed:
             undelivered = await send_install_offer(app.state.bot, user_id, language, tma_url)
             logger.info("Install offer for user {}: {}", user_id, undelivered or "sent")
+            if undelivered is None:
+                async with app.state.database.session_factory() as session:
+                    await Repository(session).log_action(user_id, "install_offer_sent")
+                    await session.commit()
     except Exception:  # noqa: BLE001 — the offer is optional, never fail loudly
         logger.exception("Could not send the install offer to user {}", user_id)

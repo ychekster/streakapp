@@ -25,7 +25,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { installSource, track } from "../web/analytics";
+import { botLinkWithSource, installSource, track } from "../web/analytics";
 import { API_BASE_URL } from "../api/client";
 import { redeemHandoff } from "../api/web";
 import { devicePlatform, inAppBrowser } from "../platform";
@@ -35,6 +35,7 @@ import {
   ESCAPE_HINT_DELAY_MS,
   INSTALL_PROMPT_WAIT_MS,
   IOS_INSTALL,
+  DEFAULT_SRC,
   TELEGRAM_BOT_URL,
   type InstallStep,
   type StepIcon as StepIconName,
@@ -67,15 +68,24 @@ function flowUrl(path: string): string {
   return url.toString();
 }
 
-/** iPhone: the app added to the home screen starts with the handoff token. */
-function carryHandoffToInstalledApp(token: string): void {
+/** iPhone: the app added to the home screen starts with the handoff token (if any) and
+ *  the install source (its storage is not Safari's — the source would be lost). */
+function carryHandoffToInstalledApp(token: string | null): void {
   let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (!link) {
     link = document.createElement("link");
     link.rel = "manifest";
     document.head.appendChild(link);
   }
-  link.href = `${API_BASE_URL}/web/manifest?h=${encodeURIComponent(token)}`;
+  const params = new URLSearchParams();
+  if (token) {
+    params.set("h", token);
+  }
+  const source = installSource();
+  if (source !== DEFAULT_SRC) {
+    params.set("s", source);
+  }
+  link.href = `${API_BASE_URL}/web/manifest?${params}`;
 }
 
 /** Use the handoff token once, in a real browser (see the module comment). */
@@ -124,7 +134,7 @@ export function Landing() {
 
   function chooseTelegram(): void {
     track("choose_telegram");
-    window.location.href = TELEGRAM_BOT_URL;
+    window.location.href = botLinkWithSource(TELEGRAM_BOT_URL);
   }
 
   function chooseInstall(): void {
@@ -350,6 +360,13 @@ function AndroidInstall({ onDone }: { onDone: () => void }) {
 }
 
 function IosInstall() {
+  // The install source goes with the app to the home screen (unless the handoff already
+  // set the manifest — it carries the source too).
+  useEffect(() => {
+    if (installSource() !== DEFAULT_SRC && !new URLSearchParams(window.location.search).get("h")) {
+      carryHandoffToInstalledApp(null);
+    }
+  }, []);
   return (
     <StepsScreen
       title="Добавьте на экран Домой"

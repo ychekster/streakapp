@@ -6,6 +6,7 @@
  */
 
 import { ApiRequestError, type ApiErrorCode } from "../api/client";
+import { ANALYTICS_EN, ANALYTICS_RU } from "./analyticsCopy";
 import { useLanguage } from "../preferences";
 import type { AudienceKey, BroadcastButton, UndeliveredReason } from "../types/admin";
 import type { Language } from "../types/settings";
@@ -54,17 +55,9 @@ const RU = {
   kilobytes: "КБ",
   megabytes: "МБ",
 
-  // --- Аналитика ---
-  analyticsTitle: "Аналитика",
-  analyticsLoadFailed: "Не удалось загрузить аналитику",
-  period: "Период",
-  periodNames: {
-    7: "Последние 7 дней",
-    30: "Последние 30 дней",
-    90: "Последние 90 дней",
-  } as Record<number, string>,
-  periodDays: (days: number) => `Последние ${days} ${plural(days, "день", "дня", "дней")}`,
-  webFunnelHeading: "Веб-приложение",
+  // --- Аналитика (тексты разделов — analyticsCopy.ts) ---
+  an: ANALYTICS_RU,
+  webFunnelHeading: "Все события страницы установки",
   webFunnelFooter:
     "Шаги установки и первого запуска веб-приложения за период: сколько раз и (в скобках) с разных устройств. Подробнее — scripts/funnel.py.",
   webFunnelEmpty: "За период событий нет",
@@ -88,60 +81,13 @@ const RU = {
     push_permission_denied: "Запретили уведомления",
     account_linked: "Привязали вход",
   } as Record<string, string>,
-  funnelHeading: "Новые пользователи",
-  statStartedBot: "Запустили бота",
-  statOpenedApp: "Открыли приложение",
-  statAddedHabit: "Добавили привычку",
-  usersHeading: "Пользователи",
-  statActiveNow: "Сейчас в приложении",
-  chartTotalUsers: "Всего пользователей",
-  chartTotalUsersNote: (added: number, period: string) =>
-    `+${ru(added)} ${plural(added, "новый пользователь", "новых пользователя", "новых пользователей")} · ${period}`,
-  activityHeading: "Активность",
-  statDau: "За день (DAU)",
-  statWau: "За неделю (WAU)",
-  statMau: "За месяц (MAU)",
-  statStickiness: "Возвращаемость (DAU/MAU)",
-  chartDau: "Активные за день",
-  chartDauNote: (period: string) => `В среднем за день · ${period}`,
-  audienceHeading: "Аудитория",
-  chartAudience: "Все пользователи",
-  audienceUsesApp: "Пользуются приложением",
-  audienceNeverOpened: "Не открывали приложение",
-  audienceBlockedBot: "Заблокировали бота",
-  audienceFooter:
-    "«Заблокировали бота» — в том числе те, кто не открывал приложение. Им не приходят напоминания и рассылки.",
-  habitsHeading: "Привычки",
-  statAverageHabits: "Привычек на пользователя",
-  statTotalHabits: "Активных привычек",
-  chartHabits: "Пользователи по числу привычек",
-  chartHabitsNote: "Пользуются приложением",
-  habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
-  habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
-    const who = `${ru(users)} ${plural(users, "пользователь", "пользователя", "пользователей")}`;
-    if (openEnded) {
-      return `${who} с ${habits} и более привычками`;
-    }
-    if (habits === 0) {
-      return `${who} без привычек`;
-    }
-    return `${who} с ${habits} ${plural(habits, "привычкой", "привычками", "привычками")}`;
-  },
-  completionHeading: "Выполнение",
-  chartCompletion: "Доля выполнения по дням",
-  chartCompletionNote: (period: string) => `В среднем · ${period}`,
-  completionPoint: (completed: number, scheduled: number) =>
-    `${ru(completed)} из ${ru(scheduled)} запланированных`,
-  nothingScheduled: "Ничего не запланировано",
   today: "Сегодня",
   todaySoFar: "Сегодня, день ещё идёт",
   showTable: "Показать таблицей",
   showChart: "Показать графиком",
   tableDate: "Дата",
   tableValue: "Значение",
-  tableHabits: "Привычек",
   tableUsers: "Пользователей",
-  tableGroup: "Группа",
 
   // --- Пользователи ---
   usersTitle: "Пользователи",
@@ -173,10 +119,19 @@ const RU = {
     habits: "Привычки",
     activity: "Активность",
     joined: "Появились",
+    platform: "Платформа",
+    device: "Телефон",
+    source: "Источник",
+    activated: "Активация",
+    stuck: "Застряли",
+    uninstalled: "Удаление",
+    reminders: "Напоминания",
+    streak: "Серия",
     language: "Язык",
     reviews: "Отзывы",
     bot: "Бот",
     access: "Блокировка",
+    test: "Тестовые",
   } as Record<AudienceKey, string>,
   filterValues: {
     app: { opened: "Открывали приложение", never: "Не открывали приложение" },
@@ -185,14 +140,42 @@ const RU = {
       "1d": "Заходили за 24 часа",
       "7d": "Заходили за 7 дней",
       "30d": "Заходили за 30 дней",
+      inactive_3d: "Не заходят 3+ дня",
       inactive_7d: "Не заходят 7+ дней",
+      inactive_14d: "Не заходят 14+ дней",
       inactive_30d: "Не заходят 30+ дней",
     },
-    joined: { "1d": "Новые за 24 часа", "7d": "Новые за 7 дней", "30d": "Новые за 30 дней" },
+    joined: {
+      today: "Новые сегодня",
+      "1d": "Новые за 24 часа",
+      "7d": "Новые за 7 дней",
+      "30d": "Новые за 30 дней",
+      "90d": "Новые за 90 дней",
+    },
+    platform: { telegram: "Из Telegram", web: "Из веб-приложения" },
+    device: { ios: "iPhone", android: "Android", desktop: "Компьютер" },
+    source: {
+      threads: "Threads",
+      instagram: "Instagram",
+      friends: "Друзья",
+      direct: "Напрямую",
+      other: "Другой источник",
+    },
+    activated: { yes: "Активированы", no: "Не активированы" },
+    stuck: {
+      no_open: "Запустили бота, не открыли приложение",
+      no_habit: "Открыли, не добавили привычку",
+      no_checkin: "Добавили привычку, ни разу не отметили",
+      not_activated: "Отмечали, но не активировались",
+    },
+    uninstalled: { likely: "Вероятно удалили веб-приложение" },
+    reminders: { any: "Есть напоминания", none: "Без напоминаний" },
+    streak: { "3": "Серия от 3 дней", "7": "Серия от 7 дней", "14": "Серия от 14 дней", "30": "Серия от 30 дней" },
     language: { ru: "Русский язык", en: "Английский язык" },
     reviews: { any: "Оставляли отзыв", none: "Не оставляли отзыв" },
     bot: { ok: "Бот не заблокирован", blocked: "Заблокировали бота" },
     access: { ok: "Не заблокированы админом", blocked: "Заблокированы админом" },
+    test: { yes: "Тестовые аккаунты", no: "Без тестовых аккаунтов" },
   } as Record<AudienceKey, Record<string, string>>,
 
   // --- Профиль пользователя ---
@@ -359,6 +342,10 @@ const RU = {
     invalid_filter: "Такого фильтра нет — обновите приложение",
     invalid_button: "Такой кнопки нет — обновите приложение",
     app_url_missing: "На сервере не задан адрес приложения — кнопку не добавить",
+    invalid_period: "Такого периода нет — обновите приложение",
+    invalid_metric: "Эту цифру нельзя открыть списком — обновите приложение",
+    invalid_config: "Дней с отметками не может быть больше, чем дней в окне",
+    segment_not_found: "Эта группа больше не существует",
     invalid_media: "Telegram не сможет отправить этот файл — нужен JPEG, PNG, WebP или MP4",
     media_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
     payload_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
@@ -391,12 +378,8 @@ const EN: AdminStrings = {
   kilobytes: "KB",
   megabytes: "MB",
 
-  analyticsTitle: "Analytics",
-  analyticsLoadFailed: "Couldn’t load analytics",
-  period: "Period",
-  periodNames: { 7: "Last 7 Days", 30: "Last 30 Days", 90: "Last 90 Days" },
-  periodDays: (days: number) => `Last ${days} Days`,
-  webFunnelHeading: "Web App",
+  an: ANALYTICS_EN,
+  webFunnelHeading: "All install page events",
   webFunnelFooter:
     "Install and first-launch steps of the web app for the period: times and (in brackets) distinct devices. More — scripts/funnel.py.",
   webFunnelEmpty: "No events in this period",
@@ -420,60 +403,13 @@ const EN: AdminStrings = {
     push_permission_denied: "Denied notifications",
     account_linked: "Linked a login",
   },
-  funnelHeading: "New Users",
-  statStartedBot: "Started the bot",
-  statOpenedApp: "Opened the app",
-  statAddedHabit: "Added a habit",
-  usersHeading: "Users",
-  statActiveNow: "Online now",
-  chartTotalUsers: "Total users",
-  chartTotalUsersNote: (added: number, period: string) =>
-    `+${en(added)} new ${added === 1 ? "user" : "users"} · ${period}`,
-  activityHeading: "Activity",
-  statDau: "Daily active",
-  statWau: "Weekly active",
-  statMau: "Monthly active",
-  statStickiness: "Stickiness (DAU/MAU)",
-  chartDau: "Daily active users",
-  chartDauNote: (period: string) => `Daily average · ${period}`,
-  audienceHeading: "Audience",
-  chartAudience: "All users",
-  audienceUsesApp: "Use the app",
-  audienceNeverOpened: "Haven’t opened the app",
-  audienceBlockedBot: "Blocked the bot",
-  audienceFooter:
-    "“Blocked the bot” includes people who never opened the app. They don’t get reminders or broadcasts.",
-  habitsHeading: "Habits",
-  statAverageHabits: "Avg habits per user",
-  statTotalHabits: "Active habits",
-  chartHabits: "Users by number of habits",
-  chartHabitsNote: "People who use the app",
-  habitsBucket: (habits: number, openEnded: boolean) => (openEnded ? `${habits}+` : String(habits)),
-  habitsBucketUsers: (users: number, habits: number, openEnded: boolean) => {
-    const who = `${en(users)} ${users === 1 ? "user" : "users"}`;
-    if (openEnded) {
-      return `${who} with ${habits} or more habits`;
-    }
-    if (habits === 0) {
-      return `${who} with no habits`;
-    }
-    return `${who} with ${habits} ${habits === 1 ? "habit" : "habits"}`;
-  },
-  completionHeading: "Completion",
-  chartCompletion: "Daily completion rate",
-  chartCompletionNote: (period: string) => `Average · ${period}`,
-  completionPoint: (completed: number, scheduled: number) =>
-    `${en(completed)} of ${en(scheduled)} scheduled`,
-  nothingScheduled: "Nothing scheduled",
   today: "Today",
   todaySoFar: "Today so far",
   showTable: "Show as table",
   showChart: "Show as chart",
   tableDate: "Date",
   tableValue: "Value",
-  tableHabits: "Habits",
   tableUsers: "Users",
-  tableGroup: "Group",
 
   usersTitle: "Users",
   usersSearch: "Name, @username or ID",
@@ -499,10 +435,19 @@ const EN: AdminStrings = {
     habits: "Habits",
     activity: "Activity",
     joined: "Joined",
+    platform: "Platform",
+    device: "Phone",
+    source: "Source",
+    activated: "Activation",
+    stuck: "Stuck",
+    uninstalled: "Uninstall",
+    reminders: "Reminders",
+    streak: "Streak",
     language: "Language",
     reviews: "Reviews",
     bot: "Bot",
     access: "Access",
+    test: "Test",
   },
   filterValues: {
     app: { opened: "Opened the app", never: "Never opened the app" },
@@ -511,14 +456,42 @@ const EN: AdminStrings = {
       "1d": "Active in 24 hours",
       "7d": "Active in 7 days",
       "30d": "Active in 30 days",
+      inactive_3d: "Away 3+ days",
       inactive_7d: "Away 7+ days",
+      inactive_14d: "Away 14+ days",
       inactive_30d: "Away 30+ days",
     },
-    joined: { "1d": "New in 24 hours", "7d": "New in 7 days", "30d": "New in 30 days" },
+    joined: {
+      today: "New today",
+      "1d": "New in 24 hours",
+      "7d": "New in 7 days",
+      "30d": "New in 30 days",
+      "90d": "New in 90 days",
+    },
+    platform: { telegram: "From Telegram", web: "From the web app" },
+    device: { ios: "iPhone", android: "Android", desktop: "Computer" },
+    source: {
+      threads: "Threads",
+      instagram: "Instagram",
+      friends: "Friends",
+      direct: "Direct",
+      other: "Other source",
+    },
+    activated: { yes: "Activated", no: "Not activated" },
+    stuck: {
+      no_open: "Started the bot, never opened the app",
+      no_habit: "Opened, no habit added",
+      no_checkin: "Added a habit, never checked off",
+      not_activated: "Checked off but not activated",
+    },
+    uninstalled: { likely: "Likely uninstalled the web app" },
+    reminders: { any: "Have reminders", none: "No reminders" },
+    streak: { "3": "Streak 3+ days", "7": "Streak 7+ days", "14": "Streak 14+ days", "30": "Streak 30+ days" },
     language: { ru: "Russian", en: "English" },
     reviews: { any: "Left a review", none: "No reviews" },
     bot: { ok: "Bot not blocked", blocked: "Blocked the bot" },
     access: { ok: "Not blocked by admin", blocked: "Blocked by admin" },
+    test: { yes: "Test accounts", no: "No test accounts" },
   },
 
   profileLoadFailed: "Couldn’t load this user",
@@ -676,6 +649,10 @@ const EN: AdminStrings = {
     invalid_filter: "This filter doesn’t exist — please update the app",
     invalid_button: "This button doesn’t exist — please update the app",
     app_url_missing: "The server has no app address set — can’t add a button",
+    invalid_period: "This period doesn’t exist — please update the app",
+    invalid_metric: "This number can’t be opened as a list — please update the app",
+    invalid_config: "Days with check-ins can’t exceed the window",
+    segment_not_found: "This group no longer exists",
     invalid_media: "Telegram can’t send this file — use a JPEG, PNG, WebP or MP4",
     media_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",
     payload_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",

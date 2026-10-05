@@ -18,7 +18,9 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
                     auth (web logins), web (push, events)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
-  admin.py analytics.py audience.py messaging.py   admin panel logic, bot messages from the API
+  admin.py audience.py messaging.py   admin panel logic, bot messages from the API
+  analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
+                    people.py (people behind a number), profile.py; sources.py, clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py
@@ -35,8 +37,9 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0013)
-scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0014)
+scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
+                    seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
 docs/               ARCHITECTURE, BACKEND (endpoints, env, migrations), FRONTEND (screens,
                     src/ map, Android), BOT, WEB_APP_SETUP, DEPLOYMENT, SCALING
@@ -106,7 +109,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Offline / sync | routers/sync.py, services.apply_sync; frontend src/data/, api/sync.ts, sw.ts, web/bootstrap.ts |
 | Settings item | models.User, schemas.Settings*, services.py; screens/SettingsScreen.tsx, hooks/useSettings.ts |
 | Reminders | services.due_reminders / due_checkin_reminders, bot/reminders.py (Telegram or push) |
-| Admin panel | backend/admin.py, analytics.py, routers/admin.py; frontend/src/admin/, api/admin.ts, types/admin.ts |
+| Admin panel | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts |
 | Web app login / accounts | backend/accounts.py, routers/auth.py, bot/handlers/web_login.py; frontend/src/web/ |
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |
 | Install page / funnel | frontend/src/landing/, src/web/analytics.ts; backend/funnel.py, scripts/funnel.py |

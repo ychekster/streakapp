@@ -358,7 +358,7 @@ def test_bot_offers_the_app_once_after_the_first_checkin(
     assert len(offers) == 1
     assert offers[0].text.startswith("Отличное начало!")
     buttons = offers[0].extra["reply_markup"].inline_keyboard[0]
-    assert buttons[0].web_app.url.endswith("?open=install")
+    assert buttons[0].web_app.url.endswith("?open=install&from=install_offer")
     assert buttons[1].callback_data == "install_offer:dismiss"
 
 
@@ -426,7 +426,7 @@ def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
     # The reminder is the title: iOS shows «from Knot» under it by itself.
     # Plain text, no emoji.
     assert payload["title"] == "Пора выполнить «Вода»" and payload["body"] == ""
-    assert "/app?pwa=1&habit=" in payload["url"]
+    assert "/app?pwa=1&from=push&habit=" in payload["url"]
     # The gone subscription is deleted.
     assert 503 not in left and len(left) == 2
 

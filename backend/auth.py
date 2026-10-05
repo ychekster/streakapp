@@ -39,6 +39,9 @@ class TelegramUser(BaseModel):
     last_name: str | None = None
     username: str | None = None
     language_code: str | None = None
+    # Параметр прямой ссылки на Mini App (`startapp=`) — из initData, не из `user`: по нему
+    # запоминается источник нового пользователя (sources.py).
+    start_param: str | None = None
 
 
 def _compute_secret_key(bot_token: str) -> bytes:
@@ -99,6 +102,8 @@ def verify_init_data(
         raise InitDataError("initData user is not valid JSON") from exc
 
     try:
-        return TelegramUser.model_validate(user_data)
+        user = TelegramUser.model_validate(user_data)
     except Exception as exc:  # noqa: BLE001 — любую ошибку схемы трактуем как невалидные данные
         raise InitDataError("initData user has unexpected shape") from exc
+    user.start_param = fields.get("start_param") or None
+    return user

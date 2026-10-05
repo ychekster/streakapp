@@ -107,7 +107,7 @@ def test_broadcast_button_is_in_recipient_language(db_url: str) -> None:
         3: "Write a review",
     }
     # Адрес приложения с экраном отзыва; его собственные параметры сохраняются.
-    assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=review"
+    assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=review&from=broadcast&b=1"
 
 
 def test_new_habit_button_opens_the_habit_form(db_url: str) -> None:
@@ -132,7 +132,9 @@ def test_new_habit_button_opens_the_habit_form(db_url: str) -> None:
         2: "Добавить привычку",
         3: "Add a habit",
     }
-    assert buttons[2].web_app.url == "https://app.example.com/?v=2&open=new_habit"
+    assert buttons[2].web_app.url == (
+        "https://app.example.com/?v=2&open=new_habit&from=broadcast&b=1"
+    )
 
 
 def test_broadcast_falls_back_without_button_icon(db_url: str) -> None:
@@ -155,7 +157,7 @@ def test_broadcast_falls_back_without_button_icon(db_url: str) -> None:
     assert (sent.chat_id, button.text, button.icon_custom_emoji_id) == (
         2, "Открыть приложение", None
     )
-    assert button.web_app.url == _TMA_URL
+    assert button.web_app.url == f"{_TMA_URL}&from=broadcast&b=1"
 
 
 def test_broadcast_with_broken_filter_does_not_jam_the_queue(db_url: str) -> None:
@@ -250,38 +252,59 @@ def test_audience_filters(db_url: str) -> None:
     asyncio.run(_with_repo(db_url, check))
 
 
-def test_habit_counts_skip_users_who_blocked_the_bot(db_url: str) -> None:
+def test_bot_block_changes_are_logged_once(db_url: str) -> None:
     async def check(repo: Repository) -> None:
-        now = utc_now()
-        for user_id in (1, 2, 3):
-            await repo.get_or_create_user(user_id, None, "U", language="ru")
-        for user_id in (1, 2):
-            await repo.touch_user(await repo.get_user(user_id), now)
-        repo.session.add_all([
-            Task(user_id=1, name="Бег", frequency_type="daily"),
-            Task(user_id=1, name="Сон", frequency_type="daily"),
-            Task(user_id=2, name="Бег", frequency_type="daily"),
-            Task(user_id=3, name="Бег", frequency_type="daily"),  # не открывал приложение
-        ])
-        await repo.set_bot_blocked([2], blocked=True)  # ушёл — не считается
-        await repo.session.flush()
-        assert await repo.active_habit_counts() == [2]
+        await repo.get_or_create_user(1, None, "U", language="ru")
+        await repo.set_bot_blocked([1], blocked=True)
+        await repo.set_bot_blocked([1], blocked=True)  # уже заблокирован — без новой записи
+        await repo.set_bot_blocked([1], blocked=False)
+        kinds = [kind for _, kind, *_ in await repo.actions(["bot_blocked", "bot_unblocked"])]
+        assert kinds == ["bot_blocked", "bot_unblocked"]
 
     asyncio.run(_with_repo(db_url, check))
 
 
-def test_funnel(db_url: str) -> None:
+def test_analytics_definitions(db_url: str) -> None:
+    """Активация, «живые», «ушёл» и шаги воронки — на одном наборе данных."""
+    from backend.analytics.data import load_dataset, make_period
+    from backend.analytics.report import user_steps
+    from backend.clock import local_day
+    from backend.models import CheckinDay
+
     async def check(repo: Repository) -> None:
         now = utc_now()
-        for user_id in (1, 2, 3):
-            await repo.get_or_create_user(user_id, None, "U", language="ru")
-        for user_id in (1, 2):
-            await repo.touch_user(await repo.get_user(user_id), now)
-        repo.session.add(Task(user_id=1, name="Бег", frequency_type="daily"))
+        today = local_day(now)
+        ago = lambda days: now - timedelta(days=days)  # noqa: E731
+        for user_id, joined in ((1, 20), (2, 20), (3, 2), (4, 30)):
+            user = await repo.get_or_create_user(user_id, None, "U", language="ru")
+            user.created_at = ago(joined)
         await repo.session.flush()
-        funnel = await repo.funnel_since(now - timedelta(days=1))
-        assert (funnel.started_bot, funnel.opened_app, funnel.added_habit) == (3, 2, 1)
-        assert (await repo.funnel_since(now + timedelta(days=1))).started_bot == 0
+        # 1: активирован (отметки в 1-й и 2-й день) и живой (3 дня отметок за неделю).
+        # 2: открыл, отметил один раз — не активирован; не заходит 20 дней — ушёл.
+        # 3: пришёл 2 дня назад — окно активации ещё идёт. 4: только /start.
+        for user_id, opened, seen in ((1, 20, 0), (2, 20, 20), (3, 2, 1)):
+            user = await repo.get_user(user_id)
+            user.app_opened_at, user.last_seen_at = ago(opened), ago(seen)
+        repo.session.add(Task(user_id=1, name="Бег", frequency_type="daily", created_at=ago(20)))
+        repo.session.add(Task(user_id=2, name="Сон", frequency_type="daily", created_at=ago(20)))
+        for user_id, days_ago in ((1, 20), (1, 19), (1, 0), (1, 2), (1, 4), (2, 20)):
+            repo.session.add(CheckinDay(user_id=user_id, day=today - timedelta(days=days_ago)))
+        await repo.session.flush()
+
+        ds = await load_dataset(repo, now)
+        assert ds.activation_day(1) == today - timedelta(days=19)
+        assert ds.activation_day(2) is None and ds.window_closed(ds.users[2])
+        assert not ds.activation_known(ds.users[3])
+        assert ds.is_live(1) and not ds.is_live(2)
+        assert [ds.status(ds.users[uid]) for uid in (1, 2, 3, 4)] == [
+            "active", "churned", "active", "not_opened",
+        ]
+        steps = [moment is not None for moment in user_steps(ds, ds.users[2], ago(20))]
+        assert steps == [True, True, True, True, False, False]
+        # Администраторы и тестовые аккаунты в аналитику не входят.
+        await repo.set_test(await repo.get_user(4), True)
+        assert 4 not in (await load_dataset(repo, now)).users
+        assert len((await load_dataset(repo, now)).new_in(make_period("30", today))) == 3
 
     asyncio.run(_with_repo(db_url, check))
 
@@ -293,12 +316,15 @@ def test_start_records_user_and_clears_bot_block(db_url: str) -> None:
         database = Database(db_url)
         await database.create_tables()
         try:
-            await record_start(database, telegram_user)
+            await record_start(database, telegram_user, "src_threads_post12")
             async with database.session_factory() as session:
                 repo = Repository(session)
                 user = await repo.get_user(7)
-                # Запустил бота, но приложение ещё не открывал.
+                # Запустил бота, но приложение ещё не открывал; источник — из метки ссылки.
                 assert (user.language, user.app_opened_at) == ("en", None)
+                assert (user.source, user.source_tag, user.signup_platform) == (
+                    "threads", "post12", "telegram",
+                )
                 await repo.set_bot_blocked([7], blocked=True)
                 await session.commit()
             await record_start(database, telegram_user)

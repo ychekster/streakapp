@@ -54,7 +54,11 @@ def _profile(client: TestClient, admin: AuthUser, user_id: int) -> dict:
 # --------------------------------------------------------------------------- #
 
 _ADMIN_ROUTES = [
-    ("GET", "/admin/analytics"),
+    ("GET", "/admin/analytics/summary"),
+    ("POST", "/admin/segments"),
+    ("GET", "/admin/analytics-config"),
+    ("GET", "/admin/users/1/timeline"),
+    ("PUT", "/admin/users/1/test"),
     ("GET", "/admin/users"),
     ("GET", "/admin/users/count"),
     ("GET", "/admin/users/1"),
@@ -554,7 +558,7 @@ def test_broadcast_with_filter_and_button(
     # Копия автору — с той же кнопкой: открывает приложение сразу на экране отзыва.
     button = telegram.sent[-1].extra["reply_markup"].inline_keyboard[0][0]
     assert button.text == "Написать отзыв"
-    assert button.web_app.url == "https://example.com?open=review"
+    assert button.web_app.url == "https://example.com?open=review&from=broadcast"
 
     nobody = client.post(
         "/admin/broadcasts",
@@ -580,7 +584,7 @@ def test_broadcast_copy_falls_back_without_button_icon(
     assert response.status_code == 201, response.text
     button = telegram.sent[-1].extra["reply_markup"].inline_keyboard[0][0]
     assert (button.text, button.icon_custom_emoji_id) == ("Открыть приложение", None)
-    assert button.web_app.url == "https://example.com"
+    assert button.web_app.url == "https://example.com?from=broadcast"
 
 
 def test_photo_broadcast_uploads_file_once(
@@ -613,34 +617,145 @@ def test_photo_broadcast_uploads_file_once(
 # --------------------------------------------------------------------------- #
 
 
-def test_analytics(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
+def _section(client: TestClient, admin: AuthUser, name: str, **params: str) -> dict:
+    response = client.get(f"/admin/analytics/{name}", params=params, headers=admin.headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_analytics_sections(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
+    habit = client.post(
+        "/tasks", json={"name": "Читать 📚", "frequency_type": "daily"}, headers=user.headers
+    ).json()["habit"]
+    client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
+
+    summary = _section(client, admin, "summary", period="7")
+    assert summary["meta"]["period"] == "7"
+    assert summary["new_users"]["value"] >= 1
+    # Отметил сегодня; администратор в статистику не входит.
+    assert summary["today"]["checked_in"] >= 1
+    assert len(summary["live_weeks"]) == 8
+    funnel = _section(client, admin, "funnel", period="7", platform="telegram")["funnels"]
+    steps = {step["key"]: step["users"] for step in funnel[0]["steps"]}
+    assert steps["started"] >= steps["opened"] >= steps["habit"] >= steps["checkin"] >= 1
+    for name in ("retention", "churn", "habits", "sources", "messaging"):
+        _section(client, admin, name, period="all")
+    habits = _section(client, admin, "habits", period="30")
+    assert any(row["name"].startswith("Читать") for row in habits["top_names"])
+    assert _section(client, admin, "retention", basis="open", compare="platform")["basis"] == "open"
+
+    invalid = client.get(
+        "/admin/analytics/summary", params={"period": "12"}, headers=admin.headers
+    )
+    assert invalid.json()["error"]["code"] == "invalid_period"
+    assert client.get("/admin/analytics/nope", headers=admin.headers).status_code == 404
+
+
+def test_segment_lists_people_and_feeds_a_broadcast(
+    client: TestClient, user: AuthUser, admin: AuthUser
+) -> None:
     habit = client.post(
         "/tasks", json={"name": "Бег", "frequency_type": "daily"}, headers=user.headers
     ).json()["habit"]
     client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
+    created = client.post(
+        "/admin/segments",
+        json={"metric": "checked_today", "period": "today", "title": "Отметили сегодня"},
+        headers=admin.headers,
+    )
+    assert created.status_code == 201, created.text
+    segment = created.json()
+    assert segment["count"] >= 1 and segment["title"] == "Отметили сегодня"
+    found = client.get(
+        "/admin/users", params={"filter": f"segment:{segment['id']}"}, headers=admin.headers
+    ).json()
+    assert user.id in [row["telegram_id"] for row in found["users"]]
+    recipients = client.get(
+        "/admin/broadcasts/recipients",
+        params={"audience": f"segment:{segment['id']}"},
+        headers=admin.headers,
+    ).json()["recipients"]
+    assert recipients >= 1
+    unknown = client.post(
+        "/admin/segments", json={"metric": "nope", "title": "x"}, headers=admin.headers
+    )
+    assert unknown.json()["error"]["code"] == "invalid_metric"
 
-    data = client.get("/admin/analytics", params={"days": 7}, headers=admin.headers).json()
-    assert data["period_days"] == 7
-    assert len(data["days"]) == 7
-    today = data["days"][-1]
-    assert today["completed"] >= 1
-    assert today["scheduled"] >= today["completed"]
-    assert today["active_users"] >= 2  # пользователь и администратор
-    assert today["total_users"] == data["users"]["total"]
-    assert data["activity"]["dau"] == today["active_users"]
-    assert data["users"]["active_now"] >= 2
-    funnel = data["funnel"]
-    # Пользователь и администратор появились в этом тесте: оба открыли приложение, один
-    # добавил привычку. Воронка сужается сверху вниз.
-    assert funnel["started_bot"] >= funnel["opened_app"] >= funnel["added_habit"] >= 1
-    assert funnel["opened_app"] >= 2
-    assert sum(data["audience"].values()) == data["users"]["total"]
-    assert [bucket["habits"] for bucket in data["habits"]["distribution"]] == [0, 1, 2, 3, 4, 5]
-    assert data["habits"]["distribution"][-1]["open_ended"] is True
-    # Распределение — ровно те, кто пользуется приложением (без заблокировавших бота).
-    distributed = sum(bucket["users"] for bucket in data["habits"]["distribution"])
-    assert distributed == data["audience"]["uses_app"]
-    assert 0 < data["completion_rate"] <= 1
 
-    invalid = client.get("/admin/analytics", params={"days": 12}, headers=admin.headers)
-    assert invalid.json()["error"]["code"] == "invalid_period"
+def test_new_filters(client: TestClient, admin: AuthUser) -> None:
+    for value in (
+        "platform:telegram", "device:ios", "source:threads", "activated:no",
+        "stuck:no_habit", "stuck:not_activated", "uninstalled:likely", "reminders:none",
+        "streak:7", "joined:today", "activity:inactive_14d", "test:yes",
+    ):
+        response = client.get("/admin/users/count", params={"filter": value}, headers=admin.headers)
+        assert response.status_code == 200, (value, response.text)
+
+
+def test_profile_summary_timeline_and_test_flag(
+    client: TestClient, user: AuthUser, admin: AuthUser
+) -> None:
+    habit = client.post(
+        "/tasks", json={"name": "Бег", "frequency_type": "daily"}, headers=user.headers
+    ).json()["habit"]
+    client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
+    profile = _profile(client, admin, user.id)
+    assert profile["platform"] == "telegram" and profile["source"] == "direct"
+    assert profile["checkin_days"] == 1 and profile["current_streak"] == 1
+    assert profile["status"] == "active" and profile["is_test"] is False
+
+    items = client.get(f"/admin/users/{user.id}/timeline", headers=admin.headers).json()["items"]
+    kinds = [item["kind"] for item in items]
+    assert kinds[:2] == ["checkin", "habit_created"] and "joined" in kinds
+    assert items[0]["habit"] == "Бег"
+
+    marked = client.put(
+        f"/admin/users/{user.id}/test", json={"is_test": True}, headers=admin.headers
+    )
+    assert marked.json()["user"]["is_test"] is True
+    # Тестовый аккаунт больше не в аналитике.
+    segment = client.post(
+        "/admin/segments",
+        json={"metric": "checked_today", "period": "today", "title": "x"},
+        headers=admin.headers,
+    ).json()
+    found = client.get(
+        "/admin/users", params={"filter": f"segment:{segment['id']}"}, headers=admin.headers
+    ).json()
+    assert user.id not in [row["telegram_id"] for row in found["users"]]
+
+
+def test_app_open_is_logged_with_its_origin(
+    client: TestClient, user: AuthUser, admin: AuthUser
+) -> None:
+    _open_app(client, user)
+    response = client.post(
+        "/events",
+        json={"event": "app_open", "anon_id": "dev-1", "props": {"from": "reminder"}},
+        headers=user.headers,
+    )
+    assert response.status_code == 204
+    items = client.get(f"/admin/users/{user.id}/timeline", headers=admin.headers).json()["items"]
+    assert any(item["kind"] == "app_open" and item["detail"] == "reminder" for item in items)
+
+
+def test_activation_settings(client: TestClient, admin: AuthUser) -> None:
+    config = client.get("/admin/analytics-config", headers=admin.headers).json()
+    assert (config["activation_window_days"], config["activation_min_days"]) == (3, 2)
+    updated = client.put(
+        "/admin/analytics-config",
+        json={"activation_window_days": 5, "activation_min_days": 3},
+        headers=admin.headers,
+    ).json()
+    assert (updated["activation_window_days"], updated["activation_min_days"]) == (5, 3)
+    wrong = client.put(
+        "/admin/analytics-config",
+        json={"activation_window_days": 2, "activation_min_days": 3},
+        headers=admin.headers,
+    )
+    assert wrong.json()["error"]["code"] == "invalid_config"
+    client.put(
+        "/admin/analytics-config",
+        json={"activation_window_days": 3, "activation_min_days": 2},
+        headers=admin.headers,
+    )

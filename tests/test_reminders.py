@@ -155,7 +155,7 @@ def test_checkin_reminder_needs_its_day_time_and_something_to_mark(db_url: str) 
     assert due == [DueReminder(task_id=None, user_id=1, habit_name=None, language="en")]
     assert bot_reminders.reminder_text(due[0]) == "Time to check off your habits"
     assert bot_reminders.push_payload(due[0], "https://app.example")["url"] == (
-        "https://app.example/app?pwa=1"
+        "https://app.example/app?pwa=1&from=push"
     )
 
 
@@ -214,7 +214,7 @@ def test_reminder_carries_the_open_app_button() -> None:
     button = bot.markups[0].inline_keyboard[0][0]  # type: ignore[union-attr]
     assert button.text == REMINDER_BUTTONS["ru"]
     assert button.icon_custom_emoji_id == OPEN_APP_EMOJI.id
-    assert button.web_app is not None and button.web_app.url == "https://example.com/app"
+    assert button.web_app is not None and button.web_app.url == "https://example.com/app?from=reminder"
 
 
 def test_reminder_starts_with_the_animated_emoji() -> None:
@@ -246,13 +246,16 @@ def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) ->
     bot = _FakeBot(blocked=frozenset({3}))
     batch = [_reminder(1, 1), _reminder(2, 1), _reminder(3, 1), _reminder(4, 2), _reminder(5, 3)]
 
-    blocked = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), batch, KEYBOARDS))  # type: ignore[arg-type]
+    results = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), batch, KEYBOARDS))  # type: ignore[arg-type]
+    blocked = {user_id for user_id, (is_blocked, _) in results.items() if is_blocked}
 
     chats = [chat for chat, _ in bot.sent]
     # Заблокировавший бота пользователь не мешает остальным и возвращается, чтобы его
     # отметили в базе.
     assert sorted(chats) == [1, 1, 1, 2]
     assert blocked == {3}
+    # Какие напоминания дошли — для ленты действий (аналитика).
+    assert results[1] == (False, {(1, 1), (1, 2), (1, 3)}) and results[3] == (True, set())
     # Второй пользователь не ждёт, пока первому уйдут все его напоминания.
     assert chats.index(2) < 2
     first_user_times = [moment for chat, moment in bot.sent if chat == 1]

@@ -1,0 +1,39 @@
+/* Ряды формы — как в форме привычки. */
+.form {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+.form > * + * {
+  margin-top: var(--space-section-gap);
+}
+
+/* Поле ввода во весь ряд. Шрифт не мельче 16px — иначе iOS увеличивает страницу. */
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-primary);
+}
+
+.input::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* Готовая ссылка — переносится целиком, моноширинно не нужно. */
+.link {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.error {
+  color: var(--color-danger);
+}

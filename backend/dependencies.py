@@ -14,7 +14,7 @@ from typing import AsyncIterator
 from aiogram import Bot
 from fastapi import Depends, Header, Request
 
-from backend.accounts import resolve_session
+from backend.accounts import client_platform, resolve_session
 from backend.auth import InitDataError, TelegramUser, verify_init_data
 from backend.config import Settings
 from backend.constants import INIT_DATA_AUTH_SCHEME, WEB_SESSION_AUTH_SCHEME
@@ -24,6 +24,7 @@ from backend.models import User
 from backend.ratelimit import RateLimiter, retry_after_header
 from backend.repository import Repository, utc_now
 from backend.services import language_from_telegram
+from backend.sources import parse_start_param
 
 
 def get_settings(request: Request) -> Settings:
@@ -172,13 +173,16 @@ async def get_optional_principal(
 
 
 async def get_db_user(
+    request: Request,
     principal: Principal = Depends(get_principal),
     repo: Repository = RepositoryDep,
 ) -> User:
     """Запись текущего пользователя в БД. Пользователь Telegram создаётся при первом
     открытии приложения (с языком интерфейса по языку его Telegram); аккаунт веб-сессии
     уже есть (его создал вход). Запрос отмечается как активность пользователя (для
-    аналитики), а заблокированному администратором — 403.
+    аналитики, вместе с устройством по User-Agent), а заблокированному администратором — 403.
+    Новый пользователь Mini App, открытой по прямой ссылке с меткой (`startapp=src_…`),
+    запоминает её источник.
 
     FastAPI кеширует зависимости в пределах запроса, поэтому `repo` здесь — тот же
     репозиторий (и та же сессия), что получает обработчик маршрута.
@@ -190,6 +194,7 @@ async def get_db_user(
             user.username,
             user.first_name,
             language=language_from_telegram(user.language_code),
+            source=parse_start_param(user.start_param),
         )
     else:
         found = await repo.get_user(principal.user_id)
@@ -198,7 +203,8 @@ async def get_db_user(
         db_user = found
     if db_user.blocked_at is not None:
         raise ApiError(403, "user_blocked", "Доступ к приложению ограничен")
-    await repo.touch_user(db_user, utc_now())
+    agent = request.headers.get("user-agent")
+    await repo.touch_user(db_user, utc_now(), client_platform(agent) if agent else None)
     return db_user
 
 

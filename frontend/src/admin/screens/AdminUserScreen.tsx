@@ -1,6 +1,9 @@
 /**
  * Профиль пользователя — экран поверх вкладки (во весь экран, без нижней навигации).
- * Секции — как на экране привычки:
+ * Сверху — сводка аналитики: откуда пришёл, Telegram или веб, телефон, когда пришёл и был
+ * последний раз, статус (активирован, ушёл, заблокировал бота, вероятно удалил), серия, дни
+ * с отметками и выполнение за 30 дней; переключатель «Тестовый аккаунт» (такие не входят в
+ * аналитику) и лента действий (UserTimeline). Дальше секции — как на экране привычки:
  *  - Профиль — id Telegram, @username, язык, пояс, регистрация, первое открытие
  *    приложения, последний визит, число привычек и статус. Ряд «Привычки» открывает
  *    его привычки (AdminUserHabitsScreen) — тот же список, что видит он сам;
@@ -16,16 +19,18 @@
 
 import { useState } from "react";
 
-import { deleteUser, fetchUser, setUserBlocked } from "../../api/admin";
+import { deleteUser, fetchUser, setUserBlocked, setUserTest } from "../../api/admin";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
 import { BlockIcon, PaperPlaneIcon, UnlockIcon } from "../components/AdminIcons";
+import { UserTimeline } from "../components/UserTimeline";
 import { Disclosure } from "../../components/Disclosure";
 import { ListItem } from "../../components/ListItem";
 import { Screen } from "../../components/Screen";
 import { Card, Section } from "../../components/Section";
 import { TrashIcon } from "../../components/SettingsIcons";
 import { StatusMessage } from "../../components/StatusMessage";
+import { Switch } from "../../components/Switch";
 import { useResource } from "../../hooks/useResource";
 import { confirmAction, hapticNotification } from "../../telegram/webapp";
 import type { AdminReview, AdminUserProfile, AdminUserRef } from "../../types/admin";
@@ -100,6 +105,22 @@ export function AdminUserScreen({
     }
   }
 
+  async function changeTest(isTest: boolean): Promise<void> {
+    setBusy(true);
+    setActionError(null);
+    try {
+      const updated = await setUserTest(telegramId, isTest);
+      profile.setData(() => updated);
+      onChanged(updated);
+      hapticNotification("success");
+    } catch (error) {
+      setActionError(describeAdminError(strings, error, strings.blockFailed));
+      hapticNotification("error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function askToBlock(): Promise<void> {
     setActionError(null);
     const confirmed = await confirmAction({
@@ -160,8 +181,57 @@ export function AdminUserScreen({
       );
     }
     const status = statusLabel(data, strings);
+    const an = strings.an;
+    const device = data.device ? an.devices[data.device] ?? data.device : null;
     return (
       <div className={styles.profile}>
+        <Section title={an.summaryHeading}>
+          <Card>
+            <InfoRow label={an.profileSource} value={an.sourceWithTag(data.source, data.source_tag)} />
+            <InfoRow
+              label={an.profilePlatform}
+              value={[an.platformNames[data.platform] ?? data.platform, device].filter(Boolean).join(" · ")}
+            />
+            <InfoRow label={an.profileCame} value={format.date(data.created_at)} />
+            <InfoRow
+              label={an.profileLastSeen}
+              value={data.last_seen_at ? format.relative(data.last_seen_at) : strings.never}
+            />
+            <ListItem label={an.profileStatus}>
+              <span className={data.status === "active" ? undefined : styles.danger}>
+                {an.statuses[data.status] ?? data.status}
+              </span>
+            </ListItem>
+            <InfoRow label={an.activationLabel} value={an.activation(data.activated)} />
+            <InfoRow label={an.liveLabel} value={data.live ? an.yes : an.no} />
+            <InfoRow label={an.streakLabel} value={an.streakValue(data.current_streak, data.best_streak)} numeric />
+            <InfoRow label={an.checkinDays} value={format.count(data.checkin_days)} numeric />
+            <InfoRow
+              label={an.completion30}
+              value={data.completion_30d === null ? "—" : format.percent(data.completion_30d)}
+              numeric
+            />
+            <InfoRow
+              label={an.lastCheckin}
+              value={data.last_checkin ? format.day(data.last_checkin) : strings.never}
+            />
+          </Card>
+        </Section>
+
+        <Section title={an.testAccount} footer={an.testFooter}>
+          <Card>
+            <ListItem label={an.testAccount}>
+              <Switch
+                checked={data.is_test}
+                onChange={(checked) => void changeTest(checked)}
+                label={an.testAccount}
+              />
+            </ListItem>
+          </Card>
+        </Section>
+
+        <UserTimeline telegramId={data.telegram_id} />
+
         <Section title={strings.profileHeading}>
           <Card>
             <InfoRow label={strings.profileTelegramId} value={String(data.telegram_id)} numeric />

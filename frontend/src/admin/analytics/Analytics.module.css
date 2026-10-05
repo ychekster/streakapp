@@ -1,0 +1,739 @@
+/*
+ * Аналитика админ-панели: карточки цифр, блоки разделов, таблицы, воронка, удержание.
+ * Цвета — токены приложения (variables.css): хорошее изменение — зелёный палитры, плохое —
+ * --color-danger; данные графиков — цвет секции (--habit-rgb) и --chart-cat-*.
+ */
+
+/* --- Фильтр сверху: период, платформа, источник, раздел --- */
+
+.filters {
+  --list-row-min-height: var(--form-row-min-height);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Капсулы одной строкой, листаются вбок до краёв экрана (как фильтры пользователей). */
+.pills {
+  display: flex;
+  gap: 8px;
+  margin: 0 calc(-1 * (env(safe-area-inset-right) + var(--space-screen-x))) 0
+    calc(-1 * (env(safe-area-inset-left) + var(--space-screen-x)));
+  padding: 2px calc(env(safe-area-inset-right) + var(--space-screen-x)) 2px
+    calc(env(safe-area-inset-left) + var(--space-screen-x));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pills::-webkit-scrollbar {
+  display: none;
+}
+
+.pill {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.pill[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-on-habit);
+}
+
+.pill[data-pressed] {
+  opacity: 0.7;
+}
+
+/* Раздел: крупнее и без тени — вторая строка капсул. */
+.tabs .pill {
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.tabs .pill[aria-pressed="true"] {
+  background-color: rgba(var(--palette-blue), 0.14);
+  color: var(--color-accent);
+}
+
+.content {
+  margin-top: var(--space-section-gap);
+  transition: opacity var(--transition-fast);
+}
+
+.refreshing {
+  opacity: 0.5;
+}
+
+/* --- Блок раздела: заголовок с ⓘ, содержимое, пояснение --- */
+
+.block + .block {
+  margin-top: var(--space-section-gap);
+}
+
+.blockHeading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-subheading-bottom);
+  font-size: var(--font-size-section-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.blockTitle {
+  min-width: 0;
+}
+
+.blockAside {
+  margin-left: auto;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.footnote {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-secondary);
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.tracking {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill);
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-stat-grid-gap);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stat-grid-gap);
+}
+
+/* --- Карточка цифры --- */
+
+.metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-card-padding);
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+button.metric {
+  cursor: pointer;
+}
+
+button.metric[data-pressed] {
+  background-color: var(--color-row-pressed, var(--color-fill));
+}
+
+.metricHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.metricLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-text-secondary);
+}
+
+.metricValue {
+  margin-top: 6px;
+  font-size: var(--font-size-chart-value);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.metricNote {
+  margin-top: 4px;
+  font-size: var(--font-size-secondary);
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+}
+
+.delta {
+  margin-top: 4px;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.good {
+  color: rgb(var(--palette-green));
+}
+
+.bad {
+  color: var(--color-danger);
+}
+
+.deltaLabel {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.chevron {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  width: 8px;
+  height: 13px;
+  color: var(--color-text-tertiary, var(--color-text-secondary));
+  opacity: 0.5;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+}
+
+.sparkLine {
+  fill: none;
+  stroke: rgb(var(--habit-rgb, var(--palette-blue)));
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkArea {
+  fill: rgba(var(--habit-rgb, var(--palette-blue)), var(--chart-area-alpha));
+}
+
+/* --- ⓘ --- */
+
+.info {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: -1px -2px 0 0;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+}
+
+.info svg {
+  width: 16px;
+  height: 16px;
+}
+
+.info[aria-expanded="true"] {
+  color: var(--color-accent);
+}
+
+.infoText {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: var(--color-fill);
+  font-size: var(--font-size-secondary);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  text-transform: none;
+  text-align: left;
+}
+
+/* --- Карточка с содержимым (списки, таблицы) --- */
+
+.card {
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.cardPadded {
+  padding: var(--space-card-padding);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--space-card-padding) 4px;
+}
+
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* --- Выгрузка таблицы --- */
+
+.export {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.exportButton {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill);
+  color: var(--color-accent);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.exportButton[data-pressed] {
+  opacity: 0.6;
+}
+
+/* --- Таблица: листается вбок на телефоне --- */
+
+.tableScroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: 9px 10px;
+  text-align: right;
+  white-space: nowrap;
+  border-top: 1px solid var(--color-separator);
+}
+
+.table th:first-child,
+.table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding-left: var(--space-card-padding);
+  text-align: left;
+  background-color: var(--color-card);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: var(--space-card-padding);
+}
+
+.table thead th {
+  border-top: none;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.sortButton {
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.sortButton[aria-sort],
+.sorted {
+  color: var(--color-accent);
+}
+
+.rowButton {
+  cursor: pointer;
+}
+
+.rowButton[data-pressed] td {
+  background-color: var(--color-fill);
+}
+
+.subRow td:first-child {
+  padding-left: calc(var(--space-card-padding) + 14px);
+  color: var(--color-text-secondary);
+}
+
+/* --- Полосы (распределения, топы) --- */
+
+.bars {
+  list-style: none;
+}
+
+.barRow {
+  display: block;
+  width: 100%;
+  padding: 10px var(--space-card-padding);
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.barRow + .barRow {
+  border-top: 1px solid var(--color-separator);
+}
+
+button.barRow[data-pressed] {
+  background-color: var(--color-fill);
+}
+
+.barLine {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--font-size-body);
+}
+
+.barLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.barShare {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.barTrack {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background-color: var(--color-fill);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background-color: rgb(var(--habit-rgb, var(--palette-blue)));
+}
+
+/* --- Воронка --- */
+
+.step {
+  display: block;
+  width: 100%;
+  padding: 12px var(--space-card-padding);
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.step + .step {
+  border-top: 1px solid var(--color-separator);
+}
+
+button.step[data-pressed] {
+  background-color: var(--color-fill);
+}
+
+.stepHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stepName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-weight: 500;
+}
+
+.stepCount {
+  font-size: var(--font-size-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepBar {
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 5px;
+  background-color: var(--color-fill);
+  overflow: hidden;
+}
+
+.stepFill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background-color: rgb(var(--habit-rgb, var(--palette-blue)));
+}
+
+.stepMeta {
+  margin-top: 6px;
+  font-size: var(--font-size-secondary);
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+/* --- Удержание по неделям: ячейка — цвет по силе --- */
+
+.heat {
+  min-width: 46px;
+  font-weight: 600;
+}
+
+.heat[data-empty] {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+button.heatButton {
+  width: 100%;
+  min-height: 28px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+}
+
+/* --- Столбики по часам и дням недели --- */
+
+.columns {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 96px;
+}
+
+.column {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px 2px 0 0;
+  background-color: rgb(var(--habit-rgb, var(--palette-blue)));
+}
+
+.column[data-muted] {
+  opacity: var(--chart-dim-alpha);
+}
+
+.columnLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: var(--font-size-chart-tick);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  text-align: center;
+}
+
+.weekdayBar {
+  display: flex;
+  align-items: flex-end;
+  height: 72px;
+  border-radius: 6px;
+  background-color: var(--color-fill);
+  overflow: hidden;
+}
+
+.weekdayFill {
+  width: 100%;
+  background-color: rgb(var(--habit-rgb, var(--palette-blue)));
+}
+
+.weekdayFill[data-worst] {
+  background-color: var(--color-danger);
+}
+
+.weekdayLabel {
+  margin-top: 4px;
+  font-size: var(--font-size-chart-tick);
+  color: var(--color-text-secondary);
+}
+
+.weekdayValue {
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Несколько линий --- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-primary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background-color: rgb(var(--segment-rgb));
+}
+
+.multiLine {
+  fill: none;
+  stroke: rgb(var(--segment-rgb));
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* --- Строки «что изменилось» и лента --- */
+
+.changes {
+  list-style: none;
+}
+
+.change {
+  display: flex;
+  gap: 10px;
+  padding: 11px var(--space-card-padding);
+  font-size: var(--font-size-body);
+  line-height: 1.35;
+}
+
+.change + .change {
+  border-top: 1px solid var(--color-separator);
+}
+
+.changeMark {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 14px var(--space-card-padding);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.pairs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px 14px;
+  padding: 12px var(--space-card-padding);
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.pairsHead {
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.pairsValue {
+  text-align: right;
+  font-weight: 600;
+}
+
+.broadcast {
+  padding: 12px var(--space-card-padding);
+}
+
+.broadcast + .broadcast {
+  border-top: 1px solid var(--color-separator);
+}
+
+.broadcastText {
+  font-size: var(--font-size-body);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.broadcastMeta {
+  margin-top: 4px;
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.statChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill);
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-primary);
+}
+
+button.statChip[data-pressed] {
+  opacity: 0.6;
+}
+
+.statChip strong {
+  font-variant-numeric: tabular-nums;
+}

@@ -86,6 +86,10 @@ BROADCAST_BUTTONS: dict[str, BroadcastButton] = {
 }
 # Параметр адреса Mini App с экраном, на котором она откроется (читает фронтенд, App.tsx).
 APP_SCREEN_PARAM = "open"
+# Откуда открыли приложение (аналитика: событие app_open, frontend/src/web/analytics.ts) и
+# рассылка, кнопка которой его открыла.
+APP_FROM_PARAM = "from"
+APP_BROADCAST_PARAM = "b"
 
 # Telegram просит подождать (RetryAfter) не дольше этого — ждём и повторяем, иначе ошибка:
 # администратор ждёт ответа на свой запрос.
@@ -143,21 +147,38 @@ async def _send(send: Callable[[], Awaitable[Message]]) -> Message | Undelivered
         raise ApiError(502, "telegram_error", "Не удалось связаться с Telegram") from exc
 
 
-def app_url(tma_url: str, screen: str | None) -> str:
-    """Адрес Mini App, открывающий экран `screen` (None — главный)."""
-    if screen is None:
+def app_url(
+    tma_url: str,
+    screen: str | None,
+    origin: str | None = None,
+    broadcast_id: int | None = None,
+) -> str:
+    """Адрес Mini App, открывающий экран `screen` (None — главный); `origin` — откуда его
+    открывают (для аналитики), `broadcast_id` — рассылка с этой кнопкой."""
+    params = [
+        (APP_SCREEN_PARAM, screen),
+        (APP_FROM_PARAM, origin),
+        (APP_BROADCAST_PARAM, str(broadcast_id) if broadcast_id is not None else None),
+    ]
+    added = [(key, value) for key, value in params if value is not None]
+    if not added:
         return tma_url
     parts = urlsplit(tma_url)
-    query = [*parse_qsl(parts.query), (APP_SCREEN_PARAM, screen)]
-    return urlunsplit(parts._replace(query=urlencode(query)))
+    return urlunsplit(parts._replace(query=urlencode([*parse_qsl(parts.query), *added])))
 
 
 def broadcast_keyboard(
-    button: str | None, language: str, tma_url: str, *, icon: bool = True
+    button: str | None,
+    language: str,
+    tma_url: str,
+    *,
+    icon: bool = True,
+    broadcast_id: int | None = None,
 ) -> InlineKeyboardMarkup | None:
     """Клавиатура под рассылкой: кнопка `button` (None — без кнопки) с подписью на языке
     `language`; `icon=False` — без анимированной иконки (её Telegram может не принять,
-    см. bot/emoji.py)."""
+    см. bot/emoji.py). Кнопка открывает приложение с пометкой «из рассылки
+    `broadcast_id`» (аналитика)."""
     if button is None:
         return None
     spec = BROADCAST_BUTTONS[button]
@@ -167,7 +188,9 @@ def broadcast_keyboard(
                 InlineKeyboardButton(
                     text=spec.texts.get(language, spec.texts[DEFAULT_LANGUAGE]),
                     icon_custom_emoji_id=spec.icon_emoji_id if icon else None,
-                    web_app=WebAppInfo(url=app_url(tma_url, spec.screen)),
+                    web_app=WebAppInfo(
+                        url=app_url(tma_url, spec.screen, "broadcast", broadcast_id)
+                    ),
                 )
             ]
         ]
@@ -305,7 +328,7 @@ def install_offer_keyboard(language: str, tma_url: str) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text=INSTALL_OFFER_INSTALL.get(language, INSTALL_OFFER_INSTALL[DEFAULT_LANGUAGE]),
-                    web_app=WebAppInfo(url=app_url(tma_url, INSTALL_SCREEN)),
+                    web_app=WebAppInfo(url=app_url(tma_url, INSTALL_SCREEN, "install_offer")),
                 ),
                 InlineKeyboardButton(
                     text=INSTALL_OFFER_LATER.get(language, INSTALL_OFFER_LATER[DEFAULT_LANGUAGE]),

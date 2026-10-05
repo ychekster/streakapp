@@ -233,10 +233,11 @@ async def link_login(repo: Repository, current: User, profile: LoginProfile) -> 
 
 
 async def _record_link(repo: Repository, user: User, profile: LoginProfile) -> User:
-    """Funnel event `account_linked`."""
+    """Funnel event `account_linked` (and the same in the user's action log)."""
     await repo.add_event(
         "account_linked", user_id=user.telegram_id, props={"provider": profile.provider}
     )
+    await repo.log_action(user.telegram_id, "linked", detail=profile.provider)
     return user
 
 

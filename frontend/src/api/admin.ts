@@ -9,13 +9,21 @@ import type {
   AdminUserHabits,
   AdminUserProfile,
   AdminUserSummary,
-  Analytics,
+  AnalyticsConfig,
+  AnalyticsFilter,
+  AnalyticsSection,
+  AnalyticsSections,
   Audience,
   Broadcast,
   BroadcastButton,
   Delivery,
   Page,
+  PeopleQuery,
+  RetentionBasis,
+  RetentionCompare,
   ReviewReply,
+  Segment,
+  TimelinePage,
 } from "../types/admin";
 import { apiRequest } from "./client";
 
@@ -49,8 +57,81 @@ export async function fetchWebFunnel(days: number): Promise<FunnelStep[]> {
   return data.steps;
 }
 
-export function fetchAnalytics(days: number): Promise<Analytics> {
-  return apiRequest<Analytics>(`/admin/analytics?days=${days}`, { method: "GET" });
+/** Параметры фильтра аналитики (пустые не передаются). */
+function analyticsParams(filter: AnalyticsFilter, extra: Record<string, string> = {}): URLSearchParams {
+  const params = new URLSearchParams({ period: filter.period, ...extra });
+  if (filter.platform) {
+    params.set("platform", filter.platform);
+  }
+  if (filter.source) {
+    params.set("source", filter.source);
+  }
+  return params;
+}
+
+/** Раздел аналитики за период под фильтром; у удержания — ещё вид и сравнение. */
+export function fetchAnalyticsSection<S extends AnalyticsSection>(
+  section: S,
+  filter: AnalyticsFilter,
+  options: { basis?: RetentionBasis; compare?: RetentionCompare } = {},
+): Promise<AnalyticsSections[S]> {
+  const extra: Record<string, string> = {};
+  if (options.basis) {
+    extra.basis = options.basis;
+  }
+  if (options.compare) {
+    extra.compare = options.compare;
+  }
+  return apiRequest<AnalyticsSections[S]>(
+    `/admin/analytics/${section}?${analyticsParams(filter, extra)}`,
+    { method: "GET" },
+  );
+}
+
+/** Сохранить людей за цифрой группой — для списка и рассылки. */
+export function createSegment(filter: AnalyticsFilter, query: PeopleQuery): Promise<Segment> {
+  return apiRequest<Segment>("/admin/segments", {
+    method: "POST",
+    body: JSON.stringify({ ...query, ...filter }),
+  });
+}
+
+export function fetchSegment(segmentId: number): Promise<Segment> {
+  return apiRequest<Segment>(`/admin/segments/${segmentId}`, { method: "GET" });
+}
+
+/** Пороги активации и данные генератора ссылок. */
+export function fetchAnalyticsConfig(): Promise<AnalyticsConfig> {
+  return apiRequest<AnalyticsConfig>("/admin/analytics-config", { method: "GET" });
+}
+
+export function saveAnalyticsConfig(
+  activationWindowDays: number,
+  activationMinDays: number,
+): Promise<AnalyticsConfig> {
+  return apiRequest<AnalyticsConfig>("/admin/analytics-config", {
+    method: "PUT",
+    body: JSON.stringify({
+      activation_window_days: activationWindowDays,
+      activation_min_days: activationMinDays,
+    }),
+  });
+}
+
+/** Лента действий пользователя, новые сначала. */
+export function fetchTimeline(telegramId: number, offset: number): Promise<TimelinePage> {
+  return apiRequest<TimelinePage>(`/admin/users/${telegramId}/timeline?offset=${offset}`, {
+    method: "GET",
+  });
+}
+
+/** Отметить тестовый аккаунт (не входит в аналитику); вернуть обновлённый профиль. */
+export async function setUserTest(telegramId: number, isTest: boolean): Promise<AdminUserProfile> {
+  const data = await apiRequest<{ user: AdminUserProfile }>(`/admin/users/${telegramId}/test`, {
+    method: "PUT",
+    body: JSON.stringify({ is_test: isTest }),
+  });
+  return data.user;
 }
 
 /** Параметры поиска и фильтра пользователей (пустые не передаются). */

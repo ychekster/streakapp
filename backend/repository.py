@@ -31,21 +31,29 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 from sqlalchemy.orm import selectinload
 
+from backend.clock import day_start, local_day
 from backend.constants import (
     ACTIVE_NOW_MINUTES,
     DEFAULT_HABIT_COLOR,
     HABIT_NAME_MAX_LENGTH,
     LAST_SEEN_RESOLUTION_SECONDS,
+    SEGMENT_FILTER,
+    SOURCE_DIRECT,
+    SOURCE_PRESETS,
 )
 from backend.models import (
+    ActivityLog,
     Admin,
+    AppConfig,
     AuthCode,
     Broadcast,
     BroadcastStatus,
+    CheckinDay,
     Event,
     FrequencyType,
     PushSubscription,
     Review,
+    Segment,
     Task,
     TaskLog,
     TaskStatus,
@@ -89,21 +97,66 @@ def _like_pattern(text: str) -> str:
 
 
 # Периоды фильтров «активность» и «появились» (constants.AUDIENCE_FILTERS), дней.
-_FILTER_DAYS: dict[str, int] = {"1d": 1, "7d": 7, "30d": 30, "inactive_7d": 7, "inactive_30d": 30}
+_FILTER_DAYS: dict[str, int] = {
+    "1d": 1,
+    "7d": 7,
+    "30d": 30,
+    "90d": 90,
+    "inactive_3d": 3,
+    "inactive_7d": 7,
+    "inactive_14d": 14,
+    "inactive_30d": 30,
+}
+
+# Признаки фильтра, которые считаются не одним условием SQL, а в Python (аналитика, см.
+# audience.resolve_audience): их пользователей вызывающий передаёт готовыми списками id.
+PRECOMPUTED_FILTERS: tuple[str, ...] = ("activated", "stuck", "uninstalled", "streak", SEGMENT_FILTER)
 
 
-def _audience_condition(audience: Mapping[str, str], moment: datetime) -> Any:
+def is_web_platform() -> Any:
+    """Пользователь пришёл из веб-приложения (у строк без отметки — веб-гость)."""
+    return or_(
+        User.signup_platform == "web",
+        and_(User.signup_platform.is_(None), User.telegram_id < 0),
+    )
+
+
+def _source_condition(value: str) -> Any:
+    """Фильтр «Источник»: готовый источник, «напрямую» (без метки) или любой другой."""
+    if value == SOURCE_DIRECT:
+        return or_(User.source.is_(None), User.source == SOURCE_DIRECT)
+    if value in SOURCE_PRESETS:
+        return User.source == value
+    return and_(
+        User.source.is_not(None), User.source != SOURCE_DIRECT, User.source.not_in(SOURCE_PRESETS)
+    )
+
+
+def _audience_condition(
+    audience: Mapping[str, str], moment: datetime, ids: Mapping[str, Collection[int]]
+) -> Any:
     """Условие на пользователя для фильтра (audience.py): условия признаков через «и».
 
     Всё считается на момент `moment`: привычки, отзывы и первое открытие приложения —
     сделанные до него. Рассылка перебирает получателей долго, и так её фильтр не
     расползается: кто открыл приложение или добавил привычку во время рассылки, в неё не
     попадает — как не был посчитан и в числе получателей.
+
+    `ids` — пользователи признаков из PRECOMPUTED_FILTERS (их считает аналитика, см.
+    audience.resolve_audience): признак → id подходящих.
     """
     conditions: list[Any] = []
     opened = and_(User.app_opened_at.is_not(None), User.app_opened_at <= moment)
     has_habit = exists().where(Task.user_id == User.telegram_id, Task.created_at <= moment)
     has_review = exists().where(Review.user_id == User.telegram_id, Review.created_at <= moment)
+    has_checkin = or_(
+        User.first_checkin_at.is_not(None),
+        exists().where(CheckinDay.user_id == User.telegram_id),
+    )
+
+    def listed(key: str) -> Any:
+        return User.telegram_id.in_(sorted(ids.get(key, ())))
+
     for key, value in audience.items():
         if key == "app":
             conditions.append(opened if value == "opened" else not_(opened))
@@ -119,7 +172,39 @@ def _audience_condition(audience: Mapping[str, str], moment: datetime) -> Any:
             else:
                 conditions.append(User.last_seen_at >= since)
         elif key == "joined":
-            conditions.append(User.created_at >= moment - timedelta(days=_FILTER_DAYS[value]))
+            if value == "today":
+                conditions.append(User.created_at >= day_start(local_day(moment)))
+            else:
+                conditions.append(User.created_at >= moment - timedelta(days=_FILTER_DAYS[value]))
+        elif key == "platform":
+            conditions.append(is_web_platform() if value == "web" else not_(is_web_platform()))
+        elif key == "device":
+            conditions.append(User.device == value)
+        elif key == "source":
+            conditions.append(_source_condition(value))
+        elif key == "activated":
+            conditions.append(listed(key) if value == "yes" else not_(listed(key)))
+        elif key == "stuck":
+            if value == "no_open":
+                conditions.append(and_(not_(opened), not_(is_web_platform())))
+            elif value == "no_habit":
+                conditions.append(and_(opened, not_(has_habit)))
+            elif value == "no_checkin":
+                conditions.append(and_(has_habit, not_(has_checkin)))
+            else:
+                conditions.append(listed(key))
+        elif key in ("uninstalled", "streak", SEGMENT_FILTER):
+            conditions.append(listed(key))
+        elif key == "reminders":
+            has_reminder = or_(
+                User.checkin_reminder_time.is_not(None),
+                exists().where(
+                    Task.user_id == User.telegram_id,
+                    Task.is_active.is_(True),
+                    Task.reminder_time.is_not(None),
+                ),
+            )
+            conditions.append(has_reminder if value == "any" else not_(has_reminder))
         elif key == "language":
             conditions.append(User.language == value)
         elif key == "reviews":
@@ -130,18 +215,24 @@ def _audience_condition(audience: Mapping[str, str], moment: datetime) -> Any:
         elif key == "access":
             column = User.blocked_at
             conditions.append(column.is_not(None) if value == "blocked" else column.is_(None))
+        elif key == "test":
+            flag = User.is_test.is_(True)
+            conditions.append(flag if value == "yes" else not_(flag))
     return and_(true(), *conditions)
 
 
 def _recipient_condition(
-    audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None
+    audience: Mapping[str, str],
+    moment: datetime,
+    exclude_user_id: int | None,
+    ids: Mapping[str, Collection[int]],
 ) -> Any:
     """Получатели рассылки: пользователи под фильтром, уже зарегистрированные к `moment`
     (пришедшие во время долгой рассылки её не получают — как и не посчитаны в ней), кроме
     заблокировавших бота (Telegram сообщает о разблокировке, поэтому отметка точна),
     заблокированных администратором и автора рассылки (ему копия уже пришла)."""
     condition = and_(
-        _audience_condition(audience, moment),
+        _audience_condition(audience, moment, ids),
         # Web-only accounts (negative ids) have no Telegram chat to send to.
         User.telegram_id > 0,
         User.created_at <= moment,
@@ -151,32 +242,6 @@ def _recipient_condition(
     if exclude_user_id is not None:
         condition = and_(condition, User.telegram_id != exclude_user_id)
     return condition
-
-
-@dataclass(frozen=True)
-class UserCounts:
-    """Счётчики пользователей для аналитики."""
-
-    total: int
-    opened_app: int
-    never_opened: int
-    blocked_bot: int
-    blocked: int
-    active_now: int
-    # Не заблокировавшие бота — открывавшие приложение и не открывавшие (вместе с
-    # blocked_bot делят всех пользователей без пересечений).
-    reachable_opened: int
-    reachable_never_opened: int
-
-
-@dataclass(frozen=True)
-class Funnel:
-    """Воронка новых пользователей за период: запустили бота → из них открыли
-    приложение → из них добавили хотя бы одну привычку."""
-
-    started_bot: int
-    opened_app: int
-    added_habit: int
 
 
 @dataclass(frozen=True)
@@ -223,12 +288,14 @@ class Repository:
         username: str | None,
         first_name: str | None,
         language: str,
+        source: tuple[str, str | None] | None = None,
     ) -> User:
         """Вернуть пользователя, создав его при первом обращении.
 
         @username и имя синхронизируются с Telegram (могут меняться между
         сессиями); если они не изменились, UPDATE не выполняется. `language` —
-        язык интерфейса нового пользователя; у существующего он не меняется.
+        язык интерфейса нового пользователя; у существующего он не меняется. `source` —
+        метка ссылки (источник, подпись), с которой он пришёл: запоминается только у нового.
 
         Безопасно к гонке: приложение при открытии может отправить несколько
         запросов параллельно. Вставку оборачиваем в SAVEPOINT и при конфликте
@@ -247,6 +314,9 @@ class Repository:
                     username=username,
                     first_name=first_name,
                     language=language,
+                    signup_platform="telegram",
+                    source=source[0] if source else None,
+                    source_tag=source[1] if source else None,
                 )
                 self.session.add(user)
                 await self.session.flush()
@@ -285,9 +355,10 @@ class Repository:
             user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
         await self.session.flush()
 
-    async def touch_user(self, user: User, now: datetime) -> None:
+    async def touch_user(self, user: User, now: datetime, device: str | None = None) -> None:
         """Отметить запрос пользователя к API: время последнего запроса, первое открытие
-        приложения и день активности (для DAU/WAU/MAU).
+        приложения, день активности (по Алматы — для аналитики) и устройство (`device` —
+        ios / android / desktop по User-Agent).
 
         Пишет не чаще раза в LAST_SEEN_RESOLUTION_SECONDS (и в первый запрос нового
         дня): приложение при открытии делает несколько запросов, а каждый из них был бы
@@ -296,15 +367,17 @@ class Repository:
         last = user.last_seen_at
         if (
             last is not None
-            and last.date() == now.date()
+            and local_day(last) == local_day(now)
             and now - last < timedelta(seconds=LAST_SEEN_RESOLUTION_SECONDS)
         ):
             return
         user.last_seen_at = now
         if user.app_opened_at is None:
             user.app_opened_at = now
+        if device is not None and user.device != device:
+            user.device = device
         await self.session.flush()
-        await self._record_activity(user.telegram_id, now.date())
+        await self._record_activity(user.telegram_id, local_day(now))
 
     async def _record_activity(self, user_id: int, day: date) -> None:
         """Запись «пользователь был активен в этот день», если её ещё нет.
@@ -322,13 +395,32 @@ class Repository:
             pass  # запись уже вставил параллельный запрос
 
     async def set_bot_blocked(self, user_ids: Collection[int], blocked: bool) -> None:
-        """Отметить, что пользователи заблокировали бота (или разблокировали его)."""
-        for batch in _batches(user_ids):
+        """Отметить, что пользователи заблокировали бота (или разблокировали его). Смена
+        состояния попадает в ленту действий (bot_blocked / bot_unblocked) — по ней
+        аналитика считает блокировки по дням."""
+        now = utc_now()
+        column = User.bot_blocked_at
+        kind = "bot_blocked" if blocked else "bot_unblocked"
+        for batch in _batches(set(user_ids)):
+            changing = list(
+                await self.session.scalars(
+                    select(User.telegram_id).where(
+                        User.telegram_id.in_(batch),
+                        column.is_(None) if blocked else column.is_not(None),
+                    )
+                )
+            )
+            if not changing:
+                continue
             await self.session.execute(
                 update(User)
-                .where(User.telegram_id.in_(batch))
-                .values(bot_blocked_at=utc_now() if blocked else None)
+                .where(User.telegram_id.in_(changing))
+                .values(bot_blocked_at=now if blocked else None)
             )
+            self.session.add_all(
+                ActivityLog(user_id=user_id, kind=kind, created_at=now) for user_id in changing
+            )
+        await self.session.flush()
 
     async def set_blocked(self, user: User, blocked: bool) -> None:
         """Заблокировать пользователя (или снять блокировку) по решению администратора."""
@@ -344,7 +436,9 @@ class Repository:
             Task,
             Review,
             UserActivity,
-                    WebSession,
+            CheckinDay,
+            ActivityLog,
+            WebSession,
             PushSubscription,
         ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
@@ -454,12 +548,13 @@ class Repository:
         return self.session.begin_nested()
 
     async def soft_delete_task(self, task: Task) -> None:
-        """Мягкое удаление: пометить задачу неактивной.
+        """Мягкое удаление: пометить задачу неактивной и запомнить когда (аналитика).
 
         Логи остаются в базе, но неактивная задача нигде не показывается, а её
         название снова свободно для новой привычки.
         """
         task.is_active = False
+        task.deleted_at = utc_now()
         await self.session.flush()
 
     async def get_active_tasks(self, user_id: int) -> list[Task]:
@@ -696,9 +791,14 @@ class Repository:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _users_condition(query: str | None, audience: Mapping[str, str], moment: datetime) -> Any:
+    def _users_condition(
+        query: str | None,
+        audience: Mapping[str, str],
+        moment: datetime,
+        ids: Mapping[str, Collection[int]],
+    ) -> Any:
         """Пользователи под поиском и фильтром (условие WHERE)."""
-        condition = _audience_condition(audience, moment)
+        condition = _audience_condition(audience, moment, ids)
         text = (query or "").strip().lstrip("@")
         if text:
             pattern = _like_pattern(text)
@@ -718,6 +818,7 @@ class Repository:
         moment: datetime,
         offset: int,
         limit: int,
+        ids: Mapping[str, Collection[int]] | None = None,
     ) -> list[User]:
         """Пользователи для админ-панели, новые сначала: страница `limit` с `offset`.
 
@@ -728,125 +829,288 @@ class Repository:
         """
         statement = (
             select(User)
-            .where(self._users_condition(query, audience, moment))
+            .where(self._users_condition(query, audience, moment, ids or {}))
             .order_by(User.created_at.desc(), User.telegram_id.desc())
         )
         result = await self.session.execute(statement.offset(offset).limit(limit))
         return list(result.scalars().all())
 
     async def count_users(
-        self, query: str | None, audience: Mapping[str, str], moment: datetime
+        self,
+        query: str | None,
+        audience: Mapping[str, str],
+        moment: datetime,
+        ids: Mapping[str, Collection[int]] | None = None,
     ) -> int:
         """Сколько пользователей под поиском и фильтром."""
         return await self.session.scalar(
             select(func.count())
             .select_from(User)
-            .where(self._users_condition(query, audience, moment))
+            .where(self._users_condition(query, audience, moment, ids or {}))
         ) or 0
 
     # ------------------------------------------------------------------ #
-    #  Analytics
+    #  Analytics: what is recorded
     # ------------------------------------------------------------------ #
 
-    async def user_counts(self, now: datetime) -> UserCounts:
-        """Счётчики пользователей одним запросом: всего, открывшие и не открывшие
-        приложение, заблокировавшие бота, заблокированные администратором, активные прямо
-        сейчас и деление всех без пересечений (см. UserCounts)."""
-
-        def count_where(condition: Any) -> Any:
-            return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
-
-        row = (
-            await self.session.execute(
-                select(
-                    func.count(),
-                    count_where(User.app_opened_at.is_not(None)),
-                    count_where(User.app_opened_at.is_(None)),
-                    count_where(User.bot_blocked_at.is_not(None)),
-                    count_where(User.blocked_at.is_not(None)),
-                    count_where(
-                        User.last_seen_at >= now - timedelta(minutes=ACTIVE_NOW_MINUTES)
-                    ),
-                    count_where(
-                        and_(User.app_opened_at.is_not(None), User.bot_blocked_at.is_(None))
-                    ),
-                    count_where(and_(User.app_opened_at.is_(None), User.bot_blocked_at.is_(None))),
-                ).select_from(User)
+    async def log_action(
+        self,
+        user_id: int,
+        kind: str,
+        *,
+        ref_id: int | None = None,
+        detail: str | None = None,
+        at: datetime | None = None,
+    ) -> None:
+        """Записать действие пользователя в ленту (models.ActivityLog)."""
+        self.session.add(
+            ActivityLog(
+                user_id=user_id,
+                kind=kind,
+                ref_id=ref_id,
+                detail=(detail or None) and detail[:64],
+                created_at=at or utc_now(),
             )
-        ).one()
-        return UserCounts(*(int(value) for value in row))
+        )
+        await self.session.flush()
 
-    async def funnel_since(self, since: datetime) -> Funnel:
-        """Воронка пользователей, появившихся начиная с `since` (см. Funnel), одним
-        запросом. Считаются и удалённые привычки: пользователь их всё-таки добавлял."""
+    async def record_checkin_day(self, user_id: int, now: datetime) -> None:
+        """День (по Алматы) с отметкой привычки, если его ещё нет. Безопасно к гонке, как
+        `_record_activity`."""
+        day = local_day(now)
+        if await self.session.get(CheckinDay, (user_id, day)) is not None:
+            return
+        try:
+            async with self.session.begin_nested():
+                self.session.add(CheckinDay(user_id=user_id, day=day))
+                await self.session.flush()
+        except IntegrityError:
+            pass  # запись уже вставил параллельный запрос
 
-        def count_where(condition: Any) -> Any:
-            return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+    async def set_source(self, user: User, source: tuple[str, str | None]) -> None:
+        """Запомнить источник пользователя (вызывающий проверяет, что его ещё нет)."""
+        user.source, user.source_tag = source
+        await self.session.flush()
 
-        opened = User.app_opened_at.is_not(None)
-        has_habit = exists().where(Task.user_id == User.telegram_id)
-        row = (
-            await self.session.execute(
-                select(
-                    func.count(),
-                    count_where(opened),
-                    count_where(and_(opened, has_habit)),
-                )
-                .select_from(User)
-                # The bot funnel starts with /start: web-only accounts are not in it
-                # (their funnel is the events table, see web_funnel).
-                .where(User.created_at >= since, User.telegram_id > 0)
+    async def set_test(self, user: User, is_test: bool) -> None:
+        """Отметить тестовый аккаунт (он не входит в аналитику) или снять отметку."""
+        user.is_test = is_test
+        await self.session.flush()
+
+    async def get_config(self) -> dict[str, str]:
+        """Настройки панели (models.AppConfig): ключ → значение."""
+        result = await self.session.execute(select(AppConfig.key, AppConfig.value))
+        return {key: value for key, value in result.tuples()}
+
+    async def set_config(self, values: Mapping[str, str]) -> None:
+        """Изменить настройки панели."""
+        for key, value in values.items():
+            row = await self.session.get(AppConfig, key)
+            if row is None:
+                self.session.add(AppConfig(key=key, value=value))
+            else:
+                row.value = value
+        await self.session.flush()
+
+    async def create_segment(self, title: str, user_ids: list[int], created_by: int) -> Segment:
+        """Сохранить группу людей из аналитики."""
+        segment = Segment(title=title, user_ids=user_ids, created_by=created_by)
+        self.session.add(segment)
+        await self.session.flush()
+        return segment
+
+    async def get_segment(self, segment_id: int) -> Segment | None:
+        """Группа людей по id или None."""
+        return await self.session.get(Segment, segment_id)
+
+    # ------------------------------------------------------------------ #
+    #  Analytics: what is read (backend/analytics/)
+    # ------------------------------------------------------------------ #
+
+    async def analytics_users(self) -> list[Any]:
+        """Все пользователи — колонки, которые нужны аналитике, и признак администратора."""
+        is_admin = exists().where(Admin.telegram_id == User.telegram_id)
+        result = await self.session.execute(
+            select(
+                User.telegram_id,
+                User.created_at,
+                User.app_opened_at,
+                User.last_seen_at,
+                User.bot_blocked_at,
+                User.blocked_at,
+                User.first_checkin_at,
+                User.source,
+                User.source_tag,
+                User.signup_platform,
+                User.device,
+                User.language,
+                User.timezone,
+                User.timezone_city,
+                User.theme,
+                User.mark_yesterday,
+                User.checkin_reminder_time,
+                User.install_offer_sent_at,
+                User.is_test,
+                is_admin.label("is_admin"),
             )
-        ).one()
-        return Funnel(*(int(value) for value in row))
+        )
+        return list(result.all())
 
-    async def count_users_created_before(self, moment: datetime) -> int:
-        """Сколько пользователей зарегистрировалось раньше `moment`."""
+    async def activity_pairs(self) -> list[tuple[int, date]]:
+        """Дни, в которые пользователи открывали приложение: (пользователь, день)."""
+        result = await self.session.execute(select(UserActivity.user_id, UserActivity.day))
+        return [(user_id, _as_date(day)) for user_id, day in result.tuples()]
+
+    async def checkin_pairs(self) -> list[tuple[int, date]]:
+        """Дни, в которые пользователи отмечали привычки: (пользователь, день)."""
+        result = await self.session.execute(select(CheckinDay.user_id, CheckinDay.day))
+        return [(user_id, _as_date(day)) for user_id, day in result.tuples()]
+
+    async def analytics_tasks(self) -> list[Any]:
+        """Все привычки (и удалённые): расписание, напоминание, создание и удаление."""
+        result = await self.session.execute(
+            select(
+                Task.id,
+                Task.user_id,
+                Task.name,
+                Task.frequency_type,
+                Task.days,
+                Task.start_date,
+                Task.reminder_time,
+                Task.created_at,
+                Task.is_active,
+                Task.deleted_at,
+            )
+        )
+        return list(result.all())
+
+    async def done_logs(
+        self, since: date | None = None, user_ids: Collection[int] | None = None
+    ) -> list[tuple[int, int, date, datetime | None]]:
+        """Отметки выполнения: (привычка, пользователь, день привычки, когда отмечено) —
+        начиная с дня `since` и только у `user_ids`, если они заданы."""
+        query = select(
+            TaskLog.task_id, TaskLog.user_id, TaskLog.scheduled_date, TaskLog.marked_at
+        ).where(TaskLog.status == TaskStatus.done)
+        if since is not None:
+            query = query.where(TaskLog.scheduled_date >= since)
+        if user_ids is not None:
+            rows: list[tuple[int, int, date, datetime | None]] = []
+            for batch in _batches(set(user_ids)):
+                result = await self.session.execute(query.where(TaskLog.user_id.in_(batch)))
+                rows += [(t, u, _as_date(d), m) for t, u, d, m in result.tuples()]
+            return rows
+        result = await self.session.execute(query)
+        return [(t, u, _as_date(d), m) for t, u, d, m in result.tuples()]
+
+    async def actions(
+        self,
+        kinds: Collection[str],
+        since: datetime | None = None,
+        user_id: int | None = None,
+    ) -> list[tuple[int, str, int | None, str | None, datetime]]:
+        """Действия из ленты: (пользователь, что, ref_id, detail, когда), по времени."""
+        query = select(
+            ActivityLog.user_id,
+            ActivityLog.kind,
+            ActivityLog.ref_id,
+            ActivityLog.detail,
+            ActivityLog.created_at,
+        ).where(ActivityLog.kind.in_(list(kinds)))
+        if since is not None:
+            query = query.where(ActivityLog.created_at >= since)
+        if user_id is not None:
+            query = query.where(ActivityLog.user_id == user_id)
+        result = await self.session.execute(query.order_by(ActivityLog.created_at, ActivityLog.id))
+        return [tuple(row) for row in result.tuples()]  # type: ignore[misc]
+
+    async def user_actions_page(self, user_id: int, offset: int, limit: int) -> list[ActivityLog]:
+        """Лента действий пользователя, новые сначала: страница `limit` с `offset`."""
+        result = await self.session.scalars(
+            select(ActivityLog)
+            .where(ActivityLog.user_id == user_id)
+            .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.all())
+
+    async def task_names(self, task_ids: Collection[int]) -> dict[int, str]:
+        """Названия привычек (и удалённых) по id."""
+        names: dict[int, str] = {}
+        for batch in _batches(set(task_ids)):
+            result = await self.session.execute(
+                select(Task.id, Task.name).where(Task.id.in_(batch))
+            )
+            names.update({task_id: name for task_id, name in result.tuples()})
+        return names
+
+    async def push_user_ids(self) -> set[int]:
+        """Пользователи хотя бы с одной подпиской на уведомления."""
+        result = await self.session.scalars(select(PushSubscription.user_id).distinct())
+        return set(result.all())
+
+    async def first_web_sessions(self) -> dict[int, datetime]:
+        """Когда аккаунт впервые вошёл в веб-приложение (по живым сессиям): id → момент."""
+        result = await self.session.execute(
+            select(WebSession.user_id, func.min(WebSession.created_at)).group_by(
+                WebSession.user_id
+            )
+        )
+        return {user_id: moment for user_id, moment in result.tuples()}
+
+    async def funnel_events(
+        self, names: Collection[str], since: datetime | None, until: datetime
+    ) -> list[tuple[str, str | None, int | None, str | None, datetime]]:
+        """События веб-воронки: (событие, устройство, аккаунт, src, когда)."""
+        query = select(
+            Event.event, Event.anon_id, Event.user_id, Event.src, Event.created_at
+        ).where(Event.event.in_(list(names)), Event.created_at < until)
+        if since is not None:
+            query = query.where(Event.created_at >= since)
+        result = await self.session.execute(query)
+        return [tuple(row) for row in result.tuples()]  # type: ignore[misc]
+
+    async def first_event_src(self, user_id: int) -> str | None:
+        """`src` самого раннего события воронки аккаунта (источник веб-гостя)."""
         return await self.session.scalar(
-            select(func.count()).select_from(User).where(User.created_at < moment)
-        ) or 0
-
-    async def new_users_by_day(self, since: datetime) -> dict[date, int]:
-        """Новые пользователи по дням (UTC) начиная с `since`."""
-        day = func.date(User.created_at)
-        result = await self.session.execute(
-            select(day, func.count()).where(User.created_at >= since).group_by(day)
+            select(Event.src)
+            .where(Event.user_id == user_id, Event.src.is_not(None))
+            .order_by(Event.created_at, Event.id)
+            .limit(1)
         )
-        return {_as_date(value): count for value, count in result.tuples()}
 
-    async def active_users_by_day(self, since: date) -> dict[date, int]:
-        """Активные пользователи по дням (DAU) начиная с `since`."""
-        result = await self.session.execute(
-            select(UserActivity.day, func.count())
-            .where(UserActivity.day >= since)
-            .group_by(UserActivity.day)
+    async def all_broadcasts(self) -> list[Broadcast]:
+        """Все рассылки, новые сначала."""
+        result = await self.session.scalars(select(Broadcast).order_by(Broadcast.id.desc()))
+        return list(result.all())
+
+    async def admin_ids(self) -> set[int]:
+        """id всех администраторов."""
+        return set((await self.session.scalars(select(Admin.telegram_id))).all())
+
+    async def user_activity_days(self, user_id: int) -> list[date]:
+        """Дни, в которые пользователь открывал приложение, по порядку."""
+        result = await self.session.scalars(
+            select(UserActivity.day)
+            .where(UserActivity.user_id == user_id)
+            .order_by(UserActivity.day)
         )
-        return {_as_date(value): count for value, count in result.tuples()}
+        return [_as_date(day) for day in result.all()]
 
-    async def count_active_users_since(self, since: date) -> int:
-        """Сколько разных пользователей были активны начиная с `since` (WAU, MAU)."""
-        return await self.session.scalar(
-            select(func.count(func.distinct(UserActivity.user_id))).where(
-                UserActivity.day >= since
-            )
-        ) or 0
-
-    async def active_habit_counts(self) -> list[int]:
-        """Число активных привычек у каждого, кто пользуется приложением (открывал его и не
-        заблокировал бота), если они у него есть. Заблокировавшие бота не считаются: они
-        ушли, хотя привычки у них остались."""
-        result = await self.session.execute(
-            select(func.count())
-            .select_from(Task)
-            .join(User, User.telegram_id == Task.user_id)
-            .where(
-                Task.is_active.is_(True),
-                User.app_opened_at.is_not(None),
-                User.bot_blocked_at.is_(None),
-            )
-            .group_by(Task.user_id)
+    async def user_tasks(self, user_id: int) -> list[Task]:
+        """Все привычки пользователя, и удалённые, по порядку создания."""
+        result = await self.session.scalars(
+            select(Task).where(Task.user_id == user_id).order_by(Task.id)
         )
-        return list(result.scalars().all())
+        return list(result.all())
+
+    async def user_checkin_days(self, user_id: int) -> list[date]:
+        """Дни (по Алматы), в которые пользователь отмечал привычки, по порядку."""
+        result = await self.session.scalars(
+            select(CheckinDay.day).where(CheckinDay.user_id == user_id).order_by(CheckinDay.day)
+        )
+        return [_as_date(day) for day in result.all()]
 
     async def active_task_schedules(self) -> list[TaskSchedule]:
         """Расписания всех активных привычек (без названий и отметок)."""
@@ -866,31 +1130,23 @@ class Repository:
             for task_id, created, kind, days, start in result.tuples()
         ]
 
-    async def done_task_days_since(self, since: date) -> list[tuple[int, date]]:
-        """Отметки выполнения активных привычек начиная с `since`: (id привычки, дата)."""
-        result = await self.session.execute(
-            select(TaskLog.task_id, TaskLog.scheduled_date)
-            .join(Task, Task.id == TaskLog.task_id)
-            .where(
-                Task.is_active.is_(True),
-                TaskLog.status == TaskStatus.done,
-                TaskLog.scheduled_date >= since,
-            )
-        )
-        return [(task_id, day) for task_id, day in result.tuples()]
-
     # ------------------------------------------------------------------ #
     #  Broadcasts
     # ------------------------------------------------------------------ #
 
     async def count_recipients(
-        self, audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None = None
+        self,
+        audience: Mapping[str, str],
+        moment: datetime,
+        exclude_user_id: int | None = None,
+        ids: Mapping[str, Collection[int]] | None = None,
     ) -> int:
-        """Сколько получателей у рассылки с фильтром `audience` в момент `moment`."""
+        """Сколько получателей у рассылки с фильтром `audience` в момент `moment` (`ids` —
+        см. _audience_condition)."""
         return await self.session.scalar(
             select(func.count())
             .select_from(User)
-            .where(_recipient_condition(audience, moment, exclude_user_id))
+            .where(_recipient_condition(audience, moment, exclude_user_id, ids or {}))
         ) or 0
 
     async def recipients_after(
@@ -900,13 +1156,14 @@ class Repository:
         exclude_user_id: int | None,
         after_id: int,
         limit: int,
+        ids: Mapping[str, Collection[int]] | None = None,
     ) -> list[tuple[int, str]]:
         """Следующие получатели рассылки по возрастанию id — после `after_id`: (id, язык
         интерфейса — на нём подпись кнопки под рассылкой)."""
         result = await self.session.execute(
             select(User.telegram_id, User.language)
             .where(
-                _recipient_condition(audience, moment, exclude_user_id),
+                _recipient_condition(audience, moment, exclude_user_id, ids or {}),
                 User.telegram_id > after_id,
             )
             .order_by(User.telegram_id)
@@ -982,7 +1239,9 @@ class Repository:
             user_id = -(secrets.randbelow(_WEB_ID_MAX) + 1)
             if await self.get_user(user_id) is not None:
                 continue
-            user = User(telegram_id=user_id, language=language, app_opened_at=now)
+            user = User(
+                telegram_id=user_id, language=language, app_opened_at=now, signup_platform="web"
+            )
             self.session.add(user)
             await self.session.flush()
             return user
@@ -1005,6 +1264,13 @@ class Repository:
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
             first_checkin_at=source.first_checkin_at,
+            # For analytics it is the same person: came at the same time, from the same place.
+            created_at=source.created_at,
+            source=source.source,
+            source_tag=source.source_tag,
+            signup_platform=source.signup_platform or "web",
+            device=source.device,
+            is_test=source.is_test,
         )
         self.session.add(user)
         await self.session.flush()
@@ -1062,9 +1328,11 @@ class Repository:
             setattr(target, field, min(values) if values else None)
         if target.install_offer_sent_at is None:
             target.install_offer_sent_at = source.install_offer_sent_at
+        if target.source is None and source.source is not None:
+            target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
 
-        for model in (Task, TaskLog, Review, WebSession, PushSubscription, Event):
+        for model in (Task, TaskLog, Review, WebSession, PushSubscription, Event, ActivityLog):
             await self.session.execute(
                 update(model)
                 .where(model.user_id == source_id)
@@ -1084,6 +1352,19 @@ class Repository:
             .execution_options(synchronize_session=False)
         )
         await self.session.execute(delete(UserActivity).where(UserActivity.user_id == source_id))
+        # Check-in days are keyed the same way.
+        await self.session.execute(
+            update(CheckinDay)
+            .where(
+                CheckinDay.user_id == source_id,
+                CheckinDay.day.not_in(
+                    select(CheckinDay.day).where(CheckinDay.user_id == target_id)
+                ),
+            )
+            .values(user_id=target_id)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(delete(CheckinDay).where(CheckinDay.user_id == source_id))
         await self.session.execute(delete(User).where(User.telegram_id == source_id))
         # Bulk updates bypass the identity map: drop stale objects, re-read the target.
         self.session.expunge_all()
