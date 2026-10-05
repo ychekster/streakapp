@@ -8,9 +8,9 @@
 
 | Процесс | Что делает | Как запускается |
 |---|---|---|
-| API (`tma/backend`) | Отвечает приложению, владеет базой | служба `streakbot-api`, слушает `127.0.0.1:8000` |
+| API (`backend`) | Отвечает приложению, владеет базой | служба `streakbot-api`, слушает `127.0.0.1:8000` |
 | Бот (`bot/`) | `/start`, напоминания, рассылки | служба `streakbot-bot`, long polling (входящих портов не нужно) |
-| Фронтенд (`tma/frontend`) | Собранные статические файлы | раздаёт nginx из `dist/` |
+| Фронтенд (`frontend`) | Собранные статические файлы | раздаёт nginx из `dist/` |
 
 Наружу смотрит только nginx (порты 80 и 443). API доступен снаружи по пути `/api/`
 того же домена — иначе браузер считал бы это другим источником.
@@ -49,7 +49,7 @@ cd /opt/streakbot/app                  # дальше всё выполняет�
 
 ```bash
 sudo -u streakbot python3 -m venv /opt/streakbot/venv
-sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r tma/backend/requirements.txt
+sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
 ```
 
 Чтобы обновления ставили ровно те версии, что проверены на сервере, снимите слепок
@@ -95,8 +95,9 @@ LOG_FILE=logs/bot.log
 ```
 
 Остальные переменные (`TMA_AUTH_TTL_SECONDS`, `TMA_RATE_LIMIT_*`, `DB_POOL_SIZE`)
-описаны в [../tma/README.md](../tma/README.md); значения по умолчанию рассчитаны на
-продакшен, менять их не нужно.
+описаны в [BACKEND.md](BACKEND.md); значения по умолчанию рассчитаны на продакшен,
+менять их не нужно. Переменные веб-приложения (`PUBLIC_BASE_URL`, `WEB_AUTH_SECRET`,
+`VAPID_*`) — в [WEB_APP_SETUP.md](WEB_APP_SETUP.md).
 
 ## 4. База данных
 
@@ -111,22 +112,28 @@ sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
 ```
 
 Первым администратором станет Telegram-id из `SEED_ADMIN_IDS`
-(`tma/backend/constants.py`) — он добавляется, только пока список администраторов пуст.
+(`backend/constants.py`) — он добавляется, только пока список администраторов пуст.
 Если панель должна быть у другого аккаунта, поправьте константу **до** первого запуска;
 дальше администраторов добавляют в самой панели.
 
 ## 5. Сборка фронтенда
 
-```bash
-cd tma/frontend
-sudo -u streakbot npm ci
-sudo -u streakbot npm run build          # tsc --noEmit + vite build → dist/
-cd ../..
+Переменные сборки — в `frontend/.env.production` (в git его нет, создаётся на сервере):
+
+```dotenv
+VITE_API_BASE_URL=/api
+VITE_TELEGRAM_BOT_URL=https://t.me/<имя бота>
 ```
 
-`.env.production` уже задаёт `VITE_API_BASE_URL=/api`: фронтенд обращается к API по
-относительному пути на том же домене, поэтому пересобирать его при смене домена не
-нужно. Исходных карт в сборке нет — раздаётся только минифицированный код.
+```bash
+cd frontend
+sudo -u streakbot npm ci
+sudo -u streakbot npm run build          # tsc --noEmit + vite build → dist/
+cd ..
+```
+
+С `VITE_API_BASE_URL=/api` фронтенд обращается к API по относительному пути на том же
+домене, поэтому пересобирать его при смене домена не нужно. Исходных карт в сборке нет — раздаётся только минифицированный код.
 
 ## 6. Службы systemd
 
@@ -143,7 +150,7 @@ Type=simple
 User=streakbot
 Group=streakbot
 WorkingDirectory=/opt/streakbot/app
-ExecStart=/opt/streakbot/venv/bin/python -m tma.backend.main
+ExecStart=/opt/streakbot/venv/bin/python -m backend.main
 Restart=always
 RestartSec=5
 
@@ -182,7 +189,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name example.com;
-    root /opt/streakbot/app/tma/frontend/dist;
+    root /opt/streakbot/app/frontend/dist;
     index index.html;
 
     # Рассылка может нести видео до 50 МБ: со значением по умолчанию (1 МБ) nginx
@@ -316,9 +323,9 @@ sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /
 cd /opt/streakbot/app
 sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py   # сначала копия
 sudo -u streakbot git pull
-sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r tma/backend/requirements.txt
+sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
 sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
-sudo -u streakbot bash -c 'cd tma/frontend && npm ci && npm run build'
+sudo -u streakbot bash -c 'cd frontend && npm ci && npm run build'
 sudo systemctl restart streakbot-api streakbot-bot
 ```
 
@@ -361,3 +368,30 @@ SQLite держит одного писателя одновременно, и �
 PostgreSQL описан в [SCALING.md](SCALING.md): меняется `DATABASE_URL` и ставится
 `asyncpg`, код — нет. Там же — про несколько воркеров uvicorn и про то, почему бот
 остаётся в одном экземпляре.
+
+## Переезд на новую структуру папок (один раз)
+
+В октябре 2026 `tma/backend` переехал в `backend/`, а `tma/frontend` — в `frontend/`.
+Код и переменные `.env` те же, но на сервере, который развёрнут со старой структурой,
+после `git pull` нужно один раз поправить пути. До этого шага служба API со старым
+`ExecStart` не стартует, а nginx продолжает раздавать старую сборку из `tma/`.
+
+```bash
+cd /opt/streakbot/app
+sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py
+sudo -u streakbot git pull
+# Файлы не из git остались в tma/: переносим настройки сборки, остальное удаляем.
+sudo -u streakbot mv tma/frontend/.env.production frontend/.env.production
+sudo rm -rf tma
+sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
+sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
+sudo -u streakbot bash -c 'cd frontend && npm ci && npm run build'
+```
+
+Затем:
+
+1. `/etc/systemd/system/streakbot-api.service`: `ExecStart=/opt/streakbot/venv/bin/python -m backend.main`
+   (было `-m tma.backend.main`); `sudo systemctl daemon-reload`.
+2. `/etc/nginx/sites-available/streakbot`: `root /opt/streakbot/app/frontend/dist;`
+   (было `.../tma/frontend/dist`); `sudo nginx -t && sudo systemctl reload nginx`.
+3. `sudo systemctl restart streakbot-api streakbot-bot` и проверка из §13.

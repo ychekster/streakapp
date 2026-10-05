@@ -71,7 +71,7 @@ LEGACY_COMMAND_LANGUAGES: tuple[str, ...] = ("ru", "en")
 # --------------------------------------------------------------------------- #
 
 # Приходит в чат во время, заданное в приложении, на языке приложения (ключ — язык
-# интерфейса, tma/backend/constants.py LANGUAGES); {name} — название привычки. Перед
+# интерфейса, backend/constants.py LANGUAGES); {name} — название привычки. Перед
 # текстом — REMINDER_EMOJI и пробел.
 REMINDER_TEXTS: dict[str, str] = {
     "ru": "Пора выполнить «{name}»",

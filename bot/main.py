@@ -4,7 +4,7 @@
 
 Бот отвечает на /start приветствием с кнопкой запуска Mini App, присылает
 напоминания о привычках (bot/reminders.py) и рассылки из админ-панели
-(bot/broadcasts.py). Вся работа с привычками идёт в приложении (см. tma/): базу
+(bot/broadcasts.py). Вся работа с привычками идёт в приложении (см. frontend/): базу
 данных ведёт API, а бот читает из неё напоминания и рассылки и отмечает в ней, кто
 запускал бота, кто его заблокировал и как идёт рассылка.
 
@@ -30,9 +30,9 @@ from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMM
 from bot.handlers import membership, start, web_login
 from bot.pacing import SEND_RATE, Pacer
 from bot.reminders import PushConfig, run_reminders
-from tma.backend.config import load_settings as load_web_settings
-from tma.backend.database import Database
-from tma.backend.webpush import VapidKeys
+from backend.config import load_settings as load_web_settings
+from backend.database import Database
+from backend.webpush import VapidKeys
 
 
 def setup_logging(config: Config) -> None:

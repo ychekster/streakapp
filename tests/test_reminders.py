@@ -14,11 +14,11 @@ from aiogram.types import InlineKeyboardMarkup, MessageEntity
 from bot import reminders as bot_reminders
 from bot.constants import OPEN_APP_EMOJI, REMINDER_BUTTONS, REMINDER_EMOJI
 from bot.pacing import Pacer
-from tma.backend.constants import WEEKDAYS
-from tma.backend.database import Database
-from tma.backend.models import FrequencyType, TaskStatus
-from tma.backend.repository import Repository
-from tma.backend.services import DueReminder, due_checkin_reminders, due_reminders
+from backend.constants import WEEKDAYS
+from backend.database import Database
+from backend.models import FrequencyType, TaskStatus
+from backend.repository import Repository
+from backend.services import DueReminder, due_checkin_reminders, due_reminders
 
 # 06:00 UTC = 09:00 в Москве (UTC+3) = 11:00 в Алматы (UTC+5).
 MOMENT = datetime(2026, 9, 22, 6, 0, tzinfo=timezone.utc)
@@ -81,27 +81,37 @@ def test_reminder_skips_done_unscheduled_and_deleted(db_url: str) -> None:
     assert [item.habit_name for item in due] == ["unmarked"]
 
 
-def test_mark_yesterday_reminder_is_about_the_app_day(db_url: str) -> None:
-    """В режиме «Отмечать за вчера» напоминание — о дне, который отмечает приложение:
-    вчерашняя отметка его отменяет, сегодняшняя (её пользователь поставить не мог) — нет."""
+def test_mark_yesterday_does_not_shift_habit_reminders(db_url: str) -> None:
+    """Режим «Отмечать за вчера» напоминаний о привычках не меняет: они про сегодня —
+    по сегодняшнему расписанию и сегодняшней отметке, а не вчерашней."""
     today = MOMENT.astimezone(timezone.utc).date()  # 09:00 в Москве — тот же день
     yesterday = today - timedelta(days=1)
+    only_today = WEEKDAYS[today.weekday()]
+    only_yesterday = WEEKDAYS[yesterday.weekday()]
 
     async def setup(repo: Repository) -> None:
         user = await repo.get_or_create_user(1, None, "U", language="en")
         await repo.update_settings(user, timezone="Europe/Moscow", mark_yesterday=True)
         nine = time(9, 0)
-        marked = await repo.create_task(1, "marked", FrequencyType.daily, reminder_time=nine)
-        await repo.set_log_status(
-            await repo.get_or_create_log(marked.id, 1, yesterday), TaskStatus.done
+        done_yesterday = await repo.create_task(
+            1, "done yesterday", FrequencyType.daily, reminder_time=nine
         )
-        other = await repo.create_task(1, "unmarked", FrequencyType.daily, reminder_time=nine)
         await repo.set_log_status(
-            await repo.get_or_create_log(other.id, 1, today), TaskStatus.done
+            await repo.get_or_create_log(done_yesterday.id, 1, yesterday), TaskStatus.done
         )
+        done_today = await repo.create_task(
+            1, "done today", FrequencyType.daily, reminder_time=nine
+        )
+        await repo.set_log_status(
+            await repo.get_or_create_log(done_today.id, 1, today), TaskStatus.done
+        )
+        await repo.create_task(1, "today", FrequencyType.specific_days, days=only_today,
+                               reminder_time=nine)
+        await repo.create_task(1, "yesterday", FrequencyType.specific_days,
+                               days=only_yesterday, reminder_time=nine)
 
     due = asyncio.run(_due(db_url, setup))
-    assert [item.habit_name for item in due] == ["unmarked"]
+    assert sorted(item.habit_name for item in due) == ["done yesterday", "today"]
 
 
 async def _due_checkin(db_url: str, setup) -> list[DueReminder]:

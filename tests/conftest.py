@@ -51,7 +51,7 @@ def client() -> Iterator[TestClient]:
     `raise_server_exceptions=False`: ошибка сервера — это ответ 500, как у настоящего
     клиента, а не исключение в тесте.
     """
-    from tma.backend.main import app
+    from backend.main import app
 
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client

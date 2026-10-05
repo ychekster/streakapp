@@ -1,7 +1,7 @@
 """Index on the habit reminder time
 
 Бот каждую минуту выбирает привычки, у которых время напоминания совпадает с
-текущей минутой где-нибудь на Земле (tma/backend/services.py, due_reminders). Без
+текущей минутой где-нибудь на Земле (backend/services.py, due_reminders). Без
 индекса это полный просмотр таблицы `tasks` раз в минуту; с ним — выборка по индексу:
 
 - `ix_tasks_reminder_time` — индекс по `tasks.reminder_time`.

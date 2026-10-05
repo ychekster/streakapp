@@ -8,15 +8,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from tma.backend import ratelimit
-from tma.backend.analytics import completion_by_day, habits_distribution
-from tma.backend.errors import ApiError
-from tma.backend.database import Database
-from tma.backend.models import FrequencyType, TaskStatus
-from tma.backend.repository import Repository, TaskSchedule
-from tma.backend.schedule import is_due_on
-from tma.backend.services import compute_streaks
-from tma.backend.validation import resolve_timezone, validate_frequency, validate_name
+from backend import ratelimit
+from backend.analytics import completion_by_day, habits_distribution
+from backend.errors import ApiError
+from backend.database import Database
+from backend.models import FrequencyType, TaskStatus
+from backend.repository import Repository, TaskSchedule
+from backend.schedule import is_due_on
+from backend.services import compute_streaks
+from backend.validation import resolve_timezone, validate_frequency, validate_name
 
 TODAY = date(2026, 9, 22)  # вторник
 

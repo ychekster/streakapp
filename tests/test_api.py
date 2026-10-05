@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import AuthUser
 from tests.helpers import sign_init_data
-from tma.backend.constants import MAX_DB_INT, MAX_REQUEST_BODY_BYTES
-from tma.backend.ratelimit import RateLimiter
+from backend.constants import MAX_DB_INT, MAX_REQUEST_BODY_BYTES
+from backend.ratelimit import RateLimiter
 
 
 def _habit(name: str = "Зарядка", **fields: object) -> dict[str, object]:
@@ -166,7 +166,7 @@ def test_control_characters_are_removed_from_name(client: TestClient, user: Auth
 
 
 def test_habit_limit(client: TestClient, user: AuthUser, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("tma.backend.services.MAX_HABITS_PER_USER", 2)
+    monkeypatch.setattr("backend.services.MAX_HABITS_PER_USER", 2)
     _create(client, user, "Первая")
     _create(client, user, "Вторая")
     response = client.post("/tasks", json=_habit("Третья"), headers=user.headers)

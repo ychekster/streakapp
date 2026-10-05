@@ -1,7 +1,7 @@
 # Переход с SQLite на PostgreSQL
 
 Благодаря SQLAlchemy и async-драйверам смена СУБД не требует изменений в коде —
-только конфигурации и зависимостей. Базу данных ведёт API-сервер (`tma/backend`);
+только конфигурации и зависимостей. Базу данных ведёт API-сервер (`backend`);
 бот только читает из неё напоминания — через тот же слой данных и тот же
 `DATABASE_URL`, поэтому драйвер нужен и ему.
 
@@ -12,13 +12,13 @@
    DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/streakbot
    ```
 
-2. **Добавить драйвер** в `tma/backend/requirements.txt` и `requirements.txt`
+2. **Добавить драйвер** в `backend/requirements.txt` и `requirements.txt`
    (бот) и установить:
    ```
    asyncpg>=0.29.0
    ```
    ```bash
-   pip install -r tma/backend/requirements.txt -r requirements.txt
+   pip install -r backend/requirements.txt -r requirements.txt
    ```
 
 3. **Создать базу данных** в PostgreSQL:
@@ -33,7 +33,7 @@
 
 5. **Запустить API и бота**:
    ```bash
-   python -m tma.backend.main
+   python -m backend.main
    python -m bot.main
    ```
 

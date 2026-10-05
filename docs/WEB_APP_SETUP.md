@@ -55,16 +55,16 @@ StreakApp теперь работает не только в Telegram, но и �
 
 ## 4. Ссылка «Открыть в Telegram» на странице установки
 
-Задаётся при сборке фронтенда: в `tma/frontend/.env` (локально) и
-`tma/frontend/.env.production` (сервер) впишите
+Задаётся при сборке фронтенда: в `frontend/.env` (локально) и
+`frontend/.env.production` (сервер) впишите
 `VITE_TELEGRAM_BOT_URL=https://t.me/onStreakBot` (для теста — `https://t.me/botishnabot`).
 
 ## 5. Видео-инструкция для iPhone
 
 Над шагами установки для iPhone можно показать короткое зацикленное видео (по умолчанию
 его нет — только шаги). Запишите экран iPhone: Safari → «Поделиться» → «На экран „Домой“» → «Добавить»,
-сохраните как `tma/frontend/public/install-ios.mp4` и в
-`tma/frontend/src/landing/config.ts` замените `video: null` на
+сохраните как `frontend/public/install-ios.mp4` и в
+`frontend/src/landing/config.ts` замените `video: null` на
 `video: "/install-ios.mp4"`. Там же — тексты шагов, если на новой iOS кнопки называются
 иначе, и список встроенных браузеров (Threads, Instagram…).
 
@@ -85,7 +85,7 @@ StreakApp теперь работает не только в Telegram, но и �
 ## Выкладка на сервер (когда решите)
 
 Порядок — как обычно (docs/DEPLOYMENT.md §11): копия базы → `git pull` →
-`pip install -r requirements.txt -r tma/backend/requirements.txt` (добавился `pywebpush`) →
+`pip install -r requirements.txt -r backend/requirements.txt` (добавился `pywebpush`) →
 `python -m alembic upgrade head` (миграция `0010`: новые таблицы, существующие данные не
 меняются) → `npm ci && npm run build` → перезапуск API и бота. До этого впишите в `.env`
 сервера переменные из шагов 1–2 и `PUBLIC_BASE_URL=https://tma.streakapp.io`.

@@ -1,4 +1,4 @@
-"""Собрать справочник городов для выбора часового пояса: tma/backend/data/cities.tsv.gz.
+"""Собрать справочник городов для выбора часового пояса: backend/data/cities.tsv.gz.
 
 Источник — GeoNames (https://www.geonames.org), лицензия CC BY 4.0:
   - cities5000.zip — города от 5000 жителей (и столицы); у каждого есть зона IANA;
@@ -42,7 +42,7 @@ BASE_URL = "https://download.geonames.org/export/dump/"
 CITIES_FILE = "cities5000.zip"
 NAMES_FILE = "alternateNamesV2.zip"
 REGIONS_FILE = "admin1CodesASCII.txt"
-OUTPUT = Path(__file__).resolve().parent.parent / "tma" / "backend" / "data" / "cities.tsv.gz"
+OUTPUT = Path(__file__).resolve().parent.parent / "backend" / "data" / "cities.tsv.gz"
 
 # Не города: районы внутри городов, исторические, заброшенные и разрушенные поселения.
 SKIPPED_FEATURES = {"PPLX", "PPLH", "PPLQ", "PPLW", "PPLCH"}

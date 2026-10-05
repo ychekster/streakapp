@@ -1,0 +1,1314 @@
+"""Репозиторий — единственная точка доступа к БД (Repository pattern).
+
+Роутеры и сервисы не пишут SQL напрямую: вся работа с данными идёт через
+методы этого класса. Каждый экземпляр привязан к одной async-сессии.
+"""
+
+from __future__ import annotations
+
+import secrets
+from collections.abc import Collection, Iterable, Iterator, Mapping
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
+from itertools import islice
+from typing import Any
+
+from sqlalchemy import (
+    String,
+    and_,
+    case,
+    cast,
+    delete,
+    exists,
+    func,
+    not_,
+    or_,
+    select,
+    true,
+    update,
+)
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from backend.constants import (
+    ACTIVE_NOW_MINUTES,
+    DEFAULT_HABIT_COLOR,
+    HABIT_NAME_MAX_LENGTH,
+    LAST_SEEN_RESOLUTION_SECONDS,
+)
+from backend.models import (
+    Admin,
+    AuthCode,
+    Broadcast,
+    BroadcastStatus,
+    Event,
+    FrequencyType,
+    PushSubscription,
+    Review,
+    Task,
+    TaskLog,
+    TaskStatus,
+    User,
+    UserActivity,
+    WebSession,
+)
+
+
+# Сколько значений передавать в одном `IN (...)`: у SQLite и драйверов PostgreSQL есть
+# предел числа параметров запроса.
+_IN_BATCH_SIZE = 500
+
+# Web-only account ids: random in [-_WEB_ID_MAX, -1]. Within 2**53, so JavaScript (the
+# admin panel) keeps them exact.
+_WEB_ID_MAX = 2**53 - 1
+_WEB_ID_ATTEMPTS = 5
+
+
+def _batches(values: Iterable[int], size: int = _IN_BATCH_SIZE) -> Iterator[list[int]]:
+    """Разбить значения на списки не длиннее `size`."""
+    iterator = iter(values)
+    while batch := list(islice(iterator, size)):
+        yield batch
+
+
+def utc_now() -> datetime:
+    """Текущий момент в UTC без пояса — так в базе хранятся все отметки времени."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _as_date(value: Any) -> date:
+    """Результат SQL `date(...)`: у PostgreSQL — дата, у SQLite — строка «ГГГГ-ММ-ДД»."""
+    return value if isinstance(value, date) else date.fromisoformat(str(value))
+
+
+def _like_pattern(text: str) -> str:
+    """Шаблон LIKE «содержит `text`»: `%` и `_` в самом запросе — обычные символы."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+# Периоды фильтров «активность» и «появились» (constants.AUDIENCE_FILTERS), дней.
+_FILTER_DAYS: dict[str, int] = {"1d": 1, "7d": 7, "30d": 30, "inactive_7d": 7, "inactive_30d": 30}
+
+
+def _audience_condition(audience: Mapping[str, str], moment: datetime) -> Any:
+    """Условие на пользователя для фильтра (audience.py): условия признаков через «и».
+
+    Всё считается на момент `moment`: привычки, отзывы и первое открытие приложения —
+    сделанные до него. Рассылка перебирает получателей долго, и так её фильтр не
+    расползается: кто открыл приложение или добавил привычку во время рассылки, в неё не
+    попадает — как не был посчитан и в числе получателей.
+    """
+    conditions: list[Any] = []
+    opened = and_(User.app_opened_at.is_not(None), User.app_opened_at <= moment)
+    has_habit = exists().where(Task.user_id == User.telegram_id, Task.created_at <= moment)
+    has_review = exists().where(Review.user_id == User.telegram_id, Review.created_at <= moment)
+    for key, value in audience.items():
+        if key == "app":
+            conditions.append(opened if value == "opened" else not_(opened))
+        elif key == "habits":
+            # Считаются и удалённые привычки: «добавил хотя бы одну» — как в воронке аналитики.
+            conditions.append(has_habit if value == "any" else not_(has_habit))
+        elif key == "activity":
+            since = moment - timedelta(days=_FILTER_DAYS[value])
+            if value.startswith("inactive_"):
+                conditions.append(
+                    and_(opened, or_(User.last_seen_at.is_(None), User.last_seen_at < since))
+                )
+            else:
+                conditions.append(User.last_seen_at >= since)
+        elif key == "joined":
+            conditions.append(User.created_at >= moment - timedelta(days=_FILTER_DAYS[value]))
+        elif key == "language":
+            conditions.append(User.language == value)
+        elif key == "reviews":
+            conditions.append(has_review if value == "any" else not_(has_review))
+        elif key == "bot":
+            column = User.bot_blocked_at
+            conditions.append(column.is_not(None) if value == "blocked" else column.is_(None))
+        elif key == "access":
+            column = User.blocked_at
+            conditions.append(column.is_not(None) if value == "blocked" else column.is_(None))
+    return and_(true(), *conditions)
+
+
+def _recipient_condition(
+    audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None
+) -> Any:
+    """Получатели рассылки: пользователи под фильтром, уже зарегистрированные к `moment`
+    (пришедшие во время долгой рассылки её не получают — как и не посчитаны в ней), кроме
+    заблокировавших бота (Telegram сообщает о разблокировке, поэтому отметка точна),
+    заблокированных администратором и автора рассылки (ему копия уже пришла)."""
+    condition = and_(
+        _audience_condition(audience, moment),
+        # Web-only accounts (negative ids) have no Telegram chat to send to.
+        User.telegram_id > 0,
+        User.created_at <= moment,
+        User.bot_blocked_at.is_(None),
+        User.blocked_at.is_(None),
+    )
+    if exclude_user_id is not None:
+        condition = and_(condition, User.telegram_id != exclude_user_id)
+    return condition
+
+
+@dataclass(frozen=True)
+class UserCounts:
+    """Счётчики пользователей для аналитики."""
+
+    total: int
+    opened_app: int
+    never_opened: int
+    blocked_bot: int
+    blocked: int
+    active_now: int
+    # Не заблокировавшие бота — открывавшие приложение и не открывавшие (вместе с
+    # blocked_bot делят всех пользователей без пересечений).
+    reachable_opened: int
+    reachable_never_opened: int
+
+
+@dataclass(frozen=True)
+class Funnel:
+    """Воронка новых пользователей за период: запустили бота → из них открыли
+    приложение → из них добавили хотя бы одну привычку."""
+
+    started_bot: int
+    opened_app: int
+    added_habit: int
+
+
+@dataclass(frozen=True)
+class TaskSchedule:
+    """Расписание активной привычки — всё, что нужно для доли выполнения по дням."""
+
+    id: int
+    created_on: date
+    frequency_type: FrequencyType
+    days: str | None
+    start_date: date | None = None
+
+
+class Repository:
+    """CRUD-методы для пользователей, привычек, отметок и данных админ-панели поверх
+    одной сессии."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        """Зафиксировать сделанное и закрыть транзакцию.
+
+        Обычно коммит делает зависимость `get_repository` в конце запроса, и вызывать его
+        вручную не нужно. Исключение — обработчик, которому предстоит долгий поход в сеть
+        (админ-панель отправляет сообщение или загружает видео рассылки в Telegram): пока
+        транзакция открыта, SQLite держит блокировку записи, и отметки привычек остальных
+        пользователей ждут её до таймаута. Коммит перед отправкой снимает блокировку,
+        а запись результата открывает новую, короткую транзакцию.
+        """
+        await self.session.commit()
+
+    # ------------------------------------------------------------------ #
+    #  Users
+    # ------------------------------------------------------------------ #
+
+    async def get_user(self, telegram_id: int) -> User | None:
+        """Вернуть пользователя по telegram_id или None."""
+        return await self.session.get(User, telegram_id)
+
+    async def get_or_create_user(
+        self,
+        telegram_id: int,
+        username: str | None,
+        first_name: str | None,
+        language: str,
+    ) -> User:
+        """Вернуть пользователя, создав его при первом обращении.
+
+        @username и имя синхронизируются с Telegram (могут меняться между
+        сессиями); если они не изменились, UPDATE не выполняется. `language` —
+        язык интерфейса нового пользователя; у существующего он не меняется.
+
+        Безопасно к гонке: приложение при открытии может отправить несколько
+        запросов параллельно. Вставку оборачиваем в SAVEPOINT и при конфликте
+        уникальности перечитываем запись, созданную параллельным запросом.
+        """
+        user = await self.get_user(telegram_id)
+        if user is not None:
+            user.username = username
+            user.first_name = first_name
+            await self.session.flush()
+            return user
+        try:
+            async with self.session.begin_nested():
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    language=language,
+                )
+                self.session.add(user)
+                await self.session.flush()
+            return user
+        except IntegrityError:
+            # Запись успели создать в параллельном запросе — перечитываем.
+            user = await self.get_user(telegram_id)
+            if user is None:  # крайне маловероятно
+                raise
+            return user
+
+    async def update_settings(
+        self,
+        user: User,
+        *,
+        timezone: str | None = None,
+        timezone_city: int | None = None,
+        language: str | None = None,
+        theme: str | None = None,
+        mark_yesterday: bool | None = None,
+        checkin_reminder: tuple[time | None, str] | None = None,
+    ) -> None:
+        """Изменить настройки пользователя; None — оставить как есть. Город пояса
+        меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
+        «Пора отметить привычки» — (время или None — выключено, дни «mon,wed»)."""
+        if timezone is not None:
+            user.timezone = timezone
+            user.timezone_city = timezone_city
+        if language is not None:
+            user.language = language
+        if theme is not None:
+            user.theme = theme
+        if mark_yesterday is not None:
+            user.mark_yesterday = mark_yesterday
+        if checkin_reminder is not None:
+            user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
+        await self.session.flush()
+
+    async def touch_user(self, user: User, now: datetime) -> None:
+        """Отметить запрос пользователя к API: время последнего запроса, первое открытие
+        приложения и день активности (для DAU/WAU/MAU).
+
+        Пишет не чаще раза в LAST_SEEN_RESOLUTION_SECONDS (и в первый запрос нового
+        дня): приложение при открытии делает несколько запросов, а каждый из них был бы
+        ещё и записью в базу.
+        """
+        last = user.last_seen_at
+        if (
+            last is not None
+            and last.date() == now.date()
+            and now - last < timedelta(seconds=LAST_SEEN_RESOLUTION_SECONDS)
+        ):
+            return
+        user.last_seen_at = now
+        if user.app_opened_at is None:
+            user.app_opened_at = now
+        await self.session.flush()
+        await self._record_activity(user.telegram_id, now.date())
+
+    async def _record_activity(self, user_id: int, day: date) -> None:
+        """Запись «пользователь был активен в этот день», если её ещё нет.
+
+        Безопасно к гонке, как `get_or_create_user`: параллельные запросы одного
+        пользователя вставляют запись в SAVEPOINT, и проигравший конфликт её не дублирует.
+        """
+        if await self.session.get(UserActivity, (user_id, day)) is not None:
+            return
+        try:
+            async with self.session.begin_nested():
+                self.session.add(UserActivity(user_id=user_id, day=day))
+                await self.session.flush()
+        except IntegrityError:
+            pass  # запись уже вставил параллельный запрос
+
+    async def set_bot_blocked(self, user_ids: Collection[int], blocked: bool) -> None:
+        """Отметить, что пользователи заблокировали бота (или разблокировали его)."""
+        for batch in _batches(user_ids):
+            await self.session.execute(
+                update(User)
+                .where(User.telegram_id.in_(batch))
+                .values(bot_blocked_at=utc_now() if blocked else None)
+            )
+
+    async def set_blocked(self, user: User, blocked: bool) -> None:
+        """Заблокировать пользователя (или снять блокировку) по решению администратора."""
+        user.blocked_at = utc_now() if blocked else None
+        await self.session.flush()
+
+    async def delete_user(self, telegram_id: int) -> None:
+        """Удалить пользователя со всеми его данными: отметками, привычками, отзывами и
+        днями активности. Порядок — от зависимых таблиц к `users` (PostgreSQL проверяет
+        внешние ключи)."""
+        for model in (
+            TaskLog,
+            Task,
+            Review,
+            UserActivity,
+                    WebSession,
+            PushSubscription,
+        ):
+            await self.session.execute(delete(model).where(model.user_id == telegram_id))
+        await self.session.execute(delete(User).where(User.telegram_id == telegram_id))
+
+    # ------------------------------------------------------------------ #
+    #  Tasks
+    # ------------------------------------------------------------------ #
+
+    async def create_task(
+        self,
+        user_id: int,
+        name: str,
+        frequency_type: FrequencyType,
+        days: str | None = None,
+        reminder_time: time | None = None,
+        color: str = DEFAULT_HABIT_COLOR,
+        start_date: date | None = None,
+    ) -> Task:
+        """Создать активную задачу."""
+        task = Task(
+            user_id=user_id,
+            name=name,
+            frequency_type=frequency_type,
+            days=days,
+            start_date=start_date,
+            reminder_time=reminder_time,
+            color=color,
+            is_active=True,
+        )
+        self.session.add(task)
+        await self.session.flush()
+        return task
+
+    async def update_task(
+        self,
+        task: Task,
+        name: str,
+        frequency_type: FrequencyType,
+        days: str | None,
+        reminder_time: time | None,
+        color: str,
+        start_date: date | None = None,
+    ) -> None:
+        """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
+        task.name = name
+        task.frequency_type = frequency_type
+        task.days = days
+        task.start_date = start_date
+        task.reminder_time = reminder_time
+        task.color = color
+        await self.session.flush()
+
+    async def task_name_exists(
+        self, user_id: int, name: str, exclude_task_id: int | None = None
+    ) -> bool:
+        """Есть ли у пользователя активная задача с таким именем (без учёта регистра).
+
+        `exclude_task_id` — задача, которую не учитывать (при переименовании сама себе
+        не дубликат). Сравнение делается в Python: так оно не зависит от того, как СУБД
+        понимает регистр (встроенная `lower()` SQLite знает только латиницу).
+        """
+        target = name.strip().lower()
+        query = select(Task.name).where(Task.user_id == user_id, Task.is_active.is_(True))
+        if exclude_task_id is not None:
+            query = query.where(Task.id != exclude_task_id)
+        result = await self.session.execute(query)
+        return any((task_name or "").strip().lower() == target for task_name in result.scalars())
+
+    async def count_active_tasks(self, user_id: int) -> int:
+        """Сколько активных задач у пользователя."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.user_id == user_id, Task.is_active.is_(True))
+        )
+        return result.scalar_one()
+
+    async def get_active_task(self, task_id: int, user_id: int) -> Task | None:
+        """Вернуть активную задачу пользователя по id или None."""
+        result = await self.session.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.user_id == user_id,
+                Task.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def soft_delete_task(self, task: Task) -> None:
+        """Мягкое удаление: пометить задачу неактивной.
+
+        Логи остаются в базе, но неактивная задача нигде не показывается, а её
+        название снова свободно для новой привычки.
+        """
+        task.is_active = False
+        await self.session.flush()
+
+    async def get_active_tasks(self, user_id: int) -> list[Task]:
+        """Вернуть все активные задачи пользователя, отсортированные по id."""
+        result = await self.session.execute(
+            select(Task)
+            .where(Task.user_id == user_id, Task.is_active.is_(True))
+            .order_by(Task.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_active_tasks_with_reminder_at(self, times: Collection[time]) -> list[Task]:
+        """Активные задачи всех пользователей с напоминанием в одно из `times` — вместе с
+        владельцем (его пояс нужен, чтобы понять, наступило ли время напоминания)."""
+        if not times:
+            return []
+        result = await self.session.execute(
+            select(Task)
+            .where(Task.is_active.is_(True), Task.reminder_time.in_(sorted(times)))
+            .options(selectinload(Task.user))
+            .order_by(Task.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_users_with_checkin_reminder_at(self, times: Collection[time]) -> list[User]:
+        """Незаблокированные администратором пользователи с напоминанием «Пора отметить
+        привычки» в одно из `times`."""
+        if not times:
+            return []
+        result = await self.session.execute(
+            select(User)
+            .where(User.checkin_reminder_time.in_(sorted(times)), User.blocked_at.is_(None))
+            .order_by(User.telegram_id)
+        )
+        return list(result.scalars().all())
+
+    async def get_active_tasks_of(self, user_ids: Collection[int]) -> list[Task]:
+        """Активные задачи этих пользователей (по пачкам, как отметки)."""
+        tasks: list[Task] = []
+        for batch in _batches(set(user_ids)):
+            result = await self.session.execute(
+                select(Task)
+                .where(Task.user_id.in_(batch), Task.is_active.is_(True))
+                .order_by(Task.id)
+            )
+            tasks += result.scalars().all()
+        return tasks
+
+    # ------------------------------------------------------------------ #
+    #  TaskLogs
+    # ------------------------------------------------------------------ #
+
+    async def get_log(self, task_id: int, scheduled_date: date) -> TaskLog | None:
+        """Вернуть запись лога задачи на дату или None."""
+        result = await self.session.execute(
+            select(TaskLog).where(
+                TaskLog.task_id == task_id,
+                TaskLog.scheduled_date == scheduled_date,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_or_create_log(
+        self,
+        task_id: int,
+        user_id: int,
+        scheduled_date: date,
+    ) -> TaskLog:
+        """Вернуть лог на дату, создав его со статусом pending при отсутствии.
+
+        Безопасно к гонке, как `get_or_create_user`: отметку одной привычки можно нажать
+        сразу с двух устройств (или повторить после таймаута запроса), и тогда лог за день
+        вставляют два запроса одновременно. Вставка идёт в SAVEPOINT, и проигравший
+        уникальное ограничение (task_id, scheduled_date) перечитывает чужую запись, а не
+        падает ошибкой.
+        """
+        log = await self.get_log(task_id, scheduled_date)
+        if log is not None:
+            return log
+        try:
+            async with self.session.begin_nested():
+                log = TaskLog(
+                    task_id=task_id,
+                    user_id=user_id,
+                    scheduled_date=scheduled_date,
+                    status=TaskStatus.pending,
+                )
+                self.session.add(log)
+                await self.session.flush()
+            return log
+        except IntegrityError:
+            # Лог успели создать в параллельном запросе — перечитываем.
+            log = await self.get_log(task_id, scheduled_date)
+            if log is None:  # крайне маловероятно
+                raise
+            return log
+
+    async def set_log_status(self, log: TaskLog, status: TaskStatus) -> None:
+        """Установить статус лога и зафиксировать момент отметки (UTC, как и остальные
+        отметки времени в базе — без пояса)."""
+        log.status = status
+        log.marked_at = utc_now()
+        await self.session.flush()
+
+    async def get_done_dates(
+        self, task_ids: Collection[int], until: date
+    ) -> dict[int, set[date]]:
+        """Даты выполнения (статус done) задач по `until` включительно: id задачи → даты.
+
+        Один запрос на все задачи и только две колонки — без ORM-объектов логов: у
+        привычки за годы накапливаются тысячи отметок, и список привычек не должен
+        собирать их по запросу на каждую.
+        """
+        done: dict[int, set[date]] = {task_id: set() for task_id in task_ids}
+        for batch in _batches(done):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.scheduled_date).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.status == TaskStatus.done,
+                    TaskLog.scheduled_date <= until,
+                )
+            )
+            for task_id, day in result.tuples():
+                done[task_id].add(day)
+        return done
+
+    async def get_done_task_days(
+        self, task_days: Collection[tuple[int, date]]
+    ) -> set[tuple[int, date]]:
+        """Какие из пар (id задачи, дата) отмечены выполненными — одним запросом на пачку."""
+        days = {day for _, day in task_days}
+        done: set[tuple[int, date]] = set()
+        for batch in _batches({task_id for task_id, _ in task_days}):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.scheduled_date).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.scheduled_date.in_(sorted(days)),
+                    TaskLog.status == TaskStatus.done,
+                )
+            )
+            done.update((task_id, day) for task_id, day in result.tuples())
+        return done & set(task_days)
+
+    # ------------------------------------------------------------------ #
+    #  Admins
+    # ------------------------------------------------------------------ #
+
+    async def is_admin(self, telegram_id: int) -> bool:
+        """Есть ли пользователь в списке администраторов."""
+        return await self.session.get(Admin, telegram_id) is not None
+
+    async def list_admins(self) -> list[tuple[Admin, User | None]]:
+        """Администраторы в порядке добавления — с записью пользователя, если он уже
+        открывал приложение или запускал бота (оттуда имя)."""
+        result = await self.session.execute(
+            select(Admin, User)
+            .outerjoin(User, User.telegram_id == Admin.telegram_id)
+            .order_by(Admin.created_at, Admin.telegram_id)
+        )
+        return [(admin, user) for admin, user in result.tuples()]
+
+    async def add_admin(self, telegram_id: int, added_by: int | None) -> Admin:
+        """Добавить администратора (вызывающий проверяет, что его ещё нет)."""
+        admin = Admin(telegram_id=telegram_id, added_by=added_by)
+        self.session.add(admin)
+        await self.session.flush()
+        return admin
+
+    async def remove_admin(self, telegram_id: int) -> bool:
+        """Убрать администратора; False — его и не было."""
+        result = await self.session.execute(delete(Admin).where(Admin.telegram_id == telegram_id))
+        return result.rowcount > 0
+
+    async def seed_admins(self, telegram_ids: Iterable[int]) -> None:
+        """Добавить первых администраторов, если список пуст (новая база)."""
+        if await self.session.scalar(select(func.count()).select_from(Admin)):
+            return
+        for telegram_id in telegram_ids:
+            self.session.add(Admin(telegram_id=telegram_id))
+        await self.session.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Reviews
+    # ------------------------------------------------------------------ #
+
+    async def create_review(self, user_id: int, text: str) -> Review:
+        """Сохранить отзыв пользователя."""
+        review = Review(user_id=user_id, text=text)
+        self.session.add(review)
+        await self.session.flush()
+        await self.session.refresh(review, ["created_at"])
+        return review
+
+    async def count_reviews_since(self, user_id: int, since: datetime) -> int:
+        """Сколько отзывов пользователь оставил начиная с `since`."""
+        return await self.session.scalar(
+            select(func.count())
+            .select_from(Review)
+            .where(Review.user_id == user_id, Review.created_at >= since)
+        ) or 0
+
+    async def list_reviews(self, before_id: int | None, limit: int) -> list[Review]:
+        """Отзывы всех пользователей, новые сначала, — вместе с автором. `before_id` —
+        курсор страницы: id последнего отзыва предыдущей."""
+        query = select(Review).options(selectinload(Review.user)).order_by(Review.id.desc())
+        if before_id is not None:
+            query = query.where(Review.id < before_id)
+        result = await self.session.execute(query.limit(limit))
+        return list(result.scalars().all())
+
+    async def get_review(self, review_id: int) -> Review | None:
+        """Отзыв по id — вместе с автором."""
+        result = await self.session.execute(
+            select(Review).options(selectinload(Review.user)).where(Review.id == review_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def user_reviews(self, user_id: int) -> list[Review]:
+        """Отзывы пользователя, новые сначала."""
+        result = await self.session.execute(
+            select(Review).where(Review.user_id == user_id).order_by(Review.id.desc())
+        )
+        return list(result.scalars().all())
+
+    async def set_review_reply(self, review: Review, text: str, admin_id: int) -> None:
+        """Запомнить ответ администратора на отзыв (последний ответ заменяет прежний)."""
+        review.reply_text = text
+        review.replied_at = utc_now()
+        review.replied_by = admin_id
+        await self.session.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Users in the admin panel
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _users_condition(query: str | None, audience: Mapping[str, str], moment: datetime) -> Any:
+        """Пользователи под поиском и фильтром (условие WHERE)."""
+        condition = _audience_condition(audience, moment)
+        text = (query or "").strip().lstrip("@")
+        if text:
+            pattern = _like_pattern(text)
+            conditions = [
+                User.first_name.ilike(pattern, escape="\\"),
+                User.username.ilike(pattern, escape="\\"),
+            ]
+            if text.isdigit():
+                conditions.append(cast(User.telegram_id, String).like(f"{text}%"))
+            condition = and_(condition, or_(*conditions))
+        return condition
+
+    async def search_users(
+        self,
+        query: str | None,
+        audience: Mapping[str, str],
+        moment: datetime,
+        offset: int,
+        limit: int,
+    ) -> list[User]:
+        """Пользователи для админ-панели, новые сначала: страница `limit` с `offset`.
+
+        Запрос ищет по имени и @username без учёта регистра (в том числе кириллицы —
+        см. database.py), а цифры — ещё и по началу id Telegram; фильтр `audience` — см.
+        audience.py. Страницы — по смещению, а не по курсору: у `created_at` из разных
+        источников разный формат в SQLite, и сравнение «после такой-то записи» ненадёжно.
+        """
+        statement = (
+            select(User)
+            .where(self._users_condition(query, audience, moment))
+            .order_by(User.created_at.desc(), User.telegram_id.desc())
+        )
+        result = await self.session.execute(statement.offset(offset).limit(limit))
+        return list(result.scalars().all())
+
+    async def count_users(
+        self, query: str | None, audience: Mapping[str, str], moment: datetime
+    ) -> int:
+        """Сколько пользователей под поиском и фильтром."""
+        return await self.session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(self._users_condition(query, audience, moment))
+        ) or 0
+
+    # ------------------------------------------------------------------ #
+    #  Analytics
+    # ------------------------------------------------------------------ #
+
+    async def user_counts(self, now: datetime) -> UserCounts:
+        """Счётчики пользователей одним запросом: всего, открывшие и не открывшие
+        приложение, заблокировавшие бота, заблокированные администратором, активные прямо
+        сейчас и деление всех без пересечений (см. UserCounts)."""
+
+        def count_where(condition: Any) -> Any:
+            return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+
+        row = (
+            await self.session.execute(
+                select(
+                    func.count(),
+                    count_where(User.app_opened_at.is_not(None)),
+                    count_where(User.app_opened_at.is_(None)),
+                    count_where(User.bot_blocked_at.is_not(None)),
+                    count_where(User.blocked_at.is_not(None)),
+                    count_where(
+                        User.last_seen_at >= now - timedelta(minutes=ACTIVE_NOW_MINUTES)
+                    ),
+                    count_where(
+                        and_(User.app_opened_at.is_not(None), User.bot_blocked_at.is_(None))
+                    ),
+                    count_where(and_(User.app_opened_at.is_(None), User.bot_blocked_at.is_(None))),
+                ).select_from(User)
+            )
+        ).one()
+        return UserCounts(*(int(value) for value in row))
+
+    async def funnel_since(self, since: datetime) -> Funnel:
+        """Воронка пользователей, появившихся начиная с `since` (см. Funnel), одним
+        запросом. Считаются и удалённые привычки: пользователь их всё-таки добавлял."""
+
+        def count_where(condition: Any) -> Any:
+            return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+
+        opened = User.app_opened_at.is_not(None)
+        has_habit = exists().where(Task.user_id == User.telegram_id)
+        row = (
+            await self.session.execute(
+                select(
+                    func.count(),
+                    count_where(opened),
+                    count_where(and_(opened, has_habit)),
+                )
+                .select_from(User)
+                # The bot funnel starts with /start: web-only accounts are not in it
+                # (their funnel is the events table, see web_funnel).
+                .where(User.created_at >= since, User.telegram_id > 0)
+            )
+        ).one()
+        return Funnel(*(int(value) for value in row))
+
+    async def count_users_created_before(self, moment: datetime) -> int:
+        """Сколько пользователей зарегистрировалось раньше `moment`."""
+        return await self.session.scalar(
+            select(func.count()).select_from(User).where(User.created_at < moment)
+        ) or 0
+
+    async def new_users_by_day(self, since: datetime) -> dict[date, int]:
+        """Новые пользователи по дням (UTC) начиная с `since`."""
+        day = func.date(User.created_at)
+        result = await self.session.execute(
+            select(day, func.count()).where(User.created_at >= since).group_by(day)
+        )
+        return {_as_date(value): count for value, count in result.tuples()}
+
+    async def active_users_by_day(self, since: date) -> dict[date, int]:
+        """Активные пользователи по дням (DAU) начиная с `since`."""
+        result = await self.session.execute(
+            select(UserActivity.day, func.count())
+            .where(UserActivity.day >= since)
+            .group_by(UserActivity.day)
+        )
+        return {_as_date(value): count for value, count in result.tuples()}
+
+    async def count_active_users_since(self, since: date) -> int:
+        """Сколько разных пользователей были активны начиная с `since` (WAU, MAU)."""
+        return await self.session.scalar(
+            select(func.count(func.distinct(UserActivity.user_id))).where(
+                UserActivity.day >= since
+            )
+        ) or 0
+
+    async def active_habit_counts(self) -> list[int]:
+        """Число активных привычек у каждого, кто пользуется приложением (открывал его и не
+        заблокировал бота), если они у него есть. Заблокировавшие бота не считаются: они
+        ушли, хотя привычки у них остались."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(Task)
+            .join(User, User.telegram_id == Task.user_id)
+            .where(
+                Task.is_active.is_(True),
+                User.app_opened_at.is_not(None),
+                User.bot_blocked_at.is_(None),
+            )
+            .group_by(Task.user_id)
+        )
+        return list(result.scalars().all())
+
+    async def active_task_schedules(self) -> list[TaskSchedule]:
+        """Расписания всех активных привычек (без названий и отметок)."""
+        result = await self.session.execute(
+            select(
+                Task.id, Task.created_at, Task.frequency_type, Task.days, Task.start_date
+            ).where(Task.is_active.is_(True))
+        )
+        return [
+            TaskSchedule(
+                id=task_id,
+                created_on=created.date(),
+                frequency_type=kind,
+                days=days,
+                start_date=start,
+            )
+            for task_id, created, kind, days, start in result.tuples()
+        ]
+
+    async def done_task_days_since(self, since: date) -> list[tuple[int, date]]:
+        """Отметки выполнения активных привычек начиная с `since`: (id привычки, дата)."""
+        result = await self.session.execute(
+            select(TaskLog.task_id, TaskLog.scheduled_date)
+            .join(Task, Task.id == TaskLog.task_id)
+            .where(
+                Task.is_active.is_(True),
+                TaskLog.status == TaskStatus.done,
+                TaskLog.scheduled_date >= since,
+            )
+        )
+        return [(task_id, day) for task_id, day in result.tuples()]
+
+    # ------------------------------------------------------------------ #
+    #  Broadcasts
+    # ------------------------------------------------------------------ #
+
+    async def count_recipients(
+        self, audience: Mapping[str, str], moment: datetime, exclude_user_id: int | None = None
+    ) -> int:
+        """Сколько получателей у рассылки с фильтром `audience` в момент `moment`."""
+        return await self.session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(_recipient_condition(audience, moment, exclude_user_id))
+        ) or 0
+
+    async def recipients_after(
+        self,
+        audience: Mapping[str, str],
+        moment: datetime,
+        exclude_user_id: int | None,
+        after_id: int,
+        limit: int,
+    ) -> list[tuple[int, str]]:
+        """Следующие получатели рассылки по возрастанию id — после `after_id`: (id, язык
+        интерфейса — на нём подпись кнопки под рассылкой)."""
+        result = await self.session.execute(
+            select(User.telegram_id, User.language)
+            .where(
+                _recipient_condition(audience, moment, exclude_user_id),
+                User.telegram_id > after_id,
+            )
+            .order_by(User.telegram_id)
+            .limit(limit)
+        )
+        return [(user_id, language) for user_id, language in result.tuples()]
+
+    async def create_broadcast(
+        self,
+        *,
+        created_by: int,
+        audience: str,
+        text: str | None,
+        media_type: str | None,
+        media_file_id: str | None,
+        button: str | None,
+        total: int,
+    ) -> Broadcast:
+        """Поставить рассылку в очередь бота (`audience` — строка фильтра, audience.py)."""
+        broadcast = Broadcast(
+            created_by=created_by,
+            audience=audience,
+            text=text,
+            media_type=media_type,
+            media_file_id=media_file_id,
+            button=button,
+            status=BroadcastStatus.pending,
+            total=total,
+        )
+        self.session.add(broadcast)
+        await self.session.flush()
+        await self.session.refresh(broadcast, ["created_at"])
+        return broadcast
+
+    async def get_broadcast(self, broadcast_id: int) -> Broadcast | None:
+        """Рассылка по id или None."""
+        return await self.session.get(Broadcast, broadcast_id)
+
+    async def next_broadcast(self) -> Broadcast | None:
+        """Самая ранняя неразосланная рассылка (прерванная перезапуском — тоже)."""
+        result = await self.session.execute(
+            select(Broadcast)
+            .where(Broadcast.status != BroadcastStatus.done)
+            .order_by(Broadcast.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def record_broadcast_progress(
+        self, broadcast: Broadcast, *, cursor: int, sent: int, failed: int
+    ) -> None:
+        """Учесть обработанную пачку получателей."""
+        broadcast.status = BroadcastStatus.sending
+        broadcast.cursor = cursor
+        broadcast.sent += sent
+        broadcast.failed += failed
+        await self.session.flush()
+
+    async def finish_broadcast(self, broadcast: Broadcast) -> None:
+        """Рассылка разослана всем получателям."""
+        broadcast.status = BroadcastStatus.done
+        broadcast.finished_at = utc_now()
+        await self.session.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Web app: accounts
+    # ------------------------------------------------------------------ #
+
+    async def create_web_user(self, language: str, now: datetime) -> User:
+        """A new web-only account (guest) with a random negative id — it never collides
+        with a Telegram id. Retries on the (astronomically unlikely) id clash."""
+        for _ in range(_WEB_ID_ATTEMPTS):
+            user_id = -(secrets.randbelow(_WEB_ID_MAX) + 1)
+            if await self.get_user(user_id) is not None:
+                continue
+            user = User(telegram_id=user_id, language=language, app_opened_at=now)
+            self.session.add(user)
+            await self.session.flush()
+            return user
+        raise RuntimeError("Could not allocate a web user id")
+
+    async def clone_user(
+        self, source: User, new_id: int, username: str | None, first_name: str | None
+    ) -> User:
+        """A new account `new_id` with the settings of `source` (habits are moved
+        separately, see move_user_data)."""
+        user = User(
+            telegram_id=new_id,
+            username=username,
+            first_name=first_name,
+            timezone=source.timezone,
+            timezone_city=source.timezone_city,
+            language=source.language,
+            theme=source.theme,
+            mark_yesterday=source.mark_yesterday,
+            app_opened_at=source.app_opened_at,
+            last_seen_at=source.last_seen_at,
+            first_checkin_at=source.first_checkin_at,
+        )
+        self.session.add(user)
+        await self.session.flush()
+        return user
+
+    async def has_any_task(self, user_id: int) -> bool:
+        """Has the account ever had a habit (deleted ones count)."""
+        return bool(await self.session.scalar(select(exists().where(Task.user_id == user_id))))
+
+    async def user_has_data(self, user_id: int) -> bool:
+        """Has the account ever had a habit (even a deleted one) or a review."""
+        return bool(
+            await self.session.scalar(
+                select(
+                    or_(
+                        exists().where(Task.user_id == user_id),
+                        exists().where(Review.user_id == user_id),
+                    )
+                )
+            )
+        )
+
+    async def move_user_data(self, source: User, target: User) -> User:
+        """Move everything of `source` into `target`, delete `source` and return the
+        target re-read from the database.
+
+        Nothing is lost: habits, check-ins, reviews, activity days, logins, web sessions,
+        push subscriptions and funnel events all move. An active habit whose name the
+        target already uses gets a suffix («Бег (2)») instead of being dropped. Settings
+        stay the target's; what the target lacks (time zone, first check-in) is taken
+        from the source.
+        """
+        source_id, target_id = source.telegram_id, target.telegram_id
+        taken = {
+            name.strip().lower()
+            for name in (
+                await self.session.scalars(
+                    select(Task.name).where(Task.user_id == target_id, Task.is_active.is_(True))
+                )
+            )
+        }
+        for task in await self.get_active_tasks(source_id):
+            name, number = task.name, 2
+            while name.strip().lower() in taken:
+                suffix = f" ({number})"
+                name = task.name[: HABIT_NAME_MAX_LENGTH - len(suffix)] + suffix
+                number += 1
+            task.name = name
+            taken.add(name.strip().lower())
+
+        if target.timezone is None and source.timezone is not None:
+            target.timezone, target.timezone_city = source.timezone, source.timezone_city
+        for field in ("first_checkin_at", "app_opened_at"):
+            values = [value for value in (getattr(source, field), getattr(target, field)) if value]
+            setattr(target, field, min(values) if values else None)
+        if target.install_offer_sent_at is None:
+            target.install_offer_sent_at = source.install_offer_sent_at
+        await self.session.flush()
+
+        for model in (Task, TaskLog, Review, WebSession, PushSubscription, Event):
+            await self.session.execute(
+                update(model)
+                .where(model.user_id == source_id)
+                .values(user_id=target_id)
+                .execution_options(synchronize_session=False)
+            )
+        # Activity days are keyed by (user, day): move the days the target lacks.
+        await self.session.execute(
+            update(UserActivity)
+            .where(
+                UserActivity.user_id == source_id,
+                UserActivity.day.not_in(
+                    select(UserActivity.day).where(UserActivity.user_id == target_id)
+                ),
+            )
+            .values(user_id=target_id)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(delete(UserActivity).where(UserActivity.user_id == source_id))
+        await self.session.execute(delete(User).where(User.telegram_id == source_id))
+        # Bulk updates bypass the identity map: drop stale objects, re-read the target.
+        self.session.expunge_all()
+        merged = await self.get_user(target_id)
+        assert merged is not None
+        return merged
+
+    async def mark_first_checkin(self, user: User, now: datetime) -> bool:
+        """Remember the user's first check-in ever. True — this is it (it was not set)."""
+        if user.first_checkin_at is not None:
+            return False
+        result = await self.session.execute(
+            update(User)
+            .where(User.telegram_id == user.telegram_id, User.first_checkin_at.is_(None))
+            .values(first_checkin_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        user.first_checkin_at = now
+        return result.rowcount > 0
+
+    async def mark_install_offer_sent(self, user_id: int, now: datetime) -> bool:
+        """Claim the one-time install offer for the user. True — not sent before."""
+        result = await self.session.execute(
+            update(User)
+            .where(User.telegram_id == user_id, User.install_offer_sent_at.is_(None))
+            .values(install_offer_sent_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount > 0
+
+    # ------------------------------------------------------------------ #
+    #  Web app: sessions and one-time codes
+    # ------------------------------------------------------------------ #
+
+    async def create_session(
+        self,
+        token_hash: str,
+        user_id: int,
+        user_agent: str | None,
+        now: datetime,
+        expires_at: datetime,
+    ) -> WebSession:
+        """Start a web session."""
+        session = WebSession(
+            token_hash=token_hash,
+            user_id=user_id,
+            user_agent=(user_agent or "")[:255] or None,
+            created_at=now,
+            last_used_at=now,
+            expires_at=expires_at,
+        )
+        self.session.add(session)
+        await self.session.flush()
+        return session
+
+    async def get_session(self, token_hash: str, now: datetime) -> WebSession | None:
+        """A web session that has not expired."""
+        return await self.session.scalar(
+            select(WebSession).where(
+                WebSession.token_hash == token_hash, WebSession.expires_at > now
+            )
+        )
+
+    async def delete_session(self, token_hash: str) -> None:
+        """End a web session (log out, or replaced after switching accounts)."""
+        await self.session.execute(delete(WebSession).where(WebSession.token_hash == token_hash))
+
+    async def create_code(
+        self,
+        code_hash: str,
+        kind: str,
+        user_id: int | None,
+        payload: str | None,
+        now: datetime,
+        expires_at: datetime,
+    ) -> AuthCode:
+        """Store a one-time code; long-expired codes are cleaned up on the way."""
+        await self.session.execute(
+            delete(AuthCode).where(AuthCode.expires_at < now - timedelta(days=1))
+        )
+        code = AuthCode(
+            code_hash=code_hash,
+            kind=kind,
+            user_id=user_id,
+            payload=payload,
+            created_at=now,
+            expires_at=expires_at,
+        )
+        self.session.add(code)
+        await self.session.flush()
+        return code
+
+    async def get_code(self, code_hash: str, kind: str, now: datetime) -> AuthCode | None:
+        """An unused, unexpired one-time code of `kind`."""
+        return await self.session.scalar(
+            select(AuthCode).where(
+                AuthCode.code_hash == code_hash,
+                AuthCode.kind == kind,
+                AuthCode.used_at.is_(None),
+                AuthCode.expires_at > now,
+            )
+        )
+
+    async def use_code(self, code: AuthCode, now: datetime) -> bool:
+        """Spend a one-time code. False — it was spent meanwhile (a parallel request)."""
+        result = await self.session.execute(
+            update(AuthCode)
+            .where(AuthCode.id == code.id, AuthCode.used_at.is_(None))
+            .values(used_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        code.used_at = now
+        return result.rowcount > 0
+
+    # ------------------------------------------------------------------ #
+    #  Web app: push subscriptions
+    # ------------------------------------------------------------------ #
+
+    async def save_push_subscription(
+        self, user_id: int, endpoint: str, p256dh: str, auth: str, user_agent: str | None
+    ) -> None:
+        """Store the device's subscription for the account (the endpoint identifies the
+        device: re-subscribing moves it to the current account)."""
+        subscription = await self.session.scalar(
+            select(PushSubscription).where(PushSubscription.endpoint == endpoint)
+        )
+        if subscription is None:
+            self.session.add(
+                PushSubscription(
+                    user_id=user_id,
+                    endpoint=endpoint,
+                    p256dh=p256dh,
+                    auth=auth,
+                    user_agent=(user_agent or "")[:255] or None,
+                )
+            )
+        else:
+            subscription.user_id = user_id
+            subscription.p256dh = p256dh
+            subscription.auth = auth
+        await self.session.flush()
+
+    async def delete_push_subscriptions(
+        self, endpoints: Collection[str], user_id: int | None = None
+    ) -> None:
+        """Forget subscriptions: the push service said they are gone (404/410), or the
+        device unsubscribed (`user_id` — only the account's own)."""
+        if not endpoints:
+            return
+        statement = delete(PushSubscription).where(
+            PushSubscription.endpoint.in_(list(endpoints))
+        )
+        if user_id is not None:
+            statement = statement.where(PushSubscription.user_id == user_id)
+        await self.session.execute(statement)
+
+    async def push_subscriptions_for(
+        self, user_ids: Collection[int]
+    ) -> dict[int, list[PushSubscription]]:
+        """Push subscriptions of the users: user id → subscriptions (users without
+        subscriptions are absent)."""
+        found: dict[int, list[PushSubscription]] = {}
+        for batch in _batches(set(user_ids)):
+            result = await self.session.scalars(
+                select(PushSubscription)
+                .where(PushSubscription.user_id.in_(batch))
+                .order_by(PushSubscription.id)
+            )
+            for subscription in result:
+                found.setdefault(subscription.user_id, []).append(subscription)
+        return found
+
+    async def has_push_subscription(self, user_id: int) -> bool:
+        """Does the account have at least one push subscription."""
+        return bool(
+            await self.session.scalar(select(exists().where(PushSubscription.user_id == user_id)))
+        )
+
+    async def mark_push_delivered(self, endpoints: Collection[str], now: datetime) -> None:
+        """Remember the last successful push per subscription."""
+        if endpoints:
+            await self.session.execute(
+                update(PushSubscription)
+                .where(PushSubscription.endpoint.in_(list(endpoints)))
+                .values(last_success_at=now)
+            )
+
+    # ------------------------------------------------------------------ #
+    #  Web app: funnel events
+    # ------------------------------------------------------------------ #
+
+    async def add_event(
+        self,
+        event: str,
+        *,
+        user_id: int | None = None,
+        anon_id: str | None = None,
+        platform: str | None = None,
+        browser_context: str | None = None,
+        src: str | None = None,
+        props: dict[str, Any] | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        """Record a funnel event."""
+        self.session.add(
+            Event(
+                event=event,
+                user_id=user_id,
+                anon_id=anon_id,
+                platform=platform,
+                browser_context=browser_context,
+                src=src,
+                props=props,
+                created_at=now or utc_now(),
+            )
+        )
+        await self.session.flush()
+
+    async def has_event(self, event: str, user_id: int) -> bool:
+        """Has the account already got this event (for "first …" events)."""
+        return bool(
+            await self.session.scalar(
+                select(exists().where(Event.event == event, Event.user_id == user_id))
+            )
+        )
+
+    async def event_counts(
+        self, since: datetime, until: datetime
+    ) -> list[tuple[str, str | None, str | None, int, int]]:
+        """Funnel counts in [since, until): (event, platform, src, events, distinct
+        devices or accounts)."""
+        who = func.coalesce(Event.anon_id, cast(Event.user_id, String))
+        result = await self.session.execute(
+            select(
+                Event.event,
+                Event.platform,
+                Event.src,
+                func.count(),
+                func.count(func.distinct(who)),
+            )
+            .where(Event.created_at >= since, Event.created_at < until)
+            .group_by(Event.event, Event.platform, Event.src)
+        )
+        return [
+            (event, platform, src, int(total), int(distinct))
+            for event, platform, src, total, distinct in result.tuples()
+        ]

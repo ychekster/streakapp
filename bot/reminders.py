@@ -1,12 +1,12 @@
 """Напоминания о привычках: в заданное время бот пишет в чат «🔔 Пора выполнить «…»».
 
 Так же приходит и напоминание «🔔 Пора отметить привычки» из настроек приложения
-(`tma.backend.services.due_checkin_reminders`) — в выбранные дни и время, если на день
+(`backend.services.due_checkin_reminders`) — в выбранные дни и время, если на день
 отметки есть неотмеченные привычки.
 
 Время напоминания пользователь задаёт в Mini App, хранит его API (`tasks.reminder_time`,
 в поясе пользователя). Раз в минуту бот спрашивает у базы, чьё время наступило
-(`tma.backend.services.due_reminders`): напоминание приходит только в запланированные
+(`backend.services.due_reminders`): напоминание приходит только в запланированные
 дни и только пока привычка за этот день не отмечена. Текст — на языке, выбранном в
 приложении.
 
@@ -62,13 +62,13 @@ from bot.constants import (
 )
 from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
-from tma.backend.constants import DEFAULT_LANGUAGE
-from tma.backend.database import Database
-from tma.backend.repository import Repository
-from tma.backend.models import PushSubscription
-from tma.backend.repository import utc_now
-from tma.backend.services import DueReminder, due_checkin_reminders, due_reminders
-from tma.backend.webpush import (
+from backend.constants import DEFAULT_LANGUAGE
+from backend.database import Database
+from backend.repository import Repository
+from backend.models import PushSubscription
+from backend.repository import utc_now
+from backend.services import DueReminder, due_checkin_reminders, due_reminders
+from backend.webpush import (
     PushOutcome,
     PushTarget,
     VapidKeys,

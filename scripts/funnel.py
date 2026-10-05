@@ -20,10 +20,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tma.backend.config import load_settings  # noqa: E402 — after sys.path setup
-from tma.backend.database import Database  # noqa: E402
-from tma.backend.funnel import funnel_report  # noqa: E402
-from tma.backend.repository import Repository, utc_now  # noqa: E402
+from backend.config import load_settings  # noqa: E402 — after sys.path setup
+from backend.database import Database  # noqa: E402
+from backend.funnel import funnel_report  # noqa: E402
+from backend.repository import Repository, utc_now  # noqa: E402
 
 
 def _split(counts: dict[str, int]) -> str:

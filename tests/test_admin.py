@@ -14,7 +14,7 @@ from sqlalchemy.engine import make_url
 
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
-from tma.backend.constants import MAX_DB_INT, SEED_ADMIN_IDS, WEEKDAYS
+from backend.constants import MAX_DB_INT, SEED_ADMIN_IDS, WEEKDAYS
 
 
 @pytest.fixture
@@ -251,7 +251,7 @@ def test_review_validation_and_daily_limit(
     assert empty.status_code == 422
     assert empty.json()["error"]["code"] == "invalid_review"
 
-    monkeypatch.setattr("tma.backend.services.MAX_REVIEWS_PER_DAY", 2)
+    monkeypatch.setattr("backend.services.MAX_REVIEWS_PER_DAY", 2)
     statuses = [
         client.post("/reviews", json={"text": f"отзыв {i}"}, headers=user.headers).status_code
         for i in range(3)

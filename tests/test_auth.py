@@ -1,4 +1,4 @@
-"""Проверка подписи initData (tma/backend/auth.py)."""
+"""Проверка подписи initData (backend/auth.py)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl, urlencode
 import pytest
 
 from tests.helpers import TEST_BOT_TOKEN, sign_init_data
-from tma.backend.auth import InitDataError, verify_init_data
+from backend.auth import InitDataError, verify_init_data
 
 
 def test_valid_signature_returns_user() -> None:

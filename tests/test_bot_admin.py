@@ -15,11 +15,11 @@ from bot.handlers.membership import on_bot_status_changed
 from bot.handlers.start import record_start
 from bot.pacing import Pacer
 from tests.fake_telegram import FakeTelegram
-from tma.backend.audience import parse_audience
-from tma.backend.database import Database
-from tma.backend.messaging import BROADCAST_BUTTONS
-from tma.backend.models import BroadcastStatus, Review, Task, UserActivity
-from tma.backend.repository import Repository, utc_now
+from backend.audience import parse_audience
+from backend.database import Database
+from backend.messaging import BROADCAST_BUTTONS
+from backend.models import BroadcastStatus, Review, Task, UserActivity
+from backend.repository import Repository, utc_now
 
 _TMA_URL = "https://app.example.com/?v=2"
 

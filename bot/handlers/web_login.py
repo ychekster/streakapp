@@ -3,9 +3,9 @@
 - `/start login_<code>` — the web app opened the bot to log in with Telegram. The bot
   asks to confirm (someone could send a victim their own login link); «Подтвердить вход»
   marks the code as confirmed by this Telegram user, and the app that started the login
-  picks it up (`/auth/telegram/poll`, see tma/backend/accounts.py). The user is recorded
+  picks it up (`/auth/telegram/poll`, see backend/accounts.py). The user is recorded
   like on a plain /start.
-- «Не сейчас» under the one-time install offer (tma/backend/messaging.py) removes its
+- «Не сейчас» under the one-time install offer (backend/messaging.py) removes its
   buttons.
 
 This router is included before `start`: its /start filter is narrower.
@@ -28,11 +28,11 @@ from bot.constants import (
     LOGIN_EXPIRED_TEXT,
 )
 from bot.handlers.start import record_start
-from tma.backend.accounts import confirm_telegram_login
-from tma.backend.config import Settings
-from tma.backend.database import Database
-from tma.backend.messaging import INSTALL_OFFER_DISMISS
-from tma.backend.repository import Repository
+from backend.accounts import confirm_telegram_login
+from backend.config import Settings
+from backend.database import Database
+from backend.messaging import INSTALL_OFFER_DISMISS
+from backend.repository import Repository
 
 router = Router(name="web_login")
 

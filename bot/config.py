@@ -26,12 +26,12 @@ class Config(BaseSettings):
     # скрыт звёздочками.
     bot_token: SecretStr = Field(..., alias="BOT_TOKEN")
 
-    # Публичный URL Telegram Mini App (фронтенд из tma/). Бот существует только для
+    # Публичный URL Telegram Mini App (фронтенд из frontend/). Бот существует только для
     # того, чтобы открывать приложение, поэтому переменная обязательна. URL должен
     # быть HTTPS (требование Telegram WebApp).
     tma_url: str = Field(..., alias="TMA_URL")
 
-    # Строка подключения к БД API (та же, что у tma/backend): бот читает из неё
+    # Строка подключения к БД API (та же, что у backend): бот читает из неё
     # напоминания о привычках. Путь SQLite относительный — запускать из корня репозитория.
     database_url: str = Field(
         default="sqlite+aiosqlite:///./streakbot.db",

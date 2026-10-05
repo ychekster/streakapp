@@ -6,6 +6,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
+.pytest_cache/
 .eggs/
 build/
 dist/
@@ -22,6 +23,12 @@ env/
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# Резервные копии базы (scripts/backup_db.py)
+backups/
+
+# Слепок окружения сервера (pip freeze, см. docs/DEPLOYMENT.md)
+requirements.lock.txt
 
 # Логи
 logs/

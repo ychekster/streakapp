@@ -20,14 +20,14 @@ from bot.pacing import Pacer
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
 from tests.helpers import TEST_BOT_TOKEN
-from tma.backend.accounts import confirm_telegram_login
-from tma.backend.config import load_settings
-from tma.backend.constants import SEED_ADMIN_IDS
-from tma.backend.database import Database
-from tma.backend.models import FrequencyType
-from tma.backend.ratelimit import RateLimiter
-from tma.backend.repository import Repository, utc_now
-from tma.backend.webpush import PushOutcome, VapidKeys
+from backend.accounts import confirm_telegram_login
+from backend.config import load_settings
+from backend.constants import SEED_ADMIN_IDS
+from backend.database import Database
+from backend.models import FrequencyType
+from backend.ratelimit import RateLimiter
+from backend.repository import Repository, utc_now
+from backend.webpush import PushOutcome, VapidKeys
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -333,7 +333,7 @@ def test_first_habit_and_first_checkin_are_recorded_once(client: TestClient) -> 
     async def count(repo: Repository) -> dict[str, int]:
         from sqlalchemy import func, select
 
-        from tma.backend.models import Event
+        from backend.models import Event
 
         rows = await repo.session.execute(
             select(Event.event, func.count()).where(Event.user_id == user_id).group_by(Event.event)
@@ -439,7 +439,7 @@ def test_broadcasts_skip_web_only_accounts(client: TestClient) -> None:
     async def telegram_users(repo: Repository) -> int:
         from sqlalchemy import func, select
 
-        from tma.backend.models import User
+        from backend.models import User
 
         return await repo.session.scalar(
             select(func.count()).select_from(User).where(

@@ -11,8 +11,8 @@ from aiogram import F, Router
 from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.types import ChatMemberUpdated
 
-from tma.backend.database import Database
-from tma.backend.repository import Repository
+from backend.database import Database
+from backend.repository import Repository
 
 router = Router(name="membership")
 

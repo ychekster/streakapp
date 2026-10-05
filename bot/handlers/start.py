@@ -33,9 +33,9 @@ from bot.constants import (
     WELCOME_EMOJI,
     WELCOME_TITLE,
 )
-from tma.backend.database import Database
-from tma.backend.repository import Repository
-from tma.backend.services import language_from_telegram
+from backend.database import Database
+from backend.repository import Repository
+from backend.services import language_from_telegram
 
 router = Router(name="start")
 

@@ -1,7 +1,7 @@
 """Окружение Alembic (async).
 
-URL подключения берётся из .env через `tma.backend.config.load_settings`,
-метаданные — из `tma.backend.models.Base`. Поддерживаются offline- и
+URL подключения берётся из .env через `backend.config.load_settings`,
+метаданные — из `backend.models.Base`. Поддерживаются offline- и
 online-режимы.
 """
 
@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 # Импорт модуля моделей регистрирует все таблицы в Base.metadata.
-from tma.backend.config import load_settings
-from tma.backend.models import Base
+from backend.config import load_settings
+from backend.models import Base
 
 config = context.config
 

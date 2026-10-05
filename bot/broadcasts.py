@@ -1,7 +1,7 @@
 """Рассылки из админ-панели: API ставит их в очередь (таблица `broadcasts`), бот рассылает.
 
 Раз в `POLL_SECONDS` бот берёт самую раннюю неразосланную рассылку и отправляет её
-получателям под её фильтром (tma/backend/audience.py) по возрастанию id — пачками по
+получателям под её фильтром (backend/audience.py) по возрастанию id — пачками по
 `BATCH_SIZE`, параллельно внутри пачки и в общем темпе с напоминаниями (bot/pacing.py).
 После каждой пачки в базе запоминаются курсор (id последнего получателя пачки) и
 счётчики, поэтому после перезапуска рассылка продолжается с того же места; пачка,
@@ -40,12 +40,12 @@ from loguru import logger
 
 from bot.emoji import without_icons
 from bot.pacing import Pacer
-from tma.backend.audience import Audience, parse_audience
-from tma.backend.database import Database
-from tma.backend.errors import ApiError
-from tma.backend.messaging import broadcast_keyboard
-from tma.backend.models import Broadcast
-from tma.backend.repository import Repository
+from backend.audience import Audience, parse_audience
+from backend.database import Database
+from backend.errors import ApiError
+from backend.messaging import broadcast_keyboard
+from backend.models import Broadcast
+from backend.repository import Repository
 
 # Как часто проверять, нет ли новой рассылки, в секундах.
 POLL_SECONDS = 3.0
