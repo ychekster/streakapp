@@ -111,7 +111,7 @@ export function Landing() {
 
   useEffect(() => {
     document.documentElement.lang = "ru";
-    document.title = "StreakApp";
+    document.title = "Knot";
     if (screen === "desktop") {
       track("desktop_qr_view");
     } else if (screen === "main") {
@@ -207,7 +207,7 @@ function MainScreen({ onTelegram, onInstall }: { onTelegram: () => void; onInsta
       }
     >
       <AppIcon size="large" />
-      <h1 className={styles.title}>StreakApp</h1>
+      <h1 className={styles.title}>Knot</h1>
       <p className={styles.subtitle}>Отмечайте привычки и копите стрики</p>
     </PhoneScreen>
   );
@@ -233,10 +233,10 @@ function DesktopScreen() {
     <main className={styles.desktop}>
       <div className={styles.window}>
         <AppIcon size="medium" />
-        <h1 className={styles.desktopTitle}>StreakApp живёт в телефоне</h1>
+        <h1 className={styles.desktopTitle}>Knot живёт в телефоне</h1>
         <p className={styles.desktopText}>Наведите камеру телефона на код</p>
         <div className={styles.qrTile}>
-          {qr ? <img className={styles.qr} src={qr} alt="QR-код ссылки на StreakApp" /> : null}
+          {qr ? <img className={styles.qr} src={qr} alt="QR-код ссылки на Knot" /> : null}
         </div>
       </div>
     </main>
@@ -342,7 +342,7 @@ function AndroidInstall({ onDone }: { onDone: () => void }) {
       }
     >
       <AppIcon size="large" />
-      <h1 className={styles.title}>StreakApp</h1>
+      <h1 className={styles.title}>Knot</h1>
       <p className={styles.subtitle}>Иконка появится на рабочем столе</p>
     </PhoneScreen>
   );
@@ -423,7 +423,7 @@ function DoneScreen() {
     <PhoneScreen>
       <AppIcon size="large" badge />
       <h1 className={styles.title}>Готово</h1>
-      <p className={styles.subtitle}>Откройте StreakApp с рабочего стола</p>
+      <p className={styles.subtitle}>Откройте Knot с рабочего стола</p>
     </PhoneScreen>
   );
 }

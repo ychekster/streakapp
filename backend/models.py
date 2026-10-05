@@ -30,6 +30,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from backend.constants import (
     AUDIENCE_MAX_LENGTH,
+    CLIENT_REF_MAX_LENGTH,
     DEFAULT_HABIT_COLOR,
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
@@ -172,6 +173,11 @@ class Task(Base):
         default=DEFAULT_HABIT_COLOR,
         server_default=DEFAULT_HABIT_COLOR,
         nullable=False,
+    )
+    # Id, который дало привычке устройство, создав её без связи (POST /sync): по нему
+    # повтор создания не заводит вторую привычку, а отметки новой привычки её находят.
+    client_ref: Mapped[str | None] = mapped_column(
+        String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

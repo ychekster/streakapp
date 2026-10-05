@@ -28,7 +28,6 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import { createHabit, updateHabit } from "../api/habits";
 import { ColorPicker } from "../components/ColorPicker";
 import { DateField, localDate } from "../components/DateField";
 import { DayPicker } from "../components/DayPicker";
@@ -45,6 +44,7 @@ import {
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
+import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
@@ -60,7 +60,7 @@ import styles from "./HabitFormScreen.module.css";
 interface HabitFormScreenProps {
   /** Редактируемая привычка; null — создание новой. */
   habit: Habit | null;
-  /** Привычка сохранена на сервере (создана или изменена). */
+  /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
 }
 
@@ -163,7 +163,9 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       color,
     };
     try {
-      onSaved(habit ? await updateHabit(habit.id, input) : await createHabit(input));
+      // Saved on the device at once (data/store.ts) — checked there as the server would:
+      // a duplicate name or the habit limit is shown under the form right away.
+      onSaved(habit ? dataStore.updateHabit(habit.id, input) : dataStore.createHabit(input));
     } catch (caught) {
       setError(
         describeError(

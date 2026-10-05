@@ -50,12 +50,13 @@ import {
 } from "react";
 
 import { ApiRequestError, type ApiErrorCode } from "./api/client";
-import { deleteHabit } from "./api/habits";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
+import { dataStore } from "./data/store";
+import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
 import { useHandoffLink } from "./hooks/useHandoffLink";
 import { useTelegramLoginWatcher } from "./hooks/useTelegramLoginWatcher";
@@ -93,7 +94,7 @@ import {
 import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
-import { authNotice } from "./web/bootstrap";
+import { authNotice, SESSION_CHANGED_EVENT } from "./web/bootstrap";
 import { beginTelegramBotLogin } from "./web/login";
 import { ScrollIndicator } from "./web/ScrollIndicator";
 import { MainButtonBar, WebChrome } from "./web/WebChrome";
@@ -169,10 +170,11 @@ function TelegramChrome() {
 }
 
 export function App() {
-  const { habits, status, error, setHabits, reload, refresh } = useHabits();
+  const { habits, status, error, reload, refresh } = useHabits();
   const settingsState = useSettings();
   const { settings, save } = settingsState;
-  const toggle = useToggle(setHabits);
+  const { rejected } = useAppData();
+  const toggle = useToggle();
   const telegramAvailable = isTelegramAvailable();
   const platform = usePlatform();
   const web = platform === "web";
@@ -296,20 +298,13 @@ export function App() {
     setTab(next);
   }
 
-  // Сохранить настройку. Пояс и режим «Отмечать за вчера» меняют день отметки — сервер
-  // пересчитывает привычки, и список обновляется.
+  // Сохранить настройку. Пояс и режим «Отмечать за вчера» меняют день отметки — список
+  // привычек пересчитывается сразу (data/derive.ts).
   const saveSettings = useCallback(
-    async (patch: SettingsUpdate, preview?: Partial<Settings>, options?: SaveOptions) => {
-      const accepted = await save(patch, preview, options);
-      const changesDay =
-        patch.timezone !== undefined ||
-        patch.timezone_city !== undefined ||
-        patch.mark_yesterday !== undefined;
-      if (accepted && changesDay) {
-        void refresh();
-      }
+    (patch: SettingsUpdate, preview?: Partial<Settings>, options?: SaveOptions) => {
+      save(patch, preview, options);
     },
-    [save, refresh],
+    [save],
   );
 
   // Выбранный пояс сразу виден в настройках (подпись — из каталога), сохраняется следом.
@@ -331,15 +326,10 @@ export function App() {
     [hideSettingsPage, saveSettings, settings?.timezone, settings?.timezone_city],
   );
 
-  // Изменённая привычка заменяет прежнюю — возвращаемся на её экран. Новая добавляется в
-  // конец (список отсортирован по id), и открывается список привычек.
-  function saveHabit(saved: Habit): void {
+  // Привычка уже сохранена (на устройстве, сервер — следом): изменённая — возвращаемся на
+  // её экран, новая (она в конце списка) — открывается список привычек.
+  function saveHabit(): void {
     hapticNotification("success");
-    setHabits((current) =>
-      current.some((habit) => habit.id === saved.id)
-        ? current.map((habit) => (habit.id === saved.id ? saved : habit))
-        : [...current, saved],
-    );
     if (editor?.habit == null) {
       // Форма открыта с другой вкладки: та запоминает свою позицию, а список привычек
       // открывается на своей.
@@ -352,22 +342,14 @@ export function App() {
     hideEditor();
   }
 
-  // Удалить привычку, убрать её из списка и вернуться к нему. Если на сервере её уже
-  // нет (удалена с другого устройства), цель достигнута — считаем это успехом.
+  // Удалить привычку и вернуться к списку — сразу, сервер узнает следом.
   const deleteOpenHabit = useCallback(
     async (taskId: number) => {
-      try {
-        await deleteHabit(taskId);
-      } catch (error) {
-        if (!(error instanceof ApiRequestError && error.code === "task_not_found")) {
-          throw error;
-        }
-      }
       hapticNotification("success");
       hideHabit();
-      setHabits((current) => current.filter((habit) => habit.id !== taskId));
+      dataStore.deleteHabit(taskId);
     },
-    [hideHabit, setHabits],
+    [hideHabit],
   );
 
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
@@ -411,15 +393,19 @@ export function App() {
   }, [loadAccount, hasHabits]);
 
   // A login switched or merged accounts: everything on screen belongs to the new one.
-  // (useSettings returns a new `reload` every render: read the latest through a ref, so
-  // this callback — and the watchers that use it — stay stable.)
-  const reloadSettings = useRef(settingsState.reload);
-  reloadSettings.current = settingsState.reload;
   const reloadAccountData = useCallback(() => {
-    reload();
-    reloadSettings.current();
+    dataStore.switchAccount();
     loadAccount();
-  }, [reload, loadAccount]);
+  }, [loadAccount]);
+
+  // The web session was replaced at start (web/bootstrap.ts): the data is another account's.
+  useEffect(() => {
+    if (!web) {
+      return undefined;
+    }
+    window.addEventListener(SESSION_CHANGED_EVENT, reloadAccountData);
+    return () => window.removeEventListener(SESSION_CHANGED_EVENT, reloadAccountData);
+  }, [web, reloadAccountData]);
 
   // A bot login confirmed: switch to that account.
   const telegramLinked = useCallback(() => {
@@ -455,6 +441,19 @@ export function App() {
     // Once, at start.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // A change made on the device that the server refused when it got it (another device
+  // took the habit's name meanwhile…): the change is gone from the screen — say why.
+  useEffect(() => {
+    if (rejected) {
+      hapticNotification("error");
+      void showAlert({
+        title: rejected.kind === "create" ? strings.formCreateFailed : strings.formEditFailed,
+        message: describeError(strings, rejected.error, strings.accountActionFailed),
+      });
+    }
+    // Only a new refusal, not a change of language.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejected]);
   const saveError = settingsState.saveError;
   useEffect(() => {
     if (saveError && !adminMode) {
@@ -470,7 +469,7 @@ export function App() {
   // A notification tap opens its habit: at launch (`habit=<id>` in the address) or, with
   // the app already open, by a message from the service worker (sw.ts).
   useEffect(() => {
-    const id = pendingHabit.current;
+    const id = pendingHabit.current === null ? null : dataStore.displayId(pendingHabit.current);
     if (id !== null && status === "ready" && !editor) {
       pendingHabit.current = null;
       if (habits.some((habit) => habit.id === id)) {

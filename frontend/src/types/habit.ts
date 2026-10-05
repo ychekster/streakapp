@@ -44,20 +44,11 @@ export interface Habit {
   color: HabitColor;
 }
 
-/** Ответ GET /tasks. */
-export interface HabitsResponse {
-  habits: Habit[];
-}
-
-/** Ответ с одной привычкой (создание, изменение, переключение отметки). */
-export interface HabitResponse {
-  habit: Habit;
-}
-
 /** Частота выполнения привычки. */
 export type FrequencyType = "daily" | "specific_days" | "every_other_day";
 
-/** Тело запроса POST /tasks (создание) и PUT /tasks/{id} (изменение) — поля формы привычки. */
+/** Поля формы привычки: создание и изменение (операции create / update в POST /sync,
+ *  как тело POST /tasks и PUT /tasks/{id}). */
 export interface HabitInput {
   name: string;
   frequency_type: FrequencyType;

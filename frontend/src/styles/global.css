@@ -69,6 +69,9 @@ button {
   background: none;
   /* Убрать синюю подсветку нажатия на мобильных. */
   -webkit-tap-highlight-color: transparent;
+  /* Two quick taps are two presses (marking a habit and taking it back), not a double
+     tap the browser waits for to zoom — it used to swallow the second one. */
+  touch-action: manipulation;
 }
 
 /* Контейнер растёт вместе с содержимым (min-height вместо фиксированной height:100%),

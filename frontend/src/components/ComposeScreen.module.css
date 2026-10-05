@@ -26,6 +26,29 @@
   color: var(--color-placeholder);
 }
 
+/*
+ * Поле получает фокус сразу (клавиатура открывается от того же нажатия), а экран в это
+ * время въезжает справа (Screen, .enter). Курсор вебвью не едет вместе с полем: он
+ * появлялся на сдвиг въезда правее начала строки — посреди подсказки «Ваш отзыв» — и
+ * откатывался назад. Пока экран въезжает, курсор прозрачный; потом он сразу на месте.
+ */
+.field {
+  animation: caret-hidden var(--screen-enter-anim);
+}
+
+@keyframes caret-hidden {
+  from,
+  to {
+    caret-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field {
+    animation: none;
+  }
+}
+
 /* Пояснение под карточкой — как подпись под группой списка. */
 .footer {
   margin-top: var(--space-list-footer-top);

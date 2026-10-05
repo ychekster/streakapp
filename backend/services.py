@@ -37,6 +37,13 @@ from backend.schemas import (
     ReviewCreated,
     SettingsResponse,
     SettingsUpdate,
+    SyncCreate,
+    SyncDelete,
+    SyncError,
+    SyncMark,
+    SyncOperation,
+    SyncResult,
+    SyncUpdate,
     TimezoneEntry,
     TimezonesResponse,
 )
@@ -212,14 +219,16 @@ async def _validate_habit_fields(
     )
 
 
-async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
-    """Создать привычку и вернуть её в форме `Habit` (не больше `MAX_HABITS_PER_USER`)."""
+async def _create_task(
+    repo: Repository, user: User, payload: HabitCreate, client_ref: str | None = None
+) -> Task:
+    """Создать задачу по форме привычки (не больше `MAX_HABITS_PER_USER`)."""
     if await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER:
         raise ApiError(
             409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
         )
     fields = await _validate_habit_fields(repo, user, payload)
-    task = await repo.create_task(
+    return await repo.create_task(
         user_id=user.telegram_id,
         name=fields.name,
         frequency_type=fields.frequency_type,
@@ -227,7 +236,13 @@ async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Ha
         start_date=fields.start_date,
         reminder_time=fields.reminder_time,
         color=fields.color,
+        client_ref=client_ref,
     )
+
+
+async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
+    """Создать привычку и вернуть её в форме `Habit` (не больше `MAX_HABITS_PER_USER`)."""
+    task = await _create_task(repo, user, payload)
     # У новой привычки ещё нет отметок.
     return build_habit(task, set(), user_today(user))
 
@@ -250,6 +265,92 @@ async def update_habit(
         color=fields.color,
     )
     return await _built_habit(repo, task, user_today(user))
+
+
+@dataclass
+class SyncOutcome:
+    """Итог `apply_sync`: результат каждой операции и что из воронки случилось."""
+
+    results: list[SyncResult]
+    # Создана первая привычка аккаунта (удалённые тоже считаются).
+    first_habit: bool = False
+    # Поставлена хотя бы одна отметка выполнения.
+    checked_in: bool = False
+
+
+async def _task_by_ref(repo: Repository, user: User, ref: int | str) -> Task | None:
+    """Активная привычка пользователя по id на сервере или по id устройства."""
+    if isinstance(ref, int):
+        return await repo.get_active_task(ref, user.telegram_id)
+    task = await repo.get_task_by_ref(user.telegram_id, ref)
+    return task if task is not None and task.is_active else None
+
+
+async def _active_task(repo: Repository, user: User, ref: int | str) -> Task:
+    task = await _task_by_ref(repo, user, ref)
+    if task is None:
+        raise ApiError(404, "task_not_found", "Задача не найдена")
+    return task
+
+
+async def _apply_sync_op(
+    repo: Repository, user: User, op: SyncOperation, outcome: SyncOutcome
+) -> SyncResult:
+    """Применить одну операцию /sync (ошибка — ApiError)."""
+    if isinstance(op, SyncMark):
+        task = await _active_task(repo, user, op.task)
+        # День — в пределах истории, которую видит устройство: не позже дня отметки (на
+        # устройстве с неверными часами отметка «из будущего» не появится) и не раньше
+        # первого дня сетки.
+        today = user_today(user)
+        if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
+            raise ApiError(422, "invalid_date", "День вне истории привычки")
+        log = await repo.get_or_create_log(task.id, user.telegram_id, op.date)
+        target = TaskStatus.done if op.done else TaskStatus.pending
+        if log.status != target:
+            await repo.set_log_status(log, target)
+        outcome.checked_in = outcome.checked_in or op.done
+        return SyncResult(ok=True)
+    if isinstance(op, SyncCreate):
+        # Повтор уже применённого создания (ответ на прошлый запрос не дошёл) — та же
+        # привычка, а не вторая.
+        existing = await repo.get_task_by_ref(user.telegram_id, op.ref)
+        if existing is not None:
+            return SyncResult(ok=True, id=existing.id)
+        first = not await repo.has_any_task(user.telegram_id)
+        task = await _create_task(repo, user, op.habit, client_ref=op.ref)
+        outcome.first_habit = outcome.first_habit or first
+        return SyncResult(ok=True, id=task.id)
+    if isinstance(op, SyncUpdate):
+        await update_habit(repo, user, await _active_task(repo, user, op.task), op.habit)
+        return SyncResult(ok=True)
+    if isinstance(op, SyncDelete):
+        # Уже удалённая (или так и не созданная) привычка — цель достигнута.
+        task = await _task_by_ref(repo, user, op.task)
+        if task is not None:
+            await repo.soft_delete_task(task)
+        return SyncResult(ok=True)
+    await update_settings(repo, user, op.patch)
+    return SyncResult(ok=True)
+
+
+async def apply_sync(repo: Repository, user: User, ops: list[SyncOperation]) -> SyncOutcome:
+    """Применить изменения, сделанные на устройстве (`POST /sync`), по порядку.
+
+    Каждая операция — в своей вложенной транзакции: отвергнутая (дубликат названия,
+    привычка удалена с другого устройства…) откатывается одна и получает в ответе свою
+    ошибку, остальные применяются. Состояние после всех операций устройство берёт из
+    того же ответа, поэтому отвергнутое изменение с экрана просто исчезает.
+    """
+    outcome = SyncOutcome(results=[])
+    for op in ops:
+        try:
+            async with repo.savepoint():
+                result = await _apply_sync_op(repo, user, op, outcome)
+        except ApiError as exc:
+            result = SyncResult(ok=False, error=SyncError(code=exc.code, message=exc.message))
+        outcome.results.append(result)
+    return outcome
 
 
 @dataclass(frozen=True)

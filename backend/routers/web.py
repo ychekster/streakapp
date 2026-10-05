@@ -40,7 +40,7 @@ from backend.webpush import PushOutcome, PushTarget, VapidKeys, notification, se
 router = APIRouter(tags=["web"])
 
 # Test notification text (Russian, like the rest of the web app's push texts).
-# Not the app name as the title: iOS adds «from StreakApp» under the title itself.
+# Not the app name as the title: iOS adds «from Knot» under the title itself.
 _TEST_TITLE = "Уведомления работают"
 _TEST_BODY = "Напоминания будут приходить сюда"
 
@@ -51,8 +51,8 @@ _HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")
 # in step); only start_url differs.
 _MANIFEST: dict[str, object] = {
     "id": "/app",
-    "name": "StreakApp",
-    "short_name": "StreakApp",
+    "name": "Knot",
+    "short_name": "Knot",
     "description": "Трекер привычек: отмечайте дни и копите стрики",
     "lang": "ru",
     "scope": "/",

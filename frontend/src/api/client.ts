@@ -53,6 +53,7 @@ export type ApiErrorCode =
   | "http_error"
   | "not_found"
   | "payload_too_large"
+  | "invalid_date"
   // Отзывы и блокировка пользователя.
   | "invalid_review"
   | "review_limit"

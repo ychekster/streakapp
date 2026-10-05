@@ -1,4 +1,4 @@
-# StreakApp — guide for Claude
+# Knot — guide for Claude
 
 Habit tracker. One React frontend runs as a **Telegram Mini App** and as an installable
 **web app (PWA)**; a FastAPI backend owns the database; an aiogram bot greets users,
@@ -15,7 +15,8 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   services.py       habits, streaks, toggle, settings, due reminders
   schemas.py        API contract (mirrored by frontend/src/types/*)
   dependencies.py   auth (tma initData | Bearer web session), DB session, current user
-  routers/          tasks, settings, meta, reviews, admin, auth (web logins), web (push, events)
+  routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
+                    auth (web logins), web (push, events)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
   admin.py analytics.py audience.py messaging.py   admin panel logic, bot messages from the API
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
@@ -25,6 +26,8 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
   src/App.tsx       app shell: tabs, screen stack, BackButton/MainButton, admin mode (lazy)
   src/screens/      app screens          src/components/  shared UI (ListItem, Section, Screen…)
+  src/data/         habits + settings kept on the device: change queue → POST /sync
+                    (store.ts), what the screen shows (derive.ts — mirrors services.py)
   src/admin/        admin panel: AdminApp, screens/, components/ (charts, filters), adminStrings
   src/web/          PWA only: session, login, push, analytics, WebChrome
   src/landing/      install page (config.ts: steps, in-app browsers)
@@ -32,7 +35,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0012)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0013)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
 docs/               ARCHITECTURE, BACKEND (endpoints, env, migrations), FRONTEND (screens,
@@ -60,11 +63,13 @@ are historical names — keep them; renaming breaks the server `.env` and client
   (next number) + a line in docs/BACKEND.md «Миграции». API `create_all` does not alter
   existing tables.
 - **API contract changes** touch `backend/schemas.py` and `frontend/src/types/*` (+
-  `frontend/src/api/*`). Errors are `{"error": {"code", "message"}}`; the frontend shows
+  `frontend/src/api/*`). The app reads and writes habits/settings only through
+  `POST /sync` (`src/data/store.ts`); a new habit field or setting also needs
+  `data/derive.ts` (how it looks before the server answers). Errors are `{"error": {"code", "message"}}`; the frontend shows
   text by `code` (`errors.ts`), not the server message.
 - **UI copy** goes to `strings.ts` (admin: `admin/adminStrings.ts`) in **both** ru and en.
 - **Constants shared by both sides** must match: `HISTORY_DAYS`, weekdays, habit colors,
-  `AUDIENCE_FILTERS` (backend/constants.py ↔ frontend/src/constants.ts; audience SQL in
+  `MAX_HABITS_PER_USER`, `SYNC_BATCH_SIZE` ≤ `SYNC_MAX_OPS`, `AUDIENCE_FILTERS` (backend/constants.py ↔ frontend/src/constants.ts; audience SQL in
   `repository._audience_condition`).
 - Run everything from the repo root (SQLite path in `DATABASE_URL` is relative).
 - Match surrounding code: comment density, naming; older modules are commented in
@@ -97,7 +102,8 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 
 | Task | Files |
 |---|---|
-| Habit fields / frequency / streaks | models.Task, schemas.Habit*, services.py, schedule.py, validation.py; frontend types/habit.ts, screens/HabitFormScreen.tsx |
+| Habit fields / frequency / streaks | models.Task, schemas.Habit*, services.py, schedule.py, validation.py; frontend types/habit.ts, data/derive.ts, screens/HabitFormScreen.tsx |
+| Offline / sync | routers/sync.py, services.apply_sync; frontend src/data/, api/sync.ts, sw.ts, web/bootstrap.ts |
 | Settings item | models.User, schemas.Settings*, services.py; screens/SettingsScreen.tsx, hooks/useSettings.ts |
 | Reminders | services.due_reminders / due_checkin_reminders, bot/reminders.py (Telegram or push) |
 | Admin panel | backend/admin.py, analytics.py, routers/admin.py; frontend/src/admin/, api/admin.ts, types/admin.ts |

@@ -61,13 +61,7 @@ async def create_task(
     first = not await repo.has_any_task(db_user.telegram_id)
     habit = await create_habit(repo, db_user, payload)
     if first:
-        await record_server_event(
-            repo,
-            "first_habit_created",
-            db_user.telegram_id,
-            from_telegram=principal.telegram is not None,
-            user_agent=request.headers.get("user-agent"),
-        )
+        await record_first_habit(request, repo, db_user, principal)
     return HabitResponse(habit=habit)
 
 
@@ -109,16 +103,42 @@ async def toggle_task(
     principal: Principal = Depends(get_principal),
     repo: Repository = RepositoryDep,
 ) -> HabitResponse:
-    """Переключить отметку выполнения задачи за сегодня и вернуть её новое состояние.
-
-    The first check-in ever is a funnel step; from the Telegram Mini App it also makes
-    the bot offer the web app once (after the response, see _offer_install)."""
+    """Переключить отметку выполнения задачи за сегодня и вернуть её новое состояние
+    (see record_checkin)."""
     task = await repo.get_active_task(task_id, db_user.telegram_id)
     if task is None:
         raise ApiError(404, "task_not_found", "Задача не найдена")
     habit = await toggle_today(repo, db_user, task)
+    if habit.done_today:
+        await record_checkin(request, background, repo, db_user, principal)
+    return HabitResponse(habit=habit)
+
+
+async def record_first_habit(
+    request: Request, repo: Repository, db_user: User, principal: Principal
+) -> None:
+    """The account's first habit ever is a funnel step (here and in POST /sync)."""
+    await record_server_event(
+        repo,
+        "first_habit_created",
+        db_user.telegram_id,
+        from_telegram=principal.telegram is not None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
+async def record_checkin(
+    request: Request,
+    background: BackgroundTasks,
+    repo: Repository,
+    db_user: User,
+    principal: Principal,
+) -> None:
+    """A check-in was made (here and in POST /sync). The first one ever is a funnel step;
+    from the Telegram Mini App it also makes the bot offer the web app once (after the
+    response, see _offer_install)."""
     from_telegram = principal.telegram is not None
-    if habit.done_today and await repo.mark_first_checkin(db_user, utc_now()):
+    if await repo.mark_first_checkin(db_user, utc_now()):
         await record_server_event(
             repo,
             "first_checkin",
@@ -128,7 +148,6 @@ async def toggle_task(
         )
         if from_telegram and db_user.install_offer_sent_at is None:
             background.add_task(_offer_install, request.app, db_user.telegram_id, db_user.language)
-    return HabitResponse(habit=habit)
 
 
 async def _offer_install(app: FastAPI, user_id: int, language: str) -> None:

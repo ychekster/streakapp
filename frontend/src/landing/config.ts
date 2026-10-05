@@ -71,7 +71,7 @@ export const IOS_INSTALL = {
     { icon: "share", text: "Откройте меню ⋯ или ☰ и нажмите «Поделиться»" },
     { icon: "addSquare", text: "Нажмите «Показать больше» и выберите «На экран Домой»" },
     { icon: "add", text: "Нажмите «Добавить»" },
-    { icon: "app", text: "Откройте StreakApp с рабочего стола" },
+    { icon: "app", text: "Откройте Knot с рабочего стола" },
   ] as InstallStep[],
 };
 
@@ -80,5 +80,5 @@ export const ANDROID_MANUAL_STEPS: InstallStep[] = [
   { icon: "browser", text: "Убедитесь, что страница открыта в Chrome" },
   { icon: "more", text: "Откройте меню ⋮ или ☰" },
   { icon: "addSquare", text: "Выберите «Установить» или «Добавить на главный экран»" },
-  { icon: "app", text: "Откройте StreakApp с рабочего стола" },
+  { icon: "app", text: "Откройте Knot с рабочего стола" },
 ];

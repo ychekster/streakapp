@@ -41,7 +41,16 @@ from backend.errors import error_response, register_error_handlers
 from backend.middleware import BodySizeLimitMiddleware, ResponseMetaMiddleware
 from backend.ratelimit import RateLimiter
 from backend.repository import Repository
-from backend.routers import admin, auth, meta, reviews, settings as settings_router, tasks, web
+from backend.routers import (
+    admin,
+    auth,
+    meta,
+    reviews,
+    settings as settings_router,
+    sync,
+    tasks,
+    web,
+)
 from backend.timezones import warm_up as warm_up_timezones
 
 # Сколько секунд браузер может кешировать ответ на CORS-preflight.
@@ -111,7 +120,7 @@ def create_app() -> FastAPI:
     setup_logging(settings)
     docs = settings.docs_enabled
     app = FastAPI(
-        title="StreakBot Mini App API",
+        title="Knot Mini App API",
         version="1.0.0",
         lifespan=lifespan,
         docs_url="/docs" if docs else None,
@@ -140,6 +149,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(tasks.router)
     app.include_router(settings_router.router)
+    app.include_router(sync.router)
     app.include_router(meta.router)
     app.include_router(reviews.router)
     app.include_router(admin.router)

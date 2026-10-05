@@ -23,8 +23,8 @@ export default defineConfig({
       includeAssets: ["icons/apple-touch-icon.png", "icons/favicon-32.png"],
       manifest: {
         id: "/app",
-        name: "StreakApp",
-        short_name: "StreakApp",
+        name: "Knot",
+        short_name: "Knot",
         description: "Трекер привычек: отмечайте дни и копите стрики",
         lang: "ru",
         // pwa=1 — the access gate's fallback check (platform.ts).

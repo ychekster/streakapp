@@ -28,7 +28,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 from sqlalchemy.orm import selectinload
 
 from backend.constants import (
@@ -363,8 +363,9 @@ class Repository:
         reminder_time: time | None = None,
         color: str = DEFAULT_HABIT_COLOR,
         start_date: date | None = None,
+        client_ref: str | None = None,
     ) -> Task:
-        """Создать активную задачу."""
+        """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync)."""
         task = Task(
             user_id=user_id,
             name=name,
@@ -373,6 +374,7 @@ class Repository:
             start_date=start_date,
             reminder_time=reminder_time,
             color=color,
+            client_ref=client_ref,
             is_active=True,
         )
         self.session.add(task)
@@ -433,6 +435,23 @@ class Repository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_task_by_ref(self, user_id: int, client_ref: str) -> Task | None:
+        """Задача пользователя, созданная устройством под этим id (/sync), — в том числе
+        уже удалённая (повтор создания не должен её воскрешать); нет — None."""
+        result = await self.session.execute(
+            select(Task)
+            .where(Task.user_id == user_id, Task.client_ref == client_ref)
+            .order_by(Task.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    def savepoint(self) -> AsyncSessionTransaction:
+        """Вложенная транзакция (SAVEPOINT): `async with repo.savepoint(): ...` — при
+        исключении внутри откатывается только сделанное в блоке (операции /sync
+        применяются по одной, и ошибка одной не отменяет остальные)."""
+        return self.session.begin_nested()
 
     async def soft_delete_task(self, task: Task) -> None:
         """Мягкое удаление: пометить задачу неактивной.

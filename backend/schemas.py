@@ -11,7 +11,13 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
-from backend.constants import DEFAULT_HABIT_COLOR, HISTORY_DAYS, MAX_DB_INT
+from backend.constants import (
+    CLIENT_REF_MAX_LENGTH,
+    DEFAULT_HABIT_COLOR,
+    HISTORY_DAYS,
+    MAX_DB_INT,
+    SYNC_MAX_OPS,
+)
 
 
 def _assume_utc(value: datetime) -> datetime:
@@ -165,6 +171,93 @@ class SettingsUpdate(BaseModel):
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
     checkin_reminder: CheckinReminderUpdate | None = Field(
         None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
+    )
+
+
+# --------------------------------------------------------------------------- #
+#  Синхронизация изменений с устройства (POST /sync)
+# --------------------------------------------------------------------------- #
+
+# Id устройства для привычки, которую оно создало само (см. SyncCreate).
+ClientRef = Annotated[str, Field(min_length=1, max_length=CLIENT_REF_MAX_LENGTH)]
+# Привычка в операции: id на сервере или id, который дало ей устройство при создании.
+TaskRef = Annotated[int, Field(ge=1, le=MAX_DB_INT)] | ClientRef
+
+
+class SyncMark(BaseModel):
+    """Отметить (`done: true`) или снять отметку выполнения привычки за день `date`."""
+
+    type: Literal["mark"]
+    task: TaskRef
+    date: date
+    done: bool
+
+
+class SyncCreate(BaseModel):
+    """Создать привычку; `ref` — её id на устройстве (повтор с тем же `ref` — не дубль)."""
+
+    type: Literal["create"]
+    ref: ClientRef
+    habit: HabitCreate
+
+
+class SyncUpdate(BaseModel):
+    """Изменить привычку — все поля формы, как `PUT /tasks/{id}`."""
+
+    type: Literal["update"]
+    task: TaskRef
+    habit: HabitCreate
+
+
+class SyncDelete(BaseModel):
+    """Удалить привычку (уже удалённая — не ошибка)."""
+
+    type: Literal["delete"]
+    task: TaskRef
+
+
+class SyncSettings(BaseModel):
+    """Изменить настройки — как `PUT /settings`."""
+
+    type: Literal["settings"]
+    patch: SettingsUpdate
+
+
+SyncOperation = Annotated[
+    SyncMark | SyncCreate | SyncUpdate | SyncDelete | SyncSettings,
+    Field(discriminator="type"),
+]
+
+
+class SyncRequest(BaseModel):
+    """Запрос `POST /sync`: изменения, сделанные на устройстве, по порядку (может быть
+    пустым — тогда это просто загрузка актуального состояния)."""
+
+    ops: list[SyncOperation] = Field(default_factory=list, max_length=SYNC_MAX_OPS)
+
+
+class SyncError(BaseModel):
+    code: str
+    message: str
+
+
+class SyncResult(BaseModel):
+    """Итог одной операции: применена (`ok`) или нет (`error` — почему)."""
+
+    ok: bool
+    # Созданная привычка — её id на сервере.
+    id: int | None = None
+    error: SyncError | None = None
+
+
+class SyncResponse(BaseModel):
+    """Ответ `POST /sync`: итог каждой операции (в том же порядке) и состояние после них."""
+
+    results: list[SyncResult]
+    habits: list[Habit]
+    settings: SettingsResponse
+    today: date = Field(
+        ..., description="День отметки — последний день `history` каждой привычки"
     )
 
 

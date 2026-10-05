@@ -1,6 +1,6 @@
 # Развёртывание на сервере
 
-Как поднять StreakBot на собственном домене: фронтенд и API за nginx с HTTPS, API и
+Как поднять Knot на собственном домене: фронтенд и API за nginx с HTTPS, API и
 бот — службами systemd. Все команды — для Ubuntu 22.04/24.04; на других системах
 меняются только имена пакетов.
 
@@ -141,7 +141,7 @@ cd ..
 
 ```ini
 [Unit]
-Description=StreakBot API (Telegram Mini App)
+Description=Knot API (Telegram Mini App)
 After=network-online.target
 Wants=network-online.target
 

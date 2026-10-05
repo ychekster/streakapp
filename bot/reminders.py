@@ -216,7 +216,7 @@ def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
     """Push notification of a reminder: same text as the bot message; a tap opens the
     habit in the app (the check-in reminder — the habit list).
 
-    The text is the title and there is no body: iOS puts «from StreakApp» under the
+    The text is the title and there is no body: iOS puts «from Knot» under the
     title itself (it can't be turned off), so an app-name title would only repeat it.
     Plain text, without the bot message's 🔔."""
     if reminder.task_id is None:

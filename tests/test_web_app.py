@@ -423,7 +423,7 @@ def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
         ["https://push.example/web", "https://push.example/tg", gone_endpoint]
     )
     payload = pushed[0][1]
-    # The reminder is the title: iOS shows «from StreakApp» under it by itself.
+    # The reminder is the title: iOS shows «from Knot» under it by itself.
     # Plain text, no emoji.
     assert payload["title"] == "Пора выполнить «Вода»" and payload["body"] == ""
     assert "/app?pwa=1&habit=" in payload["url"]

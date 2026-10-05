@@ -1,9 +1,9 @@
 {
-  "name": "streakapp-frontend",
+  "name": "knot-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Фронтенд StreakApp: одна сборка для Telegram Mini App и веб-приложения (PWA).",
+  "description": "Фронтенд Knot: одна сборка для Telegram Mini App и веб-приложения (PWA).",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json && vite build",

@@ -22,9 +22,9 @@ export interface LegalDocument {
 
 const PRIVACY_RU: LegalDocument = {
   title: "Политика конфиденциальности",
-  updated: "Обновлено 21 сентября 2026 г.",
+  updated: "Обновлено 5 октября 2026 г.",
   intro:
-    "StreakApp — мини-приложение в Telegram для отслеживания привычек. Здесь описано, какие данные приложение получает, зачем они нужны и как с ними обращаются.",
+    "Knot — мини-приложение в Telegram для отслеживания привычек. Здесь описано, какие данные приложение получает, зачем они нужны и как с ними обращаются.",
   sections: [
     {
       heading: "Какие данные мы получаем",
@@ -44,7 +44,7 @@ const PRIVACY_RU: LegalDocument = {
       heading: "Где хранятся данные",
       paragraphs: [
         "На сервере приложения. Каждый запрос подписан Telegram: сервер проверяет подпись и отдаёт вам только ваши данные.",
-        "Язык и тема оформления дополнительно запоминаются на вашем устройстве, чтобы приложение сразу открывалось в нужном виде.",
+        "Копия ваших привычек и настроек хранится и на вашем устройстве: так приложение сразу открывается и работает без интернета, а сделанные без связи изменения отправляются на сервер, когда связь появится.",
       ],
     },
     {
@@ -65,12 +65,12 @@ const PRIVACY_RU: LegalDocument = {
 const TERMS_RU: LegalDocument = {
   title: "Условия использования",
   updated: "Обновлено 21 сентября 2026 г.",
-  intro: "Пользуясь StreakApp, вы соглашаетесь с этими условиями.",
+  intro: "Пользуясь Knot, вы соглашаетесь с этими условиями.",
   sections: [
     {
       heading: "Приложение",
       paragraphs: [
-        "StreakApp помогает соблюдать привычки: отмечать выполнение, следить за сериями и получать напоминания в Telegram. Приложение бесплатное и работает внутри Telegram.",
+        "Knot помогает соблюдать привычки: отмечать выполнение, следить за сериями и получать напоминания в Telegram. Приложение бесплатное и работает внутри Telegram.",
       ],
     },
     {
@@ -83,7 +83,7 @@ const TERMS_RU: LegalDocument = {
       heading: "Без гарантий",
       paragraphs: [
         "Приложение предоставляется «как есть». Мы стараемся, чтобы оно работало стабильно, но не гарантируем бесперебойную работу, своевременную доставку напоминаний и сохранность данных.",
-        "Не полагайтесь на StreakApp там, где сбой может причинить вред, — например, для приёма лекарств.",
+        "Не полагайтесь на Knot там, где сбой может причинить вред, — например, для приёма лекарств.",
       ],
     },
     {
@@ -95,7 +95,7 @@ const TERMS_RU: LegalDocument = {
     {
       heading: "Telegram",
       paragraphs: [
-        "StreakApp — независимое приложение и не связано с Telegram. Пользование самим Telegram регулируется его собственными условиями.",
+        "Knot — независимое приложение и не связано с Telegram. Пользование самим Telegram регулируется его собственными условиями.",
       ],
     },
     {
@@ -109,9 +109,9 @@ const TERMS_RU: LegalDocument = {
 
 const PRIVACY_EN: LegalDocument = {
   title: "Privacy Policy",
-  updated: "Updated September 21, 2026",
+  updated: "Updated October 5, 2026",
   intro:
-    "StreakApp is a Telegram mini app for tracking habits. This policy explains what data the app receives, why it needs it and how it is handled.",
+    "Knot is a Telegram mini app for tracking habits. This policy explains what data the app receives, why it needs it and how it is handled.",
   sections: [
     {
       heading: "What we receive",
@@ -131,7 +131,7 @@ const PRIVACY_EN: LegalDocument = {
       heading: "Where it is stored",
       paragraphs: [
         "On the app’s server. Every request is signed by Telegram: the server checks the signature and returns only your own data.",
-        "Your language and theme are also remembered on your device, so the app opens looking right straight away.",
+        "A copy of your habits and settings is also kept on your device: the app opens instantly and works without the internet, and changes made offline are sent to the server once you’re back online.",
       ],
     },
     {
@@ -152,12 +152,12 @@ const PRIVACY_EN: LegalDocument = {
 const TERMS_EN: LegalDocument = {
   title: "Terms of Use",
   updated: "Updated September 21, 2026",
-  intro: "By using StreakApp, you agree to these terms.",
+  intro: "By using Knot, you agree to these terms.",
   sections: [
     {
       heading: "The app",
       paragraphs: [
-        "StreakApp helps you keep up your habits: mark them as done, follow your streaks and get reminders in Telegram. The app is free and runs inside Telegram.",
+        "Knot helps you keep up your habits: mark them as done, follow your streaks and get reminders in Telegram. The app is free and runs inside Telegram.",
       ],
     },
     {
@@ -170,7 +170,7 @@ const TERMS_EN: LegalDocument = {
       heading: "No warranty",
       paragraphs: [
         "The app is provided “as is”. We work to keep it running smoothly but don’t guarantee uninterrupted service, on-time reminders or that your data will be preserved.",
-        "Don’t rely on StreakApp where a failure could cause harm — for example, for taking medication.",
+        "Don’t rely on Knot where a failure could cause harm — for example, for taking medication.",
       ],
     },
     {
@@ -182,7 +182,7 @@ const TERMS_EN: LegalDocument = {
     {
       heading: "Telegram",
       paragraphs: [
-        "StreakApp is an independent app and is not affiliated with Telegram. Your use of Telegram itself is governed by Telegram’s own terms.",
+        "Knot is an independent app and is not affiliated with Telegram. Your use of Telegram itself is governed by Telegram’s own terms.",
       ],
     },
     {

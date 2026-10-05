@@ -33,7 +33,7 @@ const RU = {
 
   outsideTitle: "Откройте в Telegram",
   outsideDescription:
-    "Это мини-приложение работает внутри Telegram — откройте его кнопкой в боте StreakBot.",
+    "Это мини-приложение работает внутри Telegram — откройте его кнопкой в боте Knot.",
 
   // --- Нижняя навигация ---
   tabHabits: "Привычки",
@@ -87,10 +87,10 @@ const RU = {
   accountLinkFailed: "Не удалось привязать Telegram",
   notificationsRow: "Уведомления",
   notificationsDenied:
-    "Уведомления запрещены. Разрешите их в настройках телефона: «Настройки» → «Уведомления» → StreakApp.",
+    "Уведомления запрещены. Разрешите их в настройках телефона: «Настройки» → «Уведомления» → Knot.",
   notificationsDeniedTitle: "Уведомления запрещены",
   notificationsDeniedHint:
-    "Телефон больше не спрашивает разрешение. Включите их сами: «Настройки» → «Уведомления» → StreakApp.",
+    "Телефон больше не спрашивает разрешение. Включите их сами: «Настройки» → «Уведомления» → Knot.",
   notificationsOnFailed: "Не удалось включить уведомления",
   notificationsOffFailed: "Не удалось выключить уведомления",
   notificationsOffTitle: "Выключить уведомления?",
@@ -224,7 +224,7 @@ const RU = {
     telegram_already_linked: "К аккаунту уже привязан другой Telegram",
     invalid_telegram_login: "Telegram не подтвердил вход. Попробуйте ещё раз.",
     push_unavailable: "Уведомления пока не настроены на сервере",
-    push_not_delivered: "Не удалось доставить уведомление. Разрешите уведомления для StreakApp.",
+    push_not_delivered: "Не удалось доставить уведомление. Разрешите уведомления для Knot.",
   } as Partial<Record<ApiErrorCode, string>>,
 
   // --- Документы ---
@@ -250,7 +250,7 @@ const EN: Strings = {
 
   outsideTitle: "Open in Telegram",
   outsideDescription:
-    "This mini app runs inside Telegram — open it with the button in the StreakBot chat.",
+    "This mini app runs inside Telegram — open it with the button in the Knot chat.",
 
   tabHabits: "Habits",
   tabSettings: "Settings",
@@ -298,10 +298,10 @@ const EN: Strings = {
   accountLinkFailed: "Couldn’t link Telegram",
   notificationsRow: "Notifications",
   notificationsDenied:
-    "Notifications aren’t allowed. Allow them in your phone’s Settings → Notifications → StreakApp.",
+    "Notifications aren’t allowed. Allow them in your phone’s Settings → Notifications → Knot.",
   notificationsDeniedTitle: "Notifications are blocked",
   notificationsDeniedHint:
-    "Your phone won’t ask again. Turn them on yourself: Settings → Notifications → StreakApp.",
+    "Your phone won’t ask again. Turn them on yourself: Settings → Notifications → Knot.",
   notificationsOnFailed: "Couldn’t turn on notifications",
   notificationsOffFailed: "Couldn’t turn off notifications",
   notificationsOffTitle: "Turn off notifications?",
@@ -423,7 +423,7 @@ const EN: Strings = {
     telegram_already_linked: "Another Telegram account is already linked",
     invalid_telegram_login: "Telegram didn’t confirm the login. Please try again.",
     push_unavailable: "Notifications aren’t set up on the server yet",
-    push_not_delivered: "Couldn’t deliver the notification. Allow notifications for StreakApp.",
+    push_not_delivered: "Couldn’t deliver the notification. Allow notifications for Knot.",
   },
 
   privacyPolicy: LEGAL_EN.privacy,

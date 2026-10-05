@@ -39,7 +39,7 @@ OPEN_APP_EMOJI = CustomEmoji(fallback="✈️", id="6028346797368283073")
 # --------------------------------------------------------------------------- #
 
 # Жирный заголовок.
-WELCOME_TITLE = "Добро пожаловать в StreakApp"
+WELCOME_TITLE = "Добро пожаловать в Knot"
 
 # Абзац о проекте: что это и как работает.
 WELCOME_ABOUT = (
@@ -100,11 +100,11 @@ REMINDER_BUTTONS: dict[str, str] = {
 # The web app opens the bot with /start login_<code>; the user confirms here. Asking first
 # protects from someone sending a victim their own login link.
 LOGIN_CONFIRM_TEXT = (
-    "Войти в приложение StreakApp с этим аккаунтом Telegram?\n\n"
+    "Войти в приложение Knot с этим аккаунтом Telegram?\n\n"
     "Подтвердите, только если вход начали вы — в приложении на своём телефоне."
 )
 LOGIN_CONFIRM_BUTTON = "Подтвердить вход"
 LOGIN_CANCEL_BUTTON = "Отмена"
-LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение StreakApp — вход выполнен."
+LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение Knot — вход выполнен."
 LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
 LOGIN_CANCELLED_TEXT = "Вход отменён."

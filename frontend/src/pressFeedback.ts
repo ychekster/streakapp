@@ -28,6 +28,8 @@ let startX = 0;
 let startY = 0;
 let delayTimer: number | undefined;
 let flashTimer: number | undefined;
+// Кнопка, подсветка которой сейчас мелькает после быстрого касания.
+let flashed: HTMLElement | null = null;
 
 function mark(element: HTMLElement): void {
   element.setAttribute("data-pressed", "");
@@ -93,10 +95,19 @@ function onPointerUp(event: PointerEvent): void {
     unmark(element);
     return;
   }
-  // Быстрое касание: подсветка ещё не показана — показать её коротко.
-  mark(element);
+  // Быстрое касание: подсветка ещё не показана — показать её коротко. Мелькание
+  // предыдущей кнопки (быстрые нажатия подряд) обрывается сразу — иначе её таймер
+  // пропадал бы, и подсветка на ней оставалась навсегда.
   window.clearTimeout(flashTimer);
-  flashTimer = window.setTimeout(() => unmark(element), PRESS_FLASH_MS);
+  if (flashed && flashed !== element) {
+    unmark(flashed);
+  }
+  flashed = element;
+  mark(element);
+  flashTimer = window.setTimeout(() => {
+    unmark(element);
+    flashed = null;
+  }, PRESS_FLASH_MS);
 }
 
 let installed = false;

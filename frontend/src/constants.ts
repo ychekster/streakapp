@@ -154,3 +154,24 @@ export const TELEGRAM_LOGIN_POLL_MS = 2_000;
 /** Handoff link for «Установить на рабочий стол» in the Mini App is fetched ahead of the
  *  tap (so the tap opens the browser at once) and refreshed when older than this (ms). */
 export const HANDOFF_REFRESH_MS = 10 * 60_000;
+
+// --------------------------------------------------------------------------- //
+//  Changes kept on the device (data/store.ts)
+// --------------------------------------------------------------------------- //
+
+/** Changes are sent this long after the first unsent one (ms): quick taps go together. */
+export const SYNC_DELAY_MS = 1_500;
+
+/** Operations per POST /sync — at most SYNC_MAX_OPS on the backend (more go in the next). */
+export const SYNC_BATCH_SIZE = 100;
+
+/** Pauses before retrying a sync that failed (ms): network down, server busy. */
+export const SYNC_RETRY_MS = [2_000, 5_000, 15_000, 30_000, 60_000] as const;
+
+/** Coming back to the app asks the server for news (other devices, the bot) — not more
+ *  often than this (ms). */
+export const SYNC_REFRESH_MIN_MS = 15_000;
+
+/** Active habits per user (MAX_HABITS_PER_USER on the backend): the form checks it on
+ *  the device, the server checks it again. */
+export const MAX_HABITS_PER_USER = 50;

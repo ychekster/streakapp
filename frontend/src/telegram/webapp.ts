@@ -53,8 +53,9 @@ interface SafeAreaInset {
 
 interface TelegramWebApp {
   initData: string;
-  /** Неподписанная копия initData — только для оформления (язык), не для авторизации. */
-  initDataUnsafe?: { user?: { language_code?: string } };
+  /** Неподписанная копия initData — для оформления (язык) и чьи данные хранить на
+   *  устройстве (id), не для авторизации. */
+  initDataUnsafe?: { user?: { id?: number; language_code?: string } };
   platform: string;
   /** Светлая или тёмная тема Telegram сейчас; меняется с событием themeChanged. */
   colorScheme?: "light" | "dark";
@@ -128,6 +129,12 @@ export function getInitData(): string {
 /** Код языка Telegram пользователя («ru», «en», …) или undefined вне Telegram. */
 export function getTelegramLanguageCode(): string | undefined {
   return getWebApp()?.initDataUnsafe?.user?.language_code;
+}
+
+/** Id пользователя Telegram (чьи данные хранятся на устройстве, см. data/store.ts) или
+ *  null вне Telegram. */
+export function getTelegramUserId(): number | null {
+  return getWebApp()?.initDataUnsafe?.user?.id ?? null;
 }
 
 /** Светлая или тёмная тема Telegram сейчас; null вне Telegram или в старом клиенте. */

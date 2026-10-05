@@ -21,7 +21,7 @@ import { readSavedPreferences, resolveTheme } from "./preferences";
 import { installPressFeedback } from "./pressFeedback";
 import { STRINGS } from "./strings";
 import { applyPlatform, setTelegramColors } from "./telegram/webapp";
-import { startWebApp } from "./web/bootstrap";
+import { startsAtOnce, startWebApp } from "./web/bootstrap";
 // Порядок важен: сначала дизайн-токены (переменные), затем глобальные стили.
 import "./styles/variables.css";
 import "./styles/global.css";
@@ -78,11 +78,14 @@ if (entry === "web") {
 
 /** The installed web app: make sure there is a session, then the app. */
 function WebRoot() {
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  // With a session on the device the app opens at once, even without a connection.
+  const [state, setState] = useState<"loading" | "ready" | "error">(() =>
+    startsAtOnce() ? "ready" : "loading",
+  );
   const strings = STRINGS[readSavedPreferences().language];
 
   const start = useCallback(() => {
-    setState("loading");
+    setState((current) => (current === "ready" ? current : "loading"));
     startWebApp()
       .then(() => setState("ready"))
       .catch(() => setState("error"));

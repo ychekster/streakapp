@@ -1,4 +1,4 @@
-"""Точка входа StreakBot.
+"""Точка входа Knot.
 
 Запуск: ``python -m bot.main`` (после заполнения .env).
 
@@ -104,7 +104,7 @@ async def main() -> None:
     """Инициализировать и запустить бота."""
     config = load_config()
     setup_logging(config)
-    logger.info("Starting StreakBot...")
+    logger.info("Starting Knot...")
 
     bot = Bot(token=config.bot_token.get_secret_value())
     dp = Dispatcher()
@@ -134,7 +134,7 @@ async def main() -> None:
         ),
         asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
     ]
-    logger.info("StreakBot is up and polling")
+    logger.info("Knot is up and polling")
 
     try:
         await dp.start_polling(bot)
@@ -146,7 +146,7 @@ async def main() -> None:
                 await loop
         await database.dispose()
         await bot.session.close()
-        logger.info("StreakBot stopped")
+        logger.info("Knot stopped")
 
 
 if __name__ == "__main__":

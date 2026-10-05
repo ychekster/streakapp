@@ -279,11 +279,11 @@ async def send_broadcast_copy(
 # edit here (keys — constants.LANGUAGES).
 INSTALL_OFFER_TEXTS: dict[str, str] = {
     "ru": (
-        "Отличное начало! Хотите иконку StreakApp прямо на экране телефона? "
+        "Отличное начало! Хотите иконку Knot прямо на экране телефона? "
         "Так проще не забывать отмечаться."
     ),
     "en": (
-        "Great start! Want a StreakApp icon right on your phone’s home screen? "
+        "Great start! Want a Knot icon right on your phone’s home screen? "
         "It makes checking in easier to remember."
     ),
 }
