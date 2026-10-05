@@ -8,7 +8,6 @@ in total, by platform and by install source (`src`) — for the admin panel
 
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -19,9 +18,12 @@ from backend.constants import (
     APP_OPEN_SOURCES,
     EVENT_CONTEXTS,
     EVENT_PLATFORMS,
-    EVENT_PROPS_MAX_BYTES,
+    EVENT_PROPS_KEY_MAX_LENGTH,
+    EVENT_PROPS_MAX_KEYS,
+    EVENT_PROPS_VALUE_MAX_LENGTH,
     FUNNEL_EVENTS,
     MAX_DB_INT,
+    SERVER_FUNNEL_EVENTS,
 )
 from backend.errors import ApiError
 from backend.repository import Repository
@@ -68,6 +70,21 @@ async def _record_app_open(repo: Repository, payload: EventIn, user_id: int) -> 
     )
 
 
+def _client_props(props: dict[str, object] | None) -> dict[str, Any] | None:
+    """What is kept of a client event's `props`: a few short keys with short plain values."""
+    kept: dict[str, Any] = {}
+    for key, value in (props or {}).items():
+        if len(kept) >= EVENT_PROPS_MAX_KEYS:
+            break
+        if len(key) > EVENT_PROPS_KEY_MAX_LENGTH:
+            continue
+        if isinstance(value, str):
+            kept[key] = value[:EVENT_PROPS_VALUE_MAX_LENGTH]
+        elif value is None or isinstance(value, (bool, int, float)):
+            kept[key] = value
+    return kept or None
+
+
 async def record_client_event(repo: Repository, payload: EventIn, user_id: int | None) -> None:
     """Store an event sent by the landing or the app; unknown names are rejected. The app's
     «opened» event goes to the action log instead of the funnel."""
@@ -77,11 +94,9 @@ async def record_client_event(repo: Repository, payload: EventIn, user_id: int |
         if user_id is not None:
             await _record_app_open(repo, payload, user_id)
         return
-    if payload.event not in FUNNEL_EVENTS:
+    if payload.event not in FUNNEL_EVENTS or payload.event in SERVER_FUNNEL_EVENTS:
         raise ApiError(422, "invalid_event", "Неизвестное событие")
-    props: dict[str, Any] | None = payload.props or None
-    if props is not None and len(json.dumps(props, default=str)) > EVENT_PROPS_MAX_BYTES:
-        raise ApiError(422, "invalid_event", "Слишком большие данные события")
+    props = _client_props(payload.props)
     await repo.add_event(
         payload.event,
         user_id=user_id,

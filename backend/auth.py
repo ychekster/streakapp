@@ -42,6 +42,9 @@ class TelegramUser(BaseModel):
     # Параметр прямой ссылки на Mini App (`startapp=`) — из initData, не из `user`: по нему
     # запоминается источник нового пользователя (sources.py).
     start_param: str | None = None
+    # Когда Telegram подписал initData (unix-время): свежесть нужна выдаче ссылки на
+    # установку — она даёт долгую сессию веб-приложения.
+    auth_date: int | None = None
 
 
 def _compute_secret_key(bot_token: str) -> bytes:
@@ -106,4 +109,6 @@ def verify_init_data(
     except Exception as exc:  # noqa: BLE001 — любую ошибку схемы трактуем как невалидные данные
         raise InitDataError("initData user has unexpected shape") from exc
     user.start_param = fields.get("start_param") or None
+    auth_date = fields.get("auth_date") or ""
+    user.auth_date = int(auth_date) if auth_date.isdigit() else None
     return user

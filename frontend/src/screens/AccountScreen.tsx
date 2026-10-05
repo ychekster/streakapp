@@ -1,6 +1,7 @@
 /**
- * Web app: Settings → «Аккаунт» of a linked account — the Telegram it is logged in with
- * and «Выйти из аккаунта». The place for the profile to grow into later.
+ * Web app: Settings → «Аккаунт» of a linked account — the Telegram it is logged in with,
+ * «Выйти из аккаунта» and «Выйти на всех устройствах» (a lost phone: every web session of
+ * the account ends). The place for the profile to grow into later.
  *
  * Logging out asks first, then the app continues as a new guest (web/login.ts logOut);
  * `onLoggedOut` reloads everything and returns to Settings. A failure is shown in a
@@ -16,7 +17,7 @@ import { PersonIcon } from "../components/SettingsIcons";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification, showAlert } from "../telegram/webapp";
-import { logOut } from "../web/login";
+import { logOut, UnsentChangesError } from "../web/login";
 import styles from "./SettingsScreen.module.css";
 
 interface AccountScreenProps {
@@ -29,10 +30,10 @@ export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
   const strings = useStrings();
   const [busy, setBusy] = useState(false);
 
-  async function confirmLogOut(): Promise<void> {
+  async function confirmLogOut(everywhere: boolean): Promise<void> {
     const confirmed = await confirmAction({
-      title: strings.accountLogoutTitle,
-      message: strings.accountLogoutMessage,
+      title: everywhere ? strings.accountLogoutEverywhereTitle : strings.accountLogoutTitle,
+      message: everywhere ? strings.accountLogoutEverywhereMessage : strings.accountLogoutMessage,
       confirmLabel: strings.accountLogoutConfirm,
       cancelLabel: strings.accountLogoutCancel,
       destructive: true,
@@ -42,14 +43,17 @@ export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
     }
     setBusy(true);
     try {
-      await logOut();
+      await logOut(everywhere);
       onLoggedOut();
     } catch (caught) {
       hapticNotification("error");
       setBusy(false);
       void showAlert({
         title: strings.accountLogoutFailed,
-        message: describeError(strings, caught, strings.accountActionFailed),
+        message:
+          caught instanceof UnsentChangesError
+            ? strings.accountLogoutUnsent
+            : describeError(strings, caught, strings.accountActionFailed),
       });
     }
   }
@@ -67,7 +71,13 @@ export function AccountScreen({ label, onLoggedOut }: AccountScreenProps) {
             destructive
             disabled={busy}
             label={strings.accountLogout}
-            onPress={() => void confirmLogOut()}
+            onPress={() => void confirmLogOut(false)}
+          />
+          <ListItem
+            destructive
+            disabled={busy}
+            label={strings.accountLogoutEverywhere}
+            onPress={() => void confirmLogOut(true)}
           />
         </ListGroup>
       </div>

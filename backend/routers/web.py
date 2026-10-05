@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -35,7 +36,14 @@ from backend.schemas import (
     PushUnsubscribe,
     WebConfig,
 )
-from backend.webpush import PushOutcome, PushTarget, VapidKeys, notification, send_push
+from backend.webpush import (
+    PushOutcome,
+    PushTarget,
+    VapidKeys,
+    is_push_endpoint,
+    notification,
+    send_push,
+)
 
 router = APIRouter(tags=["web"])
 
@@ -122,17 +130,20 @@ async def subscribe_push(
 ) -> PushStatus:
     """Store (or move to this account) the device's push subscription. From now on the
     account's reminders come as push notifications instead of bot messages."""
-    if not payload.endpoint.startswith("https://"):
+    if not await asyncio.to_thread(is_push_endpoint, payload.endpoint):
         raise ApiError(422, "invalid_subscription", "Некорректная подписка на уведомления")
-    if not await repo.has_push_subscription(db_user.telegram_id):
-        await repo.log_action(db_user.telegram_id, "push_on")
-    await repo.save_push_subscription(
+    first = not await repo.has_push_subscription(db_user.telegram_id)
+    saved = await repo.save_push_subscription(
         db_user.telegram_id,
         payload.endpoint,
         payload.keys.p256dh,
         payload.keys.auth,
         request.headers.get("user-agent"),
     )
+    if not saved:
+        raise ApiError(422, "invalid_subscription", "Некорректная подписка на уведомления")
+    if first:
+        await repo.log_action(db_user.telegram_id, "push_on")
     return PushStatus(subscribed=True)
 
 
@@ -188,7 +199,9 @@ async def post_event(
     repo: Repository = RepositoryDep,
 ) -> Response:
     """Funnel event from the landing or the app. No login needed (the landing has none);
-    the device's random `anon_id` (or address) is rate-limited."""
-    limit(request, request.app.state.event_limiter, payload.anon_id or client_ip(request))
+    the address and the device's random `anon_id` are rate-limited."""
+    limit(request, request.app.state.address_limiter, client_ip(request))
+    if payload.anon_id:
+        limit(request, request.app.state.event_limiter, payload.anon_id)
     await record_client_event(repo, payload, principal.user_id if principal else None)
     return Response(status_code=204)

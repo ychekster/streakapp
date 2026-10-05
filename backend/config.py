@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -118,6 +119,28 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Список источников CORS из строки через запятую."""
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
+
+def is_local_stack(settings: Settings) -> bool:
+    """The app's address is the local stack's (localhost or a quick Cloudflare tunnel),
+    not a public server."""
+    host = (urlsplit(settings.web_base_url).hostname or "").lower()
+    return host in ("localhost", "127.0.0.1") or host.endswith(".trycloudflare.com")
+
+
+def production_warnings(settings: Settings) -> list[str]:
+    """Settings that are fine locally but not on a public server — logged at start."""
+    if is_local_stack(settings):
+        return []
+    problems = []
+    if settings.web_auth_secret is None or not settings.web_auth_secret.get_secret_value():
+        problems.append(
+            "WEB_AUTH_SECRET is not set: web sessions are keyed by BOT_TOKEN, so a new bot "
+            "token would log every web user out (see docs/WEB_APP_SETUP.md)"
+        )
+    if "*" in settings.cors_origins:
+        problems.append(f"TMA_ALLOWED_ORIGINS allows any site: set it to {settings.web_base_url}")
+    return problems
 
 
 @lru_cache

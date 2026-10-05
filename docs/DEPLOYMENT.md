@@ -108,7 +108,7 @@ LOG_FILE=logs/bot.log
 > схему текущей: `alembic stamp head`.
 
 ```bash
-sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
+sudo -u streakbot /opt/streakbot/venv/bin/python -m alembic upgrade head
 ```
 
 Первым администратором станет Telegram-id из `SEED_ADMIN_IDS`
@@ -201,6 +201,9 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
 
+    # Лог без строки запроса: одноразовые ссылки входа (`?h=…`) в него не попадают.
+    access_log /var/log/nginx/access.log knot;
+
     # Имена файлов сборки содержат хеш содержимого, поэтому их можно кешировать навсегда.
     location /assets/ {
         expires 1y;
@@ -217,6 +220,11 @@ server {
         proxy_pass http://127.0.0.1:8000/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        # API берёт для лимитов ПОСЛЕДНИЙ адрес этого заголовка — тот, что дописал nginx
+        # ($remote_addr); всё, что прислал сам клиент, стоит раньше и не учитывается.
+        # Если перед nginx стоит Cloudflare (оранжевое облако в DNS), $remote_addr — адрес
+        # Cloudflare: включите real_ip (set_real_ip_from <диапазоны Cloudflare>;
+        # real_ip_header CF-Connecting-IP;), иначе все пользователи делят один лимит.
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
@@ -239,10 +247,12 @@ server {
 }
 ```
 
-Зона лимита объявляется один раз в `/etc/nginx/nginx.conf`, в блоке `http`:
+Зона лимита и формат лога объявляются один раз в `/etc/nginx/nginx.conf`, в блоке `http`:
 
 ```nginx
 limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+# $uri — путь без строки запроса (в $request она есть).
+log_format knot '$remote_addr - [$time_local] "$request_method $uri" $status $body_bytes_sent "$http_user_agent"';
 ```
 
 ```bash
@@ -259,23 +269,33 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d example.com
 ```
 
-После выпуска сертификата добавьте в тот же `server`-блок заголовки безопасности:
+После выпуска сертификата добавьте заголовки безопасности. Они лежат в отдельном файле
+`/etc/nginx/snippets/knot-security.conf`:
 
 ```nginx
 add_header Strict-Transport-Security "max-age=31536000" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://telegram.org; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org" always;
 ```
 
+и подключаются строкой `include snippets/knot-security.conf;` **в трёх местах**: в блоке
+`server` (HTTPS) и внутри `location /assets/` и `location = /index.html`.
+
+> **Почему три раза.** `add_header` в nginx не наследуется в `location`, где есть свои
+> `add_header`. А каждая страница приложения (`/`, `/app`, `/install`) в итоге отдаётся
+> через `location = /index.html` — без повторного `include` заголовки (и CSP) до страниц
+> не дошли бы вовсе. Проверка: `curl -sI https://example.com/app | grep -i content-security`.
+>
 > **Не ставьте `X-Frame-Options: DENY` и `frame-ancestors 'none'`.** Mini App в
 > веб-версии Telegram открывается во фрейме на `web.telegram.org` — с запретом
-> встраивания приложение там покажет пустой экран. `script-src` обязан разрешать
-> `https://telegram.org`: оттуда грузится официальный SDK Telegram Web Apps.
+> встраивания приложение там покажет пустой экран.
 >
-> `add_header` в nginx не наследуется в `location`, где есть свои `add_header`, —
-> перечисленные выше заголовки объявляйте в блоке `server`, а внутри `location /assets/`
-> и `location = /index.html` повторите их, если они там нужны.
+> Что разрешает CSP и зачем: `https://telegram.org` в `script-src` — официальный SDK
+> Telegram Web Apps, в `connect-src` — его же загружает в кеш service worker веб-приложения;
+> `blob:` в `img-src`/`media-src` — предпросмотр фото и видео рассылки в админ-панели;
+> `data:` — QR-код на странице установки.
 
 ## 8. Подключение к Telegram
 
@@ -321,13 +341,30 @@ sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /
 
 ```bash
 cd /opt/streakbot/app
-sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py   # сначала копия
+sudo systemctl stop streakbot-api streakbot-bot                         # никто не пишет в базу
+sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py   # копия до всего остального
 sudo -u streakbot git pull
 sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
-sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
+sudo -u streakbot /opt/streakbot/venv/bin/python -m alembic upgrade head
 sudo -u streakbot bash -c 'cd frontend && npm ci && npm run build'
-sudo systemctl restart streakbot-api streakbot-bot
+sudo systemctl start streakbot-api streakbot-bot
 ```
+
+Почему службы останавливаются первыми:
+
+- миграция SQLite перестраивает таблицы; запись бота или API в эту минуту может оборвать
+  её на середине («database is locked»), а SQLite не откатывает изменения схемы целиком —
+  тогда остаётся только вернуть копию базы;
+- новый API, запущенный до миграций, сам создаст недостающие таблицы (`create_all`), и
+  миграция потом упадёт на «table already exists».
+
+Миграции и `backup_db.py` запускаются **из `/opt/streakbot/app`**: путь к базе в
+`DATABASE_URL` относительный, из другой папки они нашли бы (и создали) пустую базу.
+
+**Откат**, если после обновления что-то не так: остановить службы, `git checkout
+<прежний коммит>`, вернуть копию базы (`cp <копия> streakbot.db`, файлы
+`streakbot.db-wal`/`-shm` удалить), пересобрать фронтенд, запустить службы. Схему назад
+не откатываем (`alembic downgrade` удаляет данные новых таблиц) — копия базы надёжнее.
 
 Фронтенд обновляется без перезапуска nginx: имена файлов сборки содержат хеш, а
 `index.html` не кешируется, поэтому клиенты получают новую версию при следующем
@@ -356,7 +393,11 @@ curl -s https://example.com/api/health          # {"status":"ok"} или 503
 - [ ] `curl -i https://example.com/api/docs` → `404` (документация не публикуется);
 - [ ] в Telegram: `/start` → «Открыть приложение» → привычки создаются и отмечаются;
 - [ ] напоминание приходит в заданную минуту;
-- [ ] вход в админ-панель виден только у администратора;
+- [ ] вход в админ-панель виден только у администратора и только в Telegram (в
+      веб-приложении его нет даже у администратора);
+- [ ] `curl -sI https://example.com/app` показывает `Content-Security-Policy` и
+      `Strict-Transport-Security` (заголовки доходят до страниц);
+- [ ] в логе API при старте нет строк `Configuration: …`;
 - [ ] `sudo -u streakbot python scripts/backup_db.py` создаёт копию;
 - [ ] `sudo systemctl restart streakbot-api streakbot-bot` — обе службы поднимаются;
 - [ ] сервер перезагружается, и службы стартуют сами (`systemctl enable` уже сделан).
@@ -369,29 +410,42 @@ PostgreSQL описан в [SCALING.md](SCALING.md): меняется `DATABASE_
 `asyncpg`, код — нет. Там же — про несколько воркеров uvicorn и про то, почему бот
 остаётся в одном экземпляре.
 
-## Переезд на новую структуру папок (один раз)
+## Переезд на новую структуру папок и веб-приложение (один раз)
 
-В октябре 2026 `tma/backend` переехал в `backend/`, а `tma/frontend` — в `frontend/`.
-Код и переменные `.env` те же, но на сервере, который развёрнут со старой структурой,
-после `git pull` нужно один раз поправить пути. До этого шага служба API со старым
-`ExecStart` не стартует, а nginx продолжает раздавать старую сборку из `tma/`.
+В октябре 2026 `tma/backend` переехал в `backend/`, а `tma/frontend` — в `frontend/`, и
+появилось веб-приложение (миграции 0010–0014, `pywebpush`). На сервере со старой
+структурой это делается один раз, вместо обычного §11. Сначала сохраните текущие
+конфиги — они нужны для отката:
+
+```bash
+sudo cp /etc/systemd/system/streakbot-api.service /opt/streakbot/streakbot-api.service.bak
+sudo cp /etc/nginx/sites-available/streakbot /opt/streakbot/nginx-streakbot.bak
+```
 
 ```bash
 cd /opt/streakbot/app
-sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py
+sudo systemctl stop streakbot-api streakbot-bot
+sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /opt/streakbot/backups/before-web-app.db
 sudo -u streakbot git pull
 # Файлы не из git остались в tma/: переносим настройки сборки, остальное удаляем.
 sudo -u streakbot mv tma/frontend/.env.production frontend/.env.production
 sudo rm -rf tma
 sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
-sudo -u streakbot /opt/streakbot/venv/bin/alembic upgrade head
+sudo -u streakbot /opt/streakbot/venv/bin/python -m alembic upgrade head
 sudo -u streakbot bash -c 'cd frontend && npm ci && npm run build'
 ```
+
+В `.env` сервера — переменные веб-приложения ([WEB_APP_SETUP.md](WEB_APP_SETUP.md)):
+`WEB_AUTH_SECRET` (свой, длинный), `PUBLIC_BASE_URL=https://<домен>`,
+`TELEGRAM_BOT_USERNAME`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
+(`scripts/generate_vapid_keys.py`). Без `WEB_AUTH_SECRET` API при старте пишет
+предупреждение в лог.
 
 Затем:
 
 1. `/etc/systemd/system/streakbot-api.service`: `ExecStart=/opt/streakbot/venv/bin/python -m backend.main`
    (было `-m tma.backend.main`); `sudo systemctl daemon-reload`.
 2. `/etc/nginx/sites-available/streakbot`: `root /opt/streakbot/app/frontend/dist;`
-   (было `.../tma/frontend/dist`); `sudo nginx -t && sudo systemctl reload nginx`.
-3. `sudo systemctl restart streakbot-api streakbot-bot` и проверка из §13.
+   (было `.../tma/frontend/dist`), заголовки безопасности и формат лога из §7;
+   `sudo nginx -t && sudo systemctl reload nginx`.
+3. `sudo systemctl start streakbot-api streakbot-bot` и проверка из §13.

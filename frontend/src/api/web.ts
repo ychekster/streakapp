@@ -52,13 +52,13 @@ const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.strin
 
 export const createGuest = () => apiRequest<WebSession>("/auth/guest", { method: "POST" });
 export const fetchAccount = () => apiRequest<Account>("/auth/account", { method: "GET" });
-export const logout = (endpoint: string | null) =>
-  apiRequest<null>("/auth/logout", post({ endpoint }));
+export const logout = (endpoint: string | null, everywhere = false) =>
+  apiRequest<null>("/auth/logout", post({ endpoint, everywhere }));
 export const fetchWebConfig = () => apiRequest<WebConfig>("/web/config", { method: "GET" });
 
 export const createHandoff = (src: string) => apiRequest<Handoff>("/auth/handoff", post({ src }));
-export const redeemHandoff = (token: string) =>
-  apiRequest<LinkResult>("/auth/handoff/redeem", post({ token }));
+export const redeemHandoff = (token: string, merge = false) =>
+  apiRequest<LinkResult>("/auth/handoff/redeem", post({ token, merge }));
 
 export const startTelegramLogin = () =>
   apiRequest<TelegramLoginStart>("/auth/telegram/start", { method: "POST" });

@@ -8,9 +8,10 @@ import asyncio
 import hashlib
 import hmac
 import os
+import socket
 import time
 from collections.abc import Iterator
-from datetime import datetime, time as clock, timezone
+from datetime import datetime, time as clock, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,15 +20,24 @@ from bot import reminders as bot_reminders
 from bot.pacing import Pacer
 from tests.conftest import AuthUser, auth_user, new_user
 from tests.fake_telegram import FakeTelegram
-from tests.helpers import TEST_BOT_TOKEN
-from backend.accounts import confirm_telegram_login
+from tests.helpers import TEST_BOT_TOKEN, sign_init_data
+from backend.accounts import (
+    SESSION_MAX_AGE,
+    TELEGRAM_LOGIN_CONFIRM_WINDOW,
+    confirm_telegram_login,
+    login_device,
+    telegram_login_request,
+)
 from backend.config import load_settings
 from backend.constants import SEED_ADMIN_IDS
 from backend.database import Database
+from backend.funnel import _client_props
 from backend.models import FrequencyType
 from backend.ratelimit import RateLimiter
 from backend.repository import Repository, utc_now
-from backend.webpush import PushOutcome, VapidKeys
+from backend.routers.auth import client_ip
+from backend.webauth import hash_token
+from backend.webpush import PushOutcome, VapidKeys, is_push_endpoint
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -37,11 +47,11 @@ def _bearer(token: str) -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def _no_anonymous_limits(client: TestClient) -> Iterator[None]:
     """All test requests come from one address: lift the per-address limits."""
-    guests, events = client.app.state.guest_limiter, client.app.state.event_limiter
-    client.app.state.guest_limiter = RateLimiter(0, 0)
-    client.app.state.event_limiter = RateLimiter(0, 0)
+    state = client.app.state
+    saved = state.guest_limiter, state.event_limiter, state.address_limiter
+    state.guest_limiter = state.event_limiter = state.address_limiter = RateLimiter(0, 0)
     yield
-    client.app.state.guest_limiter, client.app.state.event_limiter = guests, events
+    state.guest_limiter, state.event_limiter, state.address_limiter = saved
 
 
 @pytest.fixture
@@ -191,12 +201,93 @@ def test_logout_ends_the_session_of_a_linked_account(client: TestClient, user: A
     assert client.get("/auth/account", headers=session).status_code == 401
 
 
+def _web_session(client: TestClient, user: AuthUser) -> dict[str, str]:
+    token = client.post("/auth/handoff", json={}, headers=user.headers).json()["token"]
+    redeemed = client.post("/auth/handoff/redeem", json={"token": token})
+    return _bearer(redeemed.json()["session"]["token"])
+
+
+def test_logout_everywhere_ends_every_session_and_push(client: TestClient, user: AuthUser) -> None:
+    phone, tablet = _web_session(client, user), _web_session(client, user)
+    device = {"endpoint": "https://fcm.googleapis.com/fcm/send/tablet", "keys": {"p256dh": "k", "auth": "a"}}
+    assert client.post("/web/push/subscribe", json=device, headers=tablet).status_code == 200
+
+    response = client.post("/auth/logout", json={"everywhere": True}, headers=phone)
+    assert response.status_code == 204, response.text
+    assert client.get("/auth/account", headers=phone).status_code == 401
+    assert client.get("/auth/account", headers=tablet).status_code == 401
+    assert _run(lambda repo: repo.has_push_subscription(user.id)) is False
+    # The Mini App is untouched.
+    assert client.get("/tasks", headers=user.headers).status_code == 200
+
+
+def test_blocking_ends_the_web_sessions(client: TestClient, user: AuthUser) -> None:
+    session = _web_session(client, user)
+
+    async def block(repo: Repository) -> None:
+        await repo.set_blocked(await repo.get_user(user.id), True)
+
+    async def unblock(repo: Repository) -> None:
+        await repo.set_blocked(await repo.get_user(user.id), False)
+
+    _run(block)
+    _run(unblock)
+    assert client.get("/tasks", headers=session).status_code == 401
+
+
+def test_a_session_ends_a_year_after_the_login(client: TestClient, user: AuthUser) -> None:
+    session = _web_session(client, user)
+    token = session["Authorization"].split(" ", 1)[1]
+    settings = load_settings()
+
+    async def age(repo: Repository) -> None:
+        found = await repo.get_session(hash_token(settings.auth_secret, token), utc_now())
+        found.created_at = utc_now() - SESSION_MAX_AGE + timedelta(hours=1)
+        found.last_used_at = utc_now() - timedelta(days=1)
+
+    _run(age)
+    assert client.get("/tasks", headers=session).status_code == 200  # refreshed, capped
+    found = _run(lambda repo: repo.get_session(hash_token(settings.auth_secret, token), utc_now()))
+    assert found.expires_at <= found.created_at + SESSION_MAX_AGE
+
+    async def expire(repo: Repository) -> None:
+        found = await repo.get_session(hash_token(settings.auth_secret, token), utc_now())
+        found.created_at = utc_now() - SESSION_MAX_AGE  # its expires_at is still ahead
+
+    _run(expire)
+    assert client.get("/tasks", headers=session).status_code == 401
+
+
+def test_handoff_needs_a_freshly_opened_mini_app(client: TestClient) -> None:
+    telegram_user = new_user()
+    old = sign_init_data(telegram_user.id, auth_date=int(time.time()) - 2 * 60 * 60)
+    response = client.post("/auth/handoff", json={}, headers={"Authorization": f"tma {old}"})
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "stale_init_data"
+    assert client.post("/auth/handoff", json={}, headers=telegram_user.headers).status_code == 200
+
+
 def test_a_guest_or_the_mini_app_cannot_log_out(client: TestClient, user: AuthUser) -> None:
     guest = client.post("/auth/logout", json={}, headers=_guest(client))
     assert guest.status_code == 409
     assert guest.json()["error"]["code"] == "guest_logout"
     mini_app = client.post("/auth/logout", json={}, headers=user.headers)
     assert mini_app.json()["error"]["code"] == "web_only"
+
+
+def test_admin_panel_opens_only_in_telegram(client: TestClient) -> None:
+    admin = auth_user(SEED_ADMIN_IDS[0])
+    assert client.get("/settings", headers=admin.headers).json()["is_admin"] is True
+    token = client.post("/auth/handoff", json={}, headers=admin.headers).json()["token"]
+    redeemed = client.post("/auth/handoff/redeem", json={"token": token})
+    session = _bearer(redeemed.json()["session"]["token"])
+    # The admin's own web session: an ordinary account, no admin panel.
+    assert client.get("/settings", headers=session).json()["is_admin"] is False
+    assert client.post("/sync", json={"ops": []}, headers=session).json()["settings"]["is_admin"] is False
+    response = client.get("/admin/funnel", headers=session)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "admin_required"
+    assert client.get("/admin/funnel", headers=admin.headers).status_code == 200
 
 
 def test_handoff_is_created_only_in_telegram(client: TestClient) -> None:
@@ -212,7 +303,14 @@ def test_handoff_on_a_device_with_a_guest_merges_its_habits(
     guest = _guest(client)
     _habit(client, guest, "Вода")
     token = client.post("/auth/handoff", json={}, headers=user.headers).json()["token"]
-    redeemed = client.post("/auth/handoff/redeem", json={"token": token}, headers=guest)
+    # The guest's habits would move into the link's account: asked first, link unspent.
+    asked = client.post("/auth/handoff/redeem", json={"token": token}, headers=guest)
+    assert asked.status_code == 409
+    assert asked.json()["error"]["code"] == "handoff_merge"
+    assert _names(client, guest) == ["Вода"]
+    redeemed = client.post(
+        "/auth/handoff/redeem", json={"token": token, "merge": True}, headers=guest
+    )
     assert redeemed.status_code == 200, redeemed.text
     assert redeemed.json()["account"]["user_id"] == user.id
     assert _names(client, user.headers) == ["Вода", "Зарядка"]
@@ -297,6 +395,47 @@ def test_two_telegram_accounts_never_merge(client: TestClient, user: AuthUser) -
     assert _account(client, session)["user_id"] == first.id
 
 
+def test_bot_login_is_confirmed_once_and_only_while_fresh(client: TestClient) -> None:
+    guest = _guest(client)
+    iphone = {**guest, "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"}
+    code = client.post("/auth/telegram/start", headers=iphone).json()["code"]
+    settings = load_settings()
+    request = _run(lambda repo: telegram_login_request(repo, settings, code))
+    assert request is not None and login_device(request) == "ios"
+
+    victim, attacker = new_user(), new_user()
+    assert _run(lambda repo: confirm_telegram_login(repo, settings, code, victim.id, "v", "V"))
+    # A second press (by anyone) cannot swap the account the app gets.
+    assert not _run(
+        lambda repo: confirm_telegram_login(repo, settings, code, attacker.id, "a", "A")
+    )
+    done = client.post("/auth/telegram/poll", json={"token": code}, headers=guest)
+    assert done.json()["result"]["account"]["user_id"] == victim.id
+
+    # Two presses at the same moment: the one that read the code before the other's
+    # write cannot overwrite it.
+    racy = client.post("/auth/telegram/start", headers=_guest(client)).json()["code"]
+
+    async def press_twice(repo: Repository) -> tuple[bool, bool]:
+        found = await telegram_login_request(repo, settings, racy)
+        before = found.payload
+        first = await repo.replace_code_payload(found, before, '{"telegram": {"id": 1}}')
+        second = await repo.replace_code_payload(found, before, '{"telegram": {"id": 2}}')
+        return first, second
+
+    assert _run(press_twice) == (True, False)
+
+    # A link confirmed minutes after it was asked for is stale.
+    stale = client.post("/auth/telegram/start", headers=_guest(client)).json()["code"]
+
+    async def age(repo: Repository) -> None:
+        found = await telegram_login_request(repo, settings, stale)
+        found.created_at = found.created_at - TELEGRAM_LOGIN_CONFIRM_WINDOW - timedelta(seconds=1)
+
+    _run(age)
+    assert not _run(lambda repo: confirm_telegram_login(repo, settings, stale, victim.id, "v", "V"))
+
+
 # --------------------------------------------------------------------------- #
 #  Funnel events
 # --------------------------------------------------------------------------- #
@@ -319,6 +458,28 @@ def test_events_are_recorded_and_counted(client: TestClient) -> None:
     assert landing["total"] >= 2
     assert landing["by_src"]["threads"] >= 2
     assert client.get("/admin/funnel", headers=new_user().headers).status_code == 403
+
+
+def test_clients_cannot_send_server_steps_or_big_props(client: TestClient) -> None:
+    for event in ("first_habit_created", "first_checkin", "account_linked"):
+        response = client.post("/events", json={"event": event, "anon_id": "a-server"})
+        assert response.status_code == 422, event
+    assert _client_props({"from": "push", "b": 7, "x" * 40: 1, "nested": {"a": 1}}) == {"from": "push", "b": 7}
+    assert _client_props({"long": "y" * 500}) == {"long": "y" * 64}
+    assert _client_props({f"k{n}": n for n in range(10)}) == {"k0": 0, "k1": 1, "k2": 2, "k3": 3}
+
+
+def test_rate_limits_use_the_address_nginx_saw(client: TestClient) -> None:
+    from starlette.requests import Request
+
+    def request(headers: dict[str, str]) -> Request:
+        raw = [(key.lower().encode(), value.encode()) for key, value in headers.items()]
+        return Request({"type": "http", "headers": raw, "client": ("127.0.0.1", 1)})
+
+    # nginx appends the real address last; whatever the client sent before it is ignored.
+    forged = request({"X-Forwarded-For": "1.1.1.1, 203.0.113.9", "CF-Connecting-IP": "2.2.2.2"})
+    assert client_ip(forged) == "203.0.113.9"
+    assert client_ip(request({})) == "127.0.0.1"
 
 
 def test_first_habit_and_first_checkin_are_recorded_once(client: TestClient) -> None:
@@ -380,6 +541,59 @@ class _ChatBot:
 
     async def send_message(self, chat_id: int, **_: object) -> None:
         self.chats.append(chat_id)
+
+
+def test_push_goes_only_to_browser_push_services(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # DNS as the test sees it: one public push service of another browser, one name that
+    # points inside the network (both the real names would need the internet).
+    addresses = {"push.otherbrowser.test": "93.184.216.34", "internal.evil.test": "10.0.0.7"}
+
+    def resolve(host: str, *args: object, **kwargs: object) -> list:
+        if host not in addresses:
+            raise OSError("unknown host")
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (addresses[host], 443))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
+    for endpoint in (
+        "https://fcm.googleapis.com/fcm/send/abc",
+        "https://updates.push.services.mozilla.com/wpush/v2/abc",
+        "https://web.push.apple.com/abc",
+        "https://wns2-par02p.notify.windows.com/w/?token=abc",
+        "https://push.otherbrowser.test/sub/abc",
+    ):
+        assert is_push_endpoint(endpoint), endpoint
+    for endpoint in (
+        "http://fcm.googleapis.com/fcm/send/abc",
+        "https://127.0.0.1/abc",
+        "https://[::1]/abc",
+        "https://10.0.0.5:8443/abc",
+        "https://fcm.googleapis.com:8000/abc",
+        "https://user@fcm.googleapis.com/abc",
+        "https://internal.evil.test/abc",
+        "https://fcm.googleapis.com.unknown.test/abc",
+        "https://localhost/abc",
+    ):
+        assert not is_push_endpoint(endpoint), endpoint
+
+    guest = _guest(client)
+    keys = {"p256dh": "k", "auth": "a"}
+    internal = client.post(
+        "/web/push/subscribe", json={"endpoint": "https://127.0.0.1:8443/x", "keys": keys}, headers=guest
+    )
+    assert internal.status_code == 422
+    assert internal.json()["error"]["code"] == "invalid_subscription"
+
+    # The device's subscription moves to another account only with its own keys.
+    device = {"endpoint": "https://fcm.googleapis.com/fcm/send/device-1", "keys": keys}
+    assert client.post("/web/push/subscribe", json=device, headers=guest).status_code == 200
+    stranger = _guest(client)
+    forged = {**device, "keys": {"p256dh": "other", "auth": "other"}}
+    assert client.post("/web/push/subscribe", json=forged, headers=stranger).status_code == 422
+    assert client.get("/web/push", headers=guest).json()["subscribed"] is True
+    assert client.post("/web/push/subscribe", json=device, headers=stranger).status_code == 200
+    assert client.get("/web/push", headers=guest).json()["subscribed"] is False
 
 
 def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:

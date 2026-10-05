@@ -21,9 +21,12 @@
 
 import { trackOnce } from "./analytics";
 import { ApiRequestError } from "../api/client";
-import { createGuest, fetchAccount, redeemHandoff } from "../api/web";
+import { createGuest, fetchAccount } from "../api/web";
 import { getSessionToken, setSessionToken } from "./session";
 import { applyLinkResult, checkTelegramBotLogin, hasPendingTelegramLogin } from "./login";
+import { redeemHandoffLink } from "./handoff";
+import { readSavedPreferences } from "../preferences";
+import { STRINGS } from "../strings";
 import { subscribePush } from "./push";
 
 // The last handoff token tried on this device (the start address keeps it for good).
@@ -85,7 +88,16 @@ async function redeemStartHandoff(): Promise<void> {
     // See untriedHandoff.
   }
   try {
-    applyLinkResult(await redeemHandoff(token));
+    const strings = STRINGS[readSavedPreferences().language];
+    const result = await redeemHandoffLink(token, {
+      title: strings.handoffMergeTitle,
+      message: strings.handoffMergeMessage,
+      confirmLabel: strings.handoffMergeConfirm,
+      cancelLabel: strings.handoffMergeCancel,
+    });
+    if (result) {
+      applyLinkResult(result);
+    }
   } catch {
     // Expired or already used (e.g. redeemed by the browser on Android): carry on.
   }

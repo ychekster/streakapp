@@ -43,9 +43,15 @@ CODE_TELEGRAM_LOGIN = "tg_login"  # "log in via Telegram" through the bot
 
 # Lifetimes of codes that are not configurable.
 TELEGRAM_LOGIN_TTL = timedelta(minutes=10)
+# The bot accepts «Подтвердить вход» only this soon after the app asked: a login link
+# sent to someone else goes stale before they could be talked into confirming it.
+TELEGRAM_LOGIN_CONFIRM_WINDOW = timedelta(minutes=3)
 
 # A session's expiry is pushed forward at most this often (not on every request).
 _SESSION_REFRESH_INTERVAL = timedelta(hours=12)
+# However often it is used, a session ends this long after the login: a token copied off
+# a device does not stay valid forever.
+SESSION_MAX_AGE = timedelta(days=365)
 
 
 @dataclass(frozen=True)
@@ -95,18 +101,31 @@ async def issue_session(
 async def resolve_session(
     repo: Repository, settings: Settings, token: str
 ) -> WebSession | None:
-    """The live session of a token, its expiry pushed forward (sliding)."""
+    """The live session of a token, its expiry pushed forward (sliding, but never past
+    SESSION_MAX_AGE from the login)."""
     now = utc_now()
     session = await repo.get_session(hash_token(settings.auth_secret, token), now)
-    if session is not None and now - session.last_used_at >= _SESSION_REFRESH_INTERVAL:
+    if session is None or now >= session.created_at + SESSION_MAX_AGE:
+        return None
+    if now - session.last_used_at >= _SESSION_REFRESH_INTERVAL:
         session.last_used_at = now
-        session.expires_at = now + timedelta(days=settings.web_session_ttl_days)
+        session.expires_at = min(
+            now + timedelta(days=settings.web_session_ttl_days),
+            session.created_at + SESSION_MAX_AGE,
+        )
     return session
 
 
 async def end_session(repo: Repository, settings: Settings, token: str) -> None:
     """Forget a session token."""
     await repo.delete_session(hash_token(settings.auth_secret, token))
+
+
+async def end_all_sessions(repo: Repository, user_id: int) -> None:
+    """«Выйти на всех устройствах»: every web session of the account ends, and its
+    devices stop getting push reminders (they come through the bot again)."""
+    await repo.delete_user_sessions(user_id)
+    await repo.delete_user_push_subscriptions(user_id)
 
 
 async def create_guest(
@@ -153,16 +172,6 @@ async def find_code(
     if not code:
         return None
     return await repo.get_code(hash_token(settings.auth_secret, code), kind, utc_now())
-
-
-async def take_code(
-    repo: Repository, settings: Settings, code: str, kind: str
-) -> AuthCode | None:
-    """Spend a live code; None — unknown, expired or already used."""
-    found = await find_code(repo, settings, code, kind)
-    if found is None or not await repo.use_code(found, utc_now()):
-        return None
-    return found
 
 
 def code_payload(code: AuthCode) -> dict[str, Any]:
@@ -273,6 +282,25 @@ def client_platform(user_agent: str | None) -> str:
 
 
 
+async def telegram_login_request(
+    repo: Repository, settings: Settings, code: str
+) -> AuthCode | None:
+    """A "log in via Telegram" request the bot may still confirm: live, not confirmed
+    yet and asked for within TELEGRAM_LOGIN_CONFIRM_WINDOW. None — show «устарела»."""
+    found = await find_code(repo, settings, code, CODE_TELEGRAM_LOGIN)
+    if found is None or confirmed_telegram(found) is not None:
+        return None
+    if utc_now() - found.created_at > TELEGRAM_LOGIN_CONFIRM_WINDOW:
+        return None
+    return found
+
+
+def login_device(code: AuthCode) -> str | None:
+    """ios / android / desktop — the device that asked to log in (shown by the bot)."""
+    device = code_payload(code).get("device")
+    return device if isinstance(device, str) else None
+
+
 async def confirm_telegram_login(
     repo: Repository,
     settings: Settings,
@@ -283,15 +311,16 @@ async def confirm_telegram_login(
 ) -> bool:
     """The bot confirms "log in via Telegram": the Telegram user who pressed «Подтвердить»
     is remembered on the code, and the app that started the login picks it up
-    (`/auth/telegram/poll`). False — the code is unknown or expired."""
-    found = await find_code(repo, settings, code, CODE_TELEGRAM_LOGIN)
+    (`/auth/telegram/poll`). Only once and only while the request is fresh (see
+    telegram_login_request) — a second press cannot swap the account. False — the code
+    is unknown, expired or already confirmed."""
+    found = await telegram_login_request(repo, settings, code)
     if found is None:
         return False
     payload = code_payload(found)
     payload["telegram"] = {"id": user_id, "username": username, "first_name": first_name}
-    found.payload = json.dumps(payload)
-    await repo.session.flush()
-    return True
+    # Two presses at the same moment: only the first one's write goes through.
+    return await repo.replace_code_payload(found, found.payload, json.dumps(payload))
 
 
 def confirmed_telegram(code: AuthCode) -> LoginProfile | None:

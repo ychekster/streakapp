@@ -111,6 +111,23 @@ describe("dataStore", () => {
     expect(localStorage.getItem("streak:changes")).toContain('"value":[]');
   });
 
+  it("sends every unsent change before logging out, or says it could not", async () => {
+    syncChanges.mockResolvedValueOnce(answer([habit()]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    syncChanges.mockRejectedValueOnce(new ApiRequestError(0, "network_error", ""));
+    store.toggle(1);
+    expect(await store.sendAll()).toBe(false);
+
+    syncChanges.mockResolvedValueOnce(answer([doneHabit()], [{ ok: true, id: null, error: null }]));
+    expect(await store.sendAll()).toBe(true);
+    expect(syncChanges.mock.lastCall?.[0]).toEqual([
+      { type: "mark", task: 1, date: TODAY, done: true },
+    ]);
+  });
+
   it("keeps changes without a connection and opens on them", async () => {
     syncChanges.mockResolvedValueOnce(answer([habit()]));
     const store = await freshStore();

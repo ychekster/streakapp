@@ -5,7 +5,7 @@
  */
 
 import type { Account } from "../api/web";
-import { currentSessionToken } from "./session";
+import { currentSessionId } from "./session";
 
 const ACCOUNT_KEY = "streak:account";
 
@@ -16,7 +16,7 @@ export function keptAccount(): Account | null {
       session?: string;
       account?: Account;
     } | null;
-    return kept?.account && kept.session === currentSessionToken() ? kept.account : null;
+    return kept?.account && kept.session === currentSessionId() ? kept.account : null;
   } catch {
     return null;
   }
@@ -26,9 +26,18 @@ export function keepAccount(account: Account): void {
   try {
     localStorage.setItem(
       ACCOUNT_KEY,
-      JSON.stringify({ session: currentSessionToken(), account }),
+      JSON.stringify({ session: currentSessionId(), account }),
     );
   } catch {
     // Without storage the row waits for the server, as before.
+  }
+}
+
+/** Logged out: the account shown in Settings is forgotten on this device. */
+export function forgetAccount(): void {
+  try {
+    localStorage.removeItem(ACCOUNT_KEY);
+  } catch {
+    // Nothing kept.
   }
 }

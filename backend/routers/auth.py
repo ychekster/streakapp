@@ -2,7 +2,7 @@
 
     POST   /auth/guest                — first launch of the installed app: a guest + session
     GET    /auth/account              — logins of the account (Settings → Account)
-    POST   /auth/logout               — app: leave the account on this device
+    POST   /auth/logout               — app: leave the account on this device (or everywhere)
     POST   /auth/handoff              — Mini App: single-use link to install the web app
     POST   /auth/handoff/redeem       — browser/app: log in with that link
     POST   /auth/telegram/start       — app: "log in via Telegram" through the bot
@@ -16,6 +16,7 @@ because its account may have changed.
 
 from __future__ import annotations
 
+import time
 import zlib
 from datetime import timedelta
 
@@ -26,15 +27,16 @@ from backend.accounts import (
     CODE_TELEGRAM_LOGIN,
     TELEGRAM_LOGIN_TTL,
     account_info,
+    client_platform,
     confirmed_telegram,
     create_code,
     create_guest,
+    end_all_sessions,
     end_session,
     find_code,
     is_guest,
     issue_session,
     link_login,
-    take_code,
     telegram_profile,
 )
 from backend.dependencies import (
@@ -58,6 +60,7 @@ from backend.schemas import (
     TelegramLoginPoll,
     TelegramLoginStart,
     TelegramWidgetLogin,
+    HandoffRedeem,
     TokenRequest,
     WebSessionResponse,
 )
@@ -66,15 +69,21 @@ from backend.webauth import TelegramLoginError, verify_telegram_login
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Telegram web login data older than this is not accepted (seconds).
-_TELEGRAM_LOGIN_MAX_AGE = 24 * 60 * 60
+# Telegram web login data older than this is not accepted (seconds): it is used the
+# moment Telegram returns it.
+_TELEGRAM_LOGIN_MAX_AGE = 10 * 60
+# A handoff link (a long web session) is given only to a Mini App opened this recently
+# (seconds): a day-old initData, if it ever leaked, cannot be turned into a session.
+_HANDOFF_INIT_DATA_MAX_AGE = 60 * 60
 
 
 def client_ip(request: Request) -> str:
-    """The caller's address behind Cloudflare / nginx (for rate limits only)."""
-    forwarded = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
+    """The caller's address behind nginx (for rate limits only). The last address of
+    X-Forwarded-For is the one nginx itself appended (`$proxy_add_x_forwarded_for`);
+    everything before it, like any other address header, is whatever the client sent."""
+    forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else ""
 
 
@@ -179,11 +188,15 @@ async def logout(
 ) -> Response:
     """Web app: leave the account on this device — its session ends and this device's
     push subscription stops getting the account's reminders. A guest cannot log out: it
-    has no login to come back with, its habits would be lost."""
+    has no login to come back with, its habits would be lost. `everywhere` — every web
+    session of the account ends and none of its devices gets push reminders any more."""
     if principal.session_token is None:
         raise ApiError(409, "web_only", "Доступно только в приложении на телефоне")
     if await is_guest(repo, db_user):
         raise ApiError(409, "guest_logout", "Сначала привяжите Telegram")
+    if payload.everywhere:
+        await end_all_sessions(repo, db_user.telegram_id)
+        return Response(status_code=204)
     if payload.endpoint:
         await repo.delete_push_subscriptions([payload.endpoint], user_id=db_user.telegram_id)
     await end_session(repo, get_settings(request), principal.session_token)
@@ -207,6 +220,9 @@ async def create_handoff(
     installed app into this same account."""
     if principal.telegram is None:
         raise ApiError(409, "telegram_only", "Доступно только в Telegram")
+    signed_at = principal.telegram.auth_date
+    if signed_at is None or time.time() - signed_at > _HANDOFF_INIT_DATA_MAX_AGE:
+        raise ApiError(409, "stale_init_data", "Откройте приложение заново")
     settings = get_settings(request)
     ttl = settings.handoff_ttl_minutes
     token = await create_code(
@@ -222,26 +238,42 @@ async def create_handoff(
 
 @router.post("/handoff/redeem", response_model=LinkResult)
 async def redeem_handoff(
-    payload: TokenRequest,
+    payload: HandoffRedeem,
     request: Request,
     principal: Principal | None = Depends(get_optional_principal),
     repo: Repository = RepositoryDep,
 ) -> LinkResult:
     """Log in with a handoff link. A device that already has an account links Telegram to
-    it (with the usual merge rules); otherwise it simply logs into that account."""
-    settings = get_settings(request)
-    code = await take_code(repo, settings, payload.token, CODE_HANDOFF)
+    it (with the usual merge rules); otherwise it simply logs into that account.
+
+    A guest with habits is asked first (409 `handoff_merge`, the link stays unused): the
+    link may be someone else's, and the habits would move into that account."""
+    limit(request, request.app.state.address_limiter, client_ip(request))
+    expired = ApiError(410, "handoff_invalid", "Ссылка устарела — откройте её заново из Telegram")
+    code = await find_code(repo, get_settings(request), payload.token, CODE_HANDOFF)
     if code is None or code.user_id is None:
-        raise ApiError(410, "handoff_invalid", "Ссылка устарела — откройте её заново из Telegram")
+        raise expired
     account = await repo.get_user(code.user_id)
     if account is None:
-        raise ApiError(410, "handoff_invalid", "Ссылка устарела — откройте её заново из Telegram")
+        raise expired
     web = principal if principal is not None and principal.telegram is None else None
-    if web is not None and web.user_id != account.telegram_id:
-        current = await repo.get_user(web.user_id)
-        if current is not None:
-            profile = telegram_profile(account.telegram_id, account.username, account.first_name)
-            account = await link_login(repo, current, profile)
+    current = (
+        await repo.get_user(web.user_id)
+        if web is not None and web.user_id != account.telegram_id
+        else None
+    )
+    if (
+        current is not None
+        and not payload.merge
+        and await is_guest(repo, current)
+        and await repo.user_has_data(current.telegram_id)
+    ):
+        raise ApiError(409, "handoff_merge", "Перенести привычки с этого телефона в аккаунт по ссылке?")
+    if not await repo.use_code(code, utc_now()):
+        raise expired
+    if current is not None:
+        profile = telegram_profile(account.telegram_id, account.username, account.first_name)
+        account = await link_login(repo, current, profile)
     return await _result(request, repo, web, account)
 
 
@@ -262,8 +294,16 @@ async def start_telegram_login(
     _require_web(principal)
     settings = get_settings(request)
     username = await bot_username(request)
+    # The device is shown in the bot's confirmation, so a stranger's request stands out.
+    device = client_platform(request.headers.get("user-agent"))
     code = await create_code(
-        repo, settings, CODE_TELEGRAM_LOGIN, principal.user_id, TELEGRAM_LOGIN_TTL, short=True
+        repo,
+        settings,
+        CODE_TELEGRAM_LOGIN,
+        principal.user_id,
+        TELEGRAM_LOGIN_TTL,
+        {"device": device},
+        short=True,
     )
     start = f"login_{code}"
     return TelegramLoginStart(

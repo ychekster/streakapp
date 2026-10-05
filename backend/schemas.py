@@ -848,6 +848,13 @@ class TokenRequest(BaseModel):
     token: str = Field(..., min_length=1, max_length=256)
 
 
+class HandoffRedeem(TokenRequest):
+    """`POST /auth/handoff/redeem`: the handoff token; `merge` — the user agreed to move
+    this device's guest habits into the link's account (asked after 409 `handoff_merge`)."""
+
+    merge: bool = False
+
+
 class TelegramLoginStart(BaseModel):
     """`POST /auth/telegram/start` — "log in via Telegram" through the bot."""
 
@@ -902,6 +909,9 @@ class LogoutRequest(BaseModel):
     """This device's push subscription, to detach from the account (none — no push)."""
 
     endpoint: str | None = Field(default=None, max_length=1024)
+    everywhere: bool = Field(
+        default=False, description="Log out on every device: all web sessions, all push"
+    )
 
 
 class PushUnsubscribe(BaseModel):

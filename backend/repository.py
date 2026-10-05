@@ -68,8 +68,9 @@ from backend.models import (
 _IN_BATCH_SIZE = 500
 
 # Web-only account ids: random in [-_WEB_ID_MAX, -1]. Within 2**53, so JavaScript (the
-# admin panel) keeps them exact.
-_WEB_ID_MAX = 2**53 - 1
+# admin panel) keeps them exact, and above −7·10¹², where scripts/seed_analytics.py keeps
+# its fake users — removing them can never touch a real account.
+_WEB_ID_MAX = 10**12 - 1
 _WEB_ID_ATTEMPTS = 5
 
 
@@ -423,8 +424,11 @@ class Repository:
         await self.session.flush()
 
     async def set_blocked(self, user: User, blocked: bool) -> None:
-        """Заблокировать пользователя (или снять блокировку) по решению администратора."""
+        """Заблокировать пользователя (или снять блокировку) по решению администратора.
+        Блокировка завершает и все его сессии веб-приложения."""
         user.blocked_at = utc_now() if blocked else None
+        if blocked:
+            await self.delete_user_sessions(user.telegram_id)
         await self.session.flush()
 
     async def delete_user(self, telegram_id: int) -> None:
@@ -1432,6 +1436,10 @@ class Repository:
         """End a web session (log out, or replaced after switching accounts)."""
         await self.session.execute(delete(WebSession).where(WebSession.token_hash == token_hash))
 
+    async def delete_user_sessions(self, user_id: int) -> None:
+        """End every web session of the account (log out everywhere, blocked)."""
+        await self.session.execute(delete(WebSession).where(WebSession.user_id == user_id))
+
     async def create_code(
         self,
         code_hash: str,
@@ -1468,6 +1476,21 @@ class Repository:
             )
         )
 
+    async def replace_code_payload(
+        self, code: AuthCode, expected: str | None, payload: str
+    ) -> bool:
+        """Change an unused code's payload only if it still is `expected` — nobody changed
+        it meanwhile (compare-and-set). False — it was changed or spent in between."""
+        unchanged = AuthCode.payload.is_(None) if expected is None else AuthCode.payload == expected
+        result = await self.session.execute(
+            update(AuthCode)
+            .where(AuthCode.id == code.id, AuthCode.used_at.is_(None), unchanged)
+            .values(payload=payload)
+            .execution_options(synchronize_session=False)
+        )
+        code.payload = payload
+        return result.rowcount > 0
+
     async def use_code(self, code: AuthCode, now: datetime) -> bool:
         """Spend a one-time code. False — it was spent meanwhile (a parallel request)."""
         result = await self.session.execute(
@@ -1485,9 +1508,12 @@ class Repository:
 
     async def save_push_subscription(
         self, user_id: int, endpoint: str, p256dh: str, auth: str, user_agent: str | None
-    ) -> None:
+    ) -> bool:
         """Store the device's subscription for the account (the endpoint identifies the
-        device: re-subscribing moves it to the current account)."""
+        device: re-subscribing moves it to the current account). Another account's
+        subscription moves only with its own keys — the same browser sends them again,
+        while someone who merely learned the address could only break its delivery.
+        False — refused."""
         subscription = await self.session.scalar(
             select(PushSubscription).where(PushSubscription.endpoint == endpoint)
         )
@@ -1501,11 +1527,16 @@ class Repository:
                     user_agent=(user_agent or "")[:255] or None,
                 )
             )
+        elif subscription.user_id != user_id and (
+            subscription.p256dh != p256dh or subscription.auth != auth
+        ):
+            return False
         else:
             subscription.user_id = user_id
             subscription.p256dh = p256dh
             subscription.auth = auth
         await self.session.flush()
+        return True
 
     async def delete_push_subscriptions(
         self, endpoints: Collection[str], user_id: int | None = None
@@ -1520,6 +1551,12 @@ class Repository:
         if user_id is not None:
             statement = statement.where(PushSubscription.user_id == user_id)
         await self.session.execute(statement)
+
+    async def delete_user_push_subscriptions(self, user_id: int) -> None:
+        """Forget every push subscription of the account (log out everywhere)."""
+        await self.session.execute(
+            delete(PushSubscription).where(PushSubscription.user_id == user_id)
+        )
 
     async def push_subscriptions_for(
         self, user_ids: Collection[int]

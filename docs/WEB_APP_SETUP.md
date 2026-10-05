@@ -84,15 +84,18 @@ Knot теперь работает не только в Telegram, но и как
 
 ## Выкладка на сервер (когда решите)
 
-Порядок — как обычно (docs/DEPLOYMENT.md §11): копия базы → `git pull` →
-`pip install -r requirements.txt -r backend/requirements.txt` (добавился `pywebpush`) →
-`python -m alembic upgrade head` (миграция `0010`: новые таблицы, существующие данные не
-меняются) → `npm ci && npm run build` → перезапуск API и бота. До этого впишите в `.env`
-сервера переменные из шагов 1–2 и `PUBLIC_BASE_URL=https://tma.streakapp.io`.
+Первая выкладка веб-приложения — по разделу «Переезд на новую структуру папок и
+веб-приложение» в конце [DEPLOYMENT.md](DEPLOYMENT.md): службы останавливаются, копия
+базы, `git pull`, `pip install` (добавился `pywebpush`), `python -m alembic upgrade head`
+(миграции 0010–0014: новые таблицы и столбцы, существующие данные не меняются), сборка
+фронтенда, новые пути в systemd и nginx. До запуска впишите в `.env` сервера переменные
+из шагов 1–2, `PUBLIC_BASE_URL=https://tma.streakapp.io` и
+`TELEGRAM_BOT_USERNAME=onStreakBot`.
 
-nginx менять не нужно: он уже отдаёт `index.html` для любых путей (`/install`, `/app`).
-Файлы `sw.js` и `manifest.webmanifest` лежат в корне сборки — их не надо кешировать надолго
-(в текущем конфиге долгий кеш только у `/assets/`, так что всё в порядке).
+nginx отдаёт `index.html` для любых путей (`/install`, `/app`), а `sw.js` и
+`manifest.webmanifest` из корня сборки долго не кешируются (долгий кеш — только у
+`/assets/`). Заголовки безопасности (CSP) и формат лога без строки запроса — из
+DEPLOYMENT.md §7: без `include` в `location = /index.html` CSP до страниц не доходит.
 
 ## Постоянный адрес туннеля (по желанию)
 

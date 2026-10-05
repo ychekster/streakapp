@@ -13,6 +13,7 @@
 import { useMemo } from "react";
 
 import { Screen } from "../components/Screen";
+import { describeError } from "../errors";
 import { useHandoffLink } from "../hooks/useHandoffLink";
 import { useMainButton } from "../hooks/useMainButton";
 import { useResolvedTheme, useStrings } from "../preferences";
@@ -39,7 +40,7 @@ export function InstallFromTelegramScreen({ src }: { src: string }) {
       active: true,
       progress: !link.ready && !link.failed,
     },
-    link.open,
+    () => link.open(),
   );
 
   return (
@@ -47,7 +48,9 @@ export function InstallFromTelegramScreen({ src }: { src: string }) {
       <div className={styles.hero}>
         <img className={styles.icon} src="/icons/app-icon.webp" alt="" />
         <p className={styles.description}>
-          {link.failed && !link.ready ? strings.installFailed : strings.installDescription}
+          {link.failed && !link.ready
+            ? describeError(strings, link.error, strings.installFailed)
+            : strings.installDescription}
         </p>
       </div>
     </Screen>

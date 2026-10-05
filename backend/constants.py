@@ -270,6 +270,8 @@ FUNNEL_EVENTS: tuple[str, ...] = (
     "push_permission_denied",
     "account_linked",
 )
+# Steps only the server records: a client sending them would skew the funnel.
+SERVER_FUNNEL_EVENTS: tuple[str, ...] = ("first_habit_created", "first_checkin", "account_linked")
 # «Открыл приложение» (POST /events, событие app_open) — откуда: кнопка меню бота,
 # приветствие, напоминание, рассылка, push-уведомление, предложение установить, прямая
 # ссылка на Mini App, иконка веб-приложения. Пишется в ленту действий, не в воронку.
@@ -280,9 +282,15 @@ APP_OPEN_SOURCES: tuple[str, ...] = (
 # Accepted values of the event context fields (anything else is stored as null).
 EVENT_PLATFORMS: tuple[str, ...] = ("ios", "android", "desktop")
 EVENT_CONTEXTS: tuple[str, ...] = ("in_app", "browser", "standalone", "telegram")
-# Largest `props` of an event, serialized (bytes).
-EVENT_PROPS_MAX_BYTES = 2048
+# `props` of a client event: at most this many keys, short names, short plain values
+# (the landing and the app send one or two, e.g. {"from": "push"}); the rest is dropped.
+EVENT_PROPS_MAX_KEYS = 4
+EVENT_PROPS_KEY_MAX_LENGTH = 16
+EVENT_PROPS_VALUE_MAX_LENGTH = 64
 # Rate limits without an account (burst, per second): new guest accounts per address
-# (a phone creates one on its first launch) and funnel events per device.
+# (a phone creates one on its first launch), funnel events per device, and every request
+# without an account (events, handoff links) per address — a device id is the client's
+# own choice, the address is not.
 GUEST_RATE_LIMIT: tuple[int, float] = (10, 0.1)
 EVENT_RATE_LIMIT: tuple[int, float] = (60, 2.0)
+ADDRESS_RATE_LIMIT: tuple[int, float] = (120, 4.0)

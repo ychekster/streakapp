@@ -35,7 +35,7 @@ import { getTelegramUserId, isTelegramAvailable } from "../telegram/webapp";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { SyncOperation, SyncResponse, TaskKey } from "../types/sync";
-import { currentSessionToken } from "../web/session";
+import { currentSessionId } from "../web/session";
 import { markingDay } from "./dates";
 import { cleanHabitName, deriveView, reuseUnchanged, type Operation, type Snapshot } from "./derive";
 
@@ -105,8 +105,8 @@ function currentOwner(): string | null {
   if (telegramId !== null) {
     return `tg:${telegramId}`;
   }
-  const token = currentSessionToken();
-  return token ? `web:${token}` : null;
+  const session = currentSessionId();
+  return session ? `web:${session}` : null;
 }
 
 function readKept<T>(key: string): T | null {
@@ -460,6 +460,16 @@ function habitById(id: number): Habit {
   return habit;
 }
 
+/** Logged out: the account's habits and unsent changes are removed from this device. */
+export function forgetKeptData(): void {
+  try {
+    localStorage.removeItem(SNAPSHOT_KEY);
+    localStorage.removeItem(OPS_KEY);
+  } catch {
+    // Nothing kept.
+  }
+}
+
 export const dataStore = {
   /** Load what is kept on the device and ask the server for the state. Once. */
   start(): void {
@@ -540,6 +550,22 @@ export const dataStore = {
   /** Ask the server for the state now (after a push notification, …). */
   refresh(): void {
     void flush();
+  },
+
+  /** Send every unsent change now and wait for the answer (before logging out). False —
+   *  some are still unsent: no connection, or the server did not answer. */
+  async sendAll(): Promise<boolean> {
+    for (let attempt = 0; attempt < 5 && ops.length > 0; attempt += 1) {
+      while (inFlight) {
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      }
+      const before = ops.length;
+      await flush();
+      if (ops.length >= before) {
+        break;
+      }
+    }
+    return ops.length === 0;
   },
 
   /** A login or logout may have switched the account: another account starts from its

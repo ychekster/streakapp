@@ -5,8 +5,10 @@
  * result is picked up even if the phone closed the app while the user was in Telegram.
  * (Installing from the Mini App logs in by itself — the handoff link, web/bootstrap.ts.)
  *
- * Logging out (Settings → Аккаунт) ends the session on this device and leaves a fresh
- * guest in its place, as on a first launch; the habits stay with the Telegram account.
+ * Logging out (Settings → Аккаунт) ends the session on this device (or, «на всех
+ * устройствах», every session of the account) and leaves a fresh guest in its place, as
+ * on a first launch; the habits stay with the Telegram account and are removed from the
+ * device.
  */
 
 import { ApiRequestError } from "../api/client";
@@ -17,6 +19,8 @@ import {
   startTelegramLogin,
   type LinkResult,
 } from "../api/web";
+import { dataStore, forgetKeptData } from "../data/store";
+import { forgetAccount } from "./account";
 import { setSessionToken } from "./session";
 import { pushEndpoint, subscribePush } from "./push";
 
@@ -102,13 +106,23 @@ export async function checkTelegramBotLogin(): Promise<LinkResult | null> {
   }
 }
 
-/** Leave the linked account on this device: its reminders stop coming here, and the app
+/** Logging out was stopped: some changes have not reached the account yet. */
+export class UnsentChangesError extends Error {}
+
+/** Leave the linked account on this device (`everywhere` — on every device): its
+ *  reminders stop coming here, its habits are removed from the device, and the app
  *  continues as a new guest (this device's notifications move to it). */
-export async function logOut(): Promise<void> {
+export async function logOut(everywhere = false): Promise<void> {
+  // Changes made just before go to the account first — after this the device forgets them.
+  if (!(await dataStore.sendAll())) {
+    throw new UnsentChangesError();
+  }
   // The guest first: if the network fails halfway, the device still has an account.
   const guest = await createGuest();
-  await logout(await pushEndpoint());
+  await logout(await pushEndpoint(), everywhere);
   writePending(null);
+  forgetKeptData();
+  forgetAccount();
   setSessionToken(guest.token);
   void subscribePush();
 }

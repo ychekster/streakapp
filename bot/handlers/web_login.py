@@ -1,8 +1,9 @@
 """Bot side of the web app: "log in via Telegram" and the install offer's «Не сейчас».
 
 - `/start login_<code>` — the web app opened the bot to log in with Telegram. The bot
-  asks to confirm (someone could send a victim their own login link); «Подтвердить вход»
-  marks the code as confirmed by this Telegram user, and the app that started the login
+  asks to confirm (someone could send a victim their own login link), naming the device
+  that asked; «Подтвердить вход» works once and only for a few minutes after the app
+  asked. It marks the code as confirmed by this Telegram user, and the app that started the login
   picks it up (`/auth/telegram/poll`, see backend/accounts.py). The user is recorded
   like on a plain /start.
 - «Не сейчас» under the one-time install offer (backend/messaging.py) removes its
@@ -24,11 +25,12 @@ from bot.constants import (
     LOGIN_CANCELLED_TEXT,
     LOGIN_CONFIRM_BUTTON,
     LOGIN_CONFIRM_TEXT,
+    LOGIN_DEVICES,
     LOGIN_DONE_TEXT,
     LOGIN_EXPIRED_TEXT,
 )
 from bot.handlers.start import record_start
-from backend.accounts import confirm_telegram_login
+from backend.accounts import confirm_telegram_login, login_device, telegram_login_request
 from backend.config import Settings
 from backend.database import Database
 from backend.messaging import INSTALL_OFFER_DISMISS
@@ -42,18 +44,27 @@ _CANCEL = "login:cancel"
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(_LOGIN_PREFIX)))
-async def start_login(message: Message, command: CommandObject, database: Database) -> None:
-    """Ask to confirm the login started in the web app."""
+async def start_login(
+    message: Message, command: CommandObject, database: Database, web_settings: Settings
+) -> None:
+    """Ask to confirm the login started in the web app, naming the device that asked.
+    A stale or already confirmed link is not offered for confirmation at all."""
     if message.from_user is not None:
         await record_start(database, message.from_user)
     code = (command.args or "")[len(_LOGIN_PREFIX):]
+    async with database.session_factory() as session:
+        request = await telegram_login_request(Repository(session), web_settings, code)
+    if request is None:
+        await message.answer(LOGIN_EXPIRED_TEXT)
+        return
+    device = LOGIN_DEVICES.get(login_device(request) or "", LOGIN_DEVICES["desktop"])
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=LOGIN_CONFIRM_BUTTON, callback_data=f"{_CONFIRM}{code}")],
             [InlineKeyboardButton(text=LOGIN_CANCEL_BUTTON, callback_data=_CANCEL)],
         ]
     )
-    await message.answer(LOGIN_CONFIRM_TEXT, reply_markup=markup)
+    await message.answer(LOGIN_CONFIRM_TEXT.format(device=device), reply_markup=markup)
 
 
 @router.callback_query(F.data.startswith(_CONFIRM))

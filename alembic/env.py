@@ -56,7 +56,10 @@ def do_run_migrations(connection) -> None:
 
 async def run_migrations_online() -> None:
     """Запуск миграций в online-режиме через async-движок."""
-    connectable = create_async_engine(DB_URL)
+    # SQLite: занятую базу (бот или API пишут) ждём до 30 секунд, а не 5 по умолчанию —
+    # иначе миграция может оборваться на середине «database is locked».
+    connect_args = {"timeout": 30} if DB_URL.startswith("sqlite") else {}
+    connectable = create_async_engine(DB_URL, connect_args=connect_args)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

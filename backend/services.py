@@ -501,15 +501,17 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
     )
 
 
-async def read_settings(repo: Repository, user: User) -> SettingsResponse:
-    """Настройки пользователя (для `GET /settings`)."""
-    return serialize_settings(user, await repo.is_admin(user.telegram_id))
-
-
-async def update_settings(
-    repo: Repository, user: User, payload: SettingsUpdate
+async def read_settings(
+    repo: Repository, user: User, *, via_telegram: bool
 ) -> SettingsResponse:
-    """Обновить переданные настройки и вернуть актуальное состояние.
+    """Настройки пользователя (для `GET /settings`). Вход в админ-панель виден только в
+    Mini App (`via_telegram`): веб-сессия админку не открывает (см. get_admin_user)."""
+    is_admin = via_telegram and await repo.is_admin(user.telegram_id)
+    return serialize_settings(user, is_admin)
+
+
+async def update_settings(repo: Repository, user: User, payload: SettingsUpdate) -> None:
+    """Обновить переданные настройки (ответ собирает read_settings).
 
     Меняются только непустые поля. Пояс задаётся городом (`timezone_city` — пояс
     города) или зоной либо смещением (`timezone` — пояс без города).
@@ -543,7 +545,6 @@ async def update_settings(
     changed = sorted(payload.model_dump(exclude_none=True))
     if changed:
         await repo.log_action(user.telegram_id, "settings", detail=",".join(changed))
-    return await read_settings(repo, user)
 
 
 async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> ReviewCreated:

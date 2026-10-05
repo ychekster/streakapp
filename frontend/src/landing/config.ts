@@ -45,6 +45,18 @@ export const INSTALL_PROMPT_WAIT_MS = 3500;
 /** Analytics source when the link has none. */
 export const DEFAULT_SRC = "direct";
 
+/** Android: the install link leads into another account while this browser's guest
+ *  already has habits — asked before they move (web/handoff.ts). The same words as the
+ *  app's `handoffMerge*` in strings.ts — change both; the install page keeps its own
+ *  copy so that it does not load the app's texts. */
+export const HANDOFF_MERGE_QUESTION = {
+  title: "Войти в аккаунт по ссылке?",
+  message:
+    "Привычки с этого телефона перейдут в аккаунт Telegram, из которого открыта ссылка. Если ссылку вам прислал кто-то другой, нажмите «Отмена».",
+  confirmLabel: "Войти",
+  cancelLabel: "Отмена",
+};
+
 /** Glyph of an install step's icon tile (see StepIcon in Landing.tsx); `app` — the app
  *  icon itself. */
 export type StepIcon = "browser" | "share" | "addSquare" | "add" | "more" | "app";

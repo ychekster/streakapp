@@ -16,13 +16,17 @@ import { openExternalLink } from "../telegram/webapp";
 export interface HandoffLink {
   ready: boolean;
   failed: boolean;
-  /** Open the install page in the browser (fetches a link first if none is ready). */
-  open: () => void;
+  /** Why the last attempt failed (an API error shows its own text). */
+  error: unknown;
+  /** Open the install page in the browser (fetches a link first if none is ready);
+   *  `onFailed` — no link could be had (the caller shows why). */
+  open: (onFailed?: () => void) => void;
 }
 
 export function useHandoffLink(src: string, enabled: boolean): HandoffLink {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<unknown>(null);
   const fetchedAt = useRef(0);
 
   const refresh = useCallback(async (): Promise<string | null> => {
@@ -31,9 +35,13 @@ export function useHandoffLink(src: string, enabled: boolean): HandoffLink {
       fetchedAt.current = Date.now();
       setUrl(handoff.url);
       setFailed(false);
+      setError(null);
       return handoff.url;
-    } catch {
+    } catch (reason) {
+      // An old link is not kept: the next tap asks again (and says why if it fails).
+      setUrl(null);
       setFailed(true);
+      setError(reason);
       return null;
     }
   }, [src]);
@@ -47,22 +55,27 @@ export function useHandoffLink(src: string, enabled: boolean): HandoffLink {
     return () => window.clearInterval(timer);
   }, [enabled, refresh]);
 
-  const open = useCallback(() => {
-    const fresh = url !== null && Date.now() - fetchedAt.current < HANDOFF_REFRESH_MS;
-    if (fresh && url) {
-      openExternalLink(url);
-      setUrl(null);
-      void refresh();
-      return;
-    }
-    void refresh().then((next) => {
-      if (next) {
-        openExternalLink(next);
+  const open = useCallback(
+    (onFailed?: () => void) => {
+      const fresh = url !== null && Date.now() - fetchedAt.current < HANDOFF_REFRESH_MS;
+      if (fresh && url) {
+        openExternalLink(url);
         setUrl(null);
         void refresh();
+        return;
       }
-    });
-  }, [refresh, url]);
+      void refresh().then((next) => {
+        if (next) {
+          openExternalLink(next);
+          setUrl(null);
+          void refresh();
+        } else {
+          onFailed?.();
+        }
+      });
+    },
+    [refresh, url],
+  );
 
-  return { ready: url !== null, failed, open };
+  return { ready: url !== null, failed, error, open };
 }

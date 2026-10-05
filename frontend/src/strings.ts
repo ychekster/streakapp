@@ -85,6 +85,16 @@ const RU = {
   accountLogoutCancel: "Отмена",
   accountActionFailed: "Что-то пошло не так. Попробуйте ещё раз чуть позже.",
   accountLogoutFailed: "Не удалось выйти",
+  accountLogoutUnsent: "Не все изменения успели сохраниться. Проверьте интернет и попробуйте ещё раз.",
+  handoffMergeTitle: "Войти в аккаунт по ссылке?",
+  handoffMergeMessage:
+    "Привычки с этого телефона перейдут в аккаунт Telegram, из которого открыта ссылка. Если ссылку вам прислал кто-то другой, нажмите «Отмена».",
+  handoffMergeConfirm: "Войти",
+  handoffMergeCancel: "Отмена",
+  accountLogoutEverywhere: "Выйти на всех устройствах",
+  accountLogoutEverywhereTitle: "Выйти на всех устройствах?",
+  accountLogoutEverywhereMessage:
+    "Приложение выйдет из аккаунта на всех телефонах, где вы входили, и уведомления туда приходить перестанут. В Telegram всё останется как есть.",
   accountLinkFailed: "Не удалось привязать Telegram",
   notificationsRow: "Уведомления",
   notificationsDenied:
@@ -220,6 +230,7 @@ const RU = {
     user_blocked: "Доступ к приложению ограничен",
     invalid_session: "Сессия устарела — откройте приложение заново",
     handoff_invalid: "Ссылка устарела — откройте её заново из Telegram",
+    stale_init_data: "Закройте и откройте приложение заново — ссылка выдаётся только сразу после открытия",
     login_expired: "Вход устарел — попробуйте ещё раз",
     account_conflict: "Этот вход уже привязан к другому аккаунту Telegram",
     telegram_already_linked: "К аккаунту уже привязан другой Telegram",
@@ -297,6 +308,16 @@ const EN: Strings = {
   accountLogoutCancel: "Cancel",
   accountActionFailed: "Something went wrong. Please try again a bit later.",
   accountLogoutFailed: "Couldn’t log out",
+  accountLogoutUnsent: "Some changes haven’t been saved yet. Check your connection and try again.",
+  handoffMergeTitle: "Log in with this link?",
+  handoffMergeMessage:
+    "The habits on this phone will move to the Telegram account the link was opened from. If someone else sent you the link, tap Cancel.",
+  handoffMergeConfirm: "Log In",
+  handoffMergeCancel: "Cancel",
+  accountLogoutEverywhere: "Log Out on All Devices",
+  accountLogoutEverywhereTitle: "Log out on all devices?",
+  accountLogoutEverywhereMessage:
+    "The app will log out on every phone where you logged in, and notifications will stop coming there. Telegram stays as it is.",
   accountLinkFailed: "Couldn’t link Telegram",
   notificationsRow: "Notifications",
   notificationsDenied:
@@ -420,6 +441,7 @@ const EN: Strings = {
     user_blocked: "Your access to the app has been restricted",
     invalid_session: "Your session has expired — reopen the app",
     handoff_invalid: "This link has expired — open it again from Telegram",
+    stale_init_data: "Close and reopen the app — the link is only issued right after opening it",
     login_expired: "The login has expired — please try again",
     account_conflict: "This login is already linked to another Telegram account",
     telegram_already_linked: "Another Telegram account is already linked",

@@ -27,8 +27,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from backend.config import Settings, load_settings
+from backend.config import Settings, load_settings, production_warnings
 from backend.constants import (
+    ADDRESS_RATE_LIMIT,
     BROADCAST_UPLOAD_MAX_BYTES,
     BROADCAST_UPLOAD_PATH,
     EVENT_RATE_LIMIT,
@@ -85,6 +86,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Жизненный цикл приложения: поднять подключение к БД и закрыть его при остановке."""
     settings: Settings = load_settings()
     app.state.settings = settings
+    for problem in production_warnings(settings):
+        logger.warning("Configuration: {}", problem)
     app.state.rate_limiter = RateLimiter(
         settings.rate_limit_burst, settings.rate_limit_per_second
     )
@@ -92,6 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # first launch of the installed app) and funnel events from the landing.
     app.state.guest_limiter = RateLimiter(*GUEST_RATE_LIMIT)
     app.state.event_limiter = RateLimiter(*EVENT_RATE_LIMIT)
+    app.state.address_limiter = RateLimiter(*ADDRESS_RATE_LIMIT)
     app.state.database = Database(
         settings.database_url,
         pool_size=settings.db_pool_size,
@@ -182,7 +186,11 @@ def run() -> None:
     import uvicorn
 
     settings = load_settings()
-    uvicorn.run(app, host=settings.host, port=settings.port, server_header=False)
+    # Без журнала доступа uvicorn: запросы и так видит nginx, а адреса со ссылками
+    # входа (`?h=…`) не должны оседать в логах.
+    uvicorn.run(
+        app, host=settings.host, port=settings.port, server_header=False, access_log=False
+    )
 
 
 if __name__ == "__main__":

@@ -86,12 +86,14 @@ export type ApiErrorCode =
   // Web app: sessions and logins.
   | "invalid_session"
   | "handoff_invalid"
+  | "handoff_merge"
   | "login_expired"
   | "account_conflict"
   | "telegram_already_linked"
   | "invalid_telegram_login"
   | "web_only"
   | "telegram_only"
+  | "stale_init_data"
   | "push_unavailable"
   | "push_not_delivered";
 

@@ -183,7 +183,9 @@ export function SettingsScreen({
               icon={<InstallIcon />}
               iconColor="indigo"
               label={strings.settingsInstall}
-              onPress={install.ready ? install.open : () => onOpen("install")}
+              onPress={
+                install.ready ? () => install.open(() => onOpen("install")) : () => onOpen("install")
+              }
             >
               <Disclosure />
             </ListItem>

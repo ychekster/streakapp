@@ -41,6 +41,6 @@ async def sync(
     return SyncResponse(
         results=outcome.results,
         habits=await list_habits(repo, db_user),
-        settings=await read_settings(repo, db_user),
+        settings=await read_settings(repo, db_user, via_telegram=principal.telegram is not None),
         today=user_today(db_user),
     )

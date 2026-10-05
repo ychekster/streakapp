@@ -210,9 +210,15 @@ async def get_db_user(
 
 async def get_admin_user(
     db_user: User = Depends(get_db_user),
+    principal: Principal = Depends(get_principal),
     repo: Repository = RepositoryDep,
 ) -> User:
-    """Текущий пользователь, если он администратор; иначе 403. Нужна каждому /admin/*."""
-    if not await repo.is_admin(db_user.telegram_id):
+    """Текущий пользователь, если он администратор; иначе 403. Нужна каждому /admin/*.
+
+    Админ-панель открывается только из Mini App — каждый её запрос подписан Telegram
+    (initData). Сессия веб-приложения живёт долго и хранится в браузере, поэтому прав
+    администратора не даёт, даже если аккаунт — администратора.
+    """
+    if principal.telegram is None or not await repo.is_admin(db_user.telegram_id):
         raise ApiError(403, "admin_required", "Нужны права администратора")
     return db_user

@@ -7,8 +7,10 @@
 заблокировал бота. Плюс напоминания, рассылки, события страницы установки, удалённые
 привычки — всё, что показывает панель.
 
-У тестовых пользователей свои диапазоны id (Telegram — от 7·10¹², веб — от −7·10¹²),
-поэтому их легко убрать: `--remove`. Сообщения им бот отправить не сможет (таких чатов
+У тестовых пользователей свои диапазоны id (Telegram — от 7·10¹², веб — от −7·10¹²,
+по миллиону; настоящие id туда не попадают), поэтому их легко убрать: `--remove`. На
+сервере скрипт не запускается: адрес приложения в .env должен быть локальным (туннель
+*.trycloudflare.com или localhost). Сообщения им бот отправить не сможет (таких чатов
 нет) — для проверки панели это не мешает.
 
     venv/Scripts/python.exe scripts/backup_db.py            # сначала копия базы
@@ -35,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import delete, or_  # noqa: E402
 
 from backend.clock import local_day  # noqa: E402
-from backend.config import load_settings  # noqa: E402
+from backend.config import is_local_stack, load_settings  # noqa: E402
 from backend.database import Database  # noqa: E402
 from backend.models import (  # noqa: E402
     ActivityLog,
@@ -57,6 +59,9 @@ from backend.repository import utc_now  # noqa: E402
 
 TELEGRAM_BASE = 7_000_000_000_000
 WEB_BASE = -7_000_000_000_000
+# Тестовые id — только BASE ± SPAN: удаление не выходит за этот диапазон, а настоящие
+# гости веб-приложения получают id не дальше −10¹² (repository._WEB_ID_MAX).
+SPAN = 1_000_000
 DAYS = 120
 
 FIRST_NAMES = (
@@ -152,7 +157,10 @@ class Batch:
 
 async def remove(database: Database) -> None:
     def seeded(column):  # noqa: ANN001, ANN202
-        return or_(column >= TELEGRAM_BASE, column <= WEB_BASE)
+        return or_(
+            column.between(TELEGRAM_BASE, TELEGRAM_BASE + SPAN - 1),
+            column.between(WEB_BASE - SPAN + 1, WEB_BASE),
+        )
 
     async with database.session_factory() as session:
         for model in (
@@ -418,7 +426,12 @@ async def main() -> None:
     parser.add_argument("--seed", type=int, default=42, help="зерно случайности")
     parser.add_argument("--remove", action="store_true", help="только убрать тестовых")
     args = parser.parse_args()
-    database = Database(load_settings().database_url)
+    if not 0 < args.users < SPAN:
+        sys.exit(f"--users: от 1 до {SPAN - 1}")
+    settings = load_settings()
+    if not is_local_stack(settings):
+        sys.exit(f"Адрес приложения {settings.web_base_url!r} — не локальный стек: скрипт только для локальной базы.")
+    database = Database(settings.database_url)
     try:
         await remove(database)
         if args.remove:

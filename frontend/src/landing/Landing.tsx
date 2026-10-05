@@ -27,8 +27,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 
 import { botLinkWithSource, installSource, track } from "../web/analytics";
 import { API_BASE_URL } from "../api/client";
-import { redeemHandoff } from "../api/web";
 import { devicePlatform, inAppBrowser } from "../platform";
+import { redeemHandoffLink } from "../web/handoff";
 import { setSessionToken } from "../web/session";
 import {
   ANDROID_MANUAL_STEPS,
@@ -36,6 +36,7 @@ import {
   INSTALL_PROMPT_WAIT_MS,
   IOS_INSTALL,
   DEFAULT_SRC,
+  HANDOFF_MERGE_QUESTION,
   TELEGRAM_BOT_URL,
   type InstallStep,
   type StepIcon as StepIconName,
@@ -101,9 +102,9 @@ function useHandoff(): void {
       carryHandoffToInstalledApp(token);
       return;
     }
-    redeemHandoff(token)
+    redeemHandoffLink(token, HANDOFF_MERGE_QUESTION)
       .then((result) => {
-        if (result.session) {
+        if (result?.session) {
           setSessionToken(result.session.token);
         }
       })
