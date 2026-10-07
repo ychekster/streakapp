@@ -58,7 +58,7 @@ const RU = {
     "Отметки ставятся за вчерашний день, а не за сегодняшний. Удобно, если вы подводите итоги дня на следующее утро.",
   settingsReview: "Написать отзыв",
   // Напоминание «Пора отметить привычки»: ряд настроек и его экран.
-  settingsCheckinReminder: "Напоминать отмечать",
+  settingsCheckinReminder: "Напоминание",
   settingsCheckinReminderOff: "Выкл.",
   checkinReminderTitle: "Напоминание",
   checkinReminderToggle: "Напоминать отмечать",
@@ -308,7 +308,7 @@ const EN: Strings = {
   settingsMarkYesterdayFooter:
     "Habits are marked for the previous day instead of today. Handy if you review your day the next morning.",
   settingsReview: "Write a Review",
-  settingsCheckinReminder: "Check-in Reminder",
+  settingsCheckinReminder: "Reminder",
   settingsCheckinReminderOff: "Off",
   checkinReminderTitle: "Reminder",
   checkinReminderToggle: "Remind Me to Check In",

@@ -7,9 +7,10 @@
  *  4. Web app only: «Выйти из аккаунта». Both: «Выйти на всех устройствах» (a lost phone:
  *     every web session of the account ends) — hidden while no device is logged in.
  *
- * The account is loaded again when the screen opens (App); until it arrives the server's
- * values stay empty. Logging out asks first. In the web app the app then continues as a
- * new guest (web/login.ts logOut) and `onLoggedOut` reloads everything; in the Mini App
+ * The account is loaded when Settings opens and again when this screen opens (App); until
+ * it arrives the server's values stay empty. Logging out asks first. In the web app the
+ * app then continues as a new guest (web/login.ts logOut) and `onLoggedOut` reloads
+ * everything; in the Mini App
  * only the web sessions end and `onLoggedOutEverywhere` reloads the count. A failure is
  * shown in a dialog.
  */

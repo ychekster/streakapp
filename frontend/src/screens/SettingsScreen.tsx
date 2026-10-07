@@ -6,8 +6,8 @@
  *     «!» (the Settings tab has it too) and a footer; a tap opens the bot to link
  *     Telegram — the only login.
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
- *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминать
- *     отмечать» — время или «Выкл.», открывает CheckinReminderScreen. Under them:
+ *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминание»
+ *     — время или «Выкл.», открывает CheckinReminderScreen. Under them:
  *     in Telegram «Уведомления» — a switch: the bot's reminders and broadcasts in
  *     Telegram (account setting `telegram_notifications`; turning it off asks first),
  *     and «Добавить на рабочий стол» (opens the install page in the phone's browser

@@ -65,12 +65,26 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
 // Last known state of this device's notifications in this run (null — not known yet).
 let lastEnabled: boolean | null = null;
 
+// A subscription being made right now (e.g. a reminder just turned notifications on):
+// Settings shows the switch on at once instead of animating it on when it is done.
+let subscribing: Promise<boolean> | null = null;
+
 /** Subscribe this device and store the subscription for the current account. Safe to
  *  repeat (re-associates the device after a login switch). False — not possible. */
-export async function subscribePush(): Promise<boolean> {
+export function subscribePush(): Promise<boolean> {
   if (pushPermission() !== "granted" || optedOut()) {
-    return false;
+    return Promise.resolve(false);
   }
+  const current = subscribe().finally(() => {
+    if (subscribing === current) {
+      subscribing = null;
+    }
+  });
+  subscribing = current;
+  return current;
+}
+
+async function subscribe(): Promise<boolean> {
   try {
     const config = await fetchWebConfig();
     if (!config.vapid_public_key) {
@@ -91,15 +105,21 @@ export async function subscribePush(): Promise<boolean> {
   }
 }
 
-
 /** Best guess right now, without waiting — for the switch's first frame, so it does not
  *  animate from «off» every time Settings opens. */
 export function pushEnabledGuess(): boolean {
+  if (subscribing && !optedOut()) {
+    return true;
+  }
   return lastEnabled ?? (pushPermission() === "granted" && !optedOut());
 }
 
 /** Notifications are on for this device: allowed, not turned off, and subscribed. */
 export async function pushEnabled(): Promise<boolean> {
+  if (subscribing && !optedOut()) {
+    // Being turned on: the answer is how that ends, not the half-made subscription.
+    await subscribing;
+  }
   if (pushPermission() !== "granted" || optedOut()) {
     lastEnabled = false;
     return false;

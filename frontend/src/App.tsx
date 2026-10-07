@@ -434,6 +434,14 @@ export function App() {
       loadAccount();
     }
   }, [settingsPage, loadAccount]);
+  // Mini App: nothing is kept on the device — load it when Settings opens, so «Аккаунт»
+  // opens with its devices already there instead of them appearing a moment later.
+  const settingsOpen = tab === "settings";
+  useEffect(() => {
+    if (!web && settingsOpen) {
+      loadAccount();
+    }
+  }, [web, settingsOpen, loadAccount]);
 
   // A login switched or merged accounts: everything on screen belongs to the new one.
   const reloadAccountData = useCallback(() => {
