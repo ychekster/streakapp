@@ -1,0 +1,148 @@
+/* Поле отзыва: текст во всю ширину карточки, под ним справа — кнопка отправки. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  padding: var(--list-row-pad-y) var(--space-card-padding) var(--review-send-inset);
+}
+
+/* Высоту по тексту задаёт экран (поле растёт вместе с ним). Шрифт не мельче 16px —
+   иначе iOS увеличивает страницу при фокусе. */
+.field {
+  width: 100%;
+  min-height: var(--review-field-min-height);
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  line-height: var(--composer-line-height);
+  color: var(--color-text-primary);
+}
+
+.field::placeholder {
+  color: var(--color-placeholder);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  /* Кнопка ближе к правому краю, чем текст: в угол скругления, как в Telegram. */
+  margin-right: calc(var(--review-send-inset) - var(--space-card-padding));
+}
+
+/* Круглая кнопка с самолётиком: пустое поле — серая, есть текст — цвет акцента. */
+.send {
+  width: var(--review-send-size);
+  height: var(--review-send-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill);
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.ready {
+  background-color: var(--color-accent);
+  color: var(--color-on-habit);
+}
+
+.send[data-pressed]:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.send:disabled {
+  cursor: default;
+}
+
+/* Самолётик чуть сдвинут: оптический центр у него правее и выше геометрического. */
+.plane {
+  width: var(--review-send-icon-size);
+  height: var(--review-send-icon-size);
+  transform: translate(-1px, 1px);
+}
+
+.spinner {
+  width: var(--review-send-icon-size);
+  height: var(--review-send-icon-size);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Пояснение и ошибка под карточкой — как подпись под группой списка. */
+.footer,
+.error {
+  margin-top: var(--space-list-footer-top);
+  padding: 0 var(--space-card-padding);
+  line-height: var(--line-height-list-footer);
+}
+
+.footer {
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  font-size: var(--font-size-secondary);
+  color: var(--color-danger);
+}
+
+/* История: карточка на отзыв. */
+.compose + section {
+  margin-top: var(--space-section-gap);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-card-gap);
+}
+
+.review {
+  padding: var(--space-card-padding);
+}
+
+.date,
+.replyLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+.text {
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Ответ администратора — в серой «выноске» под отзывом. */
+.reply {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--review-reply-radius);
+  background-color: var(--color-fill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}

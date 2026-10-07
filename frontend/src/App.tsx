@@ -675,7 +675,7 @@ export function App() {
         );
       }
       if (settingsPage === "review") {
-        return <ReviewScreen onClose={hideSettingsPage} />;
+        return <ReviewScreen />;
       }
       if (settingsPage === "privacy") {
         return <LegalScreen key={settingsPage} doc={strings.privacyPolicy} />;

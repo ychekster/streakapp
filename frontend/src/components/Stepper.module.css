@@ -1,0 +1,47 @@
+/* Степпер iOS (UIStepper): 94×32, серая таблетка, тонкий разделитель посередине. */
+
+.stepper {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: var(--stepper-height);
+  border-radius: var(--stepper-radius);
+  background-color: var(--color-fill);
+  overflow: hidden;
+}
+
+.button {
+  width: calc(var(--stepper-width) / 2);
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.button svg {
+  width: var(--stepper-icon-size);
+  height: var(--stepper-icon-size);
+}
+
+.button:active:not(:disabled) {
+  background-color: var(--color-fill);
+}
+
+.button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.divider {
+  width: 1px;
+  height: var(--stepper-divider-height);
+  background-color: var(--color-stepper-divider);
+}

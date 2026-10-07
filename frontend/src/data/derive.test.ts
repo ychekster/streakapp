@@ -52,6 +52,8 @@ function habit(fields: Partial<Habit> = {}): Habit {
     color: "blue",
     frozen_since: null,
     frozen_history: history([]),
+    times_per_day: 1,
+    today_count: 0,
     ...fields,
   };
 }
@@ -102,6 +104,25 @@ describe("schedule", () => {
 });
 
 describe("deriveView", () => {
+  it("counts a habit done several times a day", () => {
+    const base = habit({ times_per_day: 3, today_count: 1 });
+    expect(view(snapshot([base])).habits[0]).toBe(base);
+    const two = view(snapshot([base]), [
+      { type: "mark", task: 1, date: TODAY, done: false, count: 2 },
+    ]).habits[0];
+    expect(two).toMatchObject({ today_count: 2, done_today: false, total_done: 0 });
+    const three = view(snapshot([base]), [
+      { type: "mark", task: 1, date: TODAY, done: true, count: 3 },
+    ]).habits[0];
+    expect(three).toMatchObject({ today_count: 3, done_today: true, current_streak: 1 });
+    // A lower goal: the day's count already reaches it.
+    const lowered = view(snapshot([base]), [
+      { type: "update", task: 1, habit: { name: "Зарядка", frequency_type: "daily", days: [], start_date: null, reminder_time: null, color: "blue", times_per_day: 2 } },
+      { type: "mark", task: 1, date: TODAY, done: true, count: 2 },
+    ]).habits[0];
+    expect(lowered).toMatchObject({ times_per_day: 2, today_count: 2, done_today: true });
+  });
+
   it("returns the server's habits as they are when nothing changed", () => {
     const base = habit();
     expect(view(snapshot([base])).habits[0]).toBe(base);
@@ -221,6 +242,7 @@ describe("deriveView", () => {
         start_date: null,
         reminder_time: "09:00",
         color: "green",
+        times_per_day: 1,
       },
     };
     const result = view(snapshot([base]), [
@@ -229,7 +251,7 @@ describe("deriveView", () => {
       {
         type: "update",
         task: 1,
-        habit: { name: "Бег", frequency_type: "specific_days", days: ["sun"], start_date: null, reminder_time: null, color: "red" },
+        habit: { name: "Бег", frequency_type: "specific_days", days: ["sun"], start_date: null, reminder_time: null, color: "red", times_per_day: 1 },
       },
     ]).habits;
     expect(result.map((item) => [item.id, item.name, item.scheduled_today])).toEqual([

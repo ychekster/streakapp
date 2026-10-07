@@ -1,9 +1,14 @@
-/* Кнопка отметки: 28px, обводка 2px цветом привычки; выполнено — залитый кружок с галочкой. */
+/* Кнопка отметки: 30px, обводка 2⅔px цветом привычки; выполнено — залитый кружок с
+   галочкой. В раскладке занимает --check-box (28px): лишнее уходит в отрицательные
+   отступы, правый край — на прежнем месте. */
 
 .button {
   flex-shrink: 0;
   width: var(--check-size);
   height: var(--check-size);
+  margin: calc((var(--check-box) - var(--check-size)) / 2) 0
+    calc((var(--check-box) - var(--check-size)) / 2)
+    calc(var(--check-box) - var(--check-size));
   border-radius: var(--radius-pill);
   border: var(--check-stroke) solid rgb(var(--habit-rgb));
   background-color: transparent;
@@ -43,4 +48,54 @@
 .done .check {
   opacity: 1;
   transform: scale(1);
+}
+
+/* --- Привычка «несколько раз в день» --- */
+
+.multi {
+  position: relative;
+  /* Пока день не выполнен — бледная обводка, как у неактивной кнопки; выполненные разы
+     закрашивают её дугой (.arc). */
+  border-color: rgba(var(--habit-rgb), var(--check-faded-opacity));
+}
+
+/* Неактивная уже приглушена целиком — обводка обычная, чтобы не бледнеть дважды. */
+.multi.disabled,
+.multi.done {
+  border-color: rgb(var(--habit-rgb));
+}
+
+/* SVG на всю кнопку вместе с обводкой (координаты — 30×30). */
+.progress {
+  position: absolute;
+  inset: calc(-1 * var(--check-stroke));
+  width: var(--check-size);
+  height: var(--check-size);
+  pointer-events: none;
+}
+
+.check {
+  position: relative;
+}
+
+/* Дуга выполненных раз — поверх бледной обводки, той же толщины. */
+.arc {
+  fill: none;
+  stroke: rgb(var(--habit-rgb));
+  stroke-width: var(--check-stroke);
+  stroke-linecap: round;
+}
+
+/* Плюс — полным цветом привычки, как обводка выполненного дня. */
+.plus {
+  fill: none;
+  stroke: rgb(var(--habit-rgb));
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transition: opacity var(--transition-fast);
+}
+
+/* У выполненного дня вместо плюса — галочка, сразу (как у обычной привычки). */
+.done .plus {
+  opacity: 0;
 }

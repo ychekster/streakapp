@@ -135,9 +135,9 @@ const RU = {
   reviewDescription: "Расскажите, что вам нравится и что можно сделать лучше.",
   reviewPlaceholder: "Ваш отзыв",
   reviewSend: "Отправить",
-  reviewThanksTitle: "Спасибо за отзыв!",
-  reviewThanksMessage: "Он поможет сделать приложение лучше.",
-  reviewThanksDone: "Готово",
+  // История своих отзывов под полем и ответ администратора в ней.
+  reviewHistoryHeading: "Ваши отзывы",
+  reviewReplyLabel: "Ответ",
   reviewFailed: "Не удалось отправить отзыв. Попробуйте ещё раз.",
 
   // --- Выбор часового пояса ---
@@ -184,6 +184,9 @@ const RU = {
   checkDone: (name: string) => `${name}: выполнено`,
   checkNotScheduled: (name: string) => `${name}: не запланировано`,
   checkFrozen: (name: string) => `${name}: заморожено`,
+  // Привычка «несколько раз в день»: нажатие считает ещё один раз.
+  checkCount: (name: string, count: number, total: number) =>
+    `Отметить ещё раз: ${name} (${count} из ${total})`,
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
@@ -203,6 +206,11 @@ const RU = {
   formStartDate: "Начало",
   dateToday: "Сегодня",
   dateTomorrow: "Завтра",
+  // Цель: сколько раз в день выполнить привычку («3 / день»), степпер −/+.
+  formGoalHeading: "Цель",
+  formTimesPerDay: (count: number) => `${count} / день`,
+  formTimesLess: "Меньше раз в день",
+  formTimesMore: "Больше раз в день",
   formReminderHeading: "Напоминание",
   formReminderToggle: "Напоминать",
   formReminderTime: "Время",
@@ -376,9 +384,8 @@ const EN: Strings = {
   reviewDescription: "Tell us what you like and what could be better.",
   reviewPlaceholder: "Your review",
   reviewSend: "Send",
-  reviewThanksTitle: "Thanks for your review!",
-  reviewThanksMessage: "It helps us make the app better.",
-  reviewThanksDone: "Done",
+  reviewHistoryHeading: "Your Reviews",
+  reviewReplyLabel: "Reply",
   reviewFailed: "Couldn’t send your review. Please try again.",
 
   timezoneTitle: "Time Zone",
@@ -421,6 +428,8 @@ const EN: Strings = {
   checkDone: (name: string) => `${name}: done`,
   checkNotScheduled: (name: string) => `${name}: not scheduled`,
   checkFrozen: (name: string) => `${name}: frozen`,
+  checkCount: (name: string, count: number, total: number) =>
+    `Mark once more: ${name} (${count} of ${total})`,
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
@@ -438,6 +447,10 @@ const EN: Strings = {
   formStartDate: "Starts",
   dateToday: "Today",
   dateTomorrow: "Tomorrow",
+  formGoalHeading: "Goal",
+  formTimesPerDay: (count: number) => `${count} / day`,
+  formTimesLess: "Fewer times a day",
+  formTimesMore: "More times a day",
   formReminderHeading: "Reminder",
   formReminderToggle: "Remind Me",
   formReminderTime: "Time",

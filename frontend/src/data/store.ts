@@ -496,10 +496,25 @@ export const dataStore = {
     return state;
   },
 
-  /** Mark or unmark the habit for the marking day. */
+  /** Mark or unmark the habit for the marking day. A habit done several times a day
+   *  counts one more time per press; once done, a press starts the day over. */
   toggle(id: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (habit?.scheduled_today && habit.frozen_since === null && viewDay) {
+    if (!habit?.scheduled_today || habit.frozen_since !== null || !viewDay) {
+      return;
+    }
+    if (habit.times_per_day > 1) {
+      const count = habit.done_today
+        ? 0
+        : Math.min(habit.today_count + 1, habit.times_per_day);
+      enqueue({
+        type: "mark",
+        task: keyOf(id),
+        date: viewDay,
+        done: count >= habit.times_per_day,
+        count,
+      });
+    } else {
       enqueue({ type: "mark", task: keyOf(id), date: viewDay, done: !habit.done_today });
     }
   },

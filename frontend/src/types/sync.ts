@@ -9,8 +9,9 @@ export type TaskKey = number | string;
 
 /** One change made on the device, in the order it was made. */
 export type SyncOperation =
-  /** Mark a day done (`done: true`) or clear it. */
-  | { type: "mark"; task: TaskKey; date: string; done: boolean }
+  /** Mark a day done (`done: true`) or clear it. A habit done several times a day also
+   *  sends `count` — times done that day (the server sets `done` from it). */
+  | { type: "mark"; task: TaskKey; date: string; done: boolean; count?: number }
   /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
    *  ordinary day again. */
   | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }

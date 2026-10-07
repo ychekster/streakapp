@@ -195,6 +195,12 @@ class Task(Base):
         server_default=DEFAULT_HABIT_COLOR,
         nullable=False,
     )
+    # Сколько раз в день нужно выполнить привычку: 1 — обычная (одно нажатие — день
+    # выполнен); больше — каждое нажатие считает раз (TaskLog.count), день выполнен, когда
+    # набрано столько раз.
+    times_per_day: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
     # Id, который дало привычке устройство, создав её без связи (POST /sync): по нему
     # повтор создания не заводит вторую привычку, а отметки новой привычки её находят.
     client_ref: Mapped[str | None] = mapped_column(
@@ -244,6 +250,9 @@ class TaskLog(Base):
         nullable=False,
     )
     marked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Сколько раз привычка «несколько раз в день» выполнена за день; день выполнен (done),
+    # когда набрано Task.times_per_day. У обычных отметок — None.
+    count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

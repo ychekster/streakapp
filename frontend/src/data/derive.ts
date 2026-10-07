@@ -91,7 +91,7 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
 /** Form fields of a habit as the server stores them. */
 function habitFields(input: HabitInput): Pick<
   Habit,
-  "name" | "frequency_type" | "days" | "start_date" | "reminder_time" | "color"
+  "name" | "frequency_type" | "days" | "start_date" | "reminder_time" | "color" | "times_per_day"
 > {
   return {
     name: cleanHabitName(input.name),
@@ -103,6 +103,8 @@ function habitFields(input: HabitInput): Pick<
     start_date: input.frequency_type === "every_other_day" ? input.start_date : null,
     reminder_time: input.reminder_time,
     color: input.color,
+    // Kept on the device before "several times a day" existed: once.
+    times_per_day: input.times_per_day ?? 1,
   };
 }
 
@@ -207,6 +209,8 @@ interface Draft {
   base: Habit | null;
   fields: ReturnType<typeof habitFields> | null;
   marks: Map<string, boolean>;
+  /** Times done on a day marked on the device (a mark without `count` — 0, as the server). */
+  counts: Map<string, number>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
 }
@@ -222,8 +226,9 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     !draft.freezes &&
     today === snapshotToday &&
     base.id === id &&
-    // Kept on the device before freezing existed: counted anew.
-    base.frozen_history !== undefined
+    // Kept on the device before freezing / "several times a day" existed: counted anew.
+    base.frozen_history !== undefined &&
+    base.today_count !== undefined
   ) {
     return base;
   }
@@ -301,6 +306,9 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     total_done: Math.max(0, total),
     frozen_since: freezes.since,
     frozen_history: frozenHistory,
+    times_per_day: fields.times_per_day,
+    today_count:
+      draft.counts.get(today) ?? (base && today === snapshotToday ? base.today_count ?? 0 : 0),
   };
 }
 
@@ -334,6 +342,7 @@ export function deriveView(
     base: habit,
     fields: null,
     marks: new Map(),
+    counts: new Map(),
     freezes: null,
   }));
   for (const op of ops) {
@@ -343,6 +352,7 @@ export function deriveView(
         base: null,
         fields: habitFields(op.habit),
         marks: new Map(),
+        counts: new Map(),
         freezes: null,
       });
     } else if (op.type === "update" || op.type === "mark" || op.type === "freeze") {
@@ -350,7 +360,15 @@ export function deriveView(
       if (draft && op.type === "update") {
         draft.fields = habitFields(op.habit);
       } else if (draft && op.type === "mark") {
-        draft.marks.set(op.date, op.done);
+        // As the server: with a count, the day is done once the habit's times are reached.
+        const fields = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
+        if (op.count === undefined) {
+          draft.counts.set(op.date, 0);
+          draft.marks.set(op.date, op.done);
+        } else {
+          draft.counts.set(op.date, op.count);
+          draft.marks.set(op.date, op.count >= (fields?.times_per_day ?? 1));
+        }
       } else if (draft && op.type === "freeze") {
         draft.freezes ??= serverFreezes(draft.base);
         applyFreeze(draft.freezes, op, draft.base);

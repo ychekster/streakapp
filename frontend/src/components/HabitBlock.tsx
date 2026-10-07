@@ -63,6 +63,8 @@ export const HabitBlock = memo(function HabitBlock({
           habitName={habit.name}
           disabled={!interactive}
           frozen={habit.frozen_since !== null}
+          total={habit.times_per_day}
+          count={habit.today_count}
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>

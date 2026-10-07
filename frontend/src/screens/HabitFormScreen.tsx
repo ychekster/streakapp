@@ -9,6 +9,9 @@
  *  - Частота — каждый день, по дням или через день; «по дням» добавляет выбор дней
  *    недели, «через день» — дату начала (системный календарь): с неё привычка идёт
  *    каждый второй день;
+ *  - Цель — сколько раз в день выполнить привычку («1 / день», степпер −/+). Больше
+ *    одного раза — кружок отметки бледный с плюсом, каждое нажатие закрашивает его часть
+ *    (CheckButton);
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py);
  *    В веб-приложении вместо бота — уведомление. Включённое напоминание (у новой
@@ -35,12 +38,14 @@ import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
+import { Stepper } from "../components/Stepper";
 import { Switch } from "../components/Switch";
 import { TimeField } from "../components/TimeField";
 import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_NAME_MAX_LENGTH,
   DEFAULT_REMINDER_TIME,
+  MAX_TIMES_PER_DAY,
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
@@ -81,6 +86,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     habit?.reminder_time ?? DEFAULT_REMINDER_TIME,
   );
   const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
+  const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
@@ -161,6 +167,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       start_date: frequency === "every_other_day" ? startDate : null,
       reminder_time: reminderOn ? reminderTime : null,
       color,
+      times_per_day: timesPerDay,
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
@@ -239,6 +246,21 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
                 />
               </ListItem>
             ) : null}
+          </Card>
+        </Section>
+
+        <Section variant="form" title={strings.formGoalHeading}>
+          <Card>
+            <ListItem label={strings.formTimesPerDay(timesPerDay)}>
+              <Stepper
+                value={timesPerDay}
+                min={1}
+                max={MAX_TIMES_PER_DAY}
+                onChange={setTimesPerDay}
+                decreaseLabel={strings.formTimesLess}
+                increaseLabel={strings.formTimesMore}
+              />
+            </ListItem>
           </Card>
         </Section>
 

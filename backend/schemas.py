@@ -17,6 +17,7 @@ from backend.constants import (
     DEFAULT_HABIT_COLOR,
     HISTORY_DAYS,
     MAX_DB_INT,
+    MAX_TIMES_PER_DAY,
     SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
 )
@@ -98,6 +99,16 @@ class Habit(BaseModel):
             "True — привычка в этот день была заморожена"
         ),
     )
+    times_per_day: int = Field(
+        1, description="Сколько раз в день нужно выполнить привычку (1 — обычная привычка)"
+    )
+    today_count: int = Field(
+        0,
+        description=(
+            "Сколько раз привычка выполнена в день отметки (у привычек «несколько раз в "
+            "день»; день выполнен, когда набрано times_per_day)"
+        ),
+    )
 
 
 class HabitsResponse(BaseModel):
@@ -131,6 +142,9 @@ class HabitCreate(BaseModel):
         None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"
     )
     color: str = Field(DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры")
+    times_per_day: int = Field(
+        1, description=f"Сколько раз в день нужно выполнить привычку: 1–{MAX_TIMES_PER_DAY}"
+    )
 
 
 class HabitUpdate(HabitCreate):
@@ -208,12 +222,16 @@ TaskRef = Annotated[int, Field(ge=1, le=MAX_DB_INT)] | ClientRef
 
 
 class SyncMark(BaseModel):
-    """Отметить (`done: true`) или снять отметку выполнения привычки за день `date`."""
+    """Отметить (`done: true`) или снять отметку выполнения привычки за день `date`.
+
+    У привычки «несколько раз в день» `count` — сколько раз она выполнена за день (`done`
+    — набрано ли `times_per_day`); без `count` — обычная отметка."""
 
     type: Literal["mark"]
     task: TaskRef
     date: date
     done: bool
+    count: int | None = Field(None, ge=0, le=MAX_TIMES_PER_DAY)
 
 
 class SyncFreeze(BaseModel):
@@ -328,11 +346,20 @@ class ReviewCreate(BaseModel):
     text: str = Field(..., description="Текст отзыва")
 
 
-class ReviewCreated(BaseModel):
-    """Ответ `POST /reviews`: отзыв сохранён."""
+class UserReview(BaseModel):
+    """Отзыв пользователя в его истории отзывов и последний ответ администратора."""
 
     id: int
+    text: str
     created_at: UtcDateTime
+    reply_text: str | None = None
+    replied_at: UtcDateTime | None = None
+
+
+class ReviewsResponse(BaseModel):
+    """Ответ `GET /reviews`: отзывы пользователя, новые сначала."""
+
+    reviews: list[UserReview]
 
 
 # --------------------------------------------------------------------------- #

@@ -25,6 +25,7 @@ type HapticNotification = "error" | "success" | "warning";
 interface TelegramHapticFeedback {
   impactOccurred(style: HapticStyle): void;
   notificationOccurred(type: HapticNotification): void;
+  selectionChanged(): void;
 }
 
 /** Кнопка «Назад» в шапке Telegram (Bot API 6.1+): показанная, заменяет «Закрыть». */
@@ -456,6 +457,15 @@ export function hapticImpact(style: HapticStyle = "light"): void {
     return;
   }
   getWebApp()?.HapticFeedback?.impactOccurred(style);
+}
+
+/** Тактильный «щелчок» смены значения (степпер), если поддерживается клиентом. */
+export function hapticSelection(): void {
+  if (!isTelegramAvailable()) {
+    vibrate(5);
+    return;
+  }
+  getWebApp()?.HapticFeedback?.selectionChanged();
 }
 
 /** Open a link in the phone's real browser: from Telegram via openLink (leaves the Mini

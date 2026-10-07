@@ -49,6 +49,11 @@ export interface Habit {
   frozen_since: string | null;
   /** Дни заморозки за те же дни, что `history` (текущая заморозка и прошедшие). */
   frozen_history: boolean[];
+  /** Сколько раз в день нужно выполнить привычку (1 — обычная привычка). */
+  times_per_day: number;
+  /** Сколько раз привычка выполнена в день отметки; день выполнен, когда набрано
+   *  `times_per_day`. */
+  today_count: number;
 }
 
 /** Частота выполнения привычки. */
@@ -66,4 +71,6 @@ export interface HabitInput {
   /** Время напоминания «ЧЧ:ММ»; null — без напоминания. */
   reminder_time: string | null;
   color: HabitColor;
+  /** Сколько раз в день нужно выполнить (1–MAX_TIMES_PER_DAY). */
+  times_per_day: number;
 }

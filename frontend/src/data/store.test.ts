@@ -48,6 +48,8 @@ function habit(fields: Partial<Habit> = {}): Habit {
     color: "blue",
     frozen_since: null,
     frozen_history: Array<boolean>(HISTORY_DAYS).fill(false),
+    times_per_day: 1,
+    today_count: 0,
     ...fields,
   };
 }
@@ -170,6 +172,7 @@ describe("dataStore", () => {
       start_date: null,
       reminder_time: null,
       color: "green",
+      times_per_day: 1,
     });
     expect(created.id).toBeLessThan(0);
     store.toggle(created.id);
@@ -197,7 +200,7 @@ describe("dataStore", () => {
     const store = await freshStore();
     store.start();
     await settle();
-    const input = { name: "  зарядка ", frequency_type: "daily" as const, days: [], start_date: null, reminder_time: null, color: "blue" as const };
+    const input = { name: "  зарядка ", frequency_type: "daily" as const, days: [], start_date: null, reminder_time: null, color: "blue" as const, times_per_day: 1 };
     expect(() => store.createHabit(input)).toThrow(expect.objectContaining({ code: "duplicate_name" }));
     expect(() => store.updateHabit(1, input)).not.toThrow();
   });
@@ -214,6 +217,7 @@ describe("dataStore", () => {
       start_date: null,
       reminder_time: null,
       color: "blue",
+      times_per_day: 1,
     });
     store.toggle(created.id);
     store.deleteHabit(created.id);

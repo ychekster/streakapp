@@ -44,8 +44,8 @@
 }
 
 .check {
-  height: var(--check-size);
-  width: var(--check-size);
+  height: var(--check-box);
+  width: var(--check-box);
   border-radius: var(--radius-pill);
 }
 

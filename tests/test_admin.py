@@ -235,6 +235,14 @@ def test_review_reply_flow(
     assert undelivered["review"]["reply_text"] == "Спасибо!"
     assert _profile(client, admin, user.id)["bot_blocked_at"] is not None
 
+    # The user sees their reviews with the reply in the app, newest first.
+    client.post("/reviews", json={"text": "Второй"}, headers=user.headers)
+    history = client.get("/reviews", headers=user.headers).json()["reviews"]
+    assert [item["text"] for item in history] == ["Второй", "Отличное\nприложение"]
+    assert history[0]["reply_text"] is None
+    assert history[1]["reply_text"] == "Спасибо!" and history[1]["replied_at"].endswith("Z")
+    assert client.get("/reviews", headers=admin.headers).json()["reviews"] == []
+
 
 def test_review_pages(client: TestClient, user: AuthUser, admin: AuthUser) -> None:
     for text in ("первый", "второй", "третий"):

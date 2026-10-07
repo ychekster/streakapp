@@ -17,6 +17,7 @@ from backend.constants import (
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
+    MAX_TIMES_PER_DAY,
     REMINDER_TIME_FORMAT,
     REVIEW_MAX_LENGTH,
     START_DATE_MAX_AHEAD_DAYS,
@@ -98,6 +99,13 @@ def validate_color(value: str) -> str:
     """Проверить, что цвет привычки — ключ палитры."""
     if value not in HABIT_COLORS:
         raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
+    return value
+
+
+def validate_times_per_day(value: int) -> int:
+    """Проверить, сколько раз в день нужно выполнить привычку (1–MAX_TIMES_PER_DAY)."""
+    if not 1 <= value <= MAX_TIMES_PER_DAY:
+        raise ApiError(422, "invalid_times_per_day", "Неверное число раз в день")
     return value
 
 

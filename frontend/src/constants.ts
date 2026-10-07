@@ -219,3 +219,7 @@ export const SYNC_REFRESH_MIN_MS = 15_000;
 /** Active habits per user (MAX_HABITS_PER_USER on the backend): the form checks it on
  *  the device, the server checks it again. */
 export const MAX_HABITS_PER_USER = 50;
+
+/** Most times a day a habit can be done (MAX_TIMES_PER_DAY on the backend): the form's
+ *  −/+ stops there. */
+export const MAX_TIMES_PER_DAY = 96;

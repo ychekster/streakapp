@@ -101,8 +101,27 @@
   --space-block-gap-below-line: 22px;
 
   /* --- Кнопка отметки --- */
-  --check-size: 28px;
-  --check-stroke: 2px;
+  --check-size: 30px;
+  --check-stroke: calc(8px / 3); /* 8 физических пикселей на iPhone (@3x) */
+  /* Место кнопки в раскладке — прежние 28px: кружок крупнее его и выступает влево, вверх
+     и вниз, не сдвигая ни название, ни сетку. */
+  --check-box: 28px;
+  /* Привычка «несколько раз в день»: плюс внутри кружка, выполненные разы — дугой по обводке. */
+  --check-faded-opacity: 0.35; /* бледная обводка и плюс — как у неактивной кнопки */
+
+  /* --- Степпер (−/+) --- */
+  --stepper-width: 94px;
+  --stepper-height: 32px;
+  --stepper-radius: 9px;
+  --stepper-icon-size: 18px;
+  --stepper-divider-height: 18px;
+
+  /* --- Отзыв: кнопка отправки в карточке поля и история --- */
+  --review-field-min-height: 88px;
+  --review-send-size: 32px;
+  --review-send-icon-size: 17px;
+  --review-send-inset: 10px; /* от кнопки до правого и нижнего края карточки */
+  --review-reply-radius: 14px;
 
   /* --- Сетка выполнения --- */
   --grid-gap: 2px; /* зазор между кружками */
@@ -241,6 +260,7 @@
   --form-row-min-height: 50px; /* ряды формы выше обычных — как в эталоне (iOS 26) */
   --color-placeholder: rgba(60, 60, 67, 0.3); /* плейсхолдер поля ввода (iOS) */
   --color-fill: rgba(118, 118, 128, 0.12); /* серая заливка: таблетка времени, дни недели */
+  --color-stepper-divider: rgba(60, 60, 67, 0.2); /* разделитель кнопок степпера */
   /* Значок ⌃⌄ у значения с меню — по эталону iOS 26 (тема в настройках, 3×): 8.67×12.67pt,
      в 7pt после значения и в 18.33pt от края карточки (на 2.33pt дальше, чем текст). */
   --menu-chevron-width: 8.67px;
@@ -378,6 +398,7 @@
   --color-danger-soft: rgba(255, 69, 58, 0.16);
   --color-placeholder: rgba(235, 235, 245, 0.3);
   --color-fill: rgba(118, 118, 128, 0.24);
+  --color-stepper-divider: rgba(84, 84, 88, 0.65);
   --color-search-clear: rgba(235, 235, 245, 0.45);
   --main-button-disabled-bg: #2c2c2e;
   --main-button-disabled-text: #6d6d72;

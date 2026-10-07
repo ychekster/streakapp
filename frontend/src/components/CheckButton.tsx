@@ -1,8 +1,64 @@
 /** Круглая кнопка отметки выполнения за день отметки (пустой кружок ↔ заполненный с
- *  галочкой). */
+ *  галочкой).
+ *
+ *  Привычка «несколько раз в день» (`total` > 1): пока день не выполнен, обводка бледная,
+ *  а посередине — плюс цветом привычки. Каждое нажатие плавно закрашивает следующую долю обводки
+ *  — дугой от 12 часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у
+ *  обычной привычки; следующее обнуляет день.
+ */
+
+import { useEffect, useRef, useState } from "react";
 
 import { useStrings } from "../preferences";
 import styles from "./CheckButton.module.css";
+
+/** Длительность закрашивания доли обводки (мс). */
+const FILL_MS = 420;
+
+/** Геометрия SVG поверх кнопки (вся кнопка с обводкой, 30×30 — --check-size): дуга идёт
+ *  по середине обводки толщиной 2⅔px (--check-stroke). */
+const VIEW = 30;
+const CENTER = VIEW / 2;
+const RADIUS = (VIEW - 8 / 3) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+/** Половина длины луча плюса (без скругления концов): плюс ≈10px, обводки не касается. */
+const PLUS_ARM = 4.1;
+const PLUS_PATH = `M${CENTER} ${CENTER - PLUS_ARM}V${CENTER + PLUS_ARM}M${CENTER - PLUS_ARM} ${CENTER}H${CENTER + PLUS_ARM}`;
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+/** Доля, плавно догоняющая `target` за FILL_MS, когда растёт; уменьшается сразу (и
+ *  всегда сразу при reduced motion). */
+function useAnimatedFraction(target: number): number {
+  const [value, setValue] = useState(target);
+  const current = useRef(target);
+  useEffect(() => {
+    const from = current.current;
+    if (from === target) {
+      return undefined;
+    }
+    if (target < from || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      current.current = target;
+      setValue(target);
+      return undefined;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number): void => {
+      const progress = Math.min(1, (now - start) / FILL_MS);
+      current.current = from + (target - from) * easeInOut(progress);
+      setValue(current.current);
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  return value;
+}
 
 interface CheckButtonProps {
   done: boolean;
@@ -13,6 +69,10 @@ interface CheckButtonProps {
   disabled?: boolean;
   /** Привычка заморожена (подпись неактивной кнопки). */
   frozen?: boolean;
+  /** Сколько раз в день нужно выполнить привычку (больше 1 — кружок с плюсом). */
+  total?: number;
+  /** Сколько раз выполнена за день отметки. */
+  count?: number;
 }
 
 export function CheckButton({
@@ -21,14 +81,24 @@ export function CheckButton({
   onToggle,
   disabled = false,
   frozen = false,
+  total = 1,
+  count = 0,
 }: CheckButtonProps) {
   const strings = useStrings();
+  const multi = total > 1;
+  // Выполненный день — галочка без дуги: дуга обнуляется, а не докрашивается.
+  const fraction = useAnimatedFraction(multi && !done ? Math.min(count, total) / total : 0);
   return (
     <button
       type="button"
-      className={`${styles.button} ${done ? styles.done : ""} ${
-        disabled ? styles.disabled : ""
-      }`}
+      className={[
+        styles.button,
+        multi ? styles.multi : "",
+        done ? styles.done : "",
+        disabled ? styles.disabled : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={disabled ? undefined : onToggle}
       disabled={disabled}
       aria-pressed={done}
@@ -41,9 +111,27 @@ export function CheckButton({
               : strings.checkNotScheduled(habitName)
           : done
             ? strings.checkUnmark(habitName)
-            : strings.checkMark(habitName)
+            : multi
+              ? strings.checkCount(habitName, Math.min(count, total), total)
+              : strings.checkMark(habitName)
       }
     >
+      {multi ? (
+        <svg className={styles.progress} viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
+          <path className={styles.plus} d={PLUS_PATH} />
+          {fraction > 0.001 ? (
+            <circle
+              className={styles.arc}
+              cx={CENTER}
+              cy={CENTER}
+              r={RADIUS}
+              // От 12 часов по часовой стрелке.
+              transform={`rotate(-90 ${CENTER} ${CENTER})`}
+              strokeDasharray={`${fraction * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+            />
+          ) : null}
+        </svg>
+      ) : null}
       {/* Галочка появляется только в выполненном состоянии. */}
       <svg
         className={styles.check}

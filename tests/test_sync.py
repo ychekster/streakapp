@@ -87,6 +87,42 @@ def test_mark_sets_a_day_and_is_idempotent(client: TestClient, user: AuthUser) -
     assert data["habits"][0]["done_today"] is False
 
 
+def test_habit_done_several_times_a_day(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    created = _sync(
+        client, user, {"type": "create", "ref": "w", "habit": _habit("Вода", times_per_day=3)}
+    )
+    habit_id = created["results"][0]["id"]
+    assert (created["habits"][0]["times_per_day"], created["habits"][0]["today_count"]) == (3, 0)
+
+    def count(value: int) -> dict[str, object]:
+        return {
+            "type": "mark",
+            "task": habit_id,
+            "date": today.isoformat(),
+            "done": False,
+            "count": value,
+        }
+
+    [habit] = _sync(client, user, count(1), count(2))["habits"]
+    assert (habit["today_count"], habit["done_today"], habit["total_done"]) == (2, False, 0)
+    # Done once the goal is reached — the server counts it, whatever `done` says.
+    [habit] = _sync(client, user, count(3))["habits"]
+    assert (habit["today_count"], habit["done_today"], habit["current_streak"]) == (3, True, 1)
+    [habit] = _sync(client, user, count(0))["habits"]
+    assert (habit["today_count"], habit["done_today"]) == (0, False)
+
+    # A plain mark clears the count; the goal is checked.
+    [habit] = _sync(
+        client, user, {"type": "mark", "task": habit_id, "date": today.isoformat(), "done": True}
+    )["habits"]
+    assert (habit["today_count"], habit["done_today"]) == (0, True)
+    refused = _sync(
+        client, user, {"type": "update", "task": habit_id, "habit": _habit("Вода", times_per_day=97)}
+    )
+    assert refused["results"][0]["error"]["code"] == "invalid_times_per_day"
+
+
 def test_mark_outside_the_history_is_refused(client: TestClient, user: AuthUser) -> None:
     today = _today(client, user)
     created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})

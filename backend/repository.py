@@ -470,6 +470,7 @@ class Repository:
         color: str = DEFAULT_HABIT_COLOR,
         start_date: date | None = None,
         client_ref: str | None = None,
+        times_per_day: int = 1,
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync)."""
         task = Task(
@@ -480,6 +481,7 @@ class Repository:
             start_date=start_date,
             reminder_time=reminder_time,
             color=color,
+            times_per_day=times_per_day,
             client_ref=client_ref,
             is_active=True,
         )
@@ -496,8 +498,10 @@ class Repository:
         reminder_time: time | None,
         color: str,
         start_date: date | None = None,
+        times_per_day: int = 1,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
+        task.times_per_day = times_per_day
         task.name = name
         task.frequency_type = frequency_type
         task.days = days
@@ -670,6 +674,27 @@ class Repository:
         log.status = status
         log.marked_at = utc_now()
         await self.session.flush()
+
+    async def set_log_count(self, log: TaskLog, count: int | None) -> None:
+        """Запомнить, сколько раз привычка выполнена за день (None — обычная отметка)."""
+        log.count = count
+        await self.session.flush()
+
+    async def get_day_counts(self, task_ids: Collection[int], day: date) -> dict[int, int]:
+        """Сколько раз задачи выполнены за день `day` (TaskLog.count): id задачи → число;
+        задач без счёта за этот день в ответе нет."""
+        counts: dict[int, int] = {}
+        for batch in _batches(list(task_ids)):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.count).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.scheduled_date == day,
+                    TaskLog.count.is_not(None),
+                )
+            )
+            for task_id, count in result.tuples():
+                counts[task_id] = count
+        return counts
 
     async def get_done_dates(
         self, task_ids: Collection[int], until: date

@@ -27,7 +27,7 @@ from backend.constants import (
     WEEKDAYS,
 )
 from backend.errors import ApiError
-from backend.models import FrequencyType, Task, TaskStatus, User
+from backend.models import FrequencyType, Review, Task, TaskStatus, User
 from backend.repository import Repository, utc_now
 from backend.schedule import due_check, is_due_on, task_days
 from backend.schemas import (
@@ -35,7 +35,8 @@ from backend.schemas import (
     HabitCreate,
     MetaResponse,
     ReviewCreate,
-    ReviewCreated,
+    ReviewsResponse,
+    UserReview,
     SettingsResponse,
     SettingsUpdate,
     SyncCreate,
@@ -145,13 +146,15 @@ def build_habit(
     done_dates: set[date],
     today: date,
     freezes: Collection[tuple[date, date]] = (),
+    today_count: int = 0,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
     `done_dates` — даты выполнения по `today` включительно (Repository.get_done_dates):
     отметки «из будущего» (возможны после смены часового пояса на более западный) не
     учитываются ни в сетке, ни в сериях, ни в общем счётчике. `freezes` — прошедшие
-    заморозки (Repository.get_freezes).
+    заморозки (Repository.get_freezes). `today_count` — сколько раз привычка выполнена
+    за `today` (Repository.get_day_counts).
     """
     is_frozen = frozen_check(task, freezes, today)
     current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
@@ -178,6 +181,8 @@ def build_habit(
         frozen_history=[
             is_frozen(history_start + timedelta(days=offset)) for offset in range(HISTORY_DAYS)
         ],
+        times_per_day=task.times_per_day,
+        today_count=today_count,
     )
 
 
@@ -185,7 +190,8 @@ async def _built_habit(repo: Repository, task: Task, today: date) -> Habit:
     """Привычка с отметками из базы (после изменения или отметки)."""
     done = await repo.get_done_dates([task.id], today)
     freezes = await repo.get_freezes([task.id])
-    return build_habit(task, done[task.id], today, freezes[task.id])
+    counts = await repo.get_day_counts([task.id], today)
+    return build_habit(task, done[task.id], today, freezes[task.id], counts.get(task.id, 0))
 
 
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
@@ -198,7 +204,11 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
     task_ids = [task.id for task in tasks]
     done = await repo.get_done_dates(task_ids, today)
     freezes = await repo.get_freezes(task_ids)
-    return [build_habit(task, done[task.id], today, freezes[task.id]) for task in tasks]
+    counts = await repo.get_day_counts(task_ids, today)
+    return [
+        build_habit(task, done[task.id], today, freezes[task.id], counts.get(task.id, 0))
+        for task in tasks
+    ]
 
 
 async def _record_mark(repo: Repository, user: User, task: Task, done: bool) -> None:
@@ -233,6 +243,7 @@ class HabitFields:
     start_date: date | None
     reminder_time: time | None
     color: str
+    times_per_day: int
 
 
 async def _validate_habit_fields(
@@ -249,6 +260,7 @@ async def _validate_habit_fields(
     )
     reminder_time = validation.validate_reminder_time(payload.reminder_time)
     color = validation.validate_color(payload.color)
+    times_per_day = validation.validate_times_per_day(payload.times_per_day)
 
     if await repo.task_name_exists(user.telegram_id, name, exclude_task_id=task_id):
         raise ApiError(409, "duplicate_name", "Привычка с таким названием уже есть")
@@ -260,6 +272,7 @@ async def _validate_habit_fields(
         start_date=start_date,
         reminder_time=reminder_time,
         color=color,
+        times_per_day=times_per_day,
     )
 
 
@@ -280,6 +293,7 @@ async def _create_task(
         start_date=fields.start_date,
         reminder_time=fields.reminder_time,
         color=fields.color,
+        times_per_day=fields.times_per_day,
         client_ref=client_ref,
     )
     await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
@@ -309,6 +323,7 @@ async def update_habit(
         start_date=fields.start_date,
         reminder_time=fields.reminder_time,
         color=fields.color,
+        times_per_day=fields.times_per_day,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
     return await _built_habit(repo, task, user_today(user))
@@ -359,11 +374,15 @@ async def _apply_sync_op(
         if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
             raise ApiError(422, "invalid_date", "День вне истории привычки")
         log = await repo.get_or_create_log(task.id, user.telegram_id, op.date)
-        target = TaskStatus.done if op.done else TaskStatus.pending
+        # Привычка «несколько раз в день»: день выполнен, когда набрано times_per_day.
+        done = op.done if op.count is None else op.count >= task.times_per_day
+        target = TaskStatus.done if done else TaskStatus.pending
+        if log.count != op.count:
+            await repo.set_log_count(log, op.count)
         if log.status != target:
             await repo.set_log_status(log, target)
-            await _record_mark(repo, user, task, op.done)
-        outcome.checked_in = outcome.checked_in or op.done
+            await _record_mark(repo, user, task, done)
+        outcome.checked_in = outcome.checked_in or done
         return SyncResult(ok=True)
     if isinstance(op, SyncFreeze):
         task = await _active_task(repo, user, op.task)
@@ -606,7 +625,24 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         await repo.log_action(user.telegram_id, "settings", detail=",".join(changed))
 
 
-async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> ReviewCreated:
+def _user_review(review: Review) -> UserReview:
+    return UserReview(
+        id=review.id,
+        text=review.text,
+        created_at=review.created_at,
+        reply_text=review.reply_text,
+        replied_at=review.replied_at,
+    )
+
+
+async def list_user_reviews(repo: Repository, user: User) -> ReviewsResponse:
+    """История отзывов пользователя (экран «Написать отзыв»), новые сначала."""
+    return ReviewsResponse(
+        reviews=[_user_review(review) for review in await repo.user_reviews(user.telegram_id)]
+    )
+
+
+async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> UserReview:
     """Сохранить отзыв из настроек — он появится в админ-панели.
 
     Не больше MAX_REVIEWS_PER_DAY за сутки: иначе раздел отзывов можно завалить
@@ -618,7 +654,7 @@ async def create_review(repo: Repository, user: User, payload: ReviewCreate) -> 
         raise ApiError(429, "review_limit", "Слишком много отзывов за сутки")
     review = await repo.create_review(user.telegram_id, text)
     await repo.log_action(user.telegram_id, "review", ref_id=review.id)
-    return ReviewCreated(id=review.id, created_at=review.created_at)
+    return UserReview(id=review.id, text=review.text, created_at=review.created_at)
 
 
 def build_meta() -> MetaResponse:
