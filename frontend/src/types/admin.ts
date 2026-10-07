@@ -66,6 +66,8 @@ export interface AdminUserProfile extends AdminUserRef {
   blocked_at: string | null;
   /** Заблокировал бота. */
   bot_blocked_at: string | null;
+  /** Получает от бота напоминания и рассылки («Уведомления» в Mini App). */
+  telegram_notifications: boolean;
   is_admin: boolean;
   /** Активных привычек. */
   habits: number;

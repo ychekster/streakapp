@@ -432,6 +432,8 @@ class DueReminder:
     user_id: int
     habit_name: str | None
     language: str
+    # Бот может прислать его в Telegram («Уведомления» в Mini App включены).
+    telegram: bool = True
 
 
 def _clock_times(moment: datetime) -> set[time]:
@@ -478,6 +480,7 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
             user_id=task.user_id,
             habit_name=task.name,
             language=task.user.language,
+            telegram=task.user.telegram_notifications,
         )
         for task, day in candidates
         if (task.id, day) not in done
@@ -517,7 +520,13 @@ async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueR
     done = await repo.get_done_task_days({(task_id, day) for task_id, day, _ in pending})
     waiting = {user_id for task_id, day, user_id in pending if (task_id, day) not in done}
     return [
-        DueReminder(task_id=None, user_id=user_id, habit_name=None, language=user.language)
+        DueReminder(
+            task_id=None,
+            user_id=user_id,
+            habit_name=None,
+            language=user.language,
+            telegram=user.telegram_notifications,
+        )
         for user_id, (user, _) in candidates.items()
         if user_id in waiting
     ]
@@ -537,6 +546,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         language=user.language,
         theme=user.theme,
         mark_yesterday=user.mark_yesterday,
+        telegram_notifications=user.telegram_notifications,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
             if user.checkin_reminder_time is not None
@@ -589,6 +599,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
             if payload.checkin_reminder is not None
             else None
         ),
+        telegram_notifications=payload.telegram_notifications,
     )
     changed = sorted(payload.model_dump(exclude_none=True))
     if changed:

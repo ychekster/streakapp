@@ -123,6 +123,8 @@ const RU = {
   notificationsOffMessage: "Напоминания о привычках перестанут приходить на этот телефон.",
   notificationsOffConfirm: "Выключить",
   notificationsOffCancel: "Отмена",
+  telegramNotificationsOffMessage:
+    "Бот перестанет присылать в Telegram напоминания о привычках и новости Knot.",
   installTitle: "Приложение на телефоне",
   installDescription: "Установка откроется в браузере. Привычки останутся те же.",
   installOpen: "Открыть в браузере",
@@ -363,6 +365,8 @@ const EN: Strings = {
   notificationsOffMessage: "Habit reminders will stop arriving on this phone.",
   notificationsOffConfirm: "Turn Off",
   notificationsOffCancel: "Cancel",
+  telegramNotificationsOffMessage:
+    "The bot will stop sending habit reminders and Knot news to Telegram.",
   installTitle: "App on Your Phone",
   installDescription: "The install page opens in your browser. Your habits stay the same.",
   installOpen: "Open in Browser",

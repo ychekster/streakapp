@@ -78,6 +78,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   if (patch.mark_yesterday !== undefined) {
     next.mark_yesterday = patch.mark_yesterday;
   }
+  if (patch.telegram_notifications !== undefined) {
+    next.telegram_notifications = patch.telegram_notifications;
+  }
   if (patch.checkin_reminder !== undefined) {
     next.checkin_reminder_time = patch.checkin_reminder.time;
     next.checkin_reminder_days = patch.checkin_reminder.days;

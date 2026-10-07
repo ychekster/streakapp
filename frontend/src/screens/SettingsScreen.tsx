@@ -8,9 +8,11 @@
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
  *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминать
  *     отмечать» — время или «Выкл.», открывает CheckinReminderScreen. Under them:
- *     in Telegram «Добавить на рабочий стол» (opens the install page in the phone's
- *     browser with a single-use login link, so the installed app opens this account);
- *     in the web app «Уведомления» — a switch (usePushToggle).
+ *     in Telegram «Уведомления» — a switch: the bot's reminders and broadcasts in
+ *     Telegram (account setting `telegram_notifications`; turning it off asks first),
+ *     and «Добавить на рабочий стол» (opens the install page in the phone's browser
+ *     with a single-use login link, so the installed app opens this account); in the
+ *     web app «Уведомления» — push on this device (usePushToggle).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
@@ -48,6 +50,7 @@ import { usePushToggle } from "../hooks/usePushToggle";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
+import { confirmAction } from "../telegram/webapp";
 import type { SettingsUpdate } from "../types/settings";
 import styles from "./SettingsScreen.module.css";
 
@@ -103,6 +106,23 @@ export function SettingsScreen({
   const push = usePushToggle(web);
 
   return <Screen title={strings.settingsTitle}>{renderContent()}</Screen>;
+
+  /** Mini App: the bot's notifications. Turning them off asks first. */
+  async function changeTelegramNotifications(on: boolean): Promise<void> {
+    if (
+      !on &&
+      !(await confirmAction({
+        title: strings.notificationsOffTitle,
+        message: strings.telegramNotificationsOffMessage,
+        confirmLabel: strings.notificationsOffConfirm,
+        cancelLabel: strings.notificationsOffCancel,
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    onSave({ telegram_notifications: on });
+  }
 
   function renderContent() {
     if (status === "loading") {
@@ -176,6 +196,15 @@ export function SettingsScreen({
             </span>
             <Disclosure />
           </ListItem>
+          {!web ? (
+            <ListItem icon={<BellIcon />} iconColor="red" label={strings.notificationsRow}>
+              <Switch
+                checked={settings.telegram_notifications}
+                onChange={(on) => void changeTelegramNotifications(on)}
+                label={strings.notificationsRow}
+              />
+            </ListItem>
+          ) : null}
           {install ? (
             <ListItem
               icon={<InstallIcon />}

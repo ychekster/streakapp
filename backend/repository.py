@@ -232,11 +232,14 @@ def _recipient_condition(
     """Получатели рассылки: пользователи под фильтром, уже зарегистрированные к `moment`
     (пришедшие во время долгой рассылки её не получают — как и не посчитаны в ней), кроме
     заблокировавших бота (Telegram сообщает о разблокировке, поэтому отметка точна),
-    заблокированных администратором и автора рассылки (ему копия уже пришла)."""
+    выключивших уведомления в Mini App, заблокированных администратором и автора
+    рассылки (ему копия уже пришла)."""
     condition = and_(
         _audience_condition(audience, moment, ids),
         # Web-only accounts (negative ids) have no Telegram chat to send to.
         User.telegram_id > 0,
+        # Turned notifications off in the Mini App: no broadcasts either.
+        User.telegram_notifications.is_(True),
         User.created_at <= moment,
         User.bot_blocked_at.is_(None),
         User.blocked_at.is_(None),
@@ -340,6 +343,7 @@ class Repository:
         theme: str | None = None,
         mark_yesterday: bool | None = None,
         checkin_reminder: tuple[time | None, str] | None = None,
+        telegram_notifications: bool | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
         меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
@@ -355,6 +359,8 @@ class Repository:
             user.mark_yesterday = mark_yesterday
         if checkin_reminder is not None:
             user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
+        if telegram_notifications is not None:
+            user.telegram_notifications = telegram_notifications
         await self.session.flush()
 
     async def touch_user(self, user: User, now: datetime, device: str | None = None) -> None:
@@ -1299,6 +1305,7 @@ class Repository:
             language=source.language,
             theme=source.theme,
             mark_yesterday=source.mark_yesterday,
+            telegram_notifications=source.telegram_notifications,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
             first_checkin_at=source.first_checkin_at,

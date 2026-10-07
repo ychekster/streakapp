@@ -175,6 +175,7 @@ async def user_profile(repo: Repository, telegram_id: int, language: str) -> Adm
         last_seen_at=user.last_seen_at,
         blocked_at=user.blocked_at,
         bot_blocked_at=user.bot_blocked_at,
+        telegram_notifications=user.telegram_notifications,
         is_admin=is_admin,
         habits=await repo.count_active_tasks(telegram_id),
         reviews=[_review(review) for review in reviews],

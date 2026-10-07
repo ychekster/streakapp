@@ -30,9 +30,11 @@
 
 Web app users (spec §9) get the reminder once, on one channel: an account with a Web
 Push subscription gets a push notification on its devices; otherwise, if it has Telegram
-(a positive id), the bot message as before. Web-only accounts without push get nothing.
+(a positive id) and has not turned «Уведомления» off in the Mini App
+(`users.telegram_notifications`), the bot message as before. Otherwise nothing comes:
+web-only accounts without push, Telegram with notifications off and no push.
 Subscriptions the push service reports as gone (404/410) are deleted; if all of an
-account's subscriptions are gone, that reminder falls back to Telegram.
+account's subscriptions are gone, that reminder falls back to Telegram (same rule).
 
 Every reminder goes into the user's action log (reminder_sent / reminder_failed, with the
 channel), and a subscription that disappeared — as push_gone: the admin panel's
@@ -201,9 +203,12 @@ async def _send_due(
             for item in by_push
             if id(item) not in dropped
         ]
+    # Telegram only if the user has not turned notifications off in the Mini App.
     by_chat = [
-        item for item in reminders if item.user_id not in subscriptions and item.user_id > 0
-    ] + fallback
+        item
+        for item in [item for item in reminders if item.user_id not in subscriptions] + fallback
+        if item.user_id > 0 and item.telegram
+    ]
     results = await _send_all(bot, pacer, by_chat, keyboards) if by_chat else {}
     blocked = {user_id for user_id, (is_blocked, _) in results.items() if is_blocked}
     sent_ok = {key for _, (_, keys) in results.items() for key in keys}

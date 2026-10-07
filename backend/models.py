@@ -26,6 +26,7 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
     func,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -110,6 +111,11 @@ class User(Base):
     # Присылает бот (bot/reminders.py); индекс — как у Task.reminder_time.
     checkin_reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True, index=True)
     checkin_reminder_days: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # «Уведомления» в Mini App: бот присылает в Telegram напоминания и рассылки. Выключено —
+    # не присылает (push веб-приложения идут как прежде, см. bot/reminders.py).
+    telegram_notifications: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
 
     # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
     # (/start записывает пользователя, см. bot/handlers/start.py).

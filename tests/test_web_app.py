@@ -684,3 +684,56 @@ def test_mini_app_logs_out_the_web_app_everywhere(client: TestClient, user: Auth
     assert response.status_code == 204, response.text
     assert client.get("/auth/account", headers=phone).status_code == 401
     assert _account(client, user.headers)["devices"] == 0
+
+
+def test_telegram_notifications_setting(client: TestClient, user: AuthUser) -> None:
+    settings = client.get("/settings", headers=user.headers).json()
+    assert settings["telegram_notifications"] is True
+
+    response = client.post(
+        "/sync",
+        json={"ops": [{"type": "settings", "patch": {"telegram_notifications": False}}]},
+        headers=user.headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["settings"]["telegram_notifications"] is False
+    admin = auth_user(SEED_ADMIN_IDS[0])
+    profile = client.get(f"/admin/users/{user.id}", headers=admin.headers).json()["user"]
+    assert profile["telegram_notifications"] is False
+
+
+def test_telegram_notifications_off_stops_the_bot_not_push(db_url: str) -> None:
+    moment = datetime(2026, 9, 22, 9, 0, tzinfo=timezone.utc)
+    pushed: list[str] = []
+    gone_endpoint = "https://push.example/gone"
+
+    async def sender(target, data, keys) -> PushOutcome:
+        pushed.append(target.endpoint)
+        return PushOutcome.gone if target.endpoint == gone_endpoint else PushOutcome.sent
+
+    async def scenario() -> tuple[list[int], int]:
+        database = Database(db_url)
+        await database.create_tables()
+        async with database.session_factory() as session:
+            repo = Repository(session)
+            for user_id in (601, 602, 603, 604):
+                user = await repo.get_or_create_user(user_id, None, None, "ru")
+                await repo.update_settings(user, telegram_notifications=user_id == 604)
+                await repo.create_task(user_id, "Вода", FrequencyType.daily, reminder_time=clock(9, 0))
+            await repo.save_push_subscription(601, "https://push.example/601", "k", "a", None)
+            await repo.save_push_subscription(603, gone_endpoint, "k", "a", None)
+            recipients = await repo.count_recipients({}, utc_now(), exclude_user_id=None)
+            await session.commit()
+        bot = _ChatBot()
+        push = bot_reminders.PushConfig(VapidKeys("key", "mailto:x@example.com"), "https://app.example")
+        keyboards = bot_reminders.open_app_keyboards("https://app.example")
+        await bot_reminders._send_due(bot, database, Pacer(1000), moment, keyboards, push, sender)  # type: ignore[arg-type]
+        await database.dispose()
+        return bot.chats, recipients
+
+    chats, recipients = asyncio.run(scenario())
+    # 601: push as before; 602: off, no push — nothing; 603: push gone, off — no fallback.
+    assert sorted(pushed) == ["https://push.example/601", gone_endpoint]
+    assert chats == [604]
+    # Broadcasts go only to the one with notifications on.
+    assert recipients == 1

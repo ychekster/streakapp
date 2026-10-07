@@ -253,6 +253,16 @@ export function AdminUserScreen({
               label={strings.profileLastActive}
               value={data.last_seen_at ? format.relative(data.last_seen_at) : strings.never}
             />
+            {data.telegram_id > 0 ? (
+              <InfoRow
+                label={strings.profileNotifications}
+                value={
+                  data.telegram_notifications
+                    ? strings.profileNotificationsOn
+                    : strings.profileNotificationsOff
+                }
+              />
+            ) : null}
             <ListItem label={strings.profileHabits} onPress={onOpenHabits}>
               <span className={`${styles.value} ${styles.numeric}`}>
                 {format.count(data.habits)}

@@ -22,6 +22,7 @@ const SETTINGS: Settings = {
   language: "ru",
   theme: "system",
   mark_yesterday: false,
+  telegram_notifications: true,
   checkin_reminder_time: null,
   checkin_reminder_days: [],
   is_admin: false,

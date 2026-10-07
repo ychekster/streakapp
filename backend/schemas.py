@@ -163,6 +163,10 @@ class SettingsResponse(BaseModel):
         default_factory=list,
         description="Дни недели напоминания (mon..sun); помнятся и при выключенном",
     )
+    telegram_notifications: bool = Field(
+        True,
+        description="«Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram",
+    )
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -187,6 +191,9 @@ class SettingsUpdate(BaseModel):
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
     checkin_reminder: CheckinReminderUpdate | None = Field(
         None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
+    )
+    telegram_notifications: bool | None = Field(
+        None, description="Напоминания и рассылки от бота в Telegram"
     )
 
 
@@ -398,6 +405,9 @@ class AdminUserProfile(AdminUserRef):
     last_seen_at: UtcDateTime | None
     blocked_at: UtcDateTime | None = Field(None, description="Заблокирован администратором")
     bot_blocked_at: UtcDateTime | None = Field(None, description="Заблокировал бота")
+    telegram_notifications: bool = Field(
+        True, description="Получает от бота напоминания и рассылки («Уведомления» в Mini App)"
+    )
     is_admin: bool
     habits: int = Field(..., description="Активных привычек")
     reviews: list[AdminReview]

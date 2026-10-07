@@ -28,6 +28,8 @@ export interface Settings {
   checkin_reminder_time: string | null;
   /** Дни недели напоминания (mon..sun); помнятся и при выключенном. */
   checkin_reminder_days: string[];
+  /** «Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram. */
+  telegram_notifications: boolean;
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
 }
@@ -42,6 +44,7 @@ export interface SettingsUpdate {
   mark_yesterday?: boolean;
   /** Напоминание «Пора отметить привычки» — время и дни целиком. */
   checkin_reminder?: CheckinReminder;
+  telegram_notifications?: boolean;
 }
 
 export interface CheckinReminder {
