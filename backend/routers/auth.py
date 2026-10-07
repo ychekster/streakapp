@@ -1,8 +1,9 @@
 """Accounts and logins of the web app (spec §6).
 
     POST   /auth/guest                — first launch of the installed app: a guest + session
-    GET    /auth/account              — logins of the account (Settings → Account)
-    POST   /auth/logout               — app: leave the account on this device (or everywhere)
+    GET    /auth/account              — Settings → Account: logins, created, web devices
+    POST   /auth/logout               — app: leave the account on this device (or everywhere;
+                                        the Mini App: everywhere only)
     POST   /auth/handoff              — Mini App: single-use link to install the web app
     POST   /auth/handoff/redeem       — browser/app: log in with that link
     POST   /auth/telegram/start       — app: "log in via Telegram" through the bot
@@ -188,8 +189,12 @@ async def logout(
     """Web app: leave the account on this device — its session ends and this device's
     push subscription stops getting the account's reminders. A guest cannot log out: it
     has no login to come back with, its habits would be lost. `everywhere` — every web
-    session of the account ends and none of its devices gets push reminders any more."""
+    session of the account ends and none of its devices gets push reminders any more;
+    the Mini App may ask for that too (it stays logged in: it is Telegram itself)."""
     if principal.session_token is None:
+        if payload.everywhere and principal.telegram is not None:
+            await end_all_sessions(repo, db_user.telegram_id)
+            return Response(status_code=204)
         raise ApiError(409, "web_only", "Доступно только в приложении на телефоне")
     if await is_guest(repo, db_user):
         raise ApiError(409, "guest_logout", "Сначала привяжите Telegram")

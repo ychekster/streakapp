@@ -97,6 +97,20 @@ const RU = {
   accountLogoutEverywhereMessage:
     "Приложение выйдет из аккаунта на всех телефонах, где вы входили, и уведомления туда приходить перестанут. В Telegram всё останется как есть.",
   accountLinkFailed: "Не удалось привязать Telegram",
+  accountCreated: "Дата регистрации",
+  accountHabits: "Привычек",
+  accountCheckins: "Всего отметок",
+  accountBestStreak: "Лучшая серия",
+  accountDays: (count: number) => {
+    const tens = count % 100;
+    const ones = count % 10;
+    const word =
+      tens >= 11 && tens <= 14 ? "дней" : ones === 1 ? "день" : ones >= 2 && ones <= 4 ? "дня" : "дней";
+    return `${count} ${word}`;
+  },
+  accountDevices: "Устройств с входом",
+  accountDevicesFooterWeb: "Телефоны и компьютеры, где выполнен вход в веб-приложение, включая этот.",
+  accountDevicesFooterTelegram: "Телефоны и компьютеры, где выполнен вход в веб-приложение.",
   notificationsRow: "Уведомления",
   notificationsDenied:
     "Уведомления запрещены. Разрешите их в настройках телефона: «Настройки» → «Уведомления» → Knot.",
@@ -329,6 +343,14 @@ const EN: Strings = {
   accountLogoutEverywhereMessage:
     "The app will log out on every phone where you logged in, and notifications will stop coming there. Telegram stays as it is.",
   accountLinkFailed: "Couldn’t link Telegram",
+  accountCreated: "Joined",
+  accountHabits: "Habits",
+  accountCheckins: "Total Check-ins",
+  accountBestStreak: "Best Streak",
+  accountDays: (count: number) => `${count} ${count === 1 ? "day" : "days"}`,
+  accountDevices: "Logged-in Devices",
+  accountDevicesFooterWeb: "Phones and computers logged in to the web app, this one included.",
+  accountDevicesFooterTelegram: "Phones and computers logged in to the web app.",
   notificationsRow: "Notifications",
   notificationsDenied:
     "Notifications aren’t allowed. Allow them in your phone’s Settings → Notifications → Knot.",

@@ -56,7 +56,7 @@ interface TelegramWebApp {
   /** Неподписанная копия initData — для оформления (язык) и чьи данные хранить на
    *  устройстве (id), не для авторизации. */
   initDataUnsafe?: {
-    user?: { id?: number; language_code?: string };
+    user?: { id?: number; language_code?: string; username?: string; first_name?: string };
     /** Параметр прямой ссылки на Mini App (`startapp=`). */
     start_param?: string;
   };
@@ -144,6 +144,16 @@ export function openedByLink(): boolean {
  *  null вне Telegram. */
 export function getTelegramUserId(): number | null {
   return getWebApp()?.initDataUnsafe?.user?.id ?? null;
+}
+
+/** Как показать аккаунт Telegram в «Аккаунт»: @username или имя (как сервер в
+ *  /auth/account); null вне Telegram. */
+export function getTelegramUserLabel(): string | null {
+  const user = getWebApp()?.initDataUnsafe?.user;
+  if (!user) {
+    return null;
+  }
+  return user.username ? `@${user.username}` : (user.first_name ?? null);
 }
 
 /** Светлая или тёмная тема Telegram сейчас; null вне Telegram или в старом клиенте. */

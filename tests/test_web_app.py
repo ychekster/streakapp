@@ -660,3 +660,27 @@ def test_broadcasts_skip_web_only_accounts(client: TestClient) -> None:
 
     # Recipients never include negative (web-only) ids: at most all Telegram users.
     assert count["recipients"] <= _run(telegram_users)
+
+
+def test_account_counts_the_web_devices(client: TestClient, user: AuthUser) -> None:
+    account = _account(client, user.headers)
+    assert account["devices"] == 0
+    assert account["created_at"].endswith("Z") or "+00:00" in account["created_at"]
+
+    phone = _web_session(client, user)
+    _web_session(client, user)
+    assert _account(client, user.headers)["devices"] == 2
+    assert _account(client, phone)["devices"] == 2
+
+
+def test_mini_app_logs_out_the_web_app_everywhere(client: TestClient, user: AuthUser) -> None:
+    phone = _web_session(client, user)
+
+    # Only "everywhere": the Mini App itself has nothing to log out of.
+    alone = client.post("/auth/logout", json={}, headers=user.headers)
+    assert alone.status_code == 409, alone.text
+
+    response = client.post("/auth/logout", json={"everywhere": True}, headers=user.headers)
+    assert response.status_code == 204, response.text
+    assert client.get("/auth/account", headers=phone).status_code == 401
+    assert _account(client, user.headers)["devices"] == 0

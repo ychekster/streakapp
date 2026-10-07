@@ -1468,6 +1468,17 @@ class Repository:
             )
         )
 
+    async def count_user_sessions(self, user_id: int, now: datetime, since: datetime) -> int:
+        """Live web sessions of the account: not expired and started after `since` (older
+        ones hit SESSION_MAX_AGE) — the devices logged in to the web app."""
+        return await self.session.scalar(
+            select(func.count()).where(
+                WebSession.user_id == user_id,
+                WebSession.expires_at > now,
+                WebSession.created_at > since,
+            )
+        ) or 0
+
     async def delete_session(self, token_hash: str) -> None:
         """End a web session (log out, or replaced after switching accounts)."""
         await self.session.execute(delete(WebSession).where(WebSession.token_hash == token_hash))

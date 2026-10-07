@@ -252,6 +252,7 @@ async def _record_link(repo: Repository, user: User, profile: LoginProfile) -> U
 
 async def account_info(repo: Repository, settings: Settings, user: User) -> AccountResponse:
     """What Settings → Account shows."""
+    now = utc_now()
     telegram_linked = user.telegram_id > 0
     return AccountResponse(
         user_id=user.telegram_id,
@@ -268,6 +269,10 @@ async def account_info(repo: Repository, settings: Settings, user: User) -> Acco
                 ),
             ),
         ],
+        created_at=user.created_at,
+        devices=await repo.count_user_sessions(
+            user.telegram_id, now, now - SESSION_MAX_AGE
+        ),
     )
 
 

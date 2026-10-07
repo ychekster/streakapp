@@ -836,12 +836,17 @@ class AccountLogin(BaseModel):
 
 
 class AccountResponse(BaseModel):
-    """Settings → Account: logins and whether the account is still a guest."""
+    """Settings → Account: logins, whether the account is still a guest, when it was
+    created and on how many devices the web app is logged in to it."""
 
     user_id: int
     is_guest: bool
     has_habits: bool
     logins: list[AccountLogin]
+    # Registration time.
+    created_at: UtcDateTime
+    # Live web app sessions of the account (the current one included).
+    devices: int
 
 
 class LinkResult(BaseModel):

@@ -87,6 +87,7 @@ import { PREFETCH_DELAY_MS } from "./constants";
 import { describeError } from "./errors";
 import { STRINGS } from "./strings";
 import {
+  getTelegramUserLabel,
   hapticNotification,
   initTelegram,
   showAlert,
@@ -199,8 +200,9 @@ export function App() {
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
     start === "review" ? "review" : start === "install" ? "install" : null,
   );
-  // Web app: the account (guest or not) — for the «!» on the Settings tab and Settings.
-  const [account, setAccount] = useState<Account | null>(keptAccount);
+  // The account: in the web app — guest or not («!» on the Settings tab, Settings); in
+  // both — what Settings → «Аккаунт» shows. Kept on the device in the web app only.
+  const [account, setAccount] = useState<Account | null>(() => (web ? keptAccount() : null));
   // The account could not be loaded (no connection) and none is kept: the row says so.
   const [accountOffline, setAccountOffline] = useState(false);
   const pendingHabit = useRef(startHabit());
@@ -231,8 +233,11 @@ export function App() {
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);
+  // In the Mini App Telegram itself says who it is (also before the account loads).
   const telegramLabel =
-    account?.logins.find((login) => login.provider === "telegram")?.label ?? null;
+    (web ? null : getTelegramUserLabel()) ??
+    account?.logins.find((login) => login.provider === "telegram")?.label ??
+    null;
 
   const tabs: TabItem<TabKey>[] = useMemo(
     () => [
@@ -399,27 +404,36 @@ export function App() {
     }
   }, [settings, saveSettings]);
 
-  // Web app: is the account still a guest («!», Settings). Asked again when the first
-  // habit appears and after a login switched accounts.
+  // The account. Web app: is it still a guest («!», Settings) — asked again when the first
+  // habit appears and after a login switched accounts. Both: again when «Аккаунт» opens.
   const loadAccount = useCallback(() => {
-    if (web) {
-      fetchAccount()
-        .then((loaded) => {
+    fetchAccount()
+      .then((loaded) => {
+        if (web) {
           keepAccount(loaded);
-          setAccount(loaded);
-          setAccountOffline(false);
-        })
-        .catch(() => {
+        }
+        setAccount(loaded);
+        setAccountOffline(false);
+      })
+      .catch(() => {
+        if (web) {
           // After a login switch the kept one is another session's.
           setAccount(keptAccount());
           setAccountOffline(true);
-        });
-    }
+        }
+      });
   }, [web]);
   const hasHabits = habits.length > 0;
   useEffect(() => {
-    loadAccount();
-  }, [loadAccount, hasHabits]);
+    if (web) {
+      loadAccount();
+    }
+  }, [web, loadAccount, hasHabits]);
+  useEffect(() => {
+    if (settingsPage === "account") {
+      loadAccount();
+    }
+  }, [settingsPage, loadAccount]);
 
   // A login switched or merged accounts: everything on screen belongs to the new one.
   const reloadAccountData = useCallback(() => {
@@ -665,10 +679,13 @@ export function App() {
         return (
           <AccountScreen
             label={telegramLabel}
+            account={account}
+            habits={habits}
             onLoggedOut={() => {
               hideSettingsPage();
               reloadAccountData();
             }}
+            onLoggedOutEverywhere={loadAccount}
           />
         );
       }
@@ -684,7 +701,7 @@ export function App() {
           install={telegramAvailable ? install : null}
           account={
             !web
-              ? null
+              ? { guest: false, label: telegramLabel, status: "known" }
               : account
                 ? { guest: account.is_guest, label: telegramLabel, status: "known" }
                 : { guest: false, label: null, status: accountOffline ? "offline" : "loading" }

@@ -15,6 +15,10 @@ export interface Account {
   is_guest: boolean;
   has_habits: boolean;
   logins: AccountLogin[];
+  /** Registration time (ISO, UTC). */
+  created_at: string;
+  /** Devices logged in to the web app (the current one included). */
+  devices: number;
 }
 
 export interface WebSession {
@@ -52,6 +56,8 @@ const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.strin
 
 export const createGuest = () => apiRequest<WebSession>("/auth/guest", { method: "POST" });
 export const fetchAccount = () => apiRequest<Account>("/auth/account", { method: "GET" });
+/** `everywhere` — every web session of the account ends (the Mini App can ask only for
+ *  that: it stays logged in itself). */
 export const logout = (endpoint: string | null, everywhere = false) =>
   apiRequest<null>("/auth/logout", post({ endpoint, everywhere }));
 export const fetchWebConfig = () => apiRequest<WebConfig>("/web/config", { method: "GET" });

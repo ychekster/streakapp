@@ -1,9 +1,10 @@
 /**
  * Экран «Настройки» в стиле «Настроек» iOS: под заголовком — белые карточки без
  * подписей над ними, у каждого ряда — иконка в цветной плашке.
- *  0. Web app only: «Аккаунт». A guest sees «Не привязан» with a red «!» (the Settings
- *     tab has it too) and a footer; a tap opens the bot to link Telegram — the only
- *     login. Linked — the Telegram name; a tap opens the account (AccountScreen: log out).
+ *  0. «Аккаунт» — the Telegram name; a tap opens the account (AccountScreen: about the
+ *     account, web app devices, log out). Web app: a guest sees «Не привязан» with a red
+ *     «!» (the Settings tab has it too) and a footer; a tap opens the bot to link
+ *     Telegram — the only login.
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
  *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминать
  *     отмечать» — время или «Выкл.», открывает CheckinReminderScreen. Under them:
@@ -60,7 +61,7 @@ export type SettingsPage =
   | "install"
   | "account";
 
-/** Web app: the account in the «Аккаунт» row. */
+/** The account in the «Аккаунт» row (in the Mini App: always known, never a guest). */
 export interface AccountState {
   guest: boolean;
   /** The Telegram name it is linked as. */
@@ -79,8 +80,7 @@ interface SettingsScreenProps {
   onOpenAdmin: () => void;
   /** Install link (Telegram only; null — the row is hidden: the web app is installed). */
   install: HandoffLink | null;
-  /** Web app: the account (null — inside Telegram). */
-  account: AccountState | null;
+  account: AccountState;
   /** Web app: load the account again («Нет связи» row). */
   onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
@@ -124,34 +124,32 @@ export function SettingsScreen({
 
     return (
       <div className={styles.settings}>
-        {account ? (
-          <ListGroup footer={account.guest ? strings.settingsAccountFooter : undefined}>
-            <ListItem
-              icon={<PersonIcon />}
-              iconColor="blue"
-              label={strings.settingsAccount}
-              onPress={
-                account.status !== "known"
-                  ? onRetryAccount
-                  : account.guest
-                    ? onLinkTelegram
-                    : () => onOpen("account")
-              }
-            >
-              {account.status === "offline" ? (
-                <span className={styles.value}>{strings.settingsAccountOffline}</span>
-              ) : account.status === "loading" ? null : account.guest ? (
-                <>
-                  <span className={styles.value}>{strings.settingsAccountGuest}</span>
-                  <AttentionBadge />
-                </>
-              ) : (
-                <span className={styles.value}>{account.label ?? "Telegram"}</span>
-              )}
-              <Disclosure />
-            </ListItem>
-          </ListGroup>
-        ) : null}
+        <ListGroup footer={account.guest ? strings.settingsAccountFooter : undefined}>
+          <ListItem
+            icon={<PersonIcon />}
+            iconColor="blue"
+            label={strings.settingsAccount}
+            onPress={
+              account.status !== "known"
+                ? onRetryAccount
+                : account.guest
+                  ? onLinkTelegram
+                  : () => onOpen("account")
+            }
+          >
+            {account.status === "offline" ? (
+              <span className={styles.value}>{strings.settingsAccountOffline}</span>
+            ) : account.status === "loading" ? null : account.guest ? (
+              <>
+                <span className={styles.value}>{strings.settingsAccountGuest}</span>
+                <AttentionBadge />
+              </>
+            ) : (
+              <span className={styles.value}>{account.label ?? "Telegram"}</span>
+            )}
+            <Disclosure />
+          </ListItem>
+        </ListGroup>
 
         <ListGroup>
           <ListItem
