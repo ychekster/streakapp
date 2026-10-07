@@ -19,6 +19,7 @@
 
 import { useRef, useState } from "react";
 
+import { Disclosure } from "../components/Disclosure";
 import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
@@ -184,7 +185,9 @@ export function HabitScreen({
               iconColor="orange"
               label={strings.editHabit}
               onPress={() => onEdit(habit)}
-            />
+            >
+              <Disclosure />
+            </ListItem>
             {/* Только у привычек «раз в день»: у «несколько раз в день» автоотметки нет. */}
             {habit.times_per_day === 1 ? (
               <ListItem icon={<AutoCheckIcon />} iconColor="green" label={strings.autoMarkHabit}>
@@ -202,7 +205,9 @@ export function HabitScreen({
               iconColor="lightblue"
               label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
               onPress={() => void toggleFreeze()}
-            />
+            >
+              <Disclosure />
+            </ListItem>
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
               «Часах» iOS). */}

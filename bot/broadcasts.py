@@ -192,8 +192,9 @@ async def _send(
         try:
             await _send_with_fallback(bot, job, chat_id, markup)
         except TelegramRetryAfter as exc:
-            # Упёрлись в лимит Telegram — подождать, сколько просят, и повторить один раз.
-            await asyncio.sleep(exc.retry_after)
+            # Упёрлись в лимит Telegram — вся отправка бота ждёт, сколько просят (общая
+            # пауза темпа), и это сообщение повторяется один раз.
+            pacer.pause(exc.retry_after)
             await pacer.wait()
             await _send_with_fallback(bot, job, chat_id, markup)
     except TelegramForbiddenError:

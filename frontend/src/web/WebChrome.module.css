@@ -89,6 +89,22 @@
   transition-duration: 80ms;
 }
 
+/* Where supported, the page scroll itself moves the bar (in the browser's scrolling
+   thread, in step with the page); the script sets --indicator-travel. */
+.indicatorDriven {
+  animation: indicator-travel linear both;
+  animation-timeline: scroll(root block);
+}
+
+@keyframes indicator-travel {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(var(--indicator-travel, 0px));
+  }
+}
+
 /* Bottom action (Telegram MainButton in the Mini App), as the iOS 26 reference: a
    full-width capsule --web-main-inset from the side and bottom edges. Behind it the page
    color, as the bottom bar Telegram paints in it (setBottomBarColor), fading out just

@@ -374,13 +374,13 @@ async def _deliver(
     content: dict[str, object],
     markup: InlineKeyboardMarkup,
 ) -> None:
-    """Отправить сообщение в общем темпе; упёрлись в лимит Telegram — подождать, сколько
-    просят, и повторить один раз."""
+    """Отправить сообщение в общем темпе; упёрлись в лимит Telegram — вся отправка бота
+    ждёт, сколько просят (общая пауза темпа), и сообщение повторяется один раз."""
     await pacer.wait()
     try:
         await bot.send_message(chat_id=chat_id, **content, reply_markup=markup)  # type: ignore[arg-type]
     except TelegramRetryAfter as exc:
-        await asyncio.sleep(exc.retry_after)
+        pacer.pause(exc.retry_after)
         await pacer.wait()
         await bot.send_message(chat_id=chat_id, **content, reply_markup=markup)  # type: ignore[arg-type]
 
