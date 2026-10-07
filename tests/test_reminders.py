@@ -168,9 +168,13 @@ class _FakeBot:
     """Вместо Bot API: записывает, кому и когда отправлено сообщение."""
 
     def __init__(
-        self, blocked: frozenset[int] = frozenset(), reject_custom_emoji: bool = False
+        self,
+        blocked: frozenset[int] = frozenset(),
+        reject_custom_emoji: bool = False,
+        no_chat: frozenset[int] = frozenset(),
     ) -> None:
         self.sent: list[tuple[int, float]] = []
+        self.attempts = 0
         self.markups: list[InlineKeyboardMarkup | None] = []
         self.texts: list[str] = []
         self.entities: list[list[MessageEntity] | None] = []
@@ -178,6 +182,8 @@ class _FakeBot:
         # Как Telegram, если у владельца бота нет Premium (предположительно): сообщение с
         # анимированными эмодзи отклоняется.
         self.reject_custom_emoji = reject_custom_emoji
+        # Пользователи, не запускавшие бота: Telegram отвечает «chat not found».
+        self.no_chat = no_chat
 
     async def send_message(
         self,
@@ -187,6 +193,11 @@ class _FakeBot:
         entities: list[MessageEntity] | None = None,
         parse_mode: str | None = None,
     ) -> None:
+        self.attempts += 1
+        if chat_id in self.no_chat:
+            raise TelegramBadRequest(
+                method=SendMessage(chat_id=chat_id, text=text), message="Bad Request: chat not found"
+            )
         if chat_id in self.blocked:
             raise TelegramForbiddenError(
                 method=SendMessage(chat_id=chat_id, text=text), message="bot was blocked"
@@ -244,6 +255,16 @@ def test_reminder_falls_back_to_plain_emoji() -> None:
     assert not bot.entities[0]
     button = bot.markups[0].inline_keyboard[0][0]  # type: ignore[union-attr]
     assert button.icon_custom_emoji_id is None and button.text == REMINDER_BUTTONS["ru"]
+
+
+def test_missing_chat_is_not_retried_without_emoji() -> None:
+    """Чата нет (бота не запускали) — второй попытки без анимированных эмодзи не будет."""
+    bot = _FakeBot(no_chat=frozenset({1}))
+
+    results = asyncio.run(bot_reminders._send_all(bot, Pacer(1000), [_reminder(1, 1)], KEYBOARDS))  # type: ignore[arg-type]
+
+    assert bot.attempts == 1
+    assert results == {1: (False, set())}
 
 
 def test_sending_is_fair_and_spaced_per_chat(monkeypatch: pytest.MonkeyPatch) -> None:

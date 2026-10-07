@@ -388,6 +388,9 @@ async def _send(
         try:
             await _deliver(bot, pacer, reminder.user_id, content, markup)
         except TelegramBadRequest as exc:
+            # Чата нет (бота не запускали) — без эмодзи тоже не дойдёт, не тратим попытку.
+            if "chat not found" in exc.message.lower():
+                raise
             # Анимированные эмодзи недоступны (например, у владельца бота кончился
             # Premium) — то же напоминание с обычными эмодзи (см. bot/emoji.py).
             logger.warning("Reminder with custom emoji rejected, sending plain: {}", exc)
