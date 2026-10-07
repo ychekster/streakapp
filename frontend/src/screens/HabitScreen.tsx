@@ -1,13 +1,17 @@
 /**
  * Экран привычки: карточка с сеткой выполнения за последние 364 дня, основные
  * показатели (текущая и лучшая серии, всего выполнено, цель серии) и настройки
- * привычки (редактировать, удалить). Весь экран окрашен в цвет привычки.
+ * привычки (редактировать, заморозить / разморозить, удалить). Весь экран окрашен в цвет
+ * привычки.
  *
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
  * Telegram заменена на «Назад», а нижняя навигация скрыта (см. App). Привычка берётся
  * из общего состояния, поэтому отметка и изменения здесь сразу видны и в списке.
  *
- * «Редактировать привычку» открывает форму привычки (см. HabitFormScreen). «Удалить
+ * «Редактировать привычку» открывает форму привычки (см. HabitFormScreen). «Заморозить
+ * привычку» сначала объясняет системным диалогом, что будет с привычкой, и после
+ * согласия замораживает её и возвращает к списку (как удаление); «Разморозить привычку»
+ * размораживает сразу, без диалога, и экран остаётся открытым. «Удалить
  * привычку» спрашивает подтверждение системным диалогом Telegram (на iPhone — обычный
  * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
  * карточкой.
@@ -19,7 +23,7 @@ import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
-import { PencilIcon, TrashIcon } from "../components/SettingsIcons";
+import { PencilIcon, SnowflakeIcon, TrashIcon } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
 import {
   CompletedIcon,
@@ -67,6 +71,8 @@ interface HabitScreenProps {
   animateEnter: boolean;
   /** Открыть форму редактирования привычки. */
   onEdit: (habit: Habit) => void;
+  /** Заморозить (`frozen: true`, App возвращает к списку) или разморозить привычку. */
+  onFreeze: (taskId: number, frozen: boolean) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
   onDelete: (taskId: number) => Promise<void>;
 }
@@ -76,6 +82,7 @@ export function HabitScreen({
   onToggle,
   animateEnter,
   onEdit,
+  onFreeze,
   onDelete,
 }: HabitScreenProps) {
   const strings = useStrings();
@@ -83,6 +90,24 @@ export function HabitScreen({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const frozen = habit.frozen_since !== null;
+
+  async function toggleFreeze(): Promise<void> {
+    if (frozen) {
+      onFreeze(habit.id, false);
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: strings.freezeDialogTitle,
+      message: strings.freezeDialogMessage,
+      confirmLabel: strings.freezeDialogConfirm,
+      cancelLabel: strings.freezeDialogCancel,
+    });
+    if (confirmed) {
+      onFreeze(habit.id, true);
+    }
+  }
 
   async function askToDelete(): Promise<void> {
     setDeleteError(null);
@@ -114,7 +139,7 @@ export function HabitScreen({
           <Card padded>
             <HabitBlock
               habit={habit}
-              interactive={habit.scheduled_today}
+              interactive={habit.scheduled_today && !frozen}
               gridDays={HISTORY_DAYS}
               gridColumns={HISTORY_COLUMNS}
               onToggle={onToggle}
@@ -153,6 +178,12 @@ export function HabitScreen({
               icon={<PencilIcon />}
               label={strings.editHabit}
               onPress={() => onEdit(habit)}
+            />
+            <ListItem
+              icon={<SnowflakeIcon />}
+              iconColor="lightblue"
+              label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
+              onPress={() => void toggleFreeze()}
             />
             <ListItem
               icon={<TrashIcon />}

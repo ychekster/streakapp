@@ -55,6 +55,7 @@ from backend.models import (
     Review,
     Segment,
     Task,
+    TaskFreeze,
     TaskLog,
     TaskStatus,
     User,
@@ -437,6 +438,7 @@ class Repository:
         внешние ключи)."""
         for model in (
             TaskLog,
+            TaskFreeze,
             Task,
             Review,
             UserActivity,
@@ -684,6 +686,38 @@ class Repository:
             for task_id, day in result.tuples():
                 done[task_id].add(day)
         return done
+
+    async def get_freezes(self, task_ids: Collection[int]) -> dict[int, list[tuple[date, date]]]:
+        """Прошедшие заморозки задач: id задачи → периоды (первый день, день разморозки)."""
+        freezes: dict[int, list[tuple[date, date]]] = {task_id: [] for task_id in task_ids}
+        for batch in _batches(freezes):
+            result = await self.session.execute(
+                select(TaskFreeze.task_id, TaskFreeze.start_date, TaskFreeze.end_date)
+                .where(TaskFreeze.task_id.in_(batch))
+                .order_by(TaskFreeze.start_date)
+            )
+            for task_id, start, end in result.tuples():
+                freezes[task_id].append((start, end))
+        return freezes
+
+    async def freeze_task(self, task: Task, day: date) -> None:
+        """Заморозить задачу с дня `day`. Уже замороженная остаётся как есть."""
+        if task.frozen_since is None:
+            task.frozen_since = day
+            await self.session.flush()
+
+    async def unfreeze_task(self, task: Task, day: date) -> None:
+        """Разморозить задачу: день `day` уже обычный. Заморозка, не покрывшая ни одного
+        дня (разморозили в тот же день), не сохраняется."""
+        start = task.frozen_since
+        if start is None:
+            return
+        if day > start:
+            self.session.add(
+                TaskFreeze(task_id=task.id, user_id=task.user_id, start_date=start, end_date=day)
+            )
+        task.frozen_since = None
+        await self.session.flush()
 
     async def get_done_task_days(
         self, task_days: Collection[tuple[int, date]]
@@ -1336,7 +1370,9 @@ class Repository:
             target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
 
-        for model in (Task, TaskLog, Review, WebSession, PushSubscription, Event, ActivityLog):
+        for model in (
+            Task, TaskLog, TaskFreeze, Review, WebSession, PushSubscription, Event, ActivityLog
+        ):
             await self.session.execute(
                 update(model)
                 .where(model.user_id == source_id)

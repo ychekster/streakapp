@@ -107,6 +107,63 @@ def test_mark_outside_the_history_is_refused(client: TestClient, user: AuthUser)
     assert data["habits"][0]["total_done"] == 1
 
 
+def test_freeze_keeps_the_streak_and_marks_its_days(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})
+    habit_id = created["results"][0]["id"]
+
+    def day(offset: int) -> str:
+        return (today - timedelta(days=offset)).isoformat()
+
+    def freeze(offset: int, frozen: bool) -> dict[str, object]:
+        return {"type": "freeze", "task": habit_id, "date": day(offset), "frozen": frozen}
+
+    # Выполнена 5 и 4 дня назад, заморожена 3 и 2 дня назад, выполнена вчера.
+    data = _sync(
+        client,
+        user,
+        {"type": "mark", "task": habit_id, "date": day(5), "done": True},
+        {"type": "mark", "task": habit_id, "date": day(4), "done": True},
+        freeze(3, True),
+        freeze(3, True),  # повтор — не новая заморозка
+        freeze(1, False),
+        freeze(1, False),
+        {"type": "mark", "task": habit_id, "date": day(1), "done": True},
+    )
+    assert all(result["ok"] for result in data["results"])
+    [habit] = data["habits"]
+    assert habit["frozen_since"] is None
+    assert habit["frozen_history"][-6:] == [False, False, True, True, False, False]
+    assert habit["current_streak"] == 3
+
+    # Текущая заморозка: с сегодняшнего дня, сегодня — уже замороженный день.
+    data = _sync(client, user, freeze(0, True))
+    habit = data["habits"][0]
+    assert habit["frozen_since"] == today.isoformat()
+    assert habit["frozen_history"][-1] is True
+    assert habit["current_streak"] == 3
+
+    # Разморозили в тот же день — заморозка не оставила дней.
+    data = _sync(client, user, freeze(0, False))
+    habit = data["habits"][0]
+    assert habit["frozen_since"] is None
+    assert habit["frozen_history"][-2:] == [False, False]
+
+
+def test_freeze_outside_the_history_is_refused(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})
+    habit_id = created["results"][0]["id"]
+    data = _sync(
+        client,
+        user,
+        {"type": "freeze", "task": habit_id, "date": (today + timedelta(days=1)).isoformat(),
+         "frozen": True},
+    )
+    assert data["results"][0]["error"]["code"] == "invalid_date"
+    assert data["habits"][0]["frozen_since"] is None
+
+
 def test_a_refused_operation_does_not_stop_the_others(
     client: TestClient, user: AuthUser
 ) -> None:

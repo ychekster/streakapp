@@ -350,6 +350,19 @@ export function App() {
     hideEditor();
   }
 
+  // Заморозить привычку и вернуться к списку или разморозить её, оставшись на экране —
+  // сразу, сервер узнает следом.
+  const freezeHabit = useCallback(
+    (taskId: number, frozen: boolean) => {
+      hapticNotification("success");
+      if (frozen) {
+        hideHabit();
+      }
+      dataStore.setFrozen(taskId, frozen);
+    },
+    [hideHabit],
+  );
+
   // Удалить привычку и вернуться к списку — сразу, сервер узнает следом.
   const deleteOpenHabit = useCallback(
     async (taskId: number) => {
@@ -611,6 +624,7 @@ export function App() {
           onToggle={toggle}
           animateEnter={habitEntering}
           onEdit={showEditor}
+          onFreeze={freezeHabit}
           onDelete={deleteOpenHabit}
         />
       );

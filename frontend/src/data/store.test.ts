@@ -45,6 +45,8 @@ function habit(fields: Partial<Habit> = {}): Habit {
     total_done: 0,
     reminder_time: null,
     color: "blue",
+    frozen_since: null,
+    frozen_history: Array<boolean>(HISTORY_DAYS).fill(false),
     ...fields,
   };
 }

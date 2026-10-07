@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
@@ -40,6 +41,7 @@ from backend.schemas import (
     SyncCreate,
     SyncDelete,
     SyncError,
+    SyncFreeze,
     SyncMark,
     SyncOperation,
     SyncResult,
@@ -97,13 +99,31 @@ def build_history(done_dates: set[date], today: date) -> list[bool]:
     return [(start + timedelta(days=offset)) in done_dates for offset in range(HISTORY_DAYS)]
 
 
-def compute_streaks(task: Task, done_dates: set[date], today: date) -> tuple[int, int]:
+def frozen_check(
+    task: Task, freezes: Collection[tuple[date, date]], today: date
+) -> Callable[[date], bool]:
+    """Проверка «заморожена ли привычка в этот день»: прошедшие заморозки `freezes`
+    (первый день, день разморозки — уже обычный) и текущая — с `task.frozen_since` по
+    `today` включительно."""
+    periods = list(freezes)
+    if task.frozen_since is not None:
+        periods.append((task.frozen_since, today + timedelta(days=1)))
+    return lambda day: any(start <= day < end for start, end in periods)
+
+
+def compute_streaks(
+    task: Task,
+    done_dates: set[date],
+    today: date,
+    is_frozen: Callable[[date], bool] = lambda day: False,
+) -> tuple[int, int]:
     """Текущая и лучшая серии выполнения (в днях).
 
     Серия — подряд идущие выполненные дни. Прерывает её только пропущенный
     запланированный день: незапланированные дни (у привычек «по дням недели» и «через
-    день») серию не рвут, а выполнение в такой день её продолжает. Сегодняшний день ещё не
-    закончился, поэтому пока он не отмечен, текущая серия тянется со вчерашнего.
+    день») и дни заморозки серию не рвут, а выполнение в такой день её продолжает.
+    Сегодняшний день ещё не закончился, поэтому пока он не отмечен, текущая серия тянется
+    со вчерашнего.
     """
     if not done_dates:
         return 0, 0
@@ -114,20 +134,28 @@ def compute_streaks(task: Task, done_dates: set[date], today: date) -> tuple[int
         if day in done_dates:
             current += 1
             best = max(best, current)
-        elif day < today and is_due(day):
+        elif day < today and is_due(day) and not is_frozen(day):
             current = 0
         day += timedelta(days=1)
     return current, best
 
 
-def build_habit(task: Task, done_dates: set[date], today: date) -> Habit:
+def build_habit(
+    task: Task,
+    done_dates: set[date],
+    today: date,
+    freezes: Collection[tuple[date, date]] = (),
+) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
     `done_dates` — даты выполнения по `today` включительно (Repository.get_done_dates):
     отметки «из будущего» (возможны после смены часового пояса на более западный) не
-    учитываются ни в сетке, ни в сериях, ни в общем счётчике.
+    учитываются ни в сетке, ни в сериях, ни в общем счётчике. `freezes` — прошедшие
+    заморозки (Repository.get_freezes).
     """
-    current_streak, best_streak = compute_streaks(task, done_dates, today)
+    is_frozen = frozen_check(task, freezes, today)
+    current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
+    history_start = today - timedelta(days=HISTORY_DAYS - 1)
     return Habit(
         id=task.id,
         name=task.name,
@@ -146,13 +174,18 @@ def build_habit(task: Task, done_dates: set[date], today: date) -> Habit:
             else None
         ),
         color=task.color,
+        frozen_since=task.frozen_since,
+        frozen_history=[
+            is_frozen(history_start + timedelta(days=offset)) for offset in range(HISTORY_DAYS)
+        ],
     )
 
 
 async def _built_habit(repo: Repository, task: Task, today: date) -> Habit:
     """Привычка с отметками из базы (после изменения или отметки)."""
     done = await repo.get_done_dates([task.id], today)
-    return build_habit(task, done[task.id], today)
+    freezes = await repo.get_freezes([task.id])
+    return build_habit(task, done[task.id], today, freezes[task.id])
 
 
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
@@ -162,8 +195,10 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
     """
     today = user_today(user)
     tasks = await repo.get_active_tasks(user.telegram_id)
-    done = await repo.get_done_dates([task.id for task in tasks], today)
-    return [build_habit(task, done[task.id], today) for task in tasks]
+    task_ids = [task.id for task in tasks]
+    done = await repo.get_done_dates(task_ids, today)
+    freezes = await repo.get_freezes(task_ids)
+    return [build_habit(task, done[task.id], today, freezes[task.id]) for task in tasks]
 
 
 async def _record_mark(repo: Repository, user: User, task: Task, done: bool) -> None:
@@ -330,6 +365,19 @@ async def _apply_sync_op(
             await _record_mark(repo, user, task, op.done)
         outcome.checked_in = outcome.checked_in or op.done
         return SyncResult(ok=True)
+    if isinstance(op, SyncFreeze):
+        task = await _active_task(repo, user, op.task)
+        # День — как у отметки: устройство замораживает с дня отметки, который видит.
+        today = user_today(user)
+        if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
+            raise ApiError(422, "invalid_date", "День вне истории привычки")
+        if op.frozen and task.frozen_since is None:
+            await repo.freeze_task(task, op.date)
+            await repo.log_action(user.telegram_id, "habit_frozen", ref_id=task.id)
+        elif not op.frozen and task.frozen_since is not None:
+            await repo.unfreeze_task(task, op.date)
+            await repo.log_action(user.telegram_id, "habit_unfrozen", ref_id=task.id)
+        return SyncResult(ok=True)
     if isinstance(op, SyncCreate):
         # Повтор уже применённого создания (ответ на прошлый запрос не дошёл) — та же
         # привычка, а не вторая.
@@ -400,8 +448,8 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
 
     Напоминание привычки наступило, если в поясе её владельца `moment` приходится
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
-    запланирована, и только пока она за этот день не отмечена выполненной.
-    Пользователю, заблокированному администратором, напоминания не приходят.
+    запланирована, и только пока она за этот день не отмечена выполненной. Замороженной
+    привычке и пользователю, заблокированному администратором, напоминания не приходят.
 
     «Этот день» — всегда сегодняшний по календарю пользователя: режим «Отмечать за вчера»
     на напоминания о привычках не влияет (сегодня по расписанию — сегодня и напомнит).
@@ -412,7 +460,7 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     """
     candidates: list[tuple[Task, date]] = []
     for task in await repo.get_active_tasks_with_reminder_at(_clock_times(moment)):
-        if task.user.blocked_at is not None:
+        if task.user.blocked_at is not None or task.frozen_since is not None:
             continue
         local = moment.astimezone(resolve_timezone(task.user.timezone))
         reminder = task.reminder_time
@@ -447,8 +495,8 @@ async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueR
 
     Наступило, если в поясе пользователя `moment` — ровно время напоминания, а сегодня
     (по его календарю) — один из выбранных дней недели. Приходит, только если на день
-    отметки запланирована хотя бы одна привычка и не все такие уже отмечены: иначе
-    отмечать нечего.
+    отметки запланирована хотя бы одна незамороженная привычка и не все такие уже
+    отмечены: иначе отмечать нечего.
     """
     candidates: dict[int, tuple[User, date]] = {}
     for user in await repo.get_users_with_checkin_reminder_at(_clock_times(moment)):
@@ -464,7 +512,7 @@ async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueR
     pending = [
         (task.id, candidates[task.user_id][1], task.user_id)
         for task in await repo.get_active_tasks_of(candidates)
-        if is_due_on(task, candidates[task.user_id][1])
+        if task.frozen_since is None and is_due_on(task, candidates[task.user_id][1])
     ]
     done = await repo.get_done_task_days({(task_id, day) for task_id, day, _ in pending})
     waiting = {user_id for task_id, day, user_id in pending if (task_id, day) not in done}

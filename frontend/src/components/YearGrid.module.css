@@ -26,3 +26,8 @@
 .empty {
   background-color: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
 }
+
+/* Невыполненный день заморозки — «лёд», одинаковый у всех привычек. */
+.frozen {
+  background: var(--color-frozen);
+}

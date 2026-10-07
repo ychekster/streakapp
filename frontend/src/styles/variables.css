@@ -51,6 +51,9 @@
   --habit-rgb: var(--palette-blue);
   --habit-grid-empty-alpha: 0.2; /* пропущенные дни сетки */
   --habit-soft-alpha: 0.12; /* подложка иконок показателей */
+  /* Дни заморозки в сетке — «лёд» с бликом, у всех цветов привычек один (отличим и
+     от выполненного, и от пропущенного дня голубой привычки). */
+  --color-frozen: linear-gradient(135deg, #e6f6ff 15%, #9dd3f2 85%);
   --color-on-habit: #ffffff; /* текст и значки поверх цвета привычки */
 
   /* --- Типографика --- */
@@ -353,6 +356,7 @@
   --palette-graphite: 132, 146, 168;
   --habit-grid-empty-alpha: 0.24;
   --habit-soft-alpha: 0.2;
+  --color-frozen: linear-gradient(135deg, #d4efff 15%, #5f9fc8 85%);
 
   --header-bar-tint: rgba(0, 0, 0, 0.8); /* --color-background на 80% */
   --header-hairline-color: rgba(255, 255, 255, 0.15);

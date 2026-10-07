@@ -21,6 +21,7 @@ const RU = {
   // отметки (сегодня, а в режиме «Отмечать за вчера» — вчера).
   otherSubheadingToday: "Не запланированы на сегодня",
   otherSubheadingYesterday: "Не запланированы на вчера",
+  frozenSubheading: "Заморожены",
 
   emptyTitle: "Нет привычек",
   emptyDescription: "Создайте новую привычку для отслеживания прогресса",
@@ -147,6 +148,13 @@ const RU = {
   goalEveryOtherDay: "Через день",
   habitSettingsHeading: "Настройки",
   editHabit: "Редактировать привычку",
+  freezeHabit: "Заморозить привычку",
+  unfreezeHabit: "Разморозить привычку",
+  freezeDialogTitle: "Заморозить привычку",
+  freezeDialogMessage:
+    "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории голубым. Отмечать привычку и получать напоминания можно будет после разморозки.",
+  freezeDialogConfirm: "Заморозить",
+  freezeDialogCancel: "Отменить",
   deleteHabit: "Удалить привычку",
   deleteDialogTitle: "Удалить привычку",
   deleteDialogMessage: "Вы уверены, что хотите навсегда удалить эту привычку?",
@@ -159,6 +167,7 @@ const RU = {
   checkUnmark: (name: string) => `Снять отметку: ${name}`,
   checkDone: (name: string) => `${name}: выполнено`,
   checkNotScheduled: (name: string) => `${name}: не запланировано`,
+  checkFrozen: (name: string) => `${name}: заморожено`,
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
@@ -250,6 +259,7 @@ const EN: Strings = {
   screenTitle: "Habits",
   otherSubheadingToday: "Not scheduled for today",
   otherSubheadingYesterday: "Not scheduled for yesterday",
+  frozenSubheading: "Frozen",
 
   emptyTitle: "No habits",
   emptyDescription: "Create a new habit to track your progress",
@@ -366,6 +376,13 @@ const EN: Strings = {
   goalEveryOtherDay: "Every Other Day",
   habitSettingsHeading: "Settings",
   editHabit: "Edit Habit",
+  freezeHabit: "Freeze Habit",
+  unfreezeHabit: "Unfreeze Habit",
+  freezeDialogTitle: "Freeze Habit",
+  freezeDialogMessage:
+    "Your current streak will be kept: missed days won’t break it, and frozen days will show in blue in the history. You can check the habit off and get reminders again after unfreezing it.",
+  freezeDialogConfirm: "Freeze",
+  freezeDialogCancel: "Cancel",
   deleteHabit: "Delete Habit",
   deleteDialogTitle: "Delete Habit",
   deleteDialogMessage: "Are you sure you want to permanently delete this habit?",
@@ -377,6 +394,7 @@ const EN: Strings = {
   checkUnmark: (name: string) => `Unmark: ${name}`,
   checkDone: (name: string) => `${name}: done`,
   checkNotScheduled: (name: string) => `${name}: not scheduled`,
+  checkFrozen: (name: string) => `${name}: frozen`,
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",

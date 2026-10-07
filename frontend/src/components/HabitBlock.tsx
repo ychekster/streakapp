@@ -62,10 +62,15 @@ export const HabitBlock = memo(function HabitBlock({
           done={habit.done_today}
           habitName={habit.name}
           disabled={!interactive}
+          frozen={habit.frozen_since !== null}
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>
-      <YearGrid history={habit.history.slice(-gridDays)} columns={gridColumns} />
+      <YearGrid
+        history={habit.history.slice(-gridDays)}
+        frozen={habit.frozen_history.slice(-gridDays)}
+        columns={gridColumns}
+      />
     </article>
   );
 });

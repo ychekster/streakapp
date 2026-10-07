@@ -84,6 +84,20 @@ class Habit(BaseModel):
         description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания",
     )
     color: str = Field(..., description="Цвет (тема) привычки — ключ палитры: blue, green, …")
+    frozen_since: date | None = Field(
+        None,
+        description=(
+            "С какого дня привычка заморожена; null — не заморожена. Замороженную нельзя "
+            "отмечать, пропуски не прерывают её серию"
+        ),
+    )
+    frozen_history: list[bool] = Field(
+        default_factory=list,
+        description=(
+            "Дни заморозки за те же дни, что `history` (текущая заморозка и прошедшие): "
+            "True — привычка в этот день была заморожена"
+        ),
+    )
 
 
 class HabitsResponse(BaseModel):
@@ -195,6 +209,16 @@ class SyncMark(BaseModel):
     done: bool
 
 
+class SyncFreeze(BaseModel):
+    """Заморозить (`frozen: true`) привычку с дня `date` или разморозить — `date` уже
+    обычный день. Повтор (уже заморожена / не заморожена) ничего не меняет."""
+
+    type: Literal["freeze"]
+    task: TaskRef
+    date: date
+    frozen: bool
+
+
 class SyncCreate(BaseModel):
     """Создать привычку; `ref` — её id на устройстве (повтор с тем же `ref` — не дубль)."""
 
@@ -226,7 +250,7 @@ class SyncSettings(BaseModel):
 
 
 SyncOperation = Annotated[
-    SyncMark | SyncCreate | SyncUpdate | SyncDelete | SyncSettings,
+    SyncMark | SyncFreeze | SyncCreate | SyncUpdate | SyncDelete | SyncSettings,
     Field(discriminator="type"),
 ]
 

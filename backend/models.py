@@ -1,4 +1,4 @@
-"""ORM-модели: User, Task, TaskLog и данные админ-панели (Admin, Review, UserActivity,
+"""ORM-модели: User, Task, TaskLog, TaskFreeze и данные админ-панели (Admin, Review, UserActivity,
 CheckinDay, ActivityLog, Broadcast, Segment, AppConfig).
 
 Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
@@ -195,6 +195,11 @@ class Task(Base):
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
     )
 
+    # Заморозка: с какого дня привычка заморожена (None — не заморожена). Пока привычка
+    # заморожена, пропуски не прерывают её серию, отмечать её нельзя, напоминания не
+    # приходят. Прошедшие заморозки — в TaskFreeze (их дни видны в сетке).
+    frozen_since: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -238,6 +243,23 @@ class TaskLog(Base):
     )
 
     task: Mapped["Task"] = relationship(back_populates="logs")
+
+
+class TaskFreeze(Base):
+    """Прошедшая заморозка привычки: дни с `start_date` по `end_date` (не включая его —
+    день разморозки уже обычный). Текущая заморозка — `Task.frozen_since`."""
+
+    __tablename__ = "task_freezes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
 
 
 class Admin(Base):
@@ -314,7 +336,8 @@ class ActivityLog(Base):
 
     `kind` — что случилось: start (запустил бота), app_open (открыл приложение; `detail` —
     откуда: menu, welcome, reminder, broadcast, push, install_offer, link, icon),
-    habit_created / habit_updated / habit_deleted, checkin / uncheck (`ref_id` — привычка),
+    habit_created / habit_updated / habit_deleted / habit_frozen / habit_unfrozen,
+    checkin / uncheck (`ref_id` — привычка),
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
     вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),

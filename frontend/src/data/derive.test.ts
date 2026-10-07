@@ -49,6 +49,8 @@ function habit(fields: Partial<Habit> = {}): Habit {
     total_done: 0,
     reminder_time: null,
     color: "blue",
+    frozen_since: null,
+    frozen_history: history([]),
     ...fields,
   };
 }
@@ -161,6 +163,49 @@ describe("deriveView", () => {
     const base = habit({ history: history(all), current_streak: 500, best_streak: 500, total_done: 500 });
     const [result] = view(snapshot([base]), [{ type: "mark", task: 1, date: TODAY, done: true }]).habits;
     expect([result.current_streak, result.best_streak, result.total_done]).toEqual([501, 501, 501]);
+  });
+
+  it("keeps the streak through a freeze and shows its days", () => {
+    const base = habit({ history: history([1, 2]), current_streak: 2, best_streak: 2, total_done: 2 });
+    const freeze: Operation = { type: "freeze", task: 1, date: TODAY, frozen: true };
+    const [frozen] = view(snapshot([base]), [freeze]).habits;
+    expect(frozen.frozen_since).toBe(TODAY);
+    expect(frozen.frozen_history.slice(-2)).toEqual([false, true]);
+    // Three days later, nothing marked: the frozen days do not break the streak.
+    const later = new Date(`${addDays(TODAY, 3)}T08:00:00Z`);
+    const [still] = view(snapshot([base]), [freeze], later).habits;
+    expect(still.frozen_history.slice(-5)).toEqual([false, true, true, true, true]);
+    expect(still.current_streak).toBe(2);
+  });
+
+  it("ends the server's freeze on the unfreeze day", () => {
+    const base = habit({
+      history: history([4]),
+      frozen_since: addDays(TODAY, -3),
+      frozen_history: history([0, 1, 2, 3]),
+      current_streak: 1,
+      best_streak: 1,
+      total_done: 1,
+    });
+    const unfreeze: Operation = { type: "freeze", task: 1, date: TODAY, frozen: false };
+    const [result] = view(snapshot([base]), [unfreeze]).habits;
+    expect(result.frozen_since).toBeNull();
+    expect(result.frozen_history.slice(-5)).toEqual([false, true, true, true, false]);
+    expect(result.current_streak).toBe(1);
+    // Next day: today (the unfreeze day) was not marked — it breaks the streak.
+    const tomorrow = new Date(`${addDays(TODAY, 1)}T08:00:00Z`);
+    const [next] = view(snapshot([base]), [unfreeze], tomorrow).habits;
+    expect(next.frozen_history.slice(-2)).toEqual([false, false]);
+    expect(next.current_streak).toBe(0);
+  });
+
+  it("leaves no frozen days after unfreezing on the same day", () => {
+    const [result] = view(snapshot([habit()]), [
+      { type: "freeze", task: 1, date: TODAY, frozen: true },
+      { type: "freeze", task: 1, date: TODAY, frozen: false },
+    ]).habits;
+    expect(result.frozen_since).toBeNull();
+    expect(result.frozen_history.some(Boolean)).toBe(false);
   });
 
   it("creates, edits and deletes habits", () => {

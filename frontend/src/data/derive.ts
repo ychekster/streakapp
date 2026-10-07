@@ -4,7 +4,7 @@
  * marking day. Pure functions: the store (store.ts) calls them after every change.
  *
  * Computed here exactly as the server computes it (backend/services.py, schedule.py):
- * the marking day, whether a habit is due, history, streaks, totals. When the server
+ * the marking day, whether a habit is due, history, frozen days, streaks, totals. When the server
  * answers, its numbers replace these — normally they are the same.
  */
 
@@ -103,11 +103,28 @@ function habitFields(input: HabitInput): Pick<
   };
 }
 
+/** Does an undone day at `index` of `history` break a run (compute_streaks): a due day
+ *  before the marking day that was not frozen. */
+function breaksRun(
+  history: boolean[],
+  frozen: readonly boolean[],
+  index: number,
+  lastDay: string,
+  schedule: Schedule,
+): boolean {
+  return (
+    index < history.length - 1 &&
+    !frozen[index] &&
+    isDueOn(schedule, addDays(lastDay, index - history.length + 1))
+  );
+}
+
 /** Run of done days ending on the last day of `history` (compute_streaks): an undone
  *  marking day does not break it (the day is not over), an undone due day before it
- *  does. `exhausted` — the run goes on past the start of the history. */
+ *  does, unless frozen. `exhausted` — the run goes on past the start of the history. */
 function currentRun(
   history: boolean[],
+  frozen: readonly boolean[],
   lastDay: string,
   schedule: Schedule,
 ): { count: number; exhausted: boolean } {
@@ -115,7 +132,7 @@ function currentRun(
   for (let index = history.length - 1; index >= 0; index -= 1) {
     if (history[index]) {
       count += 1;
-    } else if (index < history.length - 1 && isDueOn(schedule, addDays(lastDay, index - history.length + 1))) {
+    } else if (breaksRun(history, frozen, index, lastDay, schedule)) {
       return { count, exhausted: false };
     }
   }
@@ -123,18 +140,61 @@ function currentRun(
 }
 
 /** Longest run inside `history` (days before it unknown). */
-function bestRun(history: boolean[], lastDay: string, schedule: Schedule): number {
+function bestRun(
+  history: boolean[],
+  frozen: readonly boolean[],
+  lastDay: string,
+  schedule: Schedule,
+): number {
   let best = 0;
   let current = 0;
   history.forEach((done, index) => {
     if (done) {
       current += 1;
       best = Math.max(best, current);
-    } else if (index < history.length - 1 && isDueOn(schedule, addDays(lastDay, index - history.length + 1))) {
+    } else if (breaksRun(history, frozen, index, lastDay, schedule)) {
       current = 0;
     }
   });
   return best;
+}
+
+/** Freezes of a habit as changed on the device: the current one (`since`), the ones
+ *  ended on the device (`ended`: first day, unfreeze day) and the day from which the
+ *  server's current freeze no longer counts (`cut` — it was ended here). */
+interface Freezes {
+  since: string | null;
+  ended: [string, string][];
+  cut: string | null;
+}
+
+function serverFreezes(base: Habit | null): Freezes {
+  return { since: base?.frozen_since ?? null, ended: [], cut: null };
+}
+
+/** A freeze operation on the device's freezes (as services._apply_sync_op). */
+function applyFreeze(
+  freezes: Freezes,
+  op: Extract<Operation, { type: "freeze" }>,
+  base: Habit | null,
+): void {
+  if (op.frozen) {
+    freezes.since ??= op.date;
+    return;
+  }
+  const { since } = freezes;
+  if (since === null) {
+    return;
+  }
+  // As Repository.unfreeze_task: the unfreeze day is an ordinary day.
+  const end = op.date > since ? op.date : since;
+  if (end > since) {
+    freezes.ended.push([since, end]);
+  }
+  if (freezes.cut === null && since === base?.frozen_since) {
+    freezes.cut = end;
+  }
+  freezes.since = null;
 }
 
 /** A habit being assembled: the server's version (none for one created on the device),
@@ -144,13 +204,24 @@ interface Draft {
   base: Habit | null;
   fields: ReturnType<typeof habitFields> | null;
   marks: Map<string, boolean>;
+  /** Freezes changed on the device; null — as on the server. */
+  freezes: Freezes | null;
 }
 
 /** The habit for `today` (the marking day) from its draft; `snapshotToday` — the day the
  *  server's version was counted for. */
 function buildHabit(draft: Draft, id: number, today: string, snapshotToday: string): Habit {
   const { base, marks } = draft;
-  if (base && !draft.fields && marks.size === 0 && today === snapshotToday && base.id === id) {
+  if (
+    base &&
+    !draft.fields &&
+    marks.size === 0 &&
+    !draft.freezes &&
+    today === snapshotToday &&
+    base.id === id &&
+    // Kept on the device before freezing existed: counted anew.
+    base.frozen_history !== undefined
+  ) {
     return base;
   }
   const fields = draft.fields ?? (base ? habitFields(base) : null);
@@ -164,10 +235,23 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     const index = base.history.length - 1 - daysBetween(day, snapshotToday);
     return index >= 0 && index < base.history.length ? base.history[index] : false;
   };
+  const baseFrozenHistory: boolean[] = base?.frozen_history ?? [];
+  const freezes = draft.freezes ?? serverFreezes(base);
+  const frozenOn = (day: string): boolean => {
+    const index = baseFrozenHistory.length - 1 - daysBetween(day, snapshotToday);
+    const baseFrozen = index >= 0 && index < baseFrozenHistory.length && baseFrozenHistory[index];
+    return (
+      (baseFrozen && (freezes.cut === null || day < freezes.cut)) ||
+      freezes.ended.some(([start, end]) => start <= day && day < end) ||
+      (freezes.since !== null && freezes.since <= day)
+    );
+  };
   const history: boolean[] = [];
+  const frozenHistory: boolean[] = [];
   for (let index = 0; index < HISTORY_DAYS; index += 1) {
     const day = addDays(today, index - HISTORY_DAYS + 1);
     history.push(marks.get(day) ?? baseDone(day));
+    frozenHistory.push(frozenOn(day));
   }
 
   // Done days the server counted (up to its day), changed or no longer counted here.
@@ -185,14 +269,14 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     }
   }
 
-  const run = currentRun(history, today, fields);
+  const run = currentRun(history, frozenHistory, today, fields);
   let current = run.count;
-  let best = Math.max(current, bestRun(history, today, fields));
+  let best = Math.max(current, bestRun(history, frozenHistory, today, fields));
   if (base) {
     if (run.exhausted) {
       // The run started before the history: the server knows how much earlier.
       const baseHistory = base.history;
-      const baseRun = currentRun(baseHistory, snapshotToday, fields);
+      const baseRun = currentRun(baseHistory, baseFrozenHistory, snapshotToday, fields);
       current += Math.max(0, base.current_streak - baseRun.count);
       best = Math.max(best, current);
     }
@@ -212,6 +296,8 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     current_streak: current,
     best_streak: best,
     total_done: Math.max(0, total),
+    frozen_since: freezes.since,
+    frozen_history: frozenHistory,
   };
 }
 
@@ -245,16 +331,26 @@ export function deriveView(
     base: habit,
     fields: null,
     marks: new Map(),
+    freezes: null,
   }));
   for (const op of ops) {
     if (op.type === "create") {
-      drafts.push({ key: op.ref, base: null, fields: habitFields(op.habit), marks: new Map() });
-    } else if (op.type === "update" || op.type === "mark") {
+      drafts.push({
+        key: op.ref,
+        base: null,
+        fields: habitFields(op.habit),
+        marks: new Map(),
+        freezes: null,
+      });
+    } else if (op.type === "update" || op.type === "mark" || op.type === "freeze") {
       const draft = drafts.find((item) => item.key === op.task);
       if (draft && op.type === "update") {
         draft.fields = habitFields(op.habit);
       } else if (draft && op.type === "mark") {
         draft.marks.set(op.date, op.done);
+      } else if (draft && op.type === "freeze") {
+        draft.freezes ??= serverFreezes(draft.base);
+        applyFreeze(draft.freezes, op, draft.base);
       }
     } else if (op.type === "delete") {
       drafts = drafts.filter((item) => item.key !== op.task);

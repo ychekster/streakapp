@@ -34,6 +34,18 @@ export function TrashIcon() {
   );
 }
 
+/** Заморозить / разморозить привычку: снежинка. */
+export function SnowflakeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9" />
+      <path {...STROKE} d="M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5" />
+      <path {...STROKE} d="M4.3 10.4 7.7 9.5 6.8 6.1M17.2 17.9l-.9-3.4 3.4-.9" />
+      <path {...STROKE} d="M6.8 17.9l.9-3.4-3.4-.9M19.7 10.4l-3.4-.9.9-3.4" />
+    </svg>
+  );
+}
+
 /** Часовой пояс. */
 export function ClockIcon() {
   return (

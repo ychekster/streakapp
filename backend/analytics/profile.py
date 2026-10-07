@@ -21,8 +21,8 @@ from backend.sources import source_name
 
 # Действия, у которых ref_id — привычка (в ленте показывается её название).
 _HABIT_ACTIONS = (
-    "habit_created", "habit_updated", "habit_deleted", "checkin", "uncheck", "reminder_sent",
-    "reminder_failed",
+    "habit_created", "habit_updated", "habit_deleted", "habit_frozen", "habit_unfrozen",
+    "checkin", "uncheck", "reminder_sent", "reminder_failed",
 )
 
 

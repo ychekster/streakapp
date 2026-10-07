@@ -11,6 +11,8 @@ interface CheckButtonProps {
   onToggle: () => void;
   /** Неактивная кнопка: показывает статус, но не реагирует на нажатие (только просмотр). */
   disabled?: boolean;
+  /** Привычка заморожена (подпись неактивной кнопки). */
+  frozen?: boolean;
 }
 
 export function CheckButton({
@@ -18,6 +20,7 @@ export function CheckButton({
   habitName,
   onToggle,
   disabled = false,
+  frozen = false,
 }: CheckButtonProps) {
   const strings = useStrings();
   return (
@@ -33,7 +36,9 @@ export function CheckButton({
         disabled
           ? done
             ? strings.checkDone(habitName)
-            : strings.checkNotScheduled(habitName)
+            : frozen
+              ? strings.checkFrozen(habitName)
+              : strings.checkNotScheduled(habitName)
           : done
             ? strings.checkUnmark(habitName)
             : strings.checkMark(habitName)

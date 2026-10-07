@@ -11,6 +11,9 @@ export type TaskKey = number | string;
 export type SyncOperation =
   /** Mark a day done (`done: true`) or clear it. */
   | { type: "mark"; task: TaskKey; date: string; done: boolean }
+  /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
+   *  ordinary day again. */
+  | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }
   /** Create a habit; `ref` is its id on the device (a repeat is not a duplicate). */
   | { type: "create"; ref: string; habit: HabitInput }
   /** Change a habit — all form fields, as PUT /tasks/{id}. */

@@ -499,8 +499,17 @@ export const dataStore = {
   /** Mark or unmark the habit for the marking day. */
   toggle(id: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (habit?.scheduled_today && viewDay) {
+    if (habit?.scheduled_today && habit.frozen_since === null && viewDay) {
       enqueue({ type: "mark", task: keyOf(id), date: viewDay, done: !habit.done_today });
+    }
+  },
+
+  /** Freeze the habit from the marking day, or unfreeze it (the marking day is an
+   *  ordinary day again). */
+  setFrozen(id: number, frozen: boolean): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (habit && (habit.frozen_since !== null) !== frozen && viewDay) {
+      enqueue({ type: "freeze", task: keyOf(id), date: viewDay, frozen });
     }
   },
 

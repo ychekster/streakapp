@@ -18,7 +18,7 @@ from backend.database import Database
 from backend.models import FrequencyType, TaskStatus
 from backend.repository import Repository, TaskSchedule
 from backend.schedule import is_due_on
-from backend.services import compute_streaks
+from backend.services import compute_streaks, frozen_check
 from backend.validation import resolve_timezone, validate_frequency, validate_name
 
 TODAY = date(2026, 9, 22)  # вторник
@@ -47,6 +47,21 @@ def test_unscheduled_days_do_not_break_streak() -> None:
     task = _task(FrequencyType.specific_days, "mon,wed")
     monday, last_wednesday = TODAY - timedelta(days=1), TODAY - timedelta(days=6)
     assert compute_streaks(task, {monday, last_wednesday}, TODAY) == (2, 2)
+
+
+def test_frozen_days_do_not_break_streak() -> None:
+    # Заморожена с 4 по 3 дня назад (прошедшая) и с позавчера по сегодня (текущая):
+    # пропуски в эти дни серию не рвут и не продолжают; вчерашняя отметка её продолжает.
+    task = SimpleNamespace(**vars(_task(FrequencyType.daily)), frozen_since=TODAY - timedelta(days=2))
+    past = [(TODAY - timedelta(days=4), TODAY - timedelta(days=2))]
+    is_frozen = frozen_check(task, past, TODAY)  # type: ignore[arg-type]
+    assert [is_frozen(TODAY - timedelta(days=offset)) for offset in range(6)] == [
+        True, True, True, True, True, False,
+    ]
+    done = _days_ago(1, 5, 6)
+    assert compute_streaks(task, done, TODAY, is_frozen) == (3, 3)
+    # Без заморозки пропуски позавчера и 3–4 дня назад серию прерывают.
+    assert compute_streaks(task, done, TODAY) == (1, 2)
 
 
 def test_every_other_day_schedule_and_streak() -> None:
