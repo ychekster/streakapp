@@ -13,20 +13,24 @@ import { useStrings } from "../preferences";
 import styles from "./CheckButton.module.css";
 
 /** Длительность закрашивания доли обводки (мс). */
-const FILL_MS = 420;
+const FILL_MS = 340;
 
-/** Геометрия SVG поверх кнопки (вся кнопка с обводкой, 30×30 — --check-size): дуга идёт
- *  по середине обводки толщиной 2⅔px (--check-stroke). */
+/** Геометрия SVG поверх кнопки «несколько раз в день» (вся кнопка с обводкой, 30×30 —
+ *  --check-size): дуга идёт по середине обводки толщиной 2⅔px (--check-stroke). */
 const VIEW = 30;
 const CENTER = VIEW / 2;
 const RADIUS = (VIEW - 8 / 3) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-/** Половина длины луча плюса (без скругления концов): плюс ≈10px, обводки не касается. */
-const PLUS_ARM = 4.1;
+/** Половина длины луча плюса (без скругления концов, px): плюс ≈10.7px, обводки не
+ *  касается. */
+const PLUS_ARM = 4.37;
+/** Толщина линий плюса (px). */
+const PLUS_STROKE = 1.92;
 const PLUS_PATH = `M${CENTER} ${CENTER - PLUS_ARM}V${CENTER + PLUS_ARM}M${CENTER - PLUS_ARM} ${CENTER}H${CENTER + PLUS_ARM}`;
 
-function easeInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+/** Быстрый старт и плавное торможение к концу дуги (ease-out cubic). */
+function easeOut(t: number): number {
+  return 1 - (1 - t) ** 3;
 }
 
 /** Доля, плавно догоняющая `target` за FILL_MS, когда растёт; уменьшается сразу (и
@@ -48,7 +52,7 @@ function useAnimatedFraction(target: number): number {
     let frame = 0;
     const tick = (now: number): void => {
       const progress = Math.min(1, (now - start) / FILL_MS);
-      current.current = from + (target - from) * easeInOut(progress);
+      current.current = from + (target - from) * easeOut(progress);
       setValue(current.current);
       if (progress < 1) {
         frame = requestAnimationFrame(tick);
@@ -118,7 +122,7 @@ export function CheckButton({
     >
       {multi ? (
         <svg className={styles.progress} viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
-          <path className={styles.plus} d={PLUS_PATH} />
+          <path className={styles.plus} d={PLUS_PATH} strokeWidth={PLUS_STROKE} />
           {fraction > 0.001 ? (
             <circle
               className={styles.arc}
@@ -140,9 +144,11 @@ export function CheckButton({
         aria-hidden="true"
       >
         <path
-          d="M5 12.5l4.5 4.5L19 7.5"
+          // Чуть ниже центра viewBox (по вертикали 7.75–17.25) — так галочка выглядит
+          // посередине кружка; линия жирнее прежних 3.
+          d="M5 12.75l4.5 4.5L19 7.75"
           stroke="currentColor"
-          strokeWidth="3"
+          strokeWidth="3.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

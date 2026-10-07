@@ -3,6 +3,7 @@
    отступы, правый край — на прежнем месте. */
 
 .button {
+  position: relative;
   flex-shrink: 0;
   width: var(--check-size);
   height: var(--check-size);
@@ -16,13 +17,17 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  /* Плавный переход состояния — 150ms ease. */
-  transition: background-color var(--transition-fast),
-    border-color var(--transition-fast), transform var(--transition-fast);
+  /* Плавный переход состояния — 150ms ease; сама кнопка при нажатии не сжимается. */
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.button[data-pressed]:not(.disabled) {
-  transform: scale(0.92);
+/* Зона нажатия чуть больше кружка (невидимая): промах мимо него на несколько пикселей
+   не открывает привычку. У неактивной кнопки зоны нет — там нажатие открывает привычку. */
+.button:not(.disabled)::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * (var(--check-stroke) + var(--check-hit-slop)));
+  border-radius: var(--radius-pill);
 }
 
 /* Неактивная кнопка (только просмотр прогресса): приглушена и не реагирует на нажатие. */
@@ -36,18 +41,17 @@
 }
 
 .check {
-  width: 64%;
-  height: 64%;
+  /* Крупная, по центру кружка (чуть ниже геометрического — см. CheckButton). */
+  width: var(--check-icon-size);
+  height: var(--check-icon-size);
   color: var(--color-check-icon);
-  /* Галочка плавно проявляется и слегка «вырастает» при отметке. */
+  /* Галочка просто проявляется при отметке — без «прыжка». */
   opacity: 0;
-  transform: scale(0.5);
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  transition: opacity var(--transition-fast);
 }
 
 .done .check {
   opacity: 1;
-  transform: scale(1);
 }
 
 /* --- Привычка «несколько раз в день» --- */
@@ -90,7 +94,6 @@
 .plus {
   fill: none;
   stroke: rgb(var(--habit-rgb));
-  stroke-width: 1.8;
   stroke-linecap: round;
   transition: opacity var(--transition-fast);
 }

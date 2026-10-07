@@ -1,10 +1,11 @@
 /**
  * Степпер iOS: серая «таблетка» с кнопками «−» и «+» (UIStepper). Меняет число на 1 в
  * пределах `min`–`max`; на границе кнопка приглушена. Удержание кнопки повторяет шаг —
- * так до большого числа не нужно нажимать десятки раз.
+ * так до большого числа не нужно нажимать десятки раз. Подсвечивается кнопка только при
+ * удержании; одиночное нажатие не мигает.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { hapticSelection } from "../telegram/webapp";
 import styles from "./Stepper.module.css";
@@ -28,12 +29,15 @@ export function Stepper({ value, min, max, onChange, decreaseLabel, increaseLabe
   const valueRef = useRef(value);
   valueRef.current = value;
   const timer = useRef<number | null>(null);
+  // Кнопка, которую держат (шаг повторяется): её и подсвечиваем.
+  const [held, setHeld] = useState<number | null>(null);
 
   function stop(): void {
     if (timer.current !== null) {
       window.clearTimeout(timer.current);
       timer.current = null;
     }
+    setHeld(null);
   }
 
   useEffect(() => stop, []);
@@ -56,6 +60,7 @@ export function Stepper({ value, min, max, onChange, decreaseLabel, increaseLabe
     }
     const repeat = (): void => {
       timer.current = step(delta) ? window.setTimeout(repeat, REPEAT_INTERVAL_MS) : null;
+      setHeld(timer.current === null ? null : delta);
     };
     timer.current = window.setTimeout(repeat, REPEAT_DELAY_MS);
   }
@@ -64,7 +69,7 @@ export function Stepper({ value, min, max, onChange, decreaseLabel, increaseLabe
     return (
       <button
         type="button"
-        className={styles.button}
+        className={`${styles.button} ${held === delta && !disabled ? styles.held : ""}`}
         aria-label={label}
         disabled={disabled}
         onPointerDown={(event) => {

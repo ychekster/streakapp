@@ -102,19 +102,21 @@
 
   /* --- Кнопка отметки --- */
   --check-size: 30px;
+  --check-icon-size: 20px; /* галочка выполненного дня */
   --check-stroke: calc(8px / 3); /* 8 физических пикселей на iPhone (@3x) */
   /* Место кнопки в раскладке — прежние 28px: кружок крупнее его и выступает влево, вверх
      и вниз, не сдвигая ни название, ни сетку. */
   --check-box: 28px;
+  --check-hit-slop: 6px; /* невидимая зона нажатия вокруг кружка */
   /* Привычка «несколько раз в день»: плюс внутри кружка, выполненные разы — дугой по обводке. */
   --check-faded-opacity: 0.35; /* бледная обводка и плюс — как у неактивной кнопки */
 
-  /* --- Степпер (−/+) --- */
-  --stepper-width: 94px;
-  --stepper-height: 32px;
-  --stepper-radius: 9px;
+  /* --- Степпер (−/+): капсула --- */
+  --stepper-width: 93px;
+  --stepper-height: 33px;
+  --stepper-radius: var(--radius-pill);
   --stepper-icon-size: 18px;
-  --stepper-divider-height: 18px;
+  --stepper-divider-height: 25px;
 
   /* --- Отзыв: кнопка отправки в карточке поля и история --- */
   --review-field-min-height: 88px;
@@ -350,6 +352,8 @@
 
   --color-background: #000000;
   --color-card: #1c1c1e;
+  /* Галочка выполненного дня — цветом карточки, будто прорезана в кружке. */
+  --color-check-icon: var(--color-card);
   --color-text-primary: #ffffff;
   --color-text-secondary: #98989f;
   --color-accent: #0a84ff;

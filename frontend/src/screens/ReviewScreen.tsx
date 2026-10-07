@@ -11,7 +11,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { fetchReviews, sendReview } from "../api/reviews";
+import { keptReviews, loadReviews, sendReview } from "../api/reviews";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { REVIEW_MAX_LENGTH } from "../constants";
@@ -27,8 +27,8 @@ export function ReviewScreen() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // null — история ещё грузится (или не загрузилась): секции нет.
-  const [reviews, setReviews] = useState<UserReview[] | null>(null);
+  // Загруженная заранее (api/reviews.ts) — сразу; null — ещё не загружалась: секции нет.
+  const [reviews, setReviews] = useState<UserReview[] | null>(keptReviews);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   // Отправка уже идёт: `busy` обновится только со следующим рендером, а второе быстрое
   // нажатие отправило бы отзыв дважды.
@@ -37,13 +37,15 @@ export function ReviewScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchReviews().then(
+    // Свежий список (ответы администратора) подменяет показанный; отправленные, пока он
+    // грузился (новее всех в нём), остаются первыми.
+    loadReviews().then(
       (loaded) => {
         if (!cancelled) {
-          // Отправленный, пока история грузилась, уже стоит первым.
+          const newest = loaded[0]?.id ?? 0;
           setReviews((current) => [
-            ...(current ?? []),
-            ...loaded.filter((item) => !current?.some((own) => own.id === item.id)),
+            ...(current ?? []).filter((item) => item.id > newest),
+            ...loaded,
           ]);
         }
       },

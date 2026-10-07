@@ -1,10 +1,12 @@
-/* Степпер iOS (UIStepper): 94×32, серая таблетка, тонкий разделитель посередине. */
+/* Степпер: 93×33, серая капсула, тонкий разделитель посередине. */
 
 .stepper {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   height: var(--stepper-height);
+  /* Правый край — ровно над правым краем переключателя (тот же сдвиг, что у Switch). */
+  margin-right: var(--switch-trailing);
   border-radius: var(--stepper-radius);
   background-color: var(--color-fill);
   overflow: hidden;
@@ -31,7 +33,8 @@
   height: var(--stepper-icon-size);
 }
 
-.button:active:not(:disabled) {
+/* Подсветка — только пока кнопку держат (шаг повторяется), не при одиночном нажатии. */
+.held {
   background-color: var(--color-fill);
 }
 

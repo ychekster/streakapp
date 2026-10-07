@@ -51,6 +51,7 @@ import {
 
 import { ApiRequestError, type ApiErrorCode } from "./api/client";
 import { loadMeta, loadTimezones } from "./api/meta";
+import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
 import { StatusMessage } from "./components/StatusMessage";
@@ -565,12 +566,15 @@ export function App() {
     }
   }, [settings?.is_admin]);
 
-  // Справочники форм (лимит названия, каталог поясов) — заранее, когда приложение уже
-  // открылось: форма привычки и выбор пояса потом открываются без ожидания сети.
+  // Справочники форм (лимит названия, каталог поясов) и история отзывов — заранее, когда
+  // приложение уже открылось: форма привычки, выбор пояса и экран отзыва потом
+  // открываются без ожидания сети.
   useEffect(() => {
     const timer = window.setTimeout(() => {
       loadMeta().catch(() => undefined);
       loadTimezones(language).catch(() => undefined);
+      // История отзывов — экран «Написать отзыв» открывается сразу со списком.
+      loadReviews().catch(() => undefined);
     }, PREFETCH_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [language]);
