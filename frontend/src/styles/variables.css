@@ -251,11 +251,11 @@
   --time-pill-pad-y: 6px;
   --time-pill-pad-x: 12px;
   /* Дни недели — по эталону «Будильника» iOS (3×): кружки 35pt по всей ширине ряда,
-     подпись 17pt жирная; ряд дней — 67pt (кружок по центру под линией), ряд над ним —
-     50.33pt. */
+     подпись 17pt Semibold (штрих той же толщины, что у заголовка экрана, — не Bold);
+     ряд дней — 67pt (кружок по центру под линией), ряд над ним — 50.33pt. */
   --day-picker-size: 35px; /* кружок дня недели */
   --day-picker-font-size: 17px;
-  --day-picker-font-weight: 700;
+  --day-picker-font-weight: 600;
   --day-picker-pad-top: 16.67px; /* от верха ряда (с линией) до кружка */
   --day-picker-pad-bottom: 15.33px;
   --day-picker-row-above-height: 50.33px;
