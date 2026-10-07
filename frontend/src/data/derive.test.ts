@@ -54,6 +54,7 @@ function habit(fields: Partial<Habit> = {}): Habit {
     frozen_history: history([]),
     times_per_day: 1,
     today_count: 0,
+    auto_mark: false,
     ...fields,
   };
 }
@@ -104,6 +105,22 @@ describe("schedule", () => {
 });
 
 describe("deriveView", () => {
+  it("marks today at once when auto check-off is turned on without a reminder", () => {
+    const input = { name: "Зарядка", frequency_type: "daily" as const, days: [], start_date: null, color: "blue" as const, times_per_day: 1 };
+    const on = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: null, auto_mark: true } },
+    ]).habits[0];
+    expect(on).toMatchObject({ auto_mark: true, done_today: true });
+    const withReminder = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: "23:59", auto_mark: true } },
+    ]).habits[0];
+    expect(withReminder).toMatchObject({ auto_mark: true, done_today: false });
+    const several = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, times_per_day: 2, reminder_time: null, auto_mark: true } },
+    ]).habits[0];
+    expect(several).toMatchObject({ auto_mark: false, done_today: false });
+  });
+
   it("counts a habit done several times a day", () => {
     const base = habit({ times_per_day: 3, today_count: 1 });
     expect(view(snapshot([base])).habits[0]).toBe(base);
@@ -117,7 +134,7 @@ describe("deriveView", () => {
     expect(three).toMatchObject({ today_count: 3, done_today: true, current_streak: 1 });
     // A lower goal: the day's count already reaches it.
     const lowered = view(snapshot([base]), [
-      { type: "update", task: 1, habit: { name: "Зарядка", frequency_type: "daily", days: [], start_date: null, reminder_time: null, color: "blue", times_per_day: 2 } },
+      { type: "update", task: 1, habit: { name: "Зарядка", frequency_type: "daily", days: [], start_date: null, reminder_time: null, color: "blue", times_per_day: 2, auto_mark: false } },
       { type: "mark", task: 1, date: TODAY, done: true, count: 2 },
     ]).habits[0];
     expect(lowered).toMatchObject({ times_per_day: 2, today_count: 2, done_today: true });
@@ -243,6 +260,7 @@ describe("deriveView", () => {
         reminder_time: "09:00",
         color: "green",
         times_per_day: 1,
+        auto_mark: false,
       },
     };
     const result = view(snapshot([base]), [
@@ -251,7 +269,7 @@ describe("deriveView", () => {
       {
         type: "update",
         task: 1,
-        habit: { name: "Бег", frequency_type: "specific_days", days: ["sun"], start_date: null, reminder_time: null, color: "red", times_per_day: 1 },
+        habit: { name: "Бег", frequency_type: "specific_days", days: ["sun"], start_date: null, reminder_time: null, color: "red", times_per_day: 1, auto_mark: false },
       },
     ]).habits;
     expect(result.map((item) => [item.id, item.name, item.scheduled_today])).toEqual([

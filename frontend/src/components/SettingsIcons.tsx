@@ -9,6 +9,17 @@ const STROKE = {
   strokeLinejoin: "round",
 } as const;
 
+/** Отмечать привычку автоматически: галочка в круговой стрелке. */
+export function AutoCheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M20 12a8 8 0 1 1-2.6-5.9" />
+      <path {...STROKE} d="M18 3v3.5h-3.5" />
+      <path {...STROKE} d="M8.5 12.2l2.4 2.4 4.6-4.6" />
+    </svg>
+  );
+}
+
 /** Редактировать привычку. */
 export function PencilIcon() {
   return (

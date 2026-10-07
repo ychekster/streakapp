@@ -201,6 +201,13 @@ class Task(Base):
     times_per_day: Mapped[int] = mapped_column(
         Integer, default=1, server_default="1", nullable=False
     )
+    # «Отмечать автоматически» (экран привычки): без напоминания привычка отмечается
+    # выполненной с началом дня, с напоминанием — сразу после него (services.auto_mark_due,
+    # бот раз в минуту). День, отметку которого пользователь снял сам, не трогается. Только
+    # у привычек «раз в день» (times_per_day = 1).
+    auto_mark: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     # Id, который дало привычке устройство, создав её без связи (POST /sync): по нему
     # повтор создания не заводит вторую привычку, а отметки новой привычки её находят.
     client_ref: Mapped[str | None] = mapped_column(
@@ -352,7 +359,8 @@ class ActivityLog(Base):
     `kind` — что случилось: start (запустил бота), app_open (открыл приложение; `detail` —
     откуда: menu, welcome, reminder, broadcast, push, install_offer, link, icon),
     habit_created / habit_updated / habit_deleted / habit_frozen / habit_unfrozen,
-    checkin / uncheck (`ref_id` — привычка),
+    checkin / uncheck (`ref_id` — привычка), auto_checkin (привычку «Отмечать
+    автоматически» отметил бот),
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
     вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),

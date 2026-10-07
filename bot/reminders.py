@@ -40,6 +40,10 @@ Every reminder goes into the user's action log (reminder_sent / reminder_failed,
 channel), and a subscription that disappeared — as push_gone: the admin panel's
 analytics counts reminders, what they lead to and likely uninstalls from it. The button
 and the push open the app marked «from a reminder» (`from=reminder`).
+
+Каждую минуту после напоминаний бот отмечает привычки «Отмечать автоматически»
+(`backend.services.auto_mark_due`): без напоминания — с началом дня, с напоминанием —
+сразу после него. Порядок важен: отмеченной привычке напоминание бы уже не пришло.
 """
 
 from __future__ import annotations
@@ -75,7 +79,7 @@ from backend.messaging import app_url
 from backend.repository import Repository
 from backend.models import PushSubscription
 from backend.repository import utc_now
-from backend.services import DueReminder, due_checkin_reminders, due_reminders
+from backend.services import DueReminder, auto_mark_due, due_checkin_reminders, due_reminders
 from backend.webpush import (
     PushOutcome,
     PushTarget,
@@ -161,6 +165,10 @@ async def run_reminders(
                 logger.exception("Reminders for {} failed", minute)
             last_processed = minute
             minute += _MINUTE
+        try:
+            await _auto_mark(database)
+        except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
+            logger.exception("Auto check-offs failed")
         next_minute = _current_minute() + _MINUTE
         await asyncio.sleep((next_minute - datetime.now(timezone.utc)).total_seconds())
 
@@ -234,6 +242,15 @@ async def _send_due(
                 detail=channel,
             )
         await session.commit()
+
+
+async def _auto_mark(database: Database) -> None:
+    """Отметить привычки «Отмечать автоматически», которым пора (после напоминаний)."""
+    async with database.session_factory() as session:
+        marked = await auto_mark_due(Repository(session), datetime.now(timezone.utc))
+        await session.commit()
+    if marked:
+        logger.info("Auto check-offs: {} habits", marked)
 
 
 def _reminder_key(reminder: DueReminder) -> tuple[int, int | None]:

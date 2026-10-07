@@ -23,8 +23,9 @@ import { HabitBlock } from "../components/HabitBlock";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
-import { PencilIcon, SnowflakeIcon, TrashIcon } from "../components/SettingsIcons";
+import { AutoCheckIcon, PencilIcon, SnowflakeIcon } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
+import { Switch } from "../components/Switch";
 import {
   CompletedIcon,
   FlameIcon,
@@ -73,6 +74,8 @@ interface HabitScreenProps {
   onEdit: (habit: Habit) => void;
   /** Заморозить (`frozen: true`, App возвращает к списку) или разморозить привычку. */
   onFreeze: (taskId: number, frozen: boolean) => void;
+  /** Включить или выключить «Отмечать автоматически». */
+  onAutoMark: (taskId: number, on: boolean) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
   onDelete: (taskId: number) => Promise<void>;
 }
@@ -83,6 +86,7 @@ export function HabitScreen({
   animateEnter,
   onEdit,
   onFreeze,
+  onAutoMark,
   onDelete,
 }: HabitScreenProps) {
   const strings = useStrings();
@@ -176,6 +180,8 @@ export function HabitScreen({
           <Card>
             <ListItem
               icon={<PencilIcon />}
+              // Свой постоянный цвет, а не цвет привычки (как у остальных рядов).
+              iconColor="orange"
               label={strings.editHabit}
               onPress={() => onEdit(habit)}
             />
@@ -185,14 +191,29 @@ export function HabitScreen({
               label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
               onPress={() => void toggleFreeze()}
             />
-            <ListItem
-              icon={<TrashIcon />}
-              label={strings.deleteHabit}
-              destructive
-              disabled={deleting}
-              onPress={() => void askToDelete()}
-            />
+            {/* Только у привычек «раз в день»: у «несколько раз в день» автоотметки нет. */}
+            {habit.times_per_day === 1 ? (
+              <ListItem icon={<AutoCheckIcon />} iconColor="green" label={strings.autoMarkHabit}>
+                <span className={styles.autoMarkSwitch}>
+                  <Switch
+                    checked={habit.auto_mark}
+                    onChange={(on) => onAutoMark(habit.id, on)}
+                    label={strings.autoMarkHabit}
+                  />
+                </span>
+              </ListItem>
+            ) : null}
           </Card>
+          {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
+              «Часах» iOS). */}
+          <button
+            type="button"
+            className={styles.delete}
+            disabled={deleting}
+            onClick={() => void askToDelete()}
+          >
+            {strings.deleteHabit}
+          </button>
           {deleteError ? (
             <p className={styles.error} role="alert">
               {deleteError}

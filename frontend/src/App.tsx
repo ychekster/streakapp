@@ -369,6 +369,11 @@ export function App() {
     [hideHabit],
   );
 
+  // «Отмечать автоматически» — сразу, сервер узнает следом.
+  const setAutoMark = useCallback((taskId: number, on: boolean) => {
+    dataStore.setAutoMark(taskId, on);
+  }, []);
+
   // Удалить привычку и вернуться к списку — сразу, сервер узнает следом.
   const deleteOpenHabit = useCallback(
     async (taskId: number) => {
@@ -651,6 +656,7 @@ export function App() {
           animateEnter={habitEntering}
           onEdit={showEditor}
           onFreeze={freezeHabit}
+          onAutoMark={setAutoMark}
           onDelete={deleteOpenHabit}
         />
       );

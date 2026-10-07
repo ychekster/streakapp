@@ -166,6 +166,9 @@ const RU = {
   editHabit: "Редактировать привычку",
   freezeHabit: "Заморозить привычку",
   unfreezeHabit: "Разморозить привычку",
+  // Бот сам отмечает привычку: без напоминания — с началом дня, с напоминанием — сразу
+  // после него.
+  autoMarkHabit: "Отмечать автоматически",
   freezeDialogTitle: "Заморозить привычку",
   freezeDialogMessage:
     "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории снежинками. Отмечать привычку и получать напоминания можно будет после разморозки.",
@@ -206,9 +209,15 @@ const RU = {
   formStartDate: "Начало",
   dateToday: "Сегодня",
   dateTomorrow: "Завтра",
-  // Цель: сколько раз в день выполнить привычку («3 / день»), степпер −/+.
+  // Цель: сколько раз в день выполнить привычку («1 раз за день», «3 раза за день»,
+  // «5 раз за день»), степпер −/+.
   formGoalHeading: "Цель",
-  formTimesPerDay: (count: number) => `${count} / день`,
+  formTimesPerDay: (count: number) => {
+    const tens = count % 100;
+    const ones = count % 10;
+    const word = ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
+    return `${count} ${word} за день`;
+  },
   formTimesLess: "Меньше раз в день",
   formTimesMore: "Больше раз в день",
   formReminderHeading: "Напоминание",
@@ -411,6 +420,7 @@ const EN: Strings = {
   editHabit: "Edit Habit",
   freezeHabit: "Freeze Habit",
   unfreezeHabit: "Unfreeze Habit",
+  autoMarkHabit: "Mark Automatically",
   freezeDialogTitle: "Freeze Habit",
   freezeDialogMessage:
     "Your current streak will be kept: missed days won’t break it, and frozen days will show as snowflakes in the history. You can check the habit off and get reminders again after unfreezing it.",
@@ -448,7 +458,8 @@ const EN: Strings = {
   dateToday: "Today",
   dateTomorrow: "Tomorrow",
   formGoalHeading: "Goal",
-  formTimesPerDay: (count: number) => `${count} / day`,
+  formTimesPerDay: (count: number) =>
+    count === 1 ? "Once a day" : count === 2 ? "Twice a day" : `${count} times a day`,
   formTimesLess: "Fewer times a day",
   formTimesMore: "More times a day",
   formReminderHeading: "Reminder",

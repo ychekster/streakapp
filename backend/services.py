@@ -183,6 +183,7 @@ def build_habit(
         ],
         times_per_day=task.times_per_day,
         today_count=today_count,
+        auto_mark=task.auto_mark,
     )
 
 
@@ -244,6 +245,7 @@ class HabitFields:
     reminder_time: time | None
     color: str
     times_per_day: int
+    auto_mark: bool
 
 
 async def _validate_habit_fields(
@@ -273,6 +275,8 @@ async def _validate_habit_fields(
         reminder_time=reminder_time,
         color=color,
         times_per_day=times_per_day,
+        # Автоотметка — только у привычек «раз в день».
+        auto_mark=payload.auto_mark and times_per_day == 1,
     )
 
 
@@ -294,6 +298,7 @@ async def _create_task(
         reminder_time=fields.reminder_time,
         color=fields.color,
         times_per_day=fields.times_per_day,
+        auto_mark=fields.auto_mark,
         client_ref=client_ref,
     )
     await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
@@ -315,6 +320,7 @@ async def update_habit(
     История отметок не трогается: серии пересчитываются по новому расписанию.
     """
     fields = await _validate_habit_fields(repo, user, payload, task_id=task.id)
+    auto_mark_turned_on = fields.auto_mark and not task.auto_mark
     await repo.update_task(
         task,
         name=fields.name,
@@ -324,8 +330,16 @@ async def update_habit(
         reminder_time=fields.reminder_time,
         color=fields.color,
         times_per_day=fields.times_per_day,
+        auto_mark=fields.auto_mark,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
+    # Включили «Отмечать автоматически» — день, который уже пора отметить (без напоминания —
+    # сегодняшний, с напоминанием — если оно сегодня уже было), отмечается сразу, а не
+    # через минуту, когда до него дойдёт бот.
+    if auto_mark_turned_on:
+        day = _auto_mark_day(task, user, datetime.now(pytz.utc))
+        if day is not None and not await repo.get_logged_task_days([(task.id, day)]):
+            await _auto_mark(repo, task, day)
     return await _built_habit(repo, task, user_today(user))
 
 
@@ -437,6 +451,64 @@ async def apply_sync(repo: Repository, user: User, ops: list[SyncOperation]) -> 
             result = SyncResult(ok=False, error=SyncError(code=exc.code, message=exc.message))
         outcome.results.append(result)
     return outcome
+
+
+def _auto_mark_day(task: Task, user: User, moment: datetime) -> date | None:
+    """День, который у привычки «Отмечать автоматически» пора отметить в момент `moment`,
+    или None.
+
+    День — сегодняшний по календарю пользователя (как у напоминаний, режим «Отмечать за
+    вчера» не влияет), запланированный и не замороженный. Без напоминания его пора
+    отмечать с самого начала, с напоминанием — с минуты напоминания (бот сначала шлёт
+    напоминание, потом отмечает).
+    """
+    if (
+        not task.auto_mark
+        or task.times_per_day != 1
+        or task.frozen_since is not None
+        or user.blocked_at is not None
+    ):
+        return None
+    local = moment.astimezone(resolve_timezone(user.timezone))
+    day = local.date()
+    if not is_due_on(task, day):
+        return None
+    reminder = task.reminder_time
+    if reminder is not None and (local.hour, local.minute) < (reminder.hour, reminder.minute):
+        return None
+    return day
+
+
+async def _auto_mark(repo: Repository, task: Task, day: date) -> None:
+    """Отметить привычку выполненной за день автоматически. В ленту — auto_checkin, но
+    не день отметки: это не действие пользователя (аналитика считает его отметки)."""
+    await repo.add_done_log(task, day)
+    await repo.log_action(task.user_id, "auto_checkin", ref_id=task.id)
+
+
+async def auto_mark_due(repo: Repository, moment: datetime) -> int:
+    """Отметить привычки «Отмечать автоматически», которым пора (см. `_auto_mark_day`),
+    и вернуть, сколько отмечено. День, на который запись уже есть, не трогается: и
+    отмеченный, и тот, с которого пользователь сам снял отметку.
+
+    Зовёт бот раз в минуту, после напоминаний этой минуты (bot/reminders.py). Проверяет
+    все такие привычки, а не только наступившие сейчас: отметка не теряется, даже если
+    бот в нужную минуту не работал.
+    """
+    candidates: list[tuple[Task, date]] = []
+    for task in await repo.get_auto_mark_tasks():
+        day = _auto_mark_day(task, task.user, moment)
+        if day is not None:
+            candidates.append((task, day))
+    if not candidates:
+        return 0
+    logged = await repo.get_logged_task_days({(task.id, day) for task, day in candidates})
+    marked = 0
+    for task, day in candidates:
+        if (task.id, day) not in logged:
+            await _auto_mark(repo, task, day)
+            marked += 1
+    return marked
 
 
 @dataclass(frozen=True)

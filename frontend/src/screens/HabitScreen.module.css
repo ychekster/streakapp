@@ -31,3 +31,39 @@
   color: var(--color-danger);
   line-height: 1.35;
 }
+
+/* «Удалить привычку» — отдельная кнопка-капсула под карточкой настроек: во всю ширину,
+   высотой с ряд формы, красный текст по центру (как «Удалить будильник» в «Часах» iOS). */
+.delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--delete-button-height);
+  margin-top: var(--space-list-gap);
+  padding: 0 var(--space-card-padding);
+  border: none;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-card);
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-danger);
+  transition: opacity var(--transition-fast);
+}
+
+.delete[data-pressed] {
+  /* Подсветка нажатия — поверх цвета карточки, как у рядов списка. */
+  background-image: linear-gradient(var(--color-row-press), var(--color-row-press));
+}
+
+.delete:disabled {
+  opacity: 0.5;
+}
+
+/* Переключатель «Отмечать автоматически» — на 2px левее, чем в остальных рядах
+   приложения (только на экране привычки). */
+.autoMarkSwitch {
+  display: flex;
+  margin-right: 2px;
+}

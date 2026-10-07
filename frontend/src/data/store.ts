@@ -544,6 +544,26 @@ export const dataStore = {
     return habitById(id);
   },
 
+  /** Turn «Отмечать автоматически» on or off — a change of the habit's fields; a day
+   *  that is already due is marked at once (derive.ts, as the server). */
+  setAutoMark(id: number, on: boolean): void {
+    const habit = habitById(id);
+    enqueue({
+      type: "update",
+      task: keyOf(id),
+      habit: {
+        name: habit.name,
+        frequency_type: habit.frequency_type,
+        days: habit.days,
+        start_date: habit.start_date,
+        reminder_time: habit.reminder_time,
+        color: habit.color,
+        times_per_day: habit.times_per_day,
+        auto_mark: on,
+      },
+    });
+  },
+
   deleteHabit(id: number): void {
     enqueue({ type: "delete", task: keyOf(id) });
   },

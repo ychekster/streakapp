@@ -91,8 +91,17 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
 /** Form fields of a habit as the server stores them. */
 function habitFields(input: HabitInput): Pick<
   Habit,
-  "name" | "frequency_type" | "days" | "start_date" | "reminder_time" | "color" | "times_per_day"
+  | "name"
+  | "frequency_type"
+  | "days"
+  | "start_date"
+  | "reminder_time"
+  | "color"
+  | "times_per_day"
+  | "auto_mark"
 > {
+  // Kept on the device before "several times a day" existed: once.
+  const timesPerDay = input.times_per_day ?? 1;
   return {
     name: cleanHabitName(input.name),
     frequency_type: input.frequency_type,
@@ -103,8 +112,9 @@ function habitFields(input: HabitInput): Pick<
     start_date: input.frequency_type === "every_other_day" ? input.start_date : null,
     reminder_time: input.reminder_time,
     color: input.color,
-    // Kept on the device before "several times a day" existed: once.
-    times_per_day: input.times_per_day ?? 1,
+    times_per_day: timesPerDay,
+    // As the server: auto check-off only for once-a-day habits.
+    auto_mark: (input.auto_mark ?? false) && timesPerDay === 1,
   };
 }
 
@@ -336,6 +346,7 @@ export function deriveView(
     }
   }
   const today = markingDay(settings.timezone, settings.mark_yesterday, now);
+  const calendarToday = markingDay(settings.timezone, false, now);
 
   let drafts: Draft[] = snapshot.habits.map((habit) => ({
     key: habit.id,
@@ -358,7 +369,22 @@ export function deriveView(
     } else if (op.type === "update" || op.type === "mark" || op.type === "freeze") {
       const draft = drafts.find((item) => item.key === op.task);
       if (draft && op.type === "update") {
+        const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
         draft.fields = habitFields(op.habit);
+        // As the server (services.update_habit): auto check-off turned on for a habit
+        // without a reminder marks today (calendar day) at once, unless today has a mark.
+        // With a reminder, the server marks it if the reminder already came today.
+        const frozen = draft.freezes ? draft.freezes.since !== null : draft.base?.frozen_since != null;
+        if (
+          draft.fields.auto_mark &&
+          !before?.auto_mark &&
+          draft.fields.reminder_time === null &&
+          !frozen &&
+          isDueOn(draft.fields, calendarToday) &&
+          !draft.marks.has(calendarToday)
+        ) {
+          draft.marks.set(calendarToday, true);
+        }
       } else if (draft && op.type === "mark") {
         // As the server: with a count, the day is done once the habit's times are reached.
         const fields = draft.fields ?? (draft.base ? habitFields(draft.base) : null);

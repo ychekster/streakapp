@@ -109,6 +109,13 @@ class Habit(BaseModel):
             "день»; день выполнен, когда набрано times_per_day)"
         ),
     )
+    auto_mark: bool = Field(
+        False,
+        description=(
+            "«Отмечать автоматически»: без напоминания — выполнена с началом дня, с "
+            "напоминанием — сразу после него (только при times_per_day = 1)"
+        ),
+    )
 
 
 class HabitsResponse(BaseModel):
@@ -144,6 +151,10 @@ class HabitCreate(BaseModel):
     color: str = Field(DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры")
     times_per_day: int = Field(
         1, description=f"Сколько раз в день нужно выполнить привычку: 1–{MAX_TIMES_PER_DAY}"
+    )
+    auto_mark: bool = Field(
+        False,
+        description="«Отмечать автоматически» (экран привычки); при times_per_day > 1 не действует",
     )
 
 

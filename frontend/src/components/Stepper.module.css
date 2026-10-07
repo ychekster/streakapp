@@ -25,17 +25,12 @@
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
-  transition: background-color var(--transition-fast), opacity var(--transition-fast);
+  transition: opacity var(--transition-fast);
 }
 
 .button svg {
   width: var(--stepper-icon-size);
   height: var(--stepper-icon-size);
-}
-
-/* Подсветка — только пока кнопку держат (шаг повторяется), не при одиночном нажатии. */
-.held {
-  background-color: var(--color-fill);
 }
 
 .button:disabled {

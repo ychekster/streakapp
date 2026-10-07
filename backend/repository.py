@@ -471,6 +471,7 @@ class Repository:
         start_date: date | None = None,
         client_ref: str | None = None,
         times_per_day: int = 1,
+        auto_mark: bool = False,
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync)."""
         task = Task(
@@ -482,6 +483,7 @@ class Repository:
             reminder_time=reminder_time,
             color=color,
             times_per_day=times_per_day,
+            auto_mark=auto_mark,
             client_ref=client_ref,
             is_active=True,
         )
@@ -499,9 +501,11 @@ class Repository:
         color: str,
         start_date: date | None = None,
         times_per_day: int = 1,
+        auto_mark: bool = False,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
+        task.auto_mark = auto_mark
         task.name = name
         task.frequency_type = frequency_type
         task.days = days
@@ -590,6 +594,22 @@ class Repository:
         result = await self.session.execute(
             select(Task)
             .where(Task.is_active.is_(True), Task.reminder_time.in_(sorted(times)))
+            .options(selectinload(Task.user))
+            .order_by(Task.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_auto_mark_tasks(self) -> list[Task]:
+        """Активные незамороженные привычки «раз в день» с «Отмечать автоматически» —
+        вместе с владельцем (его пояс определяет день)."""
+        result = await self.session.execute(
+            select(Task)
+            .where(
+                Task.is_active.is_(True),
+                Task.auto_mark.is_(True),
+                Task.frozen_since.is_(None),
+                Task.times_per_day == 1,
+            )
             .options(selectinload(Task.user))
             .order_by(Task.id)
         )
@@ -766,6 +786,29 @@ class Repository:
             )
             done.update((task_id, day) for task_id, day in result.tuples())
         return done & set(task_days)
+
+    async def get_logged_task_days(
+        self, task_days: Collection[tuple[int, date]]
+    ) -> set[tuple[int, date]]:
+        """У каких из пар (id задачи, дата) есть запись за день — любая: отметка или снятая
+        отметка."""
+        days = {day for _, day in task_days}
+        logged: set[tuple[int, date]] = set()
+        for batch in _batches({task_id for task_id, _ in task_days}):
+            result = await self.session.execute(
+                select(TaskLog.task_id, TaskLog.scheduled_date).where(
+                    TaskLog.task_id.in_(batch),
+                    TaskLog.scheduled_date.in_(sorted(days)),
+                )
+            )
+            logged.update((task_id, day) for task_id, day in result.tuples())
+        return logged & set(task_days)
+
+    async def add_done_log(self, task: Task, day: date) -> None:
+        """Отметить задачу выполненной за день, на который записи ещё нет."""
+        log = await self.get_or_create_log(task.id, task.user_id, day)
+        if log.status != TaskStatus.done:
+            await self.set_log_status(log, TaskStatus.done)
 
     # ------------------------------------------------------------------ #
     #  Admins
