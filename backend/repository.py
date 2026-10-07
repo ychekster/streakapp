@@ -600,7 +600,7 @@ class Repository:
         return list(result.scalars().all())
 
     async def get_auto_mark_tasks(self) -> list[Task]:
-        """Активные незамороженные привычки «раз в день» с «Отмечать автоматически» —
+        """Активные незамороженные привычки «раз в день» с автоотметкой —
         вместе с владельцем (его пояс определяет день)."""
         result = await self.session.execute(
             select(Task)

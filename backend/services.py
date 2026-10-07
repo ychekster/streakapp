@@ -333,12 +333,13 @@ async def update_habit(
         auto_mark=fields.auto_mark,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
-    # Включили «Отмечать автоматически» — день, который уже пора отметить (без напоминания —
+    # Включили автоотметку — день, который уже пора отметить (без напоминания —
     # сегодняшний, с напоминанием — если оно сегодня уже было), отмечается сразу, а не
-    # через минуту, когда до него дойдёт бот.
+    # через минуту, когда до него дойдёт бот. Даже если отметку за него сняли: повторное
+    # включение — это «отметь заново» (бот сам снятую отметку не трогает).
     if auto_mark_turned_on:
         day = _auto_mark_day(task, user, datetime.now(pytz.utc))
-        if day is not None and not await repo.get_logged_task_days([(task.id, day)]):
+        if day is not None and not await repo.get_done_task_days([(task.id, day)]):
             await _auto_mark(repo, task, day)
     return await _built_habit(repo, task, user_today(user))
 
@@ -454,7 +455,7 @@ async def apply_sync(repo: Repository, user: User, ops: list[SyncOperation]) -> 
 
 
 def _auto_mark_day(task: Task, user: User, moment: datetime) -> date | None:
-    """День, который у привычки «Отмечать автоматически» пора отметить в момент `moment`,
+    """День, который у привычки «Автоотметка» пора отметить в момент `moment`,
     или None.
 
     День — сегодняшний по календарю пользователя (как у напоминаний, режим «Отмечать за
@@ -487,7 +488,7 @@ async def _auto_mark(repo: Repository, task: Task, day: date) -> None:
 
 
 async def auto_mark_due(repo: Repository, moment: datetime) -> int:
-    """Отметить привычки «Отмечать автоматически», которым пора (см. `_auto_mark_day`),
+    """Отметить привычки «Автоотметка», которым пора (см. `_auto_mark_day`),
     и вернуть, сколько отмечено. День, на который запись уже есть, не трогается: и
     отмеченный, и тот, с которого пользователь сам снял отметку.
 

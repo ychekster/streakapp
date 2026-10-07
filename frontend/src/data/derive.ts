@@ -372,7 +372,7 @@ export function deriveView(
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
         draft.fields = habitFields(op.habit);
         // As the server (services.update_habit): auto check-off turned on for a habit
-        // without a reminder marks today (calendar day) at once, unless today has a mark.
+        // without a reminder marks today (calendar day) at once — also if it was unchecked.
         // With a reminder, the server marks it if the reminder already came today.
         const frozen = draft.freezes ? draft.freezes.since !== null : draft.base?.frozen_since != null;
         if (
@@ -380,8 +380,7 @@ export function deriveView(
           !before?.auto_mark &&
           draft.fields.reminder_time === null &&
           !frozen &&
-          isDueOn(draft.fields, calendarToday) &&
-          !draft.marks.has(calendarToday)
+          isDueOn(draft.fields, calendarToday)
         ) {
           draft.marks.set(calendarToday, true);
         }

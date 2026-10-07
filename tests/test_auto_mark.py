@@ -1,4 +1,4 @@
-"""«Отмечать автоматически»: какие привычки бот отмечает сам (services.auto_mark_due) и
+"""Автоотметка: какие привычки бот отмечает сам (services.auto_mark_due) и
 отметка сразу при включении (POST /sync, update)."""
 
 from __future__ import annotations
@@ -95,6 +95,15 @@ def test_turning_auto_mark_on_marks_today(client: TestClient, user: AuthUser) ->
         "habits"
     ]
     assert (result["auto_mark"], result["done_today"]) == (True, True)
+
+    # Unchecked by the user, auto check-off turned off and on again: today is checked again.
+    today = sync()["today"]
+    sync({"type": "mark", "task": habit_id, "date": today, "done": False})
+    sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": False}})
+    [result] = sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": True}})[
+        "habits"
+    ]
+    assert result["done_today"] is True
 
     # Several times a day: auto check-off is not available.
     [result] = sync(

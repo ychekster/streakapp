@@ -41,7 +41,7 @@ channel), and a subscription that disappeared — as push_gone: the admin panel'
 analytics counts reminders, what they lead to and likely uninstalls from it. The button
 and the push open the app marked «from a reminder» (`from=reminder`).
 
-Каждую минуту после напоминаний бот отмечает привычки «Отмечать автоматически»
+Каждую минуту после напоминаний бот отмечает привычки «Автоотметка»
 (`backend.services.auto_mark_due`): без напоминания — с началом дня, с напоминанием —
 сразу после него. Порядок важен: отмеченной привычке напоминание бы уже не пришло.
 """
@@ -245,7 +245,7 @@ async def _send_due(
 
 
 async def _auto_mark(database: Database) -> None:
-    """Отметить привычки «Отмечать автоматически», которым пора (после напоминаний)."""
+    """Отметить привычки «Автоотметка», которым пора (после напоминаний)."""
     async with database.session_factory() as session:
         marked = await auto_mark_due(Repository(session), datetime.now(timezone.utc))
         await session.commit()

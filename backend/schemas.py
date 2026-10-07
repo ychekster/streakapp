@@ -112,7 +112,7 @@ class Habit(BaseModel):
     auto_mark: bool = Field(
         False,
         description=(
-            "«Отмечать автоматически»: без напоминания — выполнена с началом дня, с "
+            "«Автоотметка»: без напоминания — выполнена с началом дня, с "
             "напоминанием — сразу после него (только при times_per_day = 1)"
         ),
     )
@@ -154,7 +154,7 @@ class HabitCreate(BaseModel):
     )
     auto_mark: bool = Field(
         False,
-        description="«Отмечать автоматически» (экран привычки); при times_per_day > 1 не действует",
+        description="«Автоотметка» (экран привычки); при times_per_day > 1 не действует",
     )
 
 

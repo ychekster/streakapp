@@ -369,7 +369,7 @@ export function App() {
     [hideHabit],
   );
 
-  // «Отмечать автоматически» — сразу, сервер узнает следом.
+  // Автоотметка — сразу, сервер узнает следом.
   const setAutoMark = useCallback((taskId: number, on: boolean) => {
     dataStore.setAutoMark(taskId, on);
   }, []);

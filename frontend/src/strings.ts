@@ -168,7 +168,7 @@ const RU = {
   unfreezeHabit: "Разморозить привычку",
   // Бот сам отмечает привычку: без напоминания — с началом дня, с напоминанием — сразу
   // после него.
-  autoMarkHabit: "Отмечать автоматически",
+  autoMarkHabit: "Автоотметка",
   freezeDialogTitle: "Заморозить привычку",
   freezeDialogMessage:
     "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории снежинками. Отмечать привычку и получать напоминания можно будет после разморозки.",
@@ -420,7 +420,7 @@ const EN: Strings = {
   editHabit: "Edit Habit",
   freezeHabit: "Freeze Habit",
   unfreezeHabit: "Unfreeze Habit",
-  autoMarkHabit: "Mark Automatically",
+  autoMarkHabit: "Auto Check-Off",
   freezeDialogTitle: "Freeze Habit",
   freezeDialogMessage:
     "Your current streak will be kept: missed days won’t break it, and frozen days will show as snowflakes in the history. You can check the habit off and get reminders again after unfreezing it.",

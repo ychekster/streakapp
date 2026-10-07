@@ -74,7 +74,7 @@ interface HabitScreenProps {
   onEdit: (habit: Habit) => void;
   /** Заморозить (`frozen: true`, App возвращает к списку) или разморозить привычку. */
   onFreeze: (taskId: number, frozen: boolean) => void;
-  /** Включить или выключить «Отмечать автоматически». */
+  /** Включить или выключить «Автоотметка». */
   onAutoMark: (taskId: number, on: boolean) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
   onDelete: (taskId: number) => Promise<void>;
@@ -185,12 +185,6 @@ export function HabitScreen({
               label={strings.editHabit}
               onPress={() => onEdit(habit)}
             />
-            <ListItem
-              icon={<SnowflakeIcon />}
-              iconColor="lightblue"
-              label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
-              onPress={() => void toggleFreeze()}
-            />
             {/* Только у привычек «раз в день»: у «несколько раз в день» автоотметки нет. */}
             {habit.times_per_day === 1 ? (
               <ListItem icon={<AutoCheckIcon />} iconColor="green" label={strings.autoMarkHabit}>
@@ -203,6 +197,12 @@ export function HabitScreen({
                 </span>
               </ListItem>
             ) : null}
+            <ListItem
+              icon={<SnowflakeIcon />}
+              iconColor="lightblue"
+              label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
+              onPress={() => void toggleFreeze()}
+            />
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
               «Часах» iOS). */}

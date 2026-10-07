@@ -544,7 +544,7 @@ export const dataStore = {
     return habitById(id);
   },
 
-  /** Turn «Отмечать автоматически» on or off — a change of the habit's fields; a day
+  /** Turn «Автоотметка» on or off — a change of the habit's fields; a day
    *  that is already due is marked at once (derive.ts, as the server). */
   setAutoMark(id: number, on: boolean): void {
     const habit = habitById(id);
