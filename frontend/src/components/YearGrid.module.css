@@ -27,7 +27,23 @@
   background-color: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
 }
 
-/* Невыполненный день заморозки — «лёд», одинаковый у всех привычек. */
+/* Невыполненный день заморозки — кружок пропуска, перечёркнутый простой снежинкой:
+   три жирные линии (шесть лучей) от края до края, лишнее обрезает сам кружок.
+   Кружок и снежинка всегда голубые (палитра lightblue, как пропуск и выполненный день
+   голубой привычки) — у всех привычек одинаково; у голубой совпадает по цвету, но
+   отличается рисунком. Снежинка — псевдоэлемент с маской поверх фона кружка. */
 .frozen {
-  background: var(--color-frozen);
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(var(--palette-lightblue), var(--habit-grid-empty-alpha));
+}
+
+.frozen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgb(var(--palette-lightblue));
+  -webkit-mask: var(--snowflake) center / contain no-repeat;
+  mask: var(--snowflake) center / contain no-repeat;
+  --snowflake: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='4'%3E%3Cpath d='M12-2v28M-.1 5l24.2 14M-.1 19l24.2-14'/%3E%3C/svg%3E");
 }

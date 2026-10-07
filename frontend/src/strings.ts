@@ -152,7 +152,7 @@ const RU = {
   unfreezeHabit: "Разморозить привычку",
   freezeDialogTitle: "Заморозить привычку",
   freezeDialogMessage:
-    "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории голубым. Отмечать привычку и получать напоминания можно будет после разморозки.",
+    "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории снежинками. Отмечать привычку и получать напоминания можно будет после разморозки.",
   freezeDialogConfirm: "Заморозить",
   freezeDialogCancel: "Отменить",
   deleteHabit: "Удалить привычку",
@@ -380,7 +380,7 @@ const EN: Strings = {
   unfreezeHabit: "Unfreeze Habit",
   freezeDialogTitle: "Freeze Habit",
   freezeDialogMessage:
-    "Your current streak will be kept: missed days won’t break it, and frozen days will show in blue in the history. You can check the habit off and get reminders again after unfreezing it.",
+    "Your current streak will be kept: missed days won’t break it, and frozen days will show as snowflakes in the history. You can check the habit off and get reminders again after unfreezing it.",
   freezeDialogConfirm: "Freeze",
   freezeDialogCancel: "Cancel",
   deleteHabit: "Delete Habit",
