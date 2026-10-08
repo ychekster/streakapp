@@ -6,10 +6,13 @@
  * «Настройки»; под ним — секции в стиле экрана привычки, но с заголовками как в эталоне:
  * с заглавной буквы (не капсом) и со сдвигом до конца скругления карточки:
  *  - Информация — название;
- *  - Частота — каждый день, по дням, через день или каждый месяц; «по дням» добавляет
- *    выбор дней недели, «через день» и «каждый месяц» — дату начала (системный
- *    календарь): с неё привычка идёт каждый второй день или то же число каждого месяца
- *    (в коротком месяце — его последний день);
+ *  - Частота — «Повтор»: по дням недели, через день или каждый месяц. По дням недели —
+ *    под рядом выбор дней (как в «Будильнике» iOS), а в ряду — выбранные дни: все —
+ *    «Каждый день», «Будние дни», «Выходные», иначе «Пн, Ср и Пт», ни одного — «Никогда»
+ *    (сохранить нельзя). Все дни сохраняются как `daily`, остальные — `specific_days`.
+ *    «Через день» и «каждый месяц» добавляют дату начала (системный календарь): с неё
+ *    привычка идёт каждый второй день или то же число каждого месяца (в коротком месяце
+ *    — его последний день);
  *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
  *    одного раза — кружок отметки бледный с плюсом, каждое нажатие закрашивает его часть
  *    (CheckButton);
@@ -66,6 +69,7 @@ import { hapticNotification } from "../telegram/webapp";
 import { habitColorHex, habitColorStyle, readRootVariable } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
+import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitFormScreen.module.css";
 
 interface HabitFormScreenProps {
@@ -80,10 +84,14 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const strings = useStrings();
   const theme = useResolvedTheme();
   const [name, setName] = useState(habit?.name ?? "");
-  const [frequency, setFrequency] = useState<FrequencyType>(
-    habit?.frequency_type ?? "daily",
+  // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
+  const [repeat, setRepeat] = useState<RepeatMode>(() =>
+    habit && usesStartDate(habit.frequency_type) ? (habit.frequency_type as RepeatMode) : "weekly",
   );
-  const [days, setDays] = useState<Set<string>>(() => new Set(habit?.days));
+  // Дни недели; у «каждый день» и у новой привычки — все. Помнятся при смене частоты.
+  const [days, setDays] = useState<Set<string>>(
+    () => new Set(habit?.frequency_type === "specific_days" ? habit.days : WEEKDAYS),
+  );
   // Первый день «через день» / «каждый месяц»: по умолчанию сегодня; помнится при смене
   // частоты.
   const [startDate, setStartDate] = useState(() => habit?.start_date ?? localDate());
@@ -111,10 +119,11 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const submittingRef = useRef(false);
 
   const nameMaxLength = meta?.name_max_length ?? DEFAULT_NAME_MAX_LENGTH;
-  const valid = name.trim().length > 0 && (frequency !== "specific_days" || days.size > 0);
-  const frequencyOptions = [
-    { value: "daily", label: strings.formDaily },
-    { value: "specific_days", label: strings.formSpecificDays },
+  const valid = name.trim().length > 0 && (repeat !== "weekly" || days.size > 0);
+  const frequency: FrequencyType =
+    repeat !== "weekly" ? repeat : days.size === WEEKDAYS.length ? "daily" : "specific_days";
+  const repeatOptions = [
+    { value: "weekly", label: weekdayLabel(days, strings, strings.formDaily) },
     { value: "every_other_day", label: strings.formEveryOtherDay },
     { value: "monthly", label: strings.formMonthly },
   ] as const;
@@ -259,14 +268,14 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
         <Section variant="form" title={strings.formFrequencyHeading}>
           <Card>
             <ListItem label={strings.formRepeat}>
-              <MenuSelect<FrequencyType>
-                options={frequencyOptions}
-                value={frequency}
-                onChange={setFrequency}
+              <MenuSelect<RepeatMode>
+                options={repeatOptions}
+                value={repeat}
+                onChange={setRepeat}
                 label={strings.formRepeat}
               />
             </ListItem>
-            {frequency === "specific_days" ? (
+            {repeat === "weekly" ? (
               <ListItem>
                 <DayPicker selected={days} onToggle={toggleDay} />
               </ListItem>
@@ -373,6 +382,9 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     </Screen>
   );
 }
+
+/** Строка меню «Повтор»: по дням недели (daily / specific_days) или с даты начала. */
+type RepeatMode = "weekly" | "every_other_day" | "monthly";
 
 interface Reminder {
   key: number;

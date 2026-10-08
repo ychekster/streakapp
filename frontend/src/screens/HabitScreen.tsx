@@ -34,20 +34,18 @@ import {
   TargetIcon,
   TrophyIcon,
 } from "../components/StatIcons";
-import { HISTORY_COLUMNS, HISTORY_DAYS, WEEKDAYS } from "../constants";
+import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
+import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitScreen.module.css";
 
-// Наборы дней с собственной подписью (коды в порядке недели, как их хранит бэкенд).
-const WORKDAYS_KEY = "mon,tue,wed,thu,fri";
-const WEEKENDS_KEY = "sat,sun";
-
-/** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будни», «Выходные» или дни («Пн, Ср, Пт»). */
+/** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будние дни»,
+ *  «Выходные» или дни («Пн, Ср и Пт») — как «Повтор» в форме привычки. */
 function formatStreakGoal(habit: Habit, strings: Strings): string {
   if (habit.frequency_type === "every_other_day") {
     return strings.goalEveryOtherDay;
@@ -55,18 +53,10 @@ function formatStreakGoal(habit: Habit, strings: Strings): string {
   if (habit.frequency_type === "monthly") {
     return strings.goalMonthly;
   }
-  const selected = WEEKDAYS.filter((code) => habit.days.includes(code));
-  if (habit.frequency_type === "daily" || selected.length === WEEKDAYS.length) {
+  if (habit.frequency_type === "daily") {
     return strings.goalDaily;
   }
-  const key = selected.join(",");
-  if (key === WORKDAYS_KEY) {
-    return strings.goalWorkdays;
-  }
-  if (key === WEEKENDS_KEY) {
-    return strings.goalWeekends;
-  }
-  return selected.map((code) => strings.weekdays[code].abbr).join(", ");
+  return weekdayLabel(habit.days, strings, strings.goalDaily);
 }
 
 interface HabitScreenProps {

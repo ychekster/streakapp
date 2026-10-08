@@ -162,8 +162,6 @@ const RU = {
   statTotalDone: "Всего выполнено",
   statStreakGoal: "Цель серии",
   goalDaily: "Ежедневно",
-  goalWorkdays: "Будни",
-  goalWeekends: "Выходные",
   goalEveryOtherDay: "Через день",
   goalMonthly: "Каждый месяц",
   habitSettingsHeading: "Настройки",
@@ -205,9 +203,9 @@ const RU = {
   formInfoHeading: "Информация",
   formNamePlaceholder: "Название",
   formFrequencyHeading: "Частота",
-  formRepeat: "Повторять",
+  formRepeat: "Повтор",
+  // Повтор по дням недели: подпись — выбранные дни (weekdayLabel.ts); все — «Каждый день».
   formDaily: "Каждый день",
-  formSpecificDays: "По дням",
   formEveryOtherDay: "Через день",
   formMonthly: "Каждый месяц",
   // Первый день привычки «через день» / «каждый месяц»: «Сегодня», «Завтра» или дата.
@@ -234,6 +232,13 @@ const RU = {
 
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
   // («Пн, Ср, Пт») и для скринридеров.
+  // Набор дней недели (weekdayLabel.ts): «Будние дни», «Выходные», «Пн, Ср и Пт»; ни
+  // одного — «Никогда».
+  daysWorkdays: "Будние дни",
+  daysWeekends: "Выходные",
+  daysNever: "Никогда",
+  daysList: (days: string[]) =>
+    days.length > 1 ? `${days.slice(0, -1).join(", ")} и ${days[days.length - 1]}` : days.join(""),
   weekdays: {
     mon: { short: "Пн", abbr: "Пн", full: "Понедельник" },
     tue: { short: "Вт", abbr: "Вт", full: "Вторник" },
@@ -422,8 +427,6 @@ const EN: Strings = {
   statTotalDone: "Total completed",
   statStreakGoal: "Streak goal",
   goalDaily: "Daily",
-  goalWorkdays: "Weekdays",
-  goalWeekends: "Weekends",
   goalEveryOtherDay: "Every Other Day",
   goalMonthly: "Every Month",
   habitSettingsHeading: "Settings",
@@ -462,7 +465,6 @@ const EN: Strings = {
   formFrequencyHeading: "Frequency",
   formRepeat: "Repeat",
   formDaily: "Every Day",
-  formSpecificDays: "Specific Days",
   formEveryOtherDay: "Every Other Day",
   formMonthly: "Every Month",
   formStartDate: "Starts",
@@ -480,6 +482,11 @@ const EN: Strings = {
   formReminderRemove: (time: string) => `Remove reminder ${time}`,
   formThemeHeading: "Color",
 
+  daysWorkdays: "Weekdays",
+  daysWeekends: "Weekends",
+  daysNever: "Never",
+  daysList: (days: string[]) =>
+    days.length > 1 ? `${days.slice(0, -1).join(", ")} and ${days[days.length - 1]}` : days.join(""),
   weekdays: {
     mon: { short: "Mo", abbr: "Mon", full: "Monday" },
     tue: { short: "Tu", abbr: "Tue", full: "Tuesday" },
