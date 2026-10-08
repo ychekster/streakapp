@@ -101,6 +101,8 @@ def test_turning_auto_mark_on_marks_today(client: TestClient, user: AuthUser) ->
     created = sync({"type": "create", "ref": "a", "habit": habit})
     habit_id = created["results"][0]["id"]
     assert created["habits"][0]["auto_mark"] is False
+    # No record for today yet: the app may show an auto check-off by itself.
+    assert created["habits"][0]["auto_mark_ahead"] is True
 
     [result] = sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": True}})[
         "habits"
@@ -109,12 +111,24 @@ def test_turning_auto_mark_on_marks_today(client: TestClient, user: AuthUser) ->
 
     # Unchecked by the user, auto check-off turned off and on again: today is checked again.
     today = sync()["today"]
-    sync({"type": "mark", "task": habit_id, "date": today, "done": False})
+    [unchecked] = sync({"type": "mark", "task": habit_id, "date": today, "done": False})["habits"]
+    # The user removed it: the app must not show it again.
+    assert (unchecked["done_today"], unchecked["auto_mark_ahead"]) == (False, False)
     sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": False}})
     [result] = sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": True}})[
         "habits"
     ]
     assert result["done_today"] is True
+
+    # Unchecked, then turned on again with a reminder still ahead: the unchecked record is
+    # forgotten, so after the reminder the bot (and the app) mark the day again.
+    sync({"type": "mark", "task": habit_id, "date": today, "done": False})
+    sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": False}})
+    later = {**habit, "reminder_times": ["23:59"]}
+    [result] = sync({"type": "update", "task": habit_id, "habit": {**later, "auto_mark": True}})[
+        "habits"
+    ]
+    assert (result["done_today"], result["auto_mark_ahead"]) == (False, True)
 
     # Several times a day: auto check-off is not available.
     [result] = sync(

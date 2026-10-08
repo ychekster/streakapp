@@ -829,6 +829,16 @@ class Repository:
         if log.status != TaskStatus.done:
             await self.set_log_status(log, TaskStatus.done)
 
+    async def delete_undone_log(self, task_id: int, day: date) -> None:
+        """Забыть снятую отметку за день (запись не «выполнено»): день снова без записи."""
+        await self.session.execute(
+            delete(TaskLog).where(
+                TaskLog.task_id == task_id,
+                TaskLog.scheduled_date == day,
+                TaskLog.status != TaskStatus.done,
+            )
+        )
+
     # ------------------------------------------------------------------ #
     #  Admins
     # ------------------------------------------------------------------ #

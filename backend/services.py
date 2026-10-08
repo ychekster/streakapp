@@ -147,6 +147,7 @@ def build_habit(
     today: date,
     freezes: Collection[tuple[date, date]] = (),
     today_count: int = 0,
+    auto_mark_ahead: bool = True,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -154,7 +155,8 @@ def build_habit(
     отметки «из будущего» (возможны после смены часового пояса на более западный) не
     учитываются ни в сетке, ни в сериях, ни в общем счётчике. `freezes` — прошедшие
     заморозки (Repository.get_freezes). `today_count` — сколько раз привычка выполнена
-    за `today` (Repository.get_day_counts).
+    за `today` (Repository.get_day_counts). `auto_mark_ahead` — за календарный сегодня
+    записи ещё нет (см. `_auto_mark_ahead`).
     """
     is_frozen = frozen_check(task, freezes, today)
     current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
@@ -185,15 +187,32 @@ def build_habit(
         times_per_day=task.times_per_day,
         today_count=today_count,
         auto_mark=task.auto_mark,
+        auto_mark_ahead=auto_mark_ahead,
     )
 
 
-async def _built_habit(repo: Repository, task: Task, today: date) -> Habit:
+async def _auto_mark_ahead(repo: Repository, user: User, task_ids: list[int]) -> set[int]:
+    """Привычки, у которых за календарный сегодня (в поясе пользователя; в режиме
+    «Отмечать за вчера» — день после дня отметки) записи ещё нет: ни отметки, ни снятой
+    отметки. По этому приложение само показывает автоотметку, когда ей пора, не дожидаясь
+    бота и связи; снятую пользователем — не трогает (как бот, `auto_mark_due`)."""
+    if not task_ids:
+        return set()
+    day = user_today(user) + timedelta(days=1 if user.mark_yesterday else 0)
+    logged = await repo.get_logged_task_days({(task_id, day) for task_id in task_ids})
+    return {task_id for task_id in task_ids if (task_id, day) not in logged}
+
+
+async def _built_habit(repo: Repository, user: User, task: Task) -> Habit:
     """Привычка с отметками из базы (после изменения или отметки)."""
+    today = user_today(user)
     done = await repo.get_done_dates([task.id], today)
     freezes = await repo.get_freezes([task.id])
     counts = await repo.get_day_counts([task.id], today)
-    return build_habit(task, done[task.id], today, freezes[task.id], counts.get(task.id, 0))
+    ahead = await _auto_mark_ahead(repo, user, [task.id])
+    return build_habit(
+        task, done[task.id], today, freezes[task.id], counts.get(task.id, 0), task.id in ahead
+    )
 
 
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
@@ -207,8 +226,11 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
     done = await repo.get_done_dates(task_ids, today)
     freezes = await repo.get_freezes(task_ids)
     counts = await repo.get_day_counts(task_ids, today)
+    ahead = await _auto_mark_ahead(repo, user, task_ids)
     return [
-        build_habit(task, done[task.id], today, freezes[task.id], counts.get(task.id, 0))
+        build_habit(
+            task, done[task.id], today, freezes[task.id], counts.get(task.id, 0), task.id in ahead
+        )
         for task in tasks
     ]
 
@@ -232,7 +254,7 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     target = TaskStatus.pending if log.status == TaskStatus.done else TaskStatus.done
     await repo.set_log_status(log, target)
     await _record_mark(repo, user, task, target == TaskStatus.done)
-    return await _built_habit(repo, task, today)
+    return await _built_habit(repo, user, task)
 
 
 @dataclass(frozen=True)
@@ -347,15 +369,22 @@ async def update_habit(
         auto_mark=fields.auto_mark,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
-    # Включили автоотметку — день, который уже пора отметить (без напоминания —
-    # сегодняшний, с напоминанием — если оно сегодня уже было), отмечается сразу, а не
-    # через минуту, когда до него дойдёт бот. Даже если отметку за него сняли: повторное
-    # включение — это «отметь заново» (бот сам снятую отметку не трогает).
+    # Включили автоотметку — это «отмечай заново», даже если отметку за сегодня сняли
+    # (бот сам снятую отметку не трогает). День, который уже пора отметить (без
+    # напоминания — сегодняшний, с напоминаниями — если последнее сегодня уже было),
+    # отмечается сразу, а не через минуту, когда до него дойдёт бот. Если напоминание
+    # ещё впереди — снятая отметка за сегодня забывается: после него бот (и приложение)
+    # отметят день как обычно.
     if auto_mark_turned_on:
-        day = _auto_mark_day(task, user, datetime.now(pytz.utc))
-        if day is not None and not await repo.get_done_task_days([(task.id, day)]):
-            await _auto_mark(repo, task, day)
-    return await _built_habit(repo, task, user_today(user))
+        now = datetime.now(pytz.utc)
+        day = _auto_mark_day(task, user, now)
+        if day is not None:
+            if not await repo.get_done_task_days([(task.id, day)]):
+                await _auto_mark(repo, task, day)
+        else:
+            calendar_day = now.astimezone(resolve_timezone(user.timezone)).date()
+            await repo.delete_undone_log(task.id, calendar_day)
+    return await _built_habit(repo, user, task)
 
 
 async def delete_habit(repo: Repository, user: User, task: Task) -> None:

@@ -28,6 +28,22 @@ export function daysInMonth(day: string): number {
   return new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)), 0)).getUTCDate();
 }
 
+/** Clock time «HH:MM» in the IANA zone `timezone` (null or unknown — UTC, as the server). */
+export function clockIn(timezone: string | null, now: Date = new Date()): string {
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(now);
+  try {
+    return format(timezone ?? "UTC");
+  } catch {
+    return format("UTC");
+  }
+}
+
 /** Weekday like Python's date.weekday(): Monday 0 … Sunday 6. */
 export function weekdayIndex(day: string): number {
   return (new Date(toTime(day)).getUTCDay() + 6) % 7;

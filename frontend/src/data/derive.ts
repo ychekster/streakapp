@@ -12,7 +12,7 @@ import { HISTORY_DAYS, WEEKDAYS } from "../constants";
 import type { FrequencyType, Habit, HabitInput } from "../types/habit";
 import type { Settings } from "../types/settings";
 import type { SyncOperation, TaskKey } from "../types/sync";
-import { addDays, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
+import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
  *  change also carries what only the device needs. */
@@ -249,6 +249,77 @@ interface Draft {
   counts: Map<string, number>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
+  /** Calendar day whose unchecked record auto check-off turned on here has forgotten
+   *  (services.update_habit) — applyAutoMark may mark it again. */
+  autoMarkFresh?: string;
+}
+
+/** Is the habit frozen on a day — the server's freezes as changed on the device. */
+function frozenCheck(draft: Draft, snapshotToday: string): (day: string) => boolean {
+  const baseFrozenHistory: boolean[] = draft.base?.frozen_history ?? [];
+  const freezes = draft.freezes ?? serverFreezes(draft.base);
+  return (day) => {
+    const index = baseFrozenHistory.length - 1 - daysBetween(day, snapshotToday);
+    const baseFrozen = index >= 0 && index < baseFrozenHistory.length && baseFrozenHistory[index];
+    return (
+      (baseFrozen && (freezes.cut === null || day < freezes.cut)) ||
+      freezes.ended.some(([start, end]) => start <= day && day < end) ||
+      (freezes.since !== null && freezes.since <= day)
+    );
+  };
+}
+
+/** Last reminder «HH:MM» of a habit's fields, null — without reminders. */
+function lastReminder(fields: ReturnType<typeof habitFields>): string | null {
+  return fields.reminder_times.length > 0
+    ? fields.reminder_times[fields.reminder_times.length - 1]
+    : null;
+}
+
+/**
+ * Auto check-off as the bot does it (services.auto_mark_due), shown on the device at once
+ * — when the app opens, without waiting for the server, and offline: a once-a-day habit
+ * with «Автоотметка», due and not frozen, is done on its calendar day from the start of
+ * the day, or once its last reminder has come. Only days the server has no record for:
+ * the days after the answer's calendar day, and that day itself if the answer says so
+ * (`auto_mark_ahead`) — a check-off the user removed stays removed. A day marked on the
+ * device is left as marked. The bot still writes the real record.
+ */
+function applyAutoMark(
+  draft: Draft,
+  snapshotToday: string,
+  snapshotCalendarDay: string,
+  calendarToday: string,
+  clock: string,
+): void {
+  const fields = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
+  if (!fields || !fields.auto_mark || fields.times_per_day !== 1) {
+    return;
+  }
+  const frozenOn = frozenCheck(draft, snapshotToday);
+  const last = lastReminder(fields);
+  let day = draft.base ? snapshotCalendarDay : calendarToday;
+  // Not further back than the history: a long-kept answer only needs the recent days.
+  if (daysBetween(day, calendarToday) >= HISTORY_DAYS) {
+    day = addDays(calendarToday, 1 - HISTORY_DAYS);
+  }
+  for (; day <= calendarToday; day = addDays(day, 1)) {
+    const known =
+      day === snapshotCalendarDay &&
+      day !== draft.autoMarkFresh &&
+      draft.base &&
+      !(draft.base.auto_mark_ahead ?? false);
+    if (
+      known ||
+      draft.marks.has(day) ||
+      frozenOn(day) ||
+      !isDueOn(fields, day) ||
+      (day === calendarToday && last !== null && clock < last)
+    ) {
+      continue;
+    }
+    draft.marks.set(day, true);
+  }
 }
 
 /** The habit for `today` (the marking day) from its draft; `snapshotToday` — the day the
@@ -281,15 +352,7 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
   };
   const baseFrozenHistory: boolean[] = base?.frozen_history ?? [];
   const freezes = draft.freezes ?? serverFreezes(base);
-  const frozenOn = (day: string): boolean => {
-    const index = baseFrozenHistory.length - 1 - daysBetween(day, snapshotToday);
-    const baseFrozen = index >= 0 && index < baseFrozenHistory.length && baseFrozenHistory[index];
-    return (
-      (baseFrozen && (freezes.cut === null || day < freezes.cut)) ||
-      freezes.ended.some(([start, end]) => start <= day && day < end) ||
-      (freezes.since !== null && freezes.since <= day)
-    );
-  };
+  const frozenOn = frozenCheck(draft, snapshotToday);
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
   for (let index = 0; index < HISTORY_DAYS; index += 1) {
@@ -397,18 +460,24 @@ export function deriveView(
       if (draft && op.type === "update") {
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
         draft.fields = habitFields(op.habit);
-        // As the server (services.update_habit): auto check-off turned on for a habit
-        // without a reminder marks today (calendar day) at once — also if it was unchecked.
-        // With a reminder, the server marks it if the reminder already came today.
+        // As the server (services.update_habit): auto check-off turned on means «mark
+        // again», also if today (calendar day) was unchecked. Without a reminder today is
+        // marked at once; with reminders an unchecked today is forgotten — applyAutoMark
+        // marks it once the last reminder came.
         const frozen = draft.freezes ? draft.freezes.since !== null : draft.base?.frozen_since != null;
-        if (
-          draft.fields.auto_mark &&
-          !before?.auto_mark &&
-          draft.fields.reminder_time === null &&
-          !frozen &&
-          isDueOn(draft.fields, calendarToday)
-        ) {
-          draft.marks.set(calendarToday, true);
+        if (draft.fields.auto_mark && !before?.auto_mark) {
+          if (
+            draft.fields.reminder_time === null &&
+            !frozen &&
+            isDueOn(draft.fields, calendarToday)
+          ) {
+            draft.marks.set(calendarToday, true);
+          } else if (draft.fields.reminder_time !== null) {
+            if (draft.marks.get(calendarToday) === false) {
+              draft.marks.delete(calendarToday);
+            }
+            draft.autoMarkFresh = calendarToday;
+          }
         }
       } else if (draft && op.type === "mark") {
         // As the server: with a count, the day is done once the habit's times are reached.
@@ -427,6 +496,15 @@ export function deriveView(
     } else if (op.type === "delete") {
       drafts = drafts.filter((item) => item.key !== op.task);
     }
+  }
+
+  // The answer's calendar day: the day after its marking day in «Отмечать за вчера».
+  const snapshotCalendarDay = snapshot.settings.mark_yesterday
+    ? addDays(snapshot.today, 1)
+    : snapshot.today;
+  const clock = clockIn(settings.timezone, now);
+  for (const draft of drafts) {
+    applyAutoMark(draft, snapshot.today, snapshotCalendarDay, calendarToday, clock);
   }
 
   return {

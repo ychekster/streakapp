@@ -36,7 +36,7 @@ import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { SyncOperation, SyncResponse, TaskKey } from "../types/sync";
 import { currentSessionId } from "../web/session";
-import { markingDay } from "./dates";
+import { clockIn, markingDay } from "./dates";
 import {
   cleanHabitName,
   deriveView,
@@ -94,6 +94,9 @@ let retryCount = 0;
 let lastSync = 0;
 let state: DataState = EMPTY;
 let viewDay: string | null = null;
+// Clock time («HH:MM», user's zone) of the last count: an auto check-off due since then
+// needs a new one.
+let viewClock: string | null = null;
 const listeners = new Set<() => void>();
 
 // Ids on screen of habits created on the device (see the header comment).
@@ -197,6 +200,7 @@ function rederive(): void {
   }
   const view = deriveView(snapshot, ops, displayIdOfKey);
   viewDay = view.today;
+  viewClock = clockIn(view.settings.timezone);
   emit({
     status: "ready",
     error: null,
@@ -205,10 +209,26 @@ function rederive(): void {
   });
 }
 
-/** The marking day changed (midnight, back from the background): count it anew. */
+/** The marking day changed (midnight, back from the background) or an auto check-off
+ *  came due (the last reminder of such a habit passed since the last count): count it
+ *  anew. */
 function checkDay(): void {
   const settings = state.settings;
-  if (settings && markingDay(settings.timezone, settings.mark_yesterday) !== viewDay) {
+  if (!settings) {
+    return;
+  }
+  const clock = clockIn(settings.timezone);
+  const autoMarkCame =
+    viewClock !== null &&
+    state.habits.some((habit) => {
+      if (!habit.auto_mark) {
+        return false;
+      }
+      const times = reminderTimesOf(habit);
+      const last = times[times.length - 1];
+      return last !== undefined && viewClock! < last && last <= clock;
+    });
+  if (autoMarkCame || markingDay(settings.timezone, settings.mark_yesterday) !== viewDay) {
     rederive();
   }
 }

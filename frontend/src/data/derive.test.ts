@@ -131,6 +131,50 @@ describe("deriveView", () => {
     expect(several).toMatchObject({ auto_mark: false, done_today: false });
   });
 
+  it("shows auto check-off on the device as soon as it is due", () => {
+    const auto = { auto_mark: true, auto_mark_ahead: true };
+    // Without reminders — from the start of the day; with them — after the last one
+    // (NOW is 12:00 UTC).
+    expect(view(snapshot([habit(auto)])).habits[0].done_today).toBe(true);
+    const passed = habit({ ...auto, reminder_time: "08:00", reminder_times: ["08:00", "11:59"] });
+    expect(view(snapshot([passed])).habits[0]).toMatchObject({ done_today: true, total_done: 1 });
+    const later = habit({ ...auto, reminder_time: "08:00", reminder_times: ["08:00", "18:00"] });
+    expect(view(snapshot([later])).habits[0].done_today).toBe(false);
+    // The server has a record for the day (the user removed the check-off): left as is.
+    expect(view(snapshot([habit({ ...auto, auto_mark_ahead: false })])).habits[0].done_today).toBe(false);
+    // An answer from yesterday: today has no record on the server yet.
+    const yesterday = snapshot([habit({ ...auto, auto_mark_ahead: false })], {}, addDays(TODAY, -1));
+    expect(view(yesterday).habits[0].done_today).toBe(true);
+    // Not due, frozen, several times a day, or unchecked on the device — no check-off.
+    const tuesdays = habit({ ...auto, frequency_type: "specific_days", days: ["tue"] });
+    expect(view(snapshot([tuesdays])).habits[0].done_today).toBe(false);
+    expect(view(snapshot([habit({ ...auto, frozen_since: TODAY })])).habits[0].done_today).toBe(false);
+    expect(view(snapshot([habit({ ...auto, times_per_day: 2 })])).habits[0].done_today).toBe(false);
+    const unchecked = view(snapshot([habit(auto)]), [{ type: "mark", task: 1, date: TODAY, done: false }]);
+    expect(unchecked.habits[0].done_today).toBe(false);
+  });
+
+  it("marks again after the reminder when auto check-off is turned back on", () => {
+    // Today unchecked (the server has the record), then auto check-off turned on with a
+    // reminder: once it has come, today is shown done; before it — not yet.
+    const unchecked = habit({ auto_mark: false, auto_mark_ahead: false });
+    const input = { name: "Зарядка", frequency_type: "daily" as const, days: [], start_date: null, color: "blue" as const, times_per_day: 1, auto_mark: true };
+    const passed = view(snapshot([unchecked]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: "11:00", reminder_times: ["11:00"] } },
+    ]).habits[0];
+    expect(passed.done_today).toBe(true);
+    const ahead = view(snapshot([unchecked]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: "18:00", reminder_times: ["18:00"] } },
+    ]).habits[0];
+    expect(ahead.done_today).toBe(false);
+    const later = view(
+      snapshot([unchecked]),
+      [{ type: "update", task: 1, habit: { ...input, reminder_time: "18:00", reminder_times: ["18:00"] } }],
+      new Date(`${TODAY}T18:00:00Z`),
+    ).habits[0];
+    expect(later.done_today).toBe(true);
+  });
+
   it("keeps several reminders in order, as the server", () => {
     const input = { name: "Вода", frequency_type: "daily" as const, days: [], start_date: null, color: "blue" as const, times_per_day: 1, auto_mark: false };
     const several = view(snapshot([habit()]), [
