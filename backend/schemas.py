@@ -987,7 +987,8 @@ class LogoutRequest(BaseModel):
 
     endpoint: str | None = Field(default=None, max_length=1024)
     everywhere: bool = Field(
-        default=False, description="Log out on every device: all web sessions, all push"
+        default=False,
+        description="Log out on every other device (from the Mini App — on all of them)",
     )
 
 

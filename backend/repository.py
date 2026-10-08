@@ -1558,9 +1558,13 @@ class Repository:
         """End a web session (log out, or replaced after switching accounts)."""
         await self.session.execute(delete(WebSession).where(WebSession.token_hash == token_hash))
 
-    async def delete_user_sessions(self, user_id: int) -> None:
-        """End every web session of the account (log out everywhere, blocked)."""
-        await self.session.execute(delete(WebSession).where(WebSession.user_id == user_id))
+    async def delete_user_sessions(self, user_id: int, keep_hash: str | None = None) -> None:
+        """End every web session of the account (blocked; log out everywhere — all but
+        `keep_hash`, the device that asked)."""
+        condition = WebSession.user_id == user_id
+        if keep_hash is not None:
+            condition = condition & (WebSession.token_hash != keep_hash)
+        await self.session.execute(delete(WebSession).where(condition))
 
     async def create_code(
         self,
@@ -1674,11 +1678,15 @@ class Repository:
             statement = statement.where(PushSubscription.user_id == user_id)
         await self.session.execute(statement)
 
-    async def delete_user_push_subscriptions(self, user_id: int) -> None:
-        """Forget every push subscription of the account (log out everywhere)."""
-        await self.session.execute(
-            delete(PushSubscription).where(PushSubscription.user_id == user_id)
-        )
+    async def delete_user_push_subscriptions(
+        self, user_id: int, keep_endpoint: str | None = None
+    ) -> None:
+        """Forget every push subscription of the account (log out everywhere) but
+        `keep_endpoint` — the device that asked."""
+        condition = PushSubscription.user_id == user_id
+        if keep_endpoint is not None:
+            condition = condition & (PushSubscription.endpoint != keep_endpoint)
+        await self.session.execute(delete(PushSubscription).where(condition))
 
     async def push_subscriptions_for(
         self, user_ids: Collection[int]

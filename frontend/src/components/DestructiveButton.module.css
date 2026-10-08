@@ -1,0 +1,28 @@
+/* A pill under the last card: full width, as tall as a form row, red text in the middle
+   (as «Удалить будильник» in iOS Clock). «Удалить привычку», «Выйти из аккаунта». */
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--delete-button-height);
+  margin-top: var(--space-list-gap);
+  padding: 0 var(--space-card-padding);
+  border: none;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-card);
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-danger);
+  transition: opacity var(--transition-fast);
+}
+
+.button[data-pressed] {
+  /* Press highlight over the card colour, as list rows have. */
+  background-image: linear-gradient(var(--color-row-press), var(--color-row-press));
+}
+
+.button:disabled {
+  opacity: 0.5;
+}

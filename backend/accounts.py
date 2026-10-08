@@ -122,10 +122,20 @@ async def end_session(repo: Repository, settings: Settings, token: str) -> None:
 
 
 async def end_all_sessions(repo: Repository, user_id: int) -> None:
-    """«Выйти на всех устройствах»: every web session of the account ends, and its
-    devices stop getting push reminders (they come through the bot again)."""
+    """«Выйти на всех устройствах» from the Mini App: every web session of the account
+    ends, and its devices stop getting push reminders (they come through the bot again)."""
     await repo.delete_user_sessions(user_id)
     await repo.delete_user_push_subscriptions(user_id)
+
+
+async def end_other_sessions(
+    repo: Repository, settings: Settings, user_id: int, token: str, endpoint: str | None
+) -> None:
+    """«Выйти на всех устройствах» from the web app: every other device logs out and
+    stops getting push reminders; this one stays logged in (its session `token`, its
+    push subscription `endpoint`)."""
+    await repo.delete_user_sessions(user_id, keep_hash=hash_token(settings.auth_secret, token))
+    await repo.delete_user_push_subscriptions(user_id, keep_endpoint=endpoint)
 
 
 async def create_guest(

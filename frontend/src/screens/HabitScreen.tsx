@@ -27,6 +27,7 @@ import { Card, Section } from "../components/Section";
 import { AutoCheckIcon, PencilIcon, SnowflakeIcon } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
 import { Switch } from "../components/Switch";
+import { DestructiveButton } from "../components/DestructiveButton";
 import {
   CompletedIcon,
   FlameIcon,
@@ -214,14 +215,11 @@ export function HabitScreen({
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
               «Часах» iOS). */}
-          <button
-            type="button"
-            className={styles.delete}
+          <DestructiveButton
+            label={strings.deleteHabit}
             disabled={deleting}
-            onClick={() => void askToDelete()}
-          >
-            {strings.deleteHabit}
-          </button>
+            onPress={() => void askToDelete()}
+          />
           {deleteError ? (
             <p className={styles.error} role="alert">
               {deleteError}

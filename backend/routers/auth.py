@@ -2,7 +2,7 @@
 
     POST   /auth/guest                — first launch of the installed app: a guest + session
     GET    /auth/account              — Settings → Account: logins, created, web devices
-    POST   /auth/logout               — app: leave the account on this device (or everywhere;
+    POST   /auth/logout               — app: leave the account on this device (or on the others;
                                         the Mini App: everywhere only)
     POST   /auth/handoff              — Mini App: single-use link to install the web app
     POST   /auth/handoff/redeem       — browser/app: log in with that link
@@ -32,6 +32,7 @@ from backend.accounts import (
     create_code,
     create_guest,
     end_all_sessions,
+    end_other_sessions,
     end_session,
     find_code,
     is_guest,
@@ -188,9 +189,9 @@ async def logout(
 ) -> Response:
     """Web app: leave the account on this device — its session ends and this device's
     push subscription stops getting the account's reminders. A guest cannot log out: it
-    has no login to come back with, its habits would be lost. `everywhere` — every web
-    session of the account ends and none of its devices gets push reminders any more;
-    the Mini App may ask for that too (it stays logged in: it is Telegram itself)."""
+    has no login to come back with, its habits would be lost. `everywhere` — every other
+    device logs out and stops getting push reminders, this one stays logged in; from the
+    Mini App every web session ends (the Mini App stays: it is Telegram itself)."""
     if principal.session_token is None:
         if payload.everywhere and principal.telegram is not None:
             await end_all_sessions(repo, db_user.telegram_id)
@@ -199,7 +200,10 @@ async def logout(
     if await is_guest(repo, db_user):
         raise ApiError(409, "guest_logout", "Сначала привяжите Telegram")
     if payload.everywhere:
-        await end_all_sessions(repo, db_user.telegram_id)
+        await end_other_sessions(
+            repo, get_settings(request), db_user.telegram_id, principal.session_token,
+            payload.endpoint,
+        )
         return Response(status_code=204)
     if payload.endpoint:
         await repo.delete_push_subscriptions([payload.endpoint], user_id=db_user.telegram_id)

@@ -206,16 +206,29 @@ def _web_session(client: TestClient, user: AuthUser) -> dict[str, str]:
     return _bearer(redeemed.json()["session"]["token"])
 
 
-def test_logout_everywhere_ends_every_session_and_push(client: TestClient, user: AuthUser) -> None:
+def test_logout_everywhere_ends_the_other_sessions_and_push(client: TestClient, user: AuthUser) -> None:
     phone, tablet = _web_session(client, user), _web_session(client, user)
-    device = {"endpoint": "https://fcm.googleapis.com/fcm/send/tablet", "keys": {"p256dh": "k", "auth": "a"}}
-    assert client.post("/web/push/subscribe", json=device, headers=tablet).status_code == 200
 
-    response = client.post("/auth/logout", json={"everywhere": True}, headers=phone)
+    def subscribe(headers: dict[str, str], name: str) -> None:
+        device = {"endpoint": f"https://fcm.googleapis.com/fcm/send/{name}", "keys": {"p256dh": "k", "auth": "a"}}
+        assert client.post("/web/push/subscribe", json=device, headers=headers).status_code == 200
+
+    subscribe(phone, "phone")
+    subscribe(tablet, "tablet")
+
+    response = client.post(
+        "/auth/logout",
+        json={"everywhere": True, "endpoint": "https://fcm.googleapis.com/fcm/send/phone"},
+        headers=phone,
+    )
     assert response.status_code == 204, response.text
-    assert client.get("/auth/account", headers=phone).status_code == 401
+    # The phone that asked stays logged in and keeps its notifications.
+    assert _account(client, phone)["devices"] == 1
     assert client.get("/auth/account", headers=tablet).status_code == 401
-    assert _run(lambda repo: repo.has_push_subscription(user.id)) is False
+    subscriptions = _run(lambda repo: repo.push_subscriptions_for([user.id]))
+    assert [item.endpoint for item in subscriptions[user.id]] == [
+        "https://fcm.googleapis.com/fcm/send/phone"
+    ]
     # The Mini App is untouched.
     assert client.get("/tasks", headers=user.headers).status_code == 200
 

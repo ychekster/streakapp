@@ -95,7 +95,10 @@ const RU = {
   accountLogoutEverywhere: "Выйти на всех устройствах",
   accountLogoutEverywhereTitle: "Выйти на всех устройствах?",
   accountLogoutEverywhereMessage:
-    "Приложение выйдет из аккаунта на всех телефонах, где вы входили, и уведомления туда приходить перестанут. В Telegram всё останется как есть.",
+    "Веб-приложение выйдет из аккаунта на всех устройствах, где вы входили.",
+  // Web app: this device stays logged in.
+  accountLogoutOthersMessage:
+    "Вы выйдете из аккаунта на всех других устройствах. На этом устройстве вход сохранится.",
   accountLinkFailed: "Не удалось привязать Telegram",
   accountCreated: "Дата регистрации",
   accountHabits: "Привычек",
@@ -362,7 +365,9 @@ const EN: Strings = {
   accountLogoutEverywhere: "Log Out on All Devices",
   accountLogoutEverywhereTitle: "Log out on all devices?",
   accountLogoutEverywhereMessage:
-    "The app will log out on every phone where you logged in, and notifications will stop coming there. Telegram stays as it is.",
+    "The web app will log out on every device where you logged in.",
+  accountLogoutOthersMessage:
+    "You’ll be logged out on all other devices. This device stays logged in.",
   accountLinkFailed: "Couldn’t link Telegram",
   accountCreated: "Joined",
   accountHabits: "Habits",
