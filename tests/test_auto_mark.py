@@ -130,6 +130,17 @@ def test_turning_auto_mark_on_marks_today(client: TestClient, user: AuthUser) ->
     ]
     assert (result["done_today"], result["auto_mark_ahead"]) == (False, True)
 
+    # Unchecked, frozen, turned on while frozen: the unchecked record is forgotten as well,
+    # so on unfreezing the same day the bot (and the app) mark today again.
+    sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": False}})
+    sync({"type": "mark", "task": habit_id, "date": today, "done": False})
+    sync({"type": "freeze", "task": habit_id, "date": today, "frozen": True})
+    [result] = sync({"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": True}})[
+        "habits"
+    ]
+    assert (result["done_today"], result["auto_mark_ahead"]) == (False, True)
+    sync({"type": "freeze", "task": habit_id, "date": today, "frozen": False})
+
     # Several times a day: auto check-off is not available.
     [result] = sync(
         {"type": "update", "task": habit_id, "habit": {**habit, "auto_mark": True, "times_per_day": 2}}

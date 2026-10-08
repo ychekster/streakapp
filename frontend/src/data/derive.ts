@@ -462,8 +462,9 @@ export function deriveView(
         draft.fields = habitFields(op.habit);
         // As the server (services.update_habit): auto check-off turned on means «mark
         // again», also if today (calendar day) was unchecked. Without a reminder today is
-        // marked at once; with reminders an unchecked today is forgotten — applyAutoMark
-        // marks it once the last reminder came.
+        // marked at once; otherwise (reminders, frozen, not due today) an unchecked today
+        // is forgotten — applyAutoMark marks it once it is due (the last reminder came,
+        // the habit was unfrozen).
         const frozen = draft.freezes ? draft.freezes.since !== null : draft.base?.frozen_since != null;
         if (draft.fields.auto_mark && !before?.auto_mark) {
           if (
@@ -472,7 +473,7 @@ export function deriveView(
             isDueOn(draft.fields, calendarToday)
           ) {
             draft.marks.set(calendarToday, true);
-          } else if (draft.fields.reminder_time !== null) {
+          } else {
             if (draft.marks.get(calendarToday) === false) {
               draft.marks.delete(calendarToday);
             }

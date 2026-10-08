@@ -175,6 +175,20 @@ describe("deriveView", () => {
     expect(later.done_today).toBe(true);
   });
 
+  it("marks again on unfreezing when auto check-off was turned on while frozen", () => {
+    // Today unchecked, frozen, auto check-off (no reminder) turned on, then unfrozen the
+    // same day: today is done at once, as the bot will mark it.
+    const frozen = habit({ auto_mark: false, auto_mark_ahead: false, frozen_since: TODAY });
+    const input = { name: "Зарядка", frequency_type: "daily" as const, days: [], start_date: null, reminder_time: null, color: "blue" as const, times_per_day: 1, auto_mark: true };
+    const frozenView = view(snapshot([frozen]), [{ type: "update", task: 1, habit: input }]);
+    expect(frozenView.habits[0].done_today).toBe(false);
+    const unfrozen = view(snapshot([frozen]), [
+      { type: "update", task: 1, habit: input },
+      { type: "freeze", task: 1, date: TODAY, frozen: false },
+    ]);
+    expect(unfrozen.habits[0]).toMatchObject({ frozen_since: null, done_today: true });
+  });
+
   it("keeps several reminders in order, as the server", () => {
     const input = { name: "Вода", frequency_type: "daily" as const, days: [], start_date: null, color: "blue" as const, times_per_day: 1, auto_mark: false };
     const several = view(snapshot([habit()]), [
