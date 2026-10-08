@@ -49,6 +49,7 @@ function habit(fields: Partial<Habit> = {}): Habit {
     best_streak: 0,
     total_done: 0,
     reminder_time: null,
+    reminder_times: [],
     color: "blue",
     frozen_since: null,
     frozen_history: history([]),
@@ -128,6 +129,19 @@ describe("deriveView", () => {
       { type: "update", task: 1, habit: { ...input, times_per_day: 2, reminder_time: null, auto_mark: true } },
     ]).habits[0];
     expect(several).toMatchObject({ auto_mark: false, done_today: false });
+  });
+
+  it("keeps several reminders in order, as the server", () => {
+    const input = { name: "Вода", frequency_type: "daily" as const, days: [], start_date: null, color: "blue" as const, times_per_day: 1, auto_mark: false };
+    const several = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: "09:00", reminder_times: ["21:00", "09:00", "13:00", "09:00"] } },
+    ]).habits[0];
+    expect(several).toMatchObject({ reminder_time: "09:00", reminder_times: ["09:00", "13:00", "21:00"] });
+    // A change made before several reminders existed: the one reminder_time.
+    const old = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, reminder_time: "08:00" } },
+    ]).habits[0];
+    expect(old).toMatchObject({ reminder_time: "08:00", reminder_times: ["08:00"] });
   });
 
   it("counts a habit done several times a day", () => {

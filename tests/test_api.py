@@ -107,6 +107,40 @@ def test_every_other_day_habit(client: TestClient, user: AuthUser) -> None:
     assert missing.json()["error"]["code"] == "invalid_start_date"
 
 
+def test_several_reminders(client: TestClient, user: AuthUser) -> None:
+    created = client.post(
+        "/tasks",
+        json=_habit(reminder_times=["21:00", "09:00", "13:30", "09:00"]),
+        headers=user.headers,
+    )
+    assert created.status_code == 201, created.text
+    habit = created.json()["habit"]
+    # По возрастанию и без повторов; первое — и в reminder_time (старые клиенты).
+    assert habit["reminder_times"] == ["09:00", "13:30", "21:00"]
+    assert habit["reminder_time"] == "09:00"
+
+    # Старый клиент присылает только reminder_time — остаётся одно напоминание.
+    single = client.put(
+        f"/tasks/{habit['id']}", json=_habit(reminder_time="08:00"), headers=user.headers
+    ).json()["habit"]
+    assert (single["reminder_time"], single["reminder_times"]) == ("08:00", ["08:00"])
+
+    off = client.put(
+        f"/tasks/{habit['id']}", json=_habit(reminder_times=[]), headers=user.headers
+    ).json()["habit"]
+    assert (off["reminder_time"], off["reminder_times"]) == (None, [])
+
+    too_many = client.put(
+        f"/tasks/{habit['id']}",
+        json=_habit(reminder_times=[f"{hour:02d}:00" for hour in range(11)]),
+        headers=user.headers,
+    )
+    assert too_many.status_code == 422
+    assert too_many.json()["error"]["code"] == "invalid_reminder_time"
+    # Удаление привычки с напоминаниями (и пользователя целиком) не спотыкается о них.
+    assert client.delete(f"/tasks/{habit['id']}", headers=user.headers).status_code == 204
+
+
 def test_monthly_habit(client: TestClient, user: AuthUser) -> None:
     from datetime import date
 

@@ -228,6 +228,8 @@ const RU = {
   formReminderHeading: "Напоминание",
   formReminderToggle: "Напоминать",
   formReminderTime: "Время",
+  formReminderAdd: "Добавить напоминание",
+  formReminderRemove: (time: string) => `Удалить напоминание ${time}`,
   formThemeHeading: "Тема",
 
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
@@ -474,6 +476,8 @@ const EN: Strings = {
   formReminderHeading: "Reminder",
   formReminderToggle: "Remind Me",
   formReminderTime: "Time",
+  formReminderAdd: "Add Reminder",
+  formReminderRemove: (time: string) => `Remove reminder ${time}`,
   formThemeHeading: "Color",
 
   weekdays: {

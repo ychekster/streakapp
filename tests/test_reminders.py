@@ -60,6 +60,28 @@ def test_reminder_is_due_at_local_time(db_url: str) -> None:
     assert {item.language for item in due} == {"en"}
 
 
+def test_every_reminder_of_a_habit_is_due(db_url: str) -> None:
+    # 09:00 в Москве: привычка с напоминаниями 08:00 и 09:00 — по второму; 09:00 и 21:00 —
+    # по первому; 10:00 и 12:00 — ни по одному.
+    async def setup(repo: Repository) -> None:
+        await _user(repo, 1, "Europe/Moscow")
+        await repo.create_task(
+            1, "second", FrequencyType.daily, reminder_time=time(8, 0),
+            extra_reminder_times=[time(9, 0)],
+        )
+        await repo.create_task(
+            1, "first", FrequencyType.daily, reminder_time=time(9, 0),
+            extra_reminder_times=[time(21, 0)],
+        )
+        await repo.create_task(
+            1, "none", FrequencyType.daily, reminder_time=time(10, 0),
+            extra_reminder_times=[time(12, 0)],
+        )
+
+    due = asyncio.run(_due(db_url, setup))
+    assert sorted(item.habit_name for item in due) == ["first", "second"]
+
+
 def test_reminder_skips_done_unscheduled_and_deleted(db_url: str) -> None:
     today = MOMENT.astimezone(timezone.utc).date()  # 09:00 в Москве — тот же день
     other_day = WEEKDAYS[(today.weekday() + 1) % 7]

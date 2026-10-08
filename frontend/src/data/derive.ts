@@ -101,6 +101,15 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   return { ...next, ...op.preview };
 }
 
+/** All reminders of a habit or form input; kept from before several reminders existed —
+ *  the one `reminder_time`. */
+export function reminderTimesOf(habit: {
+  reminder_time: string | null;
+  reminder_times?: string[];
+}): string[] {
+  return habit.reminder_times ?? (habit.reminder_time === null ? [] : [habit.reminder_time]);
+}
+
 /** Form fields of a habit as the server stores them. */
 function habitFields(input: HabitInput): Pick<
   Habit,
@@ -109,12 +118,15 @@ function habitFields(input: HabitInput): Pick<
   | "days"
   | "start_date"
   | "reminder_time"
+  | "reminder_times"
   | "color"
   | "times_per_day"
   | "auto_mark"
 > {
   // Kept on the device before "several times a day" existed: once.
   const timesPerDay = input.times_per_day ?? 1;
+  // As the server (validate_reminder_times): in order, without repeats.
+  const reminders = [...new Set(reminderTimesOf(input))].sort();
   return {
     name: cleanHabitName(input.name),
     frequency_type: input.frequency_type,
@@ -123,7 +135,8 @@ function habitFields(input: HabitInput): Pick<
         ? WEEKDAYS.filter((code) => input.days.includes(code))
         : [],
     start_date: usesStartDate(input.frequency_type) ? input.start_date : null,
-    reminder_time: input.reminder_time,
+    reminder_time: reminders[0] ?? null,
+    reminder_times: reminders,
     color: input.color,
     times_per_day: timesPerDay,
     // As the server: auto check-off only for once-a-day habits.

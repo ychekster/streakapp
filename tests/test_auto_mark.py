@@ -43,6 +43,15 @@ def test_auto_mark_due(db_url: str) -> None:
                 await task("no reminder")
                 await task("reminder passed", reminder_time=time(9, 0))
                 await task("reminder later", reminder_time=time(9, 1))
+                # Несколько напоминаний — отмечается после последнего.
+                await task(
+                    "last reminder passed", reminder_time=time(7, 0),
+                    extra_reminder_times=[time(9, 0)],
+                )
+                await task(
+                    "last reminder later", reminder_time=time(8, 0),
+                    extra_reminder_times=[time(20, 0)],
+                )
                 await task("not today", frequency=FrequencyType.specific_days, days=other_day)
                 await task("several times", times_per_day=3)
                 await task("off", auto=False)
@@ -67,11 +76,13 @@ def test_auto_mark_due(db_url: str) -> None:
             await database.dispose()
 
     first, again, statuses = asyncio.run(run())
-    assert (first, again) == (2, 0)
+    assert (first, again) == (3, 0)
     assert statuses == {
         "no reminder": TaskStatus.done,
         "reminder passed": TaskStatus.done,
         "reminder later": None,
+        "last reminder passed": TaskStatus.done,
+        "last reminder later": None,
         "not today": None,
         "several times": None,
         "off": None,

@@ -39,3 +39,63 @@
   color: var(--color-text-secondary);
   line-height: 1.35;
 }
+
+/* Reminder rows: a round badge before the label — red «−» removes an added time, blue «+»
+   adds one (as in iOS edit lists). */
+.reminderLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--reminder-badge-gap);
+}
+
+/* The «−» button: the badge, with a finger-sized hit area around it. The hit area takes
+   no room (negative margins on every side), so «−» stands as far from «Время» as «+» from
+   «Добавить напоминание». */
+.removeReminder {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  margin: calc(-1 * var(--reminder-badge-hit));
+  padding: var(--reminder-badge-hit);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reminderBadge {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--reminder-badge-size);
+  height: var(--reminder-badge-size);
+  border-radius: 50%;
+}
+
+/* The white bar(s) of «−» and «+». */
+.reminderBadge::before,
+.plus::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--reminder-badge-bar);
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--color-on-habit);
+  transform: translate(-50%, -50%);
+}
+
+.plus::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.minus {
+  background-color: var(--color-danger);
+}
+
+.plus {
+  background-color: var(--color-accent);
+}
+
+.removeReminder[data-pressed] .minus {
+  opacity: 0.6;
+}

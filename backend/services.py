@@ -176,6 +176,7 @@ def build_habit(
             if task.reminder_time is not None
             else None
         ),
+        reminder_times=[value.strftime(REMINDER_TIME_FORMAT) for value in task.reminder_times],
         color=task.color,
         frozen_since=task.frozen_since,
         frozen_history=[
@@ -242,10 +243,19 @@ class HabitFields:
     frequency_type: FrequencyType
     days: str | None
     start_date: date | None
-    reminder_time: time | None
+    # Все напоминания по возрастанию: первое — Task.reminder_time, остальные — TaskReminder.
+    reminder_times: list[time]
     color: str
     times_per_day: int
     auto_mark: bool
+
+    @property
+    def reminder_time(self) -> time | None:
+        return self.reminder_times[0] if self.reminder_times else None
+
+    @property
+    def extra_reminder_times(self) -> list[time]:
+        return self.reminder_times[1:]
 
 
 async def _validate_habit_fields(
@@ -260,7 +270,9 @@ async def _validate_habit_fields(
     frequency_type, days, start_date = validation.validate_frequency(
         payload.frequency_type, payload.days, payload.start_date, user_today(user)
     )
-    reminder_time = validation.validate_reminder_time(payload.reminder_time)
+    reminder_times = validation.validate_reminder_times(
+        payload.reminder_time, payload.reminder_times
+    )
     color = validation.validate_color(payload.color)
     times_per_day = validation.validate_times_per_day(payload.times_per_day)
 
@@ -272,7 +284,7 @@ async def _validate_habit_fields(
         frequency_type=frequency_type,
         days=days,
         start_date=start_date,
-        reminder_time=reminder_time,
+        reminder_times=reminder_times,
         color=color,
         times_per_day=times_per_day,
         # Автоотметка — только у привычек «раз в день».
@@ -296,6 +308,7 @@ async def _create_task(
         days=fields.days,
         start_date=fields.start_date,
         reminder_time=fields.reminder_time,
+        extra_reminder_times=fields.extra_reminder_times,
         color=fields.color,
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
@@ -328,6 +341,7 @@ async def update_habit(
         days=fields.days,
         start_date=fields.start_date,
         reminder_time=fields.reminder_time,
+        extra_reminder_times=fields.extra_reminder_times,
         color=fields.color,
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
@@ -474,8 +488,9 @@ def _auto_mark_day(task: Task, user: User, moment: datetime) -> date | None:
     day = local.date()
     if not is_due_on(task, day):
         return None
-    reminder = task.reminder_time
-    if reminder is not None and (local.hour, local.minute) < (reminder.hour, reminder.minute):
+    # С напоминаниями — после последнего: до него напоминания ещё приходят.
+    reminders = task.reminder_times
+    if reminders and (local.hour, local.minute) < (reminders[-1].hour, reminders[-1].minute):
         return None
     return day
 
@@ -557,8 +572,10 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
         if task.user.blocked_at is not None or task.frozen_since is not None:
             continue
         local = moment.astimezone(resolve_timezone(task.user.timezone))
-        reminder = task.reminder_time
-        if reminder is None or (reminder.hour, reminder.minute) != (local.hour, local.minute):
+        if not any(
+            (reminder.hour, reminder.minute) == (local.hour, local.minute)
+            for reminder in task.reminder_times
+        ):
             continue
         day = local.date()
         if is_due_on(task, day):

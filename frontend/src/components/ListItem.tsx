@@ -5,7 +5,8 @@
  * С `onPress` ряд становится нажимаемой кнопкой. Соседние ряды внутри одной
  * карточки разделяются тонкой линией, которая начинается от текста. Действие — `accent`
  * (подпись цветом акцента, как «Добавить…» в iOS) или `destructive` (красное);
- * `disabled` — ряд виден, но не нажимается.
+ * `disabled` — ряд виден, но не нажимается; `noPressHighlight` — нажатие без подсветки
+ * (ряд, который после нажатия сам уезжает, — подсветка мигнула бы на новом месте).
  */
 
 import type { ReactNode } from "react";
@@ -27,6 +28,8 @@ interface ListItemProps {
   accent?: boolean;
   /** Нажимаемый ряд временно недоступен (приглушён). */
   disabled?: boolean;
+  /** Нажатие не подсвечивает ряд. */
+  noPressHighlight?: boolean;
   onPress?: () => void;
   /** Выровнять содержимое по верху (для многострочных рядов). */
   alignTop?: boolean;
@@ -40,6 +43,7 @@ export function ListItem({
   destructive = false,
   accent = false,
   disabled = false,
+  noPressHighlight = false,
   onPress,
   alignTop = false,
 }: ListItemProps) {
@@ -50,6 +54,7 @@ export function ListItem({
     destructive ? styles.destructive : "",
     accent ? styles.accent : "",
     onPress ? styles.pressable : "",
+    noPressHighlight ? styles.noPressHighlight : "",
     disabled ? styles.disabled : "",
   ]
     .filter(Boolean)

@@ -17,6 +17,7 @@ from backend.constants import (
     HABIT_COLORS,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
+    MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
     REMINDER_TIME_FORMAT,
     REVIEW_MAX_LENGTH,
@@ -93,6 +94,22 @@ def validate_reminder_time(value: str | None) -> time | None:
         raise ApiError(
             422, "invalid_reminder_time", "Укажите время напоминания в формате ЧЧ:ММ"
         ) from exc
+
+
+def validate_reminder_times(single: str | None, values: list[str] | None) -> list[time]:
+    """Напоминания привычки: по возрастанию, без повторов, не больше
+    `MAX_REMINDERS_PER_HABIT`; пустой список — без напоминания. `values` не передан
+    (старый клиент) — одно напоминание `single`."""
+    if values is None:
+        values = [] if single is None else [single]
+    times = sorted({validate_reminder_time(value) for value in values})  # type: ignore[type-var]
+    if len(times) > MAX_REMINDERS_PER_HABIT:
+        raise ApiError(
+            422,
+            "invalid_reminder_time",
+            f"Не больше {MAX_REMINDERS_PER_HABIT} напоминаний у привычки",
+        )
+    return times  # type: ignore[return-value]
 
 
 def validate_color(value: str) -> str:

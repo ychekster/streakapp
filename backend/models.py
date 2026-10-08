@@ -188,7 +188,8 @@ class Task(Base):
 
     # Время напоминания в поясе пользователя; None — без напоминания. Напоминание
     # присылает бот (bot/reminders.py) в запланированные дни, если привычка не выполнена.
-    # Индекс: бот каждую минуту выбирает привычки по времени напоминания.
+    # Индекс: бот каждую минуту выбирает привычки по времени напоминания. Напоминаний
+    # несколько — здесь самое раннее, остальные в TaskReminder (extra_reminders).
     reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True, index=True)
     # Цвет (тема) привычки — ключ палитры из constants.HABIT_COLORS.
     color: Mapped[str] = mapped_column(
@@ -204,7 +205,7 @@ class Task(Base):
         Integer, default=1, server_default="1", nullable=False
     )
     # «Автоотметка» (экран привычки): без напоминания привычка отмечается
-    # выполненной с началом дня, с напоминанием — сразу после него (services.auto_mark_due,
+    # выполненной с началом дня, с напоминаниями — сразу после последнего (services.auto_mark_due,
     # бот раз в минуту). День, отметку которого пользователь снял сам, не трогается. Только
     # у привычек «раз в день» (times_per_day = 1).
     auto_mark: Mapped[bool] = mapped_column(
@@ -232,6 +233,34 @@ class Task(Base):
     logs: Mapped[list["TaskLog"]] = relationship(
         back_populates="task", cascade="all, delete-orphan"
     )
+    # Остальные напоминания (после reminder_time) — читаются вместе с привычкой.
+    extra_reminders: Mapped[list["TaskReminder"]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="TaskReminder.time"
+    )
+
+    @property
+    def reminder_times(self) -> list[time]:
+        """Все напоминания привычки по возрастанию (пустой список — без напоминания)."""
+        if self.reminder_time is None:
+            return []
+        return [self.reminder_time, *(item.time for item in self.extra_reminders)]
+
+
+class TaskReminder(Base):
+    """Ещё одно напоминание привычки, кроме первого (`Task.reminder_time`): время в поясе
+    пользователя. Индекс по времени — бот каждую минуту выбирает по нему, как по
+    `tasks.reminder_time`."""
+
+    __tablename__ = "task_reminders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    time: Mapped[time] = mapped_column(Time, nullable=False, index=True)
 
 
 class TaskLog(Base):

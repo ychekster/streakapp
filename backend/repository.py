@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from itertools import islice
@@ -57,6 +57,7 @@ from backend.models import (
     Task,
     TaskFreeze,
     TaskLog,
+    TaskReminder,
     TaskStatus,
     User,
     UserActivity,
@@ -445,6 +446,7 @@ class Repository:
         for model in (
             TaskLog,
             TaskFreeze,
+            TaskReminder,
             Task,
             Review,
             UserActivity,
@@ -472,8 +474,10 @@ class Repository:
         client_ref: str | None = None,
         times_per_day: int = 1,
         auto_mark: bool = False,
+        extra_reminder_times: Sequence[time] = (),
     ) -> Task:
-        """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync)."""
+        """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync);
+        `extra_reminder_times` — напоминания после первого (`reminder_time`)."""
         task = Task(
             user_id=user_id,
             name=name,
@@ -486,6 +490,9 @@ class Repository:
             auto_mark=auto_mark,
             client_ref=client_ref,
             is_active=True,
+            extra_reminders=[
+                TaskReminder(user_id=user_id, time=value) for value in extra_reminder_times
+            ],
         )
         self.session.add(task)
         await self.session.flush()
@@ -502,6 +509,7 @@ class Repository:
         start_date: date | None = None,
         times_per_day: int = 1,
         auto_mark: bool = False,
+        extra_reminder_times: Sequence[time] = (),
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
@@ -511,6 +519,9 @@ class Repository:
         task.days = days
         task.start_date = start_date
         task.reminder_time = reminder_time
+        task.extra_reminders = [
+            TaskReminder(user_id=task.user_id, time=value) for value in extra_reminder_times
+        ]
         task.color = color
         await self.session.flush()
 
@@ -587,13 +598,21 @@ class Repository:
         return list(result.scalars().all())
 
     async def get_active_tasks_with_reminder_at(self, times: Collection[time]) -> list[Task]:
-        """Активные задачи всех пользователей с напоминанием в одно из `times` — вместе с
-        владельцем (его пояс нужен, чтобы понять, наступило ли время напоминания)."""
+        """Активные задачи всех пользователей с напоминанием (любым из нескольких) в одно
+        из `times` — вместе с владельцем (его пояс нужен, чтобы понять, наступило ли время
+        напоминания)."""
         if not times:
             return []
+        ordered = sorted(times)
         result = await self.session.execute(
             select(Task)
-            .where(Task.is_active.is_(True), Task.reminder_time.in_(sorted(times)))
+            .where(
+                Task.is_active.is_(True),
+                or_(
+                    Task.reminder_time.in_(ordered),
+                    Task.id.in_(select(TaskReminder.task_id).where(TaskReminder.time.in_(ordered))),
+                ),
+            )
             .options(selectinload(Task.user))
             .order_by(Task.id)
         )
@@ -1446,7 +1465,8 @@ class Repository:
         await self.session.flush()
 
         for model in (
-            Task, TaskLog, TaskFreeze, Review, WebSession, PushSubscription, Event, ActivityLog
+            Task, TaskLog, TaskFreeze, TaskReminder, Review, WebSession, PushSubscription, Event,
+            ActivityLog,
         ):
             await self.session.execute(
                 update(model)

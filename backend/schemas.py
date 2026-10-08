@@ -17,6 +17,7 @@ from backend.constants import (
     DEFAULT_HABIT_COLOR,
     HISTORY_DAYS,
     MAX_DB_INT,
+    MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
     SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
@@ -82,7 +83,11 @@ class Habit(BaseModel):
     total_done: int = Field(..., description="Сколько раз привычка выполнена за всё время")
     reminder_time: str | None = Field(
         ...,
-        description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания",
+        description="Первое (самое раннее) напоминание «ЧЧ:ММ» в поясе пользователя; null — без напоминания",
+    )
+    reminder_times: list[str] = Field(
+        default_factory=list,
+        description="Все напоминания «ЧЧ:ММ» по возрастанию; пустой список — без напоминания",
     )
     color: str = Field(..., description="Цвет (тема) привычки — ключ палитры: blue, green, …")
     frozen_since: date | None = Field(
@@ -113,7 +118,7 @@ class Habit(BaseModel):
         False,
         description=(
             "«Автоотметка»: без напоминания — выполнена с началом дня, с "
-            "напоминанием — сразу после него (только при times_per_day = 1)"
+            "напоминаниями — сразу после последнего (только при times_per_day = 1)"
         ),
     )
 
@@ -147,6 +152,13 @@ class HabitCreate(BaseModel):
     )
     reminder_time: str | None = Field(
         None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"
+    )
+    reminder_times: list[str] | None = Field(
+        None,
+        description=(
+            f"Все напоминания «ЧЧ:ММ» (до {MAX_REMINDERS_PER_HABIT}); пустой список — без "
+            "напоминания. Не передан — одно напоминание `reminder_time` (старые клиенты)"
+        ),
     )
     color: str = Field(DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры")
     times_per_day: int = Field(

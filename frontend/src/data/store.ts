@@ -37,7 +37,14 @@ import type { Settings, SettingsUpdate } from "../types/settings";
 import type { SyncOperation, SyncResponse, TaskKey } from "../types/sync";
 import { currentSessionId } from "../web/session";
 import { markingDay } from "./dates";
-import { cleanHabitName, deriveView, reuseUnchanged, type Operation, type Snapshot } from "./derive";
+import {
+  cleanHabitName,
+  deriveView,
+  reminderTimesOf,
+  reuseUnchanged,
+  type Operation,
+  type Snapshot,
+} from "./derive";
 
 export type DataStatus = "loading" | "ready" | "error";
 
@@ -557,6 +564,7 @@ export const dataStore = {
         days: habit.days,
         start_date: habit.start_date,
         reminder_time: habit.reminder_time,
+        reminder_times: reminderTimesOf(habit),
         color: habit.color,
         times_per_day: habit.times_per_day,
         auto_mark: on,

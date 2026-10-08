@@ -14,7 +14,10 @@
  *    одного раза — кружок отметки бледный с плюсом, каждое нажатие закрашивает его часть
  *    (CheckButton);
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
- *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py);
+ *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py). «Добавить напоминание»
+ *    добавляет ещё одну строку со временем (до MAX_REMINDERS_PER_HABIT; новое — на час
+ *    позже последнего), у добавленных слева красный «−» — убрать. Первое время убирается
+ *    только переключателем;
  *    В веб-приложении вместо бота — уведомление. Включённое напоминание (у новой
  *    привычки или впервые у старой) при «Создать привычку» / «Сохранить» включает
  *    уведомления: спрашивает разрешение, а если его уже не дали — окошко, как включить в
@@ -46,11 +49,12 @@ import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_NAME_MAX_LENGTH,
   DEFAULT_REMINDER_TIME,
+  MAX_REMINDERS_PER_HABIT,
   MAX_TIMES_PER_DAY,
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
-import { usesStartDate } from "../data/derive";
+import { reminderTimesOf, usesStartDate } from "../data/derive";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
@@ -84,10 +88,16 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   // частоты.
   const [startDate, setStartDate] = useState(() => habit?.start_date ?? localDate());
   const [reminderOn, setReminderOn] = useState(habit?.reminder_time != null);
-  // Время помнится, даже если напоминание выключить и включить снова.
-  const [reminderTime, setReminderTime] = useState(
-    habit?.reminder_time ?? DEFAULT_REMINDER_TIME,
-  );
+  // Времена помнятся, даже если напоминание выключить и включить снова. `key` — для
+  // React: строки удаляются из середины.
+  const nextReminderKey = useRef(0);
+  const [reminders, setReminders] = useState<Reminder[]>(() => {
+    const times = habit ? reminderTimesOf(habit) : [];
+    return (times.length > 0 ? times : [DEFAULT_REMINDER_TIME]).map((time) => ({
+      key: nextReminderKey.current++,
+      time,
+    }));
+  });
   const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
   const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
   const [submitting, setSubmitting] = useState(false);
@@ -132,6 +142,23 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     submit,
   );
 
+  function setReminderTime(key: number, time: string): void {
+    setReminders((previous) =>
+      previous.map((reminder) => (reminder.key === key ? { ...reminder, time } : reminder)),
+    );
+  }
+
+  function addReminder(): void {
+    setReminders((previous) => [
+      ...previous,
+      { key: nextReminderKey.current++, time: nextReminderTime(previous.map((item) => item.time)) },
+    ]);
+  }
+
+  function removeReminder(key: number): void {
+    setReminders((previous) => previous.filter((reminder) => reminder.key !== key));
+  }
+
   function toggleDay(code: string): void {
     setDays((previous) => {
       const next = new Set(previous);
@@ -169,7 +196,9 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       // Дни — в порядке недели, как их показывает выбор.
       days: frequency === "specific_days" ? WEEKDAYS.filter((code) => days.has(code)) : [],
       start_date: usesStartDate(frequency) ? startDate : null,
-      reminder_time: reminderOn ? reminderTime : null,
+      // Порядок и повторы приводит в вид сервер (и data/derive.ts на устройстве).
+      reminder_time: reminderOn ? [...reminders.map((item) => item.time)].sort()[0] : null,
+      reminder_times: reminderOn ? reminders.map((item) => item.time) : [],
       color,
       times_per_day: timesPerDay,
       // Не в форме — на экране привычки; при сохранении формы остаётся как был.
@@ -279,14 +308,49 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
                 label={strings.formReminderToggle}
               />
             </ListItem>
-            {reminderOn ? (
-              <ListItem label={strings.formReminderTime}>
-                <TimeField
-                  value={reminderTime}
-                  onChange={setReminderTime}
-                  label={strings.formReminderTime}
-                />
-              </ListItem>
+            {reminderOn
+              ? reminders.map((reminder, index) => (
+                  <ListItem
+                    key={reminder.key}
+                    label={
+                      index === 0 ? (
+                        strings.formReminderTime
+                      ) : (
+                        <span className={styles.reminderLabel}>
+                          <button
+                            type="button"
+                            className={styles.removeReminder}
+                            aria-label={strings.formReminderRemove(reminder.time)}
+                            onClick={() => removeReminder(reminder.key)}
+                          >
+                            <span className={`${styles.reminderBadge} ${styles.minus}`} />
+                          </button>
+                          {strings.formReminderTime}
+                        </span>
+                      )
+                    }
+                  >
+                    <TimeField
+                      value={reminder.time}
+                      onChange={(time) => setReminderTime(reminder.key, time)}
+                      label={strings.formReminderTime}
+                    />
+                  </ListItem>
+                ))
+              : null}
+            {reminderOn && reminders.length < MAX_REMINDERS_PER_HABIT ? (
+              <ListItem
+                accent
+                // Нажатие сдвигает строку вниз — подсветка мигнула бы уже на новом месте.
+                noPressHighlight
+                onPress={addReminder}
+                label={
+                  <span className={styles.reminderLabel}>
+                    <span className={`${styles.reminderBadge} ${styles.plus}`} aria-hidden="true" />
+                    {strings.formReminderAdd}
+                  </span>
+                }
+              />
             ) : null}
           </Card>
           {web && reminderOn && permission === "denied" ? (
@@ -308,4 +372,25 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       </div>
     </Screen>
   );
+}
+
+interface Reminder {
+  key: number;
+  /** «ЧЧ:ММ». */
+  time: string;
+}
+
+/** Время нового напоминания: на час позже последнего (через полночь — с начала суток), а
+ *  если такое уже есть — ещё на час, и так далее. */
+function nextReminderTime(times: string[]): string {
+  const last = times[times.length - 1] ?? DEFAULT_REMINDER_TIME;
+  let minutes = Number(last.slice(0, 2)) * 60 + Number(last.slice(3, 5));
+  for (let step = 0; step < 24; step += 1) {
+    minutes = (minutes + 60) % (24 * 60);
+    const candidate = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+    if (!times.includes(candidate)) {
+      return candidate;
+    }
+  }
+  return last;
 }
