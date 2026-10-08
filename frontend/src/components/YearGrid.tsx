@@ -5,7 +5,9 @@
  * Раскладка построчная: индекс 0 истории — левый верхний угол (самый старый день),
  * последний — правый нижний (сегодня). Закрашенный кружок — день выполнен,
  * со снежинкой — не выполнен, но привычка в этот день была заморожена,
- * полупрозрачный — пропущен/нет данных. Кружки масштабируются под ширину карточки.
+ * полупрозрачный — пропущен/нет данных. У привычки «несколько раз в день» неполный день
+ * (выполнена, но меньше цели) — между пропуском и выполненным, по доле сделанного:
+ * 1 из 4 — на четверть. Кружки масштабируются под ширину карточки.
  */
 
 import type { CSSProperties } from "react";
@@ -19,11 +21,22 @@ interface YearGridProps {
   history: boolean[];
   /** Дни заморозки — за те же дни, что `history`. */
   frozen?: readonly boolean[];
+  /** Сколько раз привычка выполнена — за те же дни, что `history` (привычка «несколько
+   *  раз в день»; пусто — у остальных). */
+  counts?: readonly number[];
+  /** Цель на день (`times_per_day`): доля неполного дня — counts / total. */
+  total?: number;
   /** Кружков в ряду. */
   columns?: number;
 }
 
-export function YearGrid({ history, frozen = [], columns = GRID_COLUMNS }: YearGridProps) {
+export function YearGrid({
+  history,
+  frozen = [],
+  counts = [],
+  total = 1,
+  columns = GRID_COLUMNS,
+}: YearGridProps) {
   const strings = useStrings();
   return (
     <div
@@ -32,14 +45,26 @@ export function YearGrid({ history, frozen = [], columns = GRID_COLUMNS }: YearG
       role="img"
       aria-label={strings.habitHistoryLabel}
     >
-      {history.map((done, index) => (
-        <span
-          key={index}
-          className={`${styles.cell} ${
-            done ? styles.filled : frozen[index] ? styles.frozen : styles.empty
-          }`}
-        />
-      ))}
+      {history.map((done, index) => {
+        const count = counts[index] ?? 0;
+        if (!done && !frozen[index] && count > 0 && total > 1) {
+          return (
+            <span
+              key={index}
+              className={`${styles.cell} ${styles.partial}`}
+              style={{ "--dot-fill": Math.min(count / total, 1) } as CSSProperties}
+            />
+          );
+        }
+        return (
+          <span
+            key={index}
+            className={`${styles.cell} ${
+              done ? styles.filled : frozen[index] ? styles.frozen : styles.empty
+            }`}
+          />
+        );
+      })}
     </div>
   );
 }

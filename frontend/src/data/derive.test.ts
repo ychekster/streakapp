@@ -202,6 +202,20 @@ describe("deriveView", () => {
     expect(old).toMatchObject({ reminder_time: "08:00", reminder_times: ["08:00"] });
   });
 
+  it("keeps the times done each day for shading unfinished days", () => {
+    const counts = Array<number>(HISTORY_DAYS).fill(0);
+    counts[HISTORY_DAYS - 2] = 1; // yesterday: 1 of 4
+    const base = habit({ times_per_day: 4, history_counts: counts });
+    const marked = view(snapshot([base]), [
+      { type: "mark", task: 1, date: TODAY, done: false, count: 2 },
+    ]).habits[0];
+    expect(marked.history_counts?.slice(-2)).toEqual([1, 2]);
+    // Shading only: an unfinished day is not done and does not count in streaks.
+    expect(marked).toMatchObject({ done_today: false, current_streak: 0, total_done: 0 });
+    // Once-a-day habits have none.
+    expect(view(snapshot([habit()]), [{ type: "mark", task: 1, date: TODAY, done: true }]).habits[0].history_counts).toEqual([]);
+  });
+
   it("counts a habit done several times a day", () => {
     const base = habit({ times_per_day: 3, today_count: 1 });
     expect(view(snapshot([base])).habits[0]).toBe(base);
@@ -372,6 +386,26 @@ describe("deriveView", () => {
     expect(result.settings.mark_yesterday).toBe(true);
     // Today's check-in is not seen until tomorrow, as on the server.
     expect(result.habits[0]).toMatchObject({ done_today: false, total_done: 0 });
+  });
+
+  it("switches «Отмечать за вчера» at once, with the server's days on both sides", () => {
+    // On: yesterday's state and times done come from the history.
+    const counts = Array<number>(HISTORY_DAYS).fill(0);
+    counts[HISTORY_DAYS - 2] = 2;
+    const water = habit({ times_per_day: 3, history_counts: counts });
+    const on = view(snapshot([water]), [{ type: "settings", patch: { mark_yesterday: true } }]);
+    expect(on.habits[0].today_count).toBe(2);
+    // Off: the answer ended yesterday, but tells today's state (next_day_*).
+    const yesterdayMode = snapshot(
+      [habit({ next_day_done: true, total_done: 0 }), habit({ id: 2, name: "Вода", times_per_day: 3, next_day_count: 1 })],
+      { mark_yesterday: true },
+      addDays(TODAY, -1),
+    );
+    const off = view(yesterdayMode, [{ type: "settings", patch: { mark_yesterday: false } }]);
+    expect(off.today).toBe(TODAY);
+    expect(off.habits[0]).toMatchObject({ done_today: true, total_done: 1, current_streak: 1 });
+    expect(off.habits[1]).toMatchObject({ done_today: false, today_count: 1 });
+    expect(off.habits[1].history_counts?.slice(-1)).toEqual([1]);
   });
 
   it("shows a chosen time zone at once", () => {

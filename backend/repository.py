@@ -719,20 +719,24 @@ class Repository:
         log.count = count
         await self.session.flush()
 
-    async def get_day_counts(self, task_ids: Collection[int], day: date) -> dict[int, int]:
-        """Сколько раз задачи выполнены за день `day` (TaskLog.count): id задачи → число;
-        задач без счёта за этот день в ответе нет."""
-        counts: dict[int, int] = {}
+    async def get_history_counts(
+        self, task_ids: Collection[int], since: date, until: date
+    ) -> dict[int, dict[date, int]]:
+        """Сколько раз задачи выполнены по дням с `since` по `until` включительно
+        (TaskLog.count, у привычек «несколько раз в день»): id задачи → {день: число}.
+        Дни без счёта в ответе не перечислены; у каждой задачи есть словарь."""
+        counts: dict[int, dict[date, int]] = {task_id: {} for task_id in task_ids}
         for batch in _batches(list(task_ids)):
             result = await self.session.execute(
-                select(TaskLog.task_id, TaskLog.count).where(
+                select(TaskLog.task_id, TaskLog.scheduled_date, TaskLog.count).where(
                     TaskLog.task_id.in_(batch),
-                    TaskLog.scheduled_date == day,
+                    TaskLog.scheduled_date >= since,
+                    TaskLog.scheduled_date <= until,
                     TaskLog.count.is_not(None),
                 )
             )
-            for task_id, count in result.tuples():
-                counts[task_id] = count
+            for task_id, day, count in result.tuples():
+                counts[task_id][day] = count
         return counts
 
     async def get_done_dates(

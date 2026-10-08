@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
@@ -91,6 +91,11 @@ def language_from_telegram(language_code: str | None) -> str:
     return "ru" if language_code.lower().startswith("ru") else "en"
 
 
+def _history_start(today: date) -> date:
+    """Первый (самый старый) день истории, которая кончается днём `today`."""
+    return today - timedelta(days=HISTORY_DAYS - 1)
+
+
 def build_history(done_dates: set[date], today: date) -> list[bool]:
     """История выполнения за последние `HISTORY_DAYS` дней (старое → сегодня).
 
@@ -148,6 +153,8 @@ def build_habit(
     freezes: Collection[tuple[date, date]] = (),
     today_count: int = 0,
     auto_mark_ahead: bool = True,
+    day_counts: Mapping[date, int] | None = None,
+    next_day_done: bool = False,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -155,12 +162,16 @@ def build_habit(
     отметки «из будущего» (возможны после смены часового пояса на более западный) не
     учитываются ни в сетке, ни в сериях, ни в общем счётчике. `freezes` — прошедшие
     заморозки (Repository.get_freezes). `today_count` — сколько раз привычка выполнена
-    за `today` (Repository.get_day_counts). `auto_mark_ahead` — за календарный сегодня
-    записи ещё нет (см. `_auto_mark_ahead`).
+    за `today`. `auto_mark_ahead` — за календарный сегодня записи ещё нет (см.
+    `_auto_mark_ahead`). `day_counts` — сколько раз привычка выполнена по дням истории
+    (Repository.get_history_counts): по ним приложение закрашивает неполные дни привычки
+    «несколько раз в день»; в режиме «Отмечать за вчера» — и за следующий день.
+    `next_day_done` — выполнен ли день после `today` (календарный сегодня в режиме
+    «Отмечать за вчера»), см. `Habit.next_day_done`.
     """
     is_frozen = frozen_check(task, freezes, today)
     current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
-    history_start = today - timedelta(days=HISTORY_DAYS - 1)
+    history_start = _history_start(today)
     return Habit(
         id=task.id,
         name=task.name,
@@ -188,7 +199,23 @@ def build_habit(
         today_count=today_count,
         auto_mark=task.auto_mark,
         auto_mark_ahead=auto_mark_ahead,
+        history_counts=(
+            [
+                (day_counts or {}).get(history_start + timedelta(days=offset), 0)
+                for offset in range(HISTORY_DAYS)
+            ]
+            if task.times_per_day > 1
+            else []
+        ),
+        next_day_done=next_day_done,
+        next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
     )
+
+
+def _calendar_day(user: User) -> date:
+    """Календарный сегодня в поясе пользователя: в режиме «Отмечать за вчера» — день
+    после дня отметки."""
+    return user_today(user) + timedelta(days=1 if user.mark_yesterday else 0)
 
 
 async def _auto_mark_ahead(repo: Repository, user: User, task_ids: list[int]) -> set[int]:
@@ -198,20 +225,28 @@ async def _auto_mark_ahead(repo: Repository, user: User, task_ids: list[int]) ->
     бота и связи; снятую пользователем — не трогает (как бот, `auto_mark_due`)."""
     if not task_ids:
         return set()
-    day = user_today(user) + timedelta(days=1 if user.mark_yesterday else 0)
+    day = _calendar_day(user)
     logged = await repo.get_logged_task_days({(task_id, day) for task_id in task_ids})
     return {task_id for task_id in task_ids if (task_id, day) not in logged}
 
 
 async def _built_habit(repo: Repository, user: User, task: Task) -> Habit:
     """Привычка с отметками из базы (после изменения или отметки)."""
-    today = user_today(user)
-    done = await repo.get_done_dates([task.id], today)
+    today, calendar = user_today(user), _calendar_day(user)
+    # По календарный день: в режиме «Отмечать за вчера» приложение знает и следующий день.
+    done = await repo.get_done_dates([task.id], calendar)
     freezes = await repo.get_freezes([task.id])
-    counts = await repo.get_day_counts([task.id], today)
+    counts = await repo.get_history_counts([task.id], _history_start(today), calendar)
     ahead = await _auto_mark_ahead(repo, user, [task.id])
     return build_habit(
-        task, done[task.id], today, freezes[task.id], counts.get(task.id, 0), task.id in ahead
+        task,
+        {day for day in done[task.id] if day <= today},
+        today,
+        freezes[task.id],
+        counts[task.id].get(today, 0),
+        task.id in ahead,
+        counts[task.id],
+        calendar > today and calendar in done[task.id],
     )
 
 
@@ -220,16 +255,28 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
 
     Отметки всех привычек читаются одним запросом, а не по запросу на привычку.
     """
-    today = user_today(user)
+    today, calendar = user_today(user), _calendar_day(user)
     tasks = await repo.get_active_tasks(user.telegram_id)
     task_ids = [task.id for task in tasks]
-    done = await repo.get_done_dates(task_ids, today)
+    # По календарный день: в режиме «Отмечать за вчера» приложение знает и следующий день
+    # — выключили режим, и сегодняшние отметки видны сразу, без ответа сервера.
+    done = await repo.get_done_dates(task_ids, calendar)
     freezes = await repo.get_freezes(task_ids)
-    counts = await repo.get_day_counts(task_ids, today)
+    # Счёт по дням нужен только привычкам «несколько раз в день».
+    counts = await repo.get_history_counts(
+        [task.id for task in tasks if task.times_per_day > 1], _history_start(today), calendar
+    )
     ahead = await _auto_mark_ahead(repo, user, task_ids)
     return [
         build_habit(
-            task, done[task.id], today, freezes[task.id], counts.get(task.id, 0), task.id in ahead
+            task,
+            {day for day in done[task.id] if day <= today},
+            today,
+            freezes[task.id],
+            counts.get(task.id, {}).get(today, 0),
+            task.id in ahead,
+            counts.get(task.id),
+            calendar > today and calendar in done[task.id],
         )
         for task in tasks
     ]

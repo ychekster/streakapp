@@ -106,6 +106,9 @@ def test_habit_done_several_times_a_day(client: TestClient, user: AuthUser) -> N
 
     [habit] = _sync(client, user, count(1), count(2))["habits"]
     assert (habit["today_count"], habit["done_today"], habit["total_done"]) == (2, False, 0)
+    # Times done each day of the history: the grid shades an unfinished day.
+    assert len(habit["history_counts"]) == len(habit["history"])
+    assert habit["history_counts"][-1] == 2
     # Done once the goal is reached — the server counts it, whatever `done` says.
     [habit] = _sync(client, user, count(3))["habits"]
     assert (habit["today_count"], habit["done_today"], habit["current_streak"]) == (3, True, 1)
@@ -117,6 +120,9 @@ def test_habit_done_several_times_a_day(client: TestClient, user: AuthUser) -> N
         client, user, {"type": "mark", "task": habit_id, "date": today.isoformat(), "done": True}
     )["habits"]
     assert (habit["today_count"], habit["done_today"]) == (0, True)
+    # Once-a-day habits have no counts to shade.
+    plain = _sync(client, user, {"type": "create", "ref": "p", "habit": _habit("Бег")})
+    assert [item["history_counts"] for item in plain["habits"] if item["name"] == "Бег"] == [[]]
     refused = _sync(
         client, user, {"type": "update", "task": habit_id, "habit": _habit("Вода", times_per_day=97)}
     )
@@ -259,6 +265,28 @@ def test_operations_apply_in_order(client: TestClient, user: AuthUser) -> None:
     assert data["today"] == (today - timedelta(days=1)).isoformat()
     assert data["settings"]["mark_yesterday"] is True
     assert data["habits"][0]["done_today"] is True
+
+
+def test_mark_yesterday_answer_carries_the_calendar_day(client: TestClient, user: AuthUser) -> None:
+    # Marked today, then «Отмечать за вчера» on: the answer ends yesterday but tells the
+    # app today's state — switched off, today's mark shows at once.
+    today = _today(client, user)
+    _sync(
+        client,
+        user,
+        {"type": "create", "ref": "a", "habit": _habit()},
+        {"type": "create", "ref": "w", "habit": _habit("Вода", times_per_day=3)},
+        {"type": "mark", "task": "a", "date": today.isoformat(), "done": True},
+        {"type": "mark", "task": "w", "date": today.isoformat(), "done": False, "count": 2},
+    )
+    data = _sync(client, user, {"type": "settings", "patch": {"mark_yesterday": True}})
+    habits = {habit["name"]: habit for habit in data["habits"]}
+    assert habits["Зарядка"]["done_today"] is False
+    assert habits["Зарядка"]["next_day_done"] is True
+    assert (habits["Вода"]["next_day_done"], habits["Вода"]["next_day_count"]) == (False, 2)
+    # Off again: there is no next day to tell.
+    data = _sync(client, user, {"type": "settings", "patch": {"mark_yesterday": False}})
+    assert {habit["next_day_done"] for habit in data["habits"]} == {False}
 
 
 def test_other_users_habit_is_not_reachable(

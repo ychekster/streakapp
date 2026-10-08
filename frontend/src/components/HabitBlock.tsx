@@ -71,6 +71,8 @@ export const HabitBlock = memo(function HabitBlock({
       <YearGrid
         history={habit.history.slice(-gridDays)}
         frozen={habit.frozen_history.slice(-gridDays)}
+        counts={(habit.history_counts ?? []).slice(-gridDays)}
+        total={habit.times_per_day}
         columns={gridColumns}
       />
     </article>

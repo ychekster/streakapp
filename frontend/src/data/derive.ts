@@ -343,9 +343,15 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
   if (!fields) {
     throw new Error("habit without fields");
   }
+  // The server's days: its history, and the day after it (the calendar day in «Отмечать
+  // за вчера» — switched off, today's marks are there at once).
+  const nextDay = addDays(snapshotToday, 1);
   const baseDone = (day: string): boolean => {
     if (!base) {
       return false;
+    }
+    if (day === nextDay) {
+      return base.next_day_done ?? false;
     }
     const index = base.history.length - 1 - daysBetween(day, snapshotToday);
     return index >= 0 && index < base.history.length ? base.history[index] : false;
@@ -353,25 +359,47 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
   const baseFrozenHistory: boolean[] = base?.frozen_history ?? [];
   const freezes = draft.freezes ?? serverFreezes(base);
   const frozenOn = frozenCheck(draft, snapshotToday);
+  const baseCount = (day: string): number => {
+    if (day === nextDay) {
+      return base?.next_day_count ?? 0;
+    }
+    const counts = base?.history_counts ?? [];
+    const index = counts.length - 1 - daysBetween(day, snapshotToday);
+    return index >= 0 && index < counts.length ? counts[index] : 0;
+  };
+  const severalTimes = fields.times_per_day > 1;
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
+  const historyCounts: number[] = [];
   for (let index = 0; index < HISTORY_DAYS; index += 1) {
     const day = addDays(today, index - HISTORY_DAYS + 1);
     history.push(marks.get(day) ?? baseDone(day));
     frozenHistory.push(frozenOn(day));
+    if (severalTimes) {
+      // As the server: a mark without a count leaves none (0).
+      historyCounts.push(draft.counts.get(day) ?? baseCount(day));
+    }
   }
 
   // Done days the server counted (up to its day), changed or no longer counted here.
   let total = base?.total_done ?? 0;
   marks.forEach((done, day) => {
     if (day <= today) {
-      total += Number(done) - Number(baseDone(day));
+      // The server's total has its days only (up to snapshotToday).
+      total += Number(done) - (day <= snapshotToday ? Number(baseDone(day)) : 0);
     }
   });
   if (base && snapshotToday > today) {
     for (let day = addDays(today, 1); day <= snapshotToday; day = addDays(day, 1)) {
       if (!marks.has(day)) {
         total -= Number(baseDone(day));
+      }
+    }
+  } else if (base && today > snapshotToday) {
+    // Days after the server's, done on the server (the next day) and not changed here.
+    for (let day = nextDay; day <= today; day = addDays(day, 1)) {
+      if (!marks.has(day)) {
+        total += Number(baseDone(day));
       }
     }
   }
@@ -407,7 +435,9 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
     frozen_history: frozenHistory,
     times_per_day: fields.times_per_day,
     today_count:
-      draft.counts.get(today) ?? (base && today === snapshotToday ? base.today_count ?? 0 : 0),
+      draft.counts.get(today) ??
+      (base ? (today === snapshotToday ? base.today_count ?? 0 : baseCount(today)) : 0),
+    history_counts: historyCounts,
   };
 }
 
