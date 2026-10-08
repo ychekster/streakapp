@@ -21,7 +21,8 @@ export interface Habit {
   frequency_type: FrequencyType;
   /** Коды дней недели (mon..sun) для specific_days; для остальных — пустой массив. */
   days: string[];
-  /** Первый день привычки every_other_day («ГГГГ-ММ-ДД»), дальше — каждый второй; иначе null. */
+  /** Первый день привычки every_other_day («ГГГГ-ММ-ДД»), дальше — каждый второй, или
+   *  monthly — дальше то же число каждого месяца; иначе null. */
   start_date: string | null;
   /**
    * Выполнение за последние HISTORY_DAYS дней (старое → сегодня).
@@ -60,7 +61,7 @@ export interface Habit {
 }
 
 /** Частота выполнения привычки. */
-export type FrequencyType = "daily" | "specific_days" | "every_other_day";
+export type FrequencyType = "daily" | "specific_days" | "every_other_day" | "monthly";
 
 /** Поля формы привычки: создание и изменение (операции create / update в POST /sync,
  *  как тело POST /tasks и PUT /tasks/{id}). */
@@ -69,7 +70,7 @@ export interface HabitInput {
   frequency_type: FrequencyType;
   /** Коды дней недели (mon..sun) для specific_days; для остальных игнорируется. */
   days: string[];
-  /** Первый день («ГГГГ-ММ-ДД») для every_other_day; для остальных — null. */
+  /** Первый день («ГГГГ-ММ-ДД») для every_other_day и monthly; для остальных — null. */
   start_date: string | null;
   /** Время напоминания «ЧЧ:ММ»; null — без напоминания. */
   reminder_time: string | null;

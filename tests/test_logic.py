@@ -86,6 +86,23 @@ def test_every_other_day_needs_a_start_date() -> None:
             validate_frequency("every_other_day", [], start, TODAY)
 
 
+def test_monthly_schedule_moves_to_the_last_day_of_short_months() -> None:
+    # Каждый месяц с 31 января: 31-е, а в коротких месяцах — последний день (28 февраля,
+    # 30 апреля); до начала и в другие числа — нет.
+    task = _task(FrequencyType.monthly, start_date=date(2026, 1, 31))
+    due = [day for day in (date(2026, 1, 1) + timedelta(days=n) for n in range(366)) if is_due_on(task, day)]
+    assert due[:4] == [date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 31), date(2026, 4, 30)]
+    assert len(due) == 12
+    assert is_due_on(_task(FrequencyType.monthly, start_date=date(2027, 12, 30)), date(2028, 2, 29))
+    # С 15-го — только 15-е; пропуск между ними серию не рвёт.
+    task = _task(FrequencyType.monthly, start_date=date(2026, 8, 15))
+    assert [is_due_on(task, date(2026, 9, day)) for day in (14, 15, 16)] == [False, True, False]
+    assert compute_streaks(task, {date(2026, 8, 15), date(2026, 9, 15)}, TODAY) == (2, 2)
+    assert validate_frequency("monthly", [], TODAY, TODAY) == (FrequencyType.monthly, None, TODAY)
+    with pytest.raises(ApiError):
+        validate_frequency("monthly", [], None, TODAY)
+
+
 def test_name_is_cleaned() -> None:
     assert validate_name("  Бег\r\n по\x00 утрам  ") == "Бег по утрам"
     for bad in ("", "   ", "\n\t", "x" * 101):

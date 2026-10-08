@@ -46,10 +46,13 @@ import styles from "./HabitScreen.module.css";
 const WORKDAYS_KEY = "mon,tue,wed,thu,fri";
 const WEEKENDS_KEY = "sat,sun";
 
-/** Подпись цели серии: «Ежедневно», «Через день», «Будни», «Выходные» или дни («Пн, Ср, Пт»). */
+/** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будни», «Выходные» или дни («Пн, Ср, Пт»). */
 function formatStreakGoal(habit: Habit, strings: Strings): string {
   if (habit.frequency_type === "every_other_day") {
     return strings.goalEveryOtherDay;
+  }
+  if (habit.frequency_type === "monthly") {
+    return strings.goalMonthly;
   }
   const selected = WEEKDAYS.filter((code) => habit.days.includes(code));
   if (habit.frequency_type === "daily" || selected.length === WEEKDAYS.length) {

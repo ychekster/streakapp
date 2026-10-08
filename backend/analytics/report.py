@@ -711,7 +711,7 @@ async def habits(repo: Repository, ds: Dataset, period: Period) -> AnalyticsHabi
         ],
         frequency=[
             LeaveBucket(key=key, users=frequency[key])
-            for key in ("daily", "specific_days", "every_other_day")
+            for key in ("daily", "specific_days", "every_other_day", "monthly")
         ],
         total_habits=len(active_tasks),
         with_reminder=sum(1 for task in active_tasks if task.reminder_time is not None),

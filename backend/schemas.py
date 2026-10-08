@@ -52,7 +52,7 @@ class Habit(BaseModel):
             "True — задачу можно отмечать; False — только просмотр прогресса."
         ),
     )
-    frequency_type: Literal["daily", "specific_days", "every_other_day"] = Field(
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] = Field(
         ..., description="Каждый день, конкретные дни недели или через день"
     )
     days: list[str] = Field(
@@ -61,7 +61,7 @@ class Habit(BaseModel):
     )
     start_date: date | None = Field(
         None,
-        description="Первый день привычки every_other_day (дальше — каждый второй); иначе null",
+        description="Первый день привычки every_other_day (дальше — каждый второй) или monthly (дальше — то же число каждого месяца); иначе null",
     )
     history: list[bool] = Field(
         ...,
@@ -134,7 +134,7 @@ class HabitCreate(BaseModel):
     """Запрос `POST /tasks` — создание привычки."""
 
     name: str = Field(..., description="Название привычки")
-    frequency_type: Literal["daily", "specific_days", "every_other_day"] = Field(
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] = Field(
         ..., description="Каждый день, конкретные дни недели или через день"
     )
     days: list[str] = Field(
@@ -143,7 +143,7 @@ class HabitCreate(BaseModel):
     )
     start_date: date | None = Field(
         None,
-        description="Первый день привычки every_other_day (ГГГГ-ММ-ДД); для остальных игнорируется",
+        description="Первый день привычки every_other_day или monthly (ГГГГ-ММ-ДД); для остальных игнорируется",
     )
     reminder_time: str | None = Field(
         None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"

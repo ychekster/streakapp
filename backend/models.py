@@ -51,6 +51,7 @@ class FrequencyType(str, enum.Enum):
     daily = "daily"                  # каждый день
     specific_days = "specific_days"  # конкретные дни недели
     every_other_day = "every_other_day"  # через день, начиная с Task.start_date
+    monthly = "monthly"  # раз в месяц, в число Task.start_date (или последний день месяца)
 
 
 class TaskStatus(str, enum.Enum):
@@ -182,6 +183,7 @@ class Task(Base):
     # Для specific_days: строка вида "mon,wed,fri".
     days: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Для every_other_day: первый день привычки; дальше — каждый второй день от него.
+    # Для monthly: первый день; дальше — то же число каждого месяца (или последний день).
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Время напоминания в поясе пользователя; None — без напоминания. Напоминание

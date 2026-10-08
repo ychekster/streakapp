@@ -4,11 +4,14 @@
 сегодня, и какие пропуски прерывают серию (пропуск незапланированного дня — нет).
 
 Привычка «через день» запланирована на свой первый день (`start_date`) и дальше на
-каждый второй день от него; до первого дня — ни на один.
+каждый второй день от него; до первого дня — ни на один. Привычка «каждый месяц» — на
+первый день и дальше на то же число каждого месяца; если в месяце такого числа нет (31-е
+в апреле, 30-е в феврале), — на его последний день.
 """
 
 from __future__ import annotations
 
+import calendar
 from collections.abc import Callable
 from datetime import date
 from typing import Protocol
@@ -48,6 +51,13 @@ def due_check(task: Scheduled) -> Callable[[date], bool]:
         if start is None:
             return lambda day: False
         return lambda day: day >= start and (day - start).days % 2 == 0
+    if task.frequency_type == FrequencyType.monthly:
+        start = task.start_date
+        if start is None:
+            return lambda day: False
+        return lambda day: day >= start and day.day == min(
+            start.day, calendar.monthrange(day.year, day.month)[1]
+        )
     weekdays = due_weekdays(task)
     return lambda day: day.weekday() in weekdays
 

@@ -97,6 +97,15 @@ describe("schedule", () => {
     expect(isDueOn(everyOther, TODAY)).toBe(true);
     expect(isDueOn(everyOther, addDays(TODAY, 1))).toBe(false);
     expect(isDueOn(everyOther, addDays(TODAY, 4))).toBe(true);
+    // Monthly from January 31: the 31st, or the last day of a shorter month.
+    const monthly = { frequency_type: "monthly" as const, days: [], start_date: "2026-01-31" };
+    expect(isDueOn(monthly, "2026-01-30")).toBe(false);
+    expect(isDueOn(monthly, "2026-01-31")).toBe(true);
+    expect(isDueOn(monthly, "2026-02-28")).toBe(true);
+    expect(isDueOn(monthly, "2026-03-30")).toBe(false);
+    expect(isDueOn(monthly, "2026-03-31")).toBe(true);
+    expect(isDueOn(monthly, "2026-04-30")).toBe(true);
+    expect(isDueOn({ ...monthly, start_date: "2027-12-30" }, "2028-02-29")).toBe(true);
   });
 
   it("cleans names as the server does", () => {

@@ -107,6 +107,22 @@ def test_every_other_day_habit(client: TestClient, user: AuthUser) -> None:
     assert missing.json()["error"]["code"] == "invalid_start_date"
 
 
+def test_monthly_habit(client: TestClient, user: AuthUser) -> None:
+    from datetime import date
+
+    today = date.today()  # пояс не выбран — UTC
+    created = client.post(
+        "/tasks",
+        json=_habit(frequency_type="monthly", start_date=today.isoformat()),
+        headers=user.headers,
+    )
+    assert created.status_code == 201, created.text
+    habit = created.json()["habit"]
+    assert (habit["frequency_type"], habit["start_date"], habit["scheduled_today"]) == (
+        "monthly", today.isoformat(), True,
+    )
+
+
 def test_checkin_reminder_setting(client: TestClient, user: AuthUser) -> None:
     settings = client.get("/settings", headers=user.headers).json()
     assert (settings["checkin_reminder_time"], settings["checkin_reminder_days"]) == (None, [])

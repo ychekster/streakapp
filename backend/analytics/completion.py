@@ -29,7 +29,8 @@ def completion_by_day(
 
     Сколько привычек запланировано на день, считается двоичным поиском по отсортированным
     датам создания привычек этого дня недели, а не перебором всех привычек на каждый день.
-    Привычки «через день» к дню недели не привязаны — их дни проверяются по каждой.
+    Привычки «через день» и «каждый месяц» к дню недели не привязаны — их дни проверяются
+    по каждой.
     """
     created_by_weekday: list[list[date]] = [[] for _ in range(_WEEK_DAYS)]
     alternating: list[tuple[date, Callable[[date], bool]]] = []
@@ -37,7 +38,7 @@ def completion_by_day(
     for schedule in schedules:
         # У TaskSchedule те же поля расписания, что у Task.
         due[schedule.id] = (schedule.created_on, due_check(schedule))  # type: ignore[arg-type]
-        if schedule.frequency_type == FrequencyType.every_other_day:
+        if schedule.frequency_type in (FrequencyType.every_other_day, FrequencyType.monthly):
             alternating.append(due[schedule.id])
             continue
         for weekday in due_weekdays(schedule):  # type: ignore[arg-type]

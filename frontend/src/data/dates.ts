@@ -23,6 +23,11 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((toTime(to) - toTime(from)) / DAY_MS);
 }
 
+/** Number of days in the month of `day` (28…31). */
+export function daysInMonth(day: string): number {
+  return new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)), 0)).getUTCDate();
+}
+
 /** Weekday like Python's date.weekday(): Monday 0 … Sunday 6. */
 export function weekdayIndex(day: string): number {
   return (new Date(toTime(day)).getUTCDay() + 6) % 7;

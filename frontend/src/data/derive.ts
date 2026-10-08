@@ -12,7 +12,7 @@ import { HISTORY_DAYS, WEEKDAYS } from "../constants";
 import type { FrequencyType, Habit, HabitInput } from "../types/habit";
 import type { Settings } from "../types/settings";
 import type { SyncOperation, TaskKey } from "../types/sync";
-import { addDays, daysBetween, markingDay, weekdayIndex } from "./dates";
+import { addDays, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
  *  change also carries what only the device needs. */
@@ -46,6 +46,11 @@ interface Schedule {
   start_date: string | null;
 }
 
+/** Does the frequency start from a chosen day (every other day, monthly). */
+export function usesStartDate(frequency: FrequencyType): boolean {
+  return frequency === "every_other_day" || frequency === "monthly";
+}
+
 /** Is the habit due on `day` (schedule.is_due_on). */
 export function isDueOn(habit: Schedule, day: string): boolean {
   if (habit.frequency_type === "every_other_day") {
@@ -54,6 +59,14 @@ export function isDueOn(habit: Schedule, day: string): boolean {
     }
     const offset = daysBetween(habit.start_date, day);
     return offset >= 0 && offset % 2 === 0;
+  }
+  if (habit.frequency_type === "monthly") {
+    if (habit.start_date === null || day < habit.start_date) {
+      return false;
+    }
+    // The start's day of the month, or the month's last day if it is shorter.
+    const startDay = Number(habit.start_date.slice(8, 10));
+    return Number(day.slice(8, 10)) === Math.min(startDay, daysInMonth(day));
   }
   if (habit.frequency_type === "daily") {
     return true;
@@ -109,7 +122,7 @@ function habitFields(input: HabitInput): Pick<
       input.frequency_type === "specific_days"
         ? WEEKDAYS.filter((code) => input.days.includes(code))
         : [],
-    start_date: input.frequency_type === "every_other_day" ? input.start_date : null,
+    start_date: usesStartDate(input.frequency_type) ? input.start_date : null,
     reminder_time: input.reminder_time,
     color: input.color,
     times_per_day: timesPerDay,

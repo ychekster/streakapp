@@ -162,6 +162,7 @@ const RU = {
   goalWorkdays: "Будни",
   goalWeekends: "Выходные",
   goalEveryOtherDay: "Через день",
+  goalMonthly: "Каждый месяц",
   habitSettingsHeading: "Настройки",
   editHabit: "Редактировать привычку",
   freezeHabit: "Заморозить привычку",
@@ -205,18 +206,19 @@ const RU = {
   formDaily: "Каждый день",
   formSpecificDays: "По дням",
   formEveryOtherDay: "Через день",
-  // Первый день привычки «через день»: «Сегодня», «Завтра» или дата.
+  formMonthly: "Каждый месяц",
+  // Первый день привычки «через день» / «каждый месяц»: «Сегодня», «Завтра» или дата.
   formStartDate: "Начало",
   dateToday: "Сегодня",
   dateTomorrow: "Завтра",
-  // Цель: сколько раз в день выполнить привычку («1 раз за день», «3 раза за день»,
-  // «5 раз за день»), степпер −/+.
+  // Цель: сколько раз в день выполнить привычку («1 раз в день», «3 раза в день»,
+  // «5 раз в день»), степпер −/+.
   formGoalHeading: "Цель",
   formTimesPerDay: (count: number) => {
     const tens = count % 100;
     const ones = count % 10;
     const word = ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
-    return `${count} ${word} за день`;
+    return `${count} ${word} в день`;
   },
   formTimesLess: "Меньше раз в день",
   formTimesMore: "Больше раз в день",
@@ -416,6 +418,7 @@ const EN: Strings = {
   goalWorkdays: "Weekdays",
   goalWeekends: "Weekends",
   goalEveryOtherDay: "Every Other Day",
+  goalMonthly: "Every Month",
   habitSettingsHeading: "Settings",
   editHabit: "Edit Habit",
   freezeHabit: "Freeze Habit",
@@ -454,6 +457,7 @@ const EN: Strings = {
   formDaily: "Every Day",
   formSpecificDays: "Specific Days",
   formEveryOtherDay: "Every Other Day",
+  formMonthly: "Every Month",
   formStartDate: "Starts",
   dateToday: "Today",
   dateTomorrow: "Tomorrow",

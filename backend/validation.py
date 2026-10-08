@@ -56,8 +56,8 @@ def validate_frequency(
 
     Для `daily` дни и первый день не нужны (возвращается None). Для `specific_days` —
     хотя бы один валидный код; возвращается строка кодов в каноническом порядке
-    («mon,wed,fri»). Для `every_other_day` — первый день: любой прошедший (так его
-    сохраняет и изменение старой привычки) и не дальше `START_DATE_MAX_AHEAD_DAYS` вперёд.
+    («mon,wed,fri»). Для `every_other_day` и `monthly` — первый день: любой прошедший (так
+    его сохраняет и изменение старой привычки) и не дальше `START_DATE_MAX_AHEAD_DAYS` вперёд.
     """
     if frequency_type == "daily":
         return FrequencyType.daily, None, None
@@ -67,10 +67,10 @@ def validate_frequency(
             raise ApiError(422, "invalid_days", "Выберите хотя бы один день недели")
         ordered = ",".join(code for code in WEEKDAYS if code in chosen)
         return FrequencyType.specific_days, ordered, None
-    if frequency_type == "every_other_day":
+    if frequency_type in ("every_other_day", "monthly"):
         if start_date is None or start_date > today + timedelta(days=START_DATE_MAX_AHEAD_DAYS):
             raise ApiError(422, "invalid_start_date", "Выберите дату начала")
-        return FrequencyType.every_other_day, None, start_date
+        return FrequencyType(frequency_type), None, start_date
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
 
 

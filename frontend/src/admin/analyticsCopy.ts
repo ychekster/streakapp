@@ -300,6 +300,7 @@ export const ANALYTICS_RU = {
     daily: "Каждый день",
     specific_days: "По дням недели",
     every_other_day: "Через день",
+    monthly: "Каждый месяц",
   } as Record<string, string>,
   withReminder: (count: number, total: number) =>
     `С напоминанием — ${ru(count)} из ${ru(total)} привычек`,
@@ -771,6 +772,7 @@ export const ANALYTICS_EN: AnalyticsCopy = {
     daily: "Every day",
     specific_days: "Specific days",
     every_other_day: "Every other day",
+    monthly: "Every month",
   },
   withReminder: (count: number, total: number) =>
     `${en(count)} of ${en(total)} habits have a reminder`,
