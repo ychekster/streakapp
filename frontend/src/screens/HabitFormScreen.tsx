@@ -28,7 +28,9 @@
  *    (useReminderPush). Первая привычка и без напоминания спрашивает разрешение, если
  *    уведомления не выключены (никогда — при первом запуске). Если уведомления запрещены,
  *    под переключателем — как их включить (spec §9);
- *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка).
+ *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка);
+ *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
+ *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд пропадает.
  *
  * Открывается кнопкой «+» (новая привычка) или рядом «Редактировать привычку» на экране
  * привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
@@ -108,6 +110,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   });
   const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
   const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
+  // Помнится, пока цель больше одного раза (ряд скрыт), но сохраняется только при одном.
+  const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
@@ -210,8 +214,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       reminder_times: reminderOn ? reminders.map((item) => item.time) : [],
       color,
       times_per_day: timesPerDay,
-      // Не в форме — на экране привычки; при сохранении формы остаётся как был.
-      auto_mark: habit?.auto_mark ?? false,
+      // У «несколько раз в день» автоотметки нет (ряд скрыт).
+      auto_mark: autoMark && timesPerDay === 1,
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
@@ -372,6 +376,24 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
             <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
           </Card>
         </Section>
+
+        {timesPerDay === 1 ? (
+          <Section
+            variant="form"
+            title={strings.formAutoMarkHeading}
+            footer={strings.formAutoMarkFooter}
+          >
+            <Card>
+              <ListItem label={strings.formAutoMarkToggle}>
+                <Switch
+                  checked={autoMark}
+                  onChange={setAutoMark}
+                  label={strings.formAutoMarkToggle}
+                />
+              </ListItem>
+            </Card>
+          </Section>
+        ) : null}
 
         {error ? (
           <p ref={errorRef} className={styles.error} role="alert">

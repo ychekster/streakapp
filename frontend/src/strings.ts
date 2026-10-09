@@ -229,6 +229,10 @@ const RU = {
   formReminderAdd: "Добавить напоминание",
   formReminderRemove: (time: string) => `Удалить напоминание ${time}`,
   formThemeHeading: "Тема",
+  formAutoMarkHeading: "Автоотметка",
+  formAutoMarkToggle: "Отмечать автоматически",
+  formAutoMarkFooter:
+    "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
 
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
   // («Пн, Ср, Пт») и для скринридеров.
@@ -481,6 +485,10 @@ const EN: Strings = {
   formReminderAdd: "Add Reminder",
   formReminderRemove: (time: string) => `Remove reminder ${time}`,
   formThemeHeading: "Color",
+  formAutoMarkHeading: "Auto Check-Off",
+  formAutoMarkToggle: "Check Off Automatically",
+  formAutoMarkFooter:
+    "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
 
   daysWorkdays: "Weekdays",
   daysWeekends: "Weekends",

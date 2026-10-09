@@ -510,11 +510,12 @@
   /* Tab bar 20.5pt above the bottom edge, like the iOS 26 tab bar (34 · 0.37 + 8). */
   --tabbar-safe-area-share: 0.37;
   /* Bottom action button, measured from the iOS 26 reference (Wallet «Продолжить»): a
-     52pt capsule 37pt from the side and bottom edges, with a thin glass rim; the page
-     color behind it fades out over --web-main-fade above it. */
+     52pt capsule 37pt from the side and bottom edges, with a thin glass rim. Behind it a
+     haze of the page color: it starts --web-main-fade above the button, barely there,
+     and thickens towards the bottom edge (WebChrome.module.css). */
   --web-main-height: 52px;
   --web-main-inset: 37px;
-  --web-main-fade: 16px;
+  --web-main-fade: 12px;
   --web-main-rim: rgba(255, 255, 255, 0.3);
 }
 

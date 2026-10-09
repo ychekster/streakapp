@@ -106,9 +106,9 @@
 }
 
 /* Bottom action (Telegram MainButton in the Mini App), as the iOS 26 reference: a
-   full-width capsule --web-main-inset from the side and bottom edges. Behind it the page
-   color, as the bottom bar Telegram paints in it (setBottomBarColor), fading out just
-   above the button. */
+   full-width capsule --web-main-inset from the side and bottom edges. The page shows
+   through behind it under a haze of the page color (::before): barely there at the top
+   of the button, thicker the lower it gets, almost solid at the bottom edge. */
 .mainBar {
   position: fixed;
   z-index: 20;
@@ -117,12 +117,39 @@
   bottom: 0;
   padding: var(--web-main-fade) calc(env(safe-area-inset-right, 0px) + var(--web-main-inset))
     var(--web-main-inset) calc(env(safe-area-inset-left, 0px) + var(--web-main-inset));
-  background: linear-gradient(
-    to top,
-    var(--color-background) calc(100% - var(--web-main-fade)),
-    transparent
-  );
   pointer-events: none;
+}
+
+/* The haze: the page color, faded in by a mask on an eased curve (a straight gradient
+   shows a visible edge where it starts). */
+.mainBar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--color-background);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.07) 15%,
+    rgba(0, 0, 0, 0.22) 30%,
+    rgba(0, 0, 0, 0.44) 45%,
+    rgba(0, 0, 0, 0.67) 60%,
+    rgba(0, 0, 0, 0.85) 75%,
+    rgba(0, 0, 0, 0.95) 88%,
+    rgba(0, 0, 0, 0.97) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.07) 15%,
+    rgba(0, 0, 0, 0.22) 30%,
+    rgba(0, 0, 0, 0.44) 45%,
+    rgba(0, 0, 0, 0.67) 60%,
+    rgba(0, 0, 0, 0.85) 75%,
+    rgba(0, 0, 0, 0.95) 88%,
+    rgba(0, 0, 0, 0.97) 100%
+  );
 }
 
 /* Glass rim: a hairline highlight on the top and bottom edges, fainter on the sides. */
