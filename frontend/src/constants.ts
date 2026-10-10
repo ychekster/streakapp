@@ -20,6 +20,10 @@ export const SKELETON_HABIT_COUNT = 3;
 /** Максимальная длина названия привычки по умолчанию (пока не загружены метаданные). */
 export const DEFAULT_NAME_MAX_LENGTH = 100;
 
+/** Максимальная длина описания привычки (HABIT_DESCRIPTION_MAX_LENGTH в
+ *  backend/constants.py). */
+export const HABIT_DESCRIPTION_MAX_LENGTH = 200;
+
 /** Коды дней недели в порядке недели — как их хранит бэкенд (WEEKDAYS в
  *  backend/constants.py). Подписи дней — в strings.ts. */
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;

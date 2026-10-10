@@ -580,6 +580,7 @@ export const dataStore = {
       task: keyOf(id),
       habit: {
         name: habit.name,
+        description: habit.description ?? "",
         frequency_type: habit.frequency_type,
         days: habit.days,
         start_date: habit.start_date,

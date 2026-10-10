@@ -475,12 +475,14 @@ class Repository:
         times_per_day: int = 1,
         auto_mark: bool = False,
         extra_reminder_times: Sequence[time] = (),
+        description: str | None = None,
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync);
         `extra_reminder_times` — напоминания после первого (`reminder_time`)."""
         task = Task(
             user_id=user_id,
             name=name,
+            description=description,
             frequency_type=frequency_type,
             days=days,
             start_date=start_date,
@@ -510,11 +512,13 @@ class Repository:
         times_per_day: int = 1,
         auto_mark: bool = False,
         extra_reminder_times: Sequence[time] = (),
+        description: str | None = None,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
         task.auto_mark = auto_mark
         task.name = name
+        task.description = description
         task.frequency_type = frequency_type
         task.days = days
         task.start_date = start_date

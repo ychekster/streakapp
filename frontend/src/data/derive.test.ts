@@ -131,6 +131,21 @@ describe("deriveView", () => {
     expect(several).toMatchObject({ auto_mark: false, done_today: false });
   });
 
+  it("cleans the description, keeps it when a change has none, clears it when empty", () => {
+    const input = { name: "Зарядка", frequency_type: "daily" as const, days: [], start_date: null, reminder_time: null, color: "blue" as const, times_per_day: 1, auto_mark: false };
+    const described = habit({ description: "10 минут" });
+    const set = view(snapshot([habit()]), [
+      { type: "update", task: 1, habit: { ...input, description: "  5\n минут " } },
+    ]).habits[0];
+    expect(set.description).toBe("5 минут");
+    const kept = view(snapshot([described]), [{ type: "update", task: 1, habit: input }]).habits[0];
+    expect(kept.description).toBe("10 минут");
+    const cleared = view(snapshot([described]), [
+      { type: "update", task: 1, habit: { ...input, description: " " } },
+    ]).habits[0];
+    expect(cleared.description).toBeNull();
+  });
+
   it("shows auto check-off on the device as soon as it is due", () => {
     const auto = { auto_mark: true, auto_mark_ahead: true };
     // Without reminders — from the start of the day; with them — after the last one

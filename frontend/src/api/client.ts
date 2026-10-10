@@ -40,6 +40,7 @@ export type ApiErrorCode =
   | "habit_limit"
   | "rate_limited"
   | "invalid_name"
+  | "invalid_description"
   | "invalid_days"
   | "invalid_frequency"
   | "invalid_start_date"

@@ -15,6 +15,7 @@ from backend.constants import (
     ACTIVATION_WINDOW_MAX_DAYS,
     CLIENT_REF_MAX_LENGTH,
     DEFAULT_HABIT_COLOR,
+    HABIT_DESCRIPTION_MAX_LENGTH,
     HISTORY_DAYS,
     MAX_DB_INT,
     MAX_REMINDERS_PER_HABIT,
@@ -39,6 +40,9 @@ class Habit(BaseModel):
 
     id: int = Field(..., description="Идентификатор задачи")
     name: str = Field(..., description="Название привычки")
+    description: str | None = Field(
+        None, description="Описание привычки (серым под названием); null — без описания"
+    )
     done_today: bool = Field(
         ...,
         description=(
@@ -166,6 +170,14 @@ class HabitCreate(BaseModel):
     """Запрос `POST /tasks` — создание привычки."""
 
     name: str = Field(..., description="Название привычки")
+    description: str | None = Field(
+        None,
+        description=(
+            f"Описание привычки (до {HABIT_DESCRIPTION_MAX_LENGTH} символов); пустая строка "
+            "— без описания. Не передано (null) — при изменении остаётся прежнее (старые "
+            "клиенты не знают описания)"
+        ),
+    )
     frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] = Field(
         ..., description="Каждый день, конкретные дни недели или через день"
     )

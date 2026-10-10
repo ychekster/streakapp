@@ -110,10 +110,15 @@ export function reminderTimesOf(habit: {
   return habit.reminder_times ?? (habit.reminder_time === null ? [] : [habit.reminder_time]);
 }
 
-/** Form fields of a habit as the server stores them. */
-function habitFields(input: HabitInput): Pick<
+/** Form fields of a habit as the server stores them; `before` — the habit's fields
+ *  before this change (a change without a description keeps it, as the server). */
+function habitFields(
+  input: HabitInput | Habit,
+  before?: { description?: string | null } | null,
+): Pick<
   Habit,
   | "name"
+  | "description"
   | "frequency_type"
   | "days"
   | "start_date"
@@ -129,6 +134,11 @@ function habitFields(input: HabitInput): Pick<
   const reminders = [...new Set(reminderTimesOf(input))].sort();
   return {
     name: cleanHabitName(input.name),
+    // As the server (validate_description): cleaned like the name, empty — none.
+    description:
+      input.description == null
+        ? (before?.description ?? null)
+        : cleanHabitName(input.description) || null,
     frequency_type: input.frequency_type,
     days:
       input.frequency_type === "specific_days"
@@ -489,7 +499,7 @@ export function deriveView(
       const draft = drafts.find((item) => item.key === op.task);
       if (draft && op.type === "update") {
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
-        draft.fields = habitFields(op.habit);
+        draft.fields = habitFields(op.habit, before);
         // As the server (services.update_habit): auto check-off turned on means «mark
         // again», also if today (calendar day) was unchecked. Without a reminder today is
         // marked at once; otherwise (reminders, frozen, not due today) an unchecked today

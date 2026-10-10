@@ -10,6 +10,9 @@ export interface Habit {
   id: number;
   /** Название привычки. */
   name: string;
+  /** Описание (серым под названием); null — без описания. Нет у привычек, сохранённых
+   *  на устройстве до описаний. */
+  description?: string | null;
   /** Отмечена ли задача выполненной сегодня. */
   done_today: boolean;
   /**
@@ -84,6 +87,9 @@ export type FrequencyType = "daily" | "specific_days" | "every_other_day" | "mon
  *  как тело POST /tasks и PUT /tasks/{id}). */
 export interface HabitInput {
   name: string;
+  /** Описание; пустое — без описания. Нет у изменений, сделанных до описаний: тогда
+   *  остаётся прежнее. */
+  description?: string;
   frequency_type: FrequencyType;
   /** Коды дней недели (mon..sun) для specific_days; для остальных игнорируется. */
   days: string[];

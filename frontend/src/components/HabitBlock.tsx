@@ -1,6 +1,6 @@
 /**
  * Блок одной привычки внутри общей карточки: строка «название + кнопка отметки» и сетка точек,
- * окрашенные в цвет привычки.
+ * окрашенные в цвет привычки. Описание (если есть) — серым и мельче под названием.
  *
  * Если передан `onOpen`, весь блок, кроме кнопки отметки, открывает экран привычки: под
  * содержимым лежит невидимая кнопка на всю площадь блока, а содержимое пропускает нажатия
@@ -57,7 +57,10 @@ export const HabitBlock = memo(function HabitBlock({
         />
       ) : null}
       <div className={styles.header}>
-        <h3 className={styles.name}>{habit.name}</h3>
+        <div className={styles.title}>
+          <h3 className={styles.name}>{habit.name}</h3>
+          {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
+        </div>
         <CheckButton
           done={habit.done_today}
           habitName={habit.name}

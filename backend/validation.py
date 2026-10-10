@@ -15,6 +15,7 @@ from backend.cities import City, city_index
 from backend.constants import (
     BROADCAST_BUTTONS,
     HABIT_COLORS,
+    HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
     MAX_REMINDERS_PER_HABIT,
@@ -30,6 +31,15 @@ from backend.models import FrequencyType
 from backend.timezones import looks_like_utc, parse_utc_offset
 
 
+def _one_line(text: str) -> str:
+    """Управляющие символы (перевод строки, табуляция, NUL…) — пробелом, повторяющиеся
+    пробелы схлопнуть."""
+    printable = "".join(
+        " " if unicodedata.category(char) == "Cc" else char for char in text
+    )
+    return " ".join(printable.split())
+
+
 def validate_name(name: str) -> str:
     """Очистить и проверить название привычки (непустое, не длиннее лимита).
 
@@ -37,10 +47,7 @@ def validate_name(name: str) -> str:
     повторяющиеся пробелы схлопываются: название — одна строка и в приложении, и в
     напоминании в чате, а NUL вообще не принимает PostgreSQL.
     """
-    printable = "".join(
-        " " if unicodedata.category(char) == "Cc" else char for char in name
-    )
-    cleaned = " ".join(printable.split())
+    cleaned = _one_line(name)
     if not cleaned:
         raise ApiError(422, "invalid_name", "Введите название привычки")
     if len(cleaned) > HABIT_NAME_MAX_LENGTH:
@@ -48,6 +55,19 @@ def validate_name(name: str) -> str:
             422, "invalid_name", f"Название не длиннее {HABIT_NAME_MAX_LENGTH} символов"
         )
     return cleaned
+
+
+def validate_description(description: str) -> str | None:
+    """Очистить и проверить описание привычки — как название (`validate_name`), но
+    пустое можно: None — без описания."""
+    cleaned = _one_line(description)
+    if len(cleaned) > HABIT_DESCRIPTION_MAX_LENGTH:
+        raise ApiError(
+            422,
+            "invalid_description",
+            f"Описание не длиннее {HABIT_DESCRIPTION_MAX_LENGTH} символов",
+        )
+    return cleaned or None
 
 
 def validate_frequency(

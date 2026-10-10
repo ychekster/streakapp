@@ -37,6 +37,7 @@ from backend.constants import (
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
     HABIT_COLOR_MAX_LENGTH,
+    HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
 )
 
@@ -176,6 +177,11 @@ class Task(Base):
         BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(HABIT_NAME_MAX_LENGTH), nullable=False)
+    # Описание (форма, «Информация» под названием); None — без описания. Список привычек
+    # показывает его серым под названием.
+    description: Mapped[str | None] = mapped_column(
+        String(HABIT_DESCRIPTION_MAX_LENGTH), nullable=True
+    )
 
     frequency_type: Mapped[FrequencyType] = mapped_column(
         Enum(FrequencyType, native_enum=False, length=20), nullable=False

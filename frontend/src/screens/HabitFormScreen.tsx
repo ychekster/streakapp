@@ -5,7 +5,8 @@
  * Крупный заголовок «Новая привычка» («Редактирование») стоит так же, как «Привычки» и
  * «Настройки»; под ним — секции в стиле экрана привычки, но с заголовками как в эталоне:
  * с заглавной буквы (не капсом) и со сдвигом до конца скругления карточки:
- *  - Информация — название;
+ *  - Информация — название и под ним описание (необязательно; в списке — серым под
+ *    названием);
  *  - Частота — «Повтор»: по дням недели, через день или каждый месяц. По дням недели —
  *    под рядом выбор дней (как в «Будильнике» iOS), а в ряду — выбранные дни: все —
  *    «Каждый день», «Будние дни», «Выходные», иначе «Пн, Ср и Пт», ни одного — «Никогда»
@@ -38,7 +39,7 @@
  * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { ColorPicker } from "../components/ColorPicker";
 import { DateField, localDate } from "../components/DateField";
@@ -54,6 +55,7 @@ import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_NAME_MAX_LENGTH,
   DEFAULT_REMINDER_TIME,
+  HABIT_DESCRIPTION_MAX_LENGTH,
   MAX_REMINDERS_PER_HABIT,
   MAX_TIMES_PER_DAY,
   START_DATE_MAX_AHEAD_DAYS,
@@ -86,6 +88,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const strings = useStrings();
   const theme = useResolvedTheme();
   const [name, setName] = useState(habit?.name ?? "");
+  const [description, setDescription] = useState(habit?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
   const [repeat, setRepeat] = useState<RepeatMode>(() =>
     habit && usesStartDate(habit.frequency_type) ? (habit.frequency_type as RepeatMode) : "weekly",
@@ -205,6 +208,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     setError(null);
     const input: HabitInput = {
       name: name.trim(),
+      description: description.trim(),
       frequency_type: frequency,
       // Дни — в порядке недели, как их показывает выбор.
       days: frequency === "specific_days" ? WEEKDAYS.filter((code) => days.has(code)) : [],
@@ -250,7 +254,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           <Card>
             <ListItem>
               <input
-                className={styles.nameInput}
+                className={styles.textInput}
                 type="text"
                 placeholder={strings.formNamePlaceholder}
                 aria-label={strings.formNamePlaceholder}
@@ -259,11 +263,20 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
                 onChange={(event) => setName(event.target.value)}
                 // «Готово» на клавиатуре просто её убирает.
                 enterKeyHint="done"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                  }
-                }}
+                onKeyDown={blurOnEnter}
+              />
+            </ListItem>
+            <ListItem>
+              <input
+                className={styles.textInput}
+                type="text"
+                placeholder={strings.formDescriptionPlaceholder}
+                aria-label={strings.formDescriptionPlaceholder}
+                maxLength={HABIT_DESCRIPTION_MAX_LENGTH}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                enterKeyHint="done"
+                onKeyDown={blurOnEnter}
               />
             </ListItem>
           </Card>
@@ -403,6 +416,13 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       </div>
     </Screen>
   );
+}
+
+/** «Готово» (Enter) на клавиатуре поля просто её убирает. */
+function blurOnEnter(event: KeyboardEvent<HTMLInputElement>): void {
+  if (event.key === "Enter") {
+    event.currentTarget.blur();
+  }
 }
 
 /** Строка меню «Повтор»: по дням недели (daily / specific_days) или с даты начала. */

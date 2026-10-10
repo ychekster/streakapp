@@ -175,6 +175,7 @@ def build_habit(
     return Habit(
         id=task.id,
         name=task.name,
+        description=task.description,
         done_today=today in done_dates,
         scheduled_today=is_due_on(task, today),
         frequency_type=task.frequency_type.value,
@@ -309,6 +310,8 @@ class HabitFields:
     """Проверенные поля формы привычки — в том виде, в каком их хранит `Task`."""
 
     name: str
+    # None — без описания (или, при изменении, `HabitCreate.description` не передано).
+    description: str | None
     frequency_type: FrequencyType
     days: str | None
     start_date: date | None
@@ -336,6 +339,11 @@ async def _validate_habit_fields(
     регистра); `task_id` — изменяемая привычка, сама себе она не дубликат.
     """
     name = validation.validate_name(payload.name)
+    description = (
+        validation.validate_description(payload.description)
+        if payload.description is not None
+        else None
+    )
     frequency_type, days, start_date = validation.validate_frequency(
         payload.frequency_type, payload.days, payload.start_date, user_today(user)
     )
@@ -350,6 +358,7 @@ async def _validate_habit_fields(
 
     return HabitFields(
         name=name,
+        description=description,
         frequency_type=frequency_type,
         days=days,
         start_date=start_date,
@@ -373,6 +382,7 @@ async def _create_task(
     task = await repo.create_task(
         user_id=user.telegram_id,
         name=fields.name,
+        description=fields.description,
         frequency_type=fields.frequency_type,
         days=fields.days,
         start_date=fields.start_date,
@@ -406,6 +416,10 @@ async def update_habit(
     await repo.update_task(
         task,
         name=fields.name,
+        # Старые клиенты описания не присылают — оно остаётся прежним.
+        description=(
+            fields.description if payload.description is not None else task.description
+        ),
         frequency_type=fields.frequency_type,
         days=fields.days,
         start_date=fields.start_date,

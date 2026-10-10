@@ -215,6 +215,24 @@ def test_control_characters_are_removed_from_name(client: TestClient, user: Auth
     assert habit["name"] == "Читать книгу"
 
 
+def test_habit_description(client: TestClient, user: AuthUser) -> None:
+    """Описание необязательно: пустое — без описания; не переданное при изменении (старые
+    клиенты) — остаётся прежним."""
+    assert _create(client, user)["description"] is None
+    created = client.post(
+        "/tasks", json=_habit("Чтение", description="  10\nстраниц  "), headers=user.headers
+    ).json()["habit"]
+    assert created["description"] == "10 страниц"
+    path = f"/tasks/{created['id']}"
+    kept = client.put(path, json=_habit("Чтение"), headers=user.headers).json()["habit"]
+    assert kept["description"] == "10 страниц"
+    cleared = client.put(path, json=_habit("Чтение", description=" "), headers=user.headers)
+    assert cleared.json()["habit"]["description"] is None
+    too_long = client.put(path, json=_habit("Чтение", description="а" * 201), headers=user.headers)
+    assert too_long.status_code == 422
+    assert too_long.json()["error"]["code"] == "invalid_description"
+
+
 def test_habit_limit(client: TestClient, user: AuthUser, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("backend.services.MAX_HABITS_PER_USER", 2)
     _create(client, user, "Первая")
