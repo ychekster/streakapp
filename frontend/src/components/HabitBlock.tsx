@@ -57,7 +57,7 @@ export const HabitBlock = memo(function HabitBlock({
         />
       ) : null}
       <div className={styles.header}>
-        <div className={styles.title}>
+        <div className={`${styles.title} ${habit.description ? styles.withDescription : ""}`}>
           <h3 className={styles.name}>{habit.name}</h3>
           {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
         </div>
