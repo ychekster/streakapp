@@ -1,5 +1,5 @@
-"""Обзор — главный экран аналитики: сколько пришло, где пользуются, кто заходит, у кого
-есть привычки. Без фильтров и периодов: всегда все пользователи (без администраторов и
+"""Обзор — главный экран аналитики: сколько живых (data.Dataset.is_live), сколько пришло,
+где пользуются, кто заходит, у кого есть привычки. Без фильтров и периодов: всегда все пользователи (без администраторов и
 тестовых аккаунтов), дни — по Алматы.
 
 Каждая цифра — размер группы людей (`groups`); те же группы открываются списком
@@ -13,12 +13,14 @@ from datetime import date, timedelta
 from backend.analytics.data import Dataset, UserRow
 from backend.clock import local_day
 from backend.constants import ACTIVE_NOW_MINUTES, CHURN_DAYS
-from backend.schemas import AnalyticsOverview, OverviewActivityDay, OverviewNewDay
+from backend.schemas import AnalyticsOverview, DayValue, OverviewActivityDay, OverviewNewDay
 
 # Сколько дней на графиках.
 CHART_DAYS = 30
 
 OVERVIEW_GROUPS = (
+    # Живые: все пользователи = живые + перестали + без привычек
+    "alive", "stopped",
     # Пришли
     "new_today", "new_yesterday", "new_week", "new_month", "all",
     # Где пользуются
@@ -50,6 +52,9 @@ def groups(ds: Dataset) -> dict[str, set[int]]:
 
     for user in ds.users.values():
         last = ds.last_active_day(user)
+        alive = ds.is_live(user.id)
+        put("alive", user, alive)
+        put("stopped", user, not alive and user.id in with_tasks)
         telegram, web = user.uses_telegram, user.uses_web
         put("new_today", user, user.created_day == today)
         put("new_yesterday", user, user.created_day == today - timedelta(days=1))
@@ -86,6 +91,8 @@ def overview(ds: Dataset) -> AnalyticsOverview:
         generated_at=ds.now,
         counts={key: len(ids) for key, ids in groups(ds).items()},
         habits=sum(1 for task in ds.tasks if task.is_active),
+        alive_week_ago=ds.live_count(ds.today - timedelta(days=7)),
+        alive_by_day=[DayValue(date=day, value=ds.live_count(day)) for day in days],
         new_by_day=[
             OverviewNewDay(date=day, telegram=new_by_day[day][0], web=new_by_day[day][1])
             for day in days

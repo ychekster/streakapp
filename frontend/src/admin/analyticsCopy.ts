@@ -120,7 +120,7 @@ export const ANALYTICS_RU = {
   // --- Сводка ---
   liveTitle: "Живые пользователи",
   liveInfo:
-    "Люди, которые отмечали привычки хотя бы 3 разных дня за последние 7 дней. Главный показатель здоровья приложения.",
+    "Есть хоть одна привычка, и за последние 7 дней человек сам отмечал привычку, завёл новую или — если у него автоотметка или привычка раз в месяц — заходил в приложение. Заблокировавшие бота не считаются.",
   liveCompare: "к неделе назад",
   liveWeeks: "8 недель",
   newTitle: "Новые пользователи",
@@ -596,7 +596,7 @@ export const ANALYTICS_EN: AnalyticsCopy = {
 
   liveTitle: "Live users",
   liveInfo:
-    "People who checked off habits on at least 3 different days in the last 7 days. The main health metric of the app.",
+    "Has at least one habit and in the last 7 days checked one off, added a new one or — with auto check-off or a monthly habit — opened the app. People who blocked the bot aren’t counted.",
   liveCompare: "vs a week ago",
   liveWeeks: "8 weeks",
   newTitle: "New users",

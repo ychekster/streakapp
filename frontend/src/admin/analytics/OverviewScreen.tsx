@@ -2,12 +2,15 @@
  * Вкладка «Аналитика» админ-панели — главный экран: только основное, без фильтров и
  * пояснений, читается с одного взгляда.
  *
+ *  - Живые — сколько людей пользуются приложением (определение — backend/analytics/
+ *    data.py, Dataset.is_live) и изменение к неделе назад; все пользователи полосой:
+ *    живые, перестали, без привычек; график живых по дням;
  *  - Пришли — сегодня, вчера, за 7 и 30 дней, всего; график новых по дням;
  *  - Где пользуются — Telegram, веб-приложение, оба, только бот (полоса долей); в
  *    веб-приложении — вошли через Telegram или без входа;
  *  - Заходят — сейчас, сегодня, за 7 и 30 дней; за неделю в Telegram и в веб-приложении;
  *    отметили привычки сегодня; не заходят больше 2 недель; график по дням;
- *  - Привычки — с привычками, без, сколько всего;
+ *  - Привычки — сколько людей с привычками и сколько привычек всего;
  *  - Подробная аналитика — разделы (воронка, удержание…) открываются отдельными экранами
  *    поверх (AnalyticsScreen) со своим фильтром.
  *
@@ -103,16 +106,44 @@ function Overview({
 
   const telegramOnly = counts.telegram - counts.both;
   const webOnly = counts.web - counts.both;
-  const users = Math.max(1, telegramOnly + counts.both + webOnly + counts.bot_only);
-  const segments: { key: string; value: number; color: string }[] = [
-    { key: "telegram", value: telegramOnly, color: "--palette-blue" },
-    { key: "both", value: counts.both, color: "--palette-purple" },
-    { key: "web", value: webOnly, color: "--palette-teal" },
-    { key: "bot", value: counts.bot_only, color: "--palette-graphite" },
-  ];
 
   return (
     <div className={overviewStyles.overview}>
+      <Block title={ov.aliveHeading}>
+        <div className={styles.grid} style={habitColorStyle("green")}>
+          <MetricCard
+            wide
+            label={ov.alive}
+            value={format.count(counts.alive)}
+            delta={{ current: counts.alive, previous: data.alive_week_ago, kind: "count", label: ov.weekAgo }}
+            onPress={open("alive")}
+          />
+        </div>
+        <div className={overviewStyles.gap}>
+          <Card>
+            <ShareBar
+              label={ov.aliveHeading}
+              segments={[
+                { key: "alive", value: counts.alive, color: "--palette-green" },
+                { key: "stopped", value: counts.stopped, color: "--palette-orange" },
+                { key: "none", value: counts.without_habits, color: "--palette-graphite" },
+              ]}
+            />
+            {row("alive", ov.alive, "--palette-green")}
+            {row("stopped", ov.stopped, "--palette-orange")}
+            {row("without_habits", ov.withoutHabits, "--palette-graphite")}
+          </Card>
+        </div>
+        <div className={overviewStyles.chart} style={habitColorStyle("green")}>
+          <SeriesCard
+            title={ov.aliveChart}
+            values={data.alive_by_day.map((day) => day.value)}
+            dates={data.alive_by_day.map((day) => day.date)}
+            summary={{ value: format.count(counts.alive), note: ov.today }}
+          />
+        </div>
+      </Block>
+
       <Block title={ov.joinedHeading}>
         <div className={styles.grid} style={habitColorStyle("blue")}>
           <MetricCard label={ov.today} value={format.count(counts.new_today)} onPress={open("new_today")} />
@@ -133,16 +164,15 @@ function Overview({
 
       <Block title={ov.whereHeading}>
         <Card>
-          <div className={overviewStyles.shareBar} role="img" aria-label={ov.whereHeading}>
-            {segments.map((segment) =>
-              segment.value > 0 ? (
-                <span
-                  key={segment.key}
-                  style={{ flexGrow: segment.value / users, "--dot-rgb": `var(${segment.color})` } as CSSProperties}
-                />
-              ) : null,
-            )}
-          </div>
+          <ShareBar
+            label={ov.whereHeading}
+            segments={[
+              { key: "telegram", value: telegramOnly, color: "--palette-blue" },
+              { key: "both", value: counts.both, color: "--palette-purple" },
+              { key: "web", value: webOnly, color: "--palette-teal" },
+              { key: "bot", value: counts.bot_only, color: "--palette-graphite" },
+            ]}
+          />
           {row("telegram", ov.telegram, "--palette-blue")}
           {row("web", ov.web, "--palette-teal")}
           {row("both", ov.both, "--palette-purple")}
@@ -188,13 +218,7 @@ function Overview({
             note={share("with_habits")}
             onPress={open("with_habits")}
           />
-          <MetricCard
-            label={ov.withoutHabits}
-            value={format.count(counts.without_habits)}
-            note={share("without_habits")}
-            onPress={open("without_habits")}
-          />
-          <MetricCard wide label={ov.habitsTotal} value={format.count(data.habits)} />
+          <MetricCard label={ov.habitsTotal} value={format.count(data.habits)} />
         </div>
       </Block>
 
@@ -207,6 +231,29 @@ function Overview({
           ))}
         </Card>
       </Block>
+    </div>
+  );
+}
+
+/** Доли одной полосой над рядами карточки (цвета — как точки рядов). */
+function ShareBar({
+  label,
+  segments,
+}: {
+  label: string;
+  segments: { key: string; value: number; color: string }[];
+}) {
+  const total = Math.max(1, segments.reduce((sum, segment) => sum + segment.value, 0));
+  return (
+    <div className={overviewStyles.shareBar} role="img" aria-label={label}>
+      {segments.map((segment) =>
+        segment.value > 0 ? (
+          <span
+            key={segment.key}
+            style={{ flexGrow: segment.value / total, "--dot-rgb": `var(${segment.color})` } as CSSProperties}
+          />
+        ) : null,
+      )}
     </div>
   );
 }

@@ -678,6 +678,9 @@ def test_overview_counts_platforms_and_opens_people(
     assert counts["telegram"] >= 1 and counts["web"] >= 1 and counts["web_guests"] >= 1
     assert counts["checked_today"] >= 1 and counts["with_habits"] >= 1
     assert len(overview["new_by_day"]) == len(overview["activity_by_day"]) == 30
+    # Живые + перестали + без привычек = все; отметивший сегодня — живой.
+    assert counts["alive"] + counts["stopped"] + counts["without_habits"] == counts["all"]
+    assert counts["alive"] >= 1 and overview["alive_by_day"][-1]["value"] == counts["alive"]
     assert overview["new_by_day"][-1]["telegram"] >= 1 and overview["new_by_day"][-1]["web"] >= 1
 
     # Где пользуется — в профиле и в списке.

@@ -80,6 +80,7 @@ async def user_insights(repo: Repository, user: User, is_admin: bool, now: datet
             created=task.created_at,
             is_active=task.is_active,
             deleted=task.deleted_at,
+            auto_mark=task.auto_mark,
         )
         for task in await repo.user_tasks(user.telegram_id)
     ]

@@ -20,6 +20,11 @@ function plural(count: number, one: string, few: string, many: string): string {
 
 export const OVERVIEW_RU = {
   // --- Обзор ---
+  aliveHeading: "Живые",
+  alive: "Живые",
+  stopped: "Перестали",
+  aliveChart: "Живые по дням",
+  weekAgo: "к неделе назад",
   joinedHeading: "Пришли",
   today: "Сегодня",
   yesterday: "Вчера",
@@ -68,6 +73,8 @@ export const OVERVIEW_RU = {
 
   /** Заголовок списка людей за цифрой. */
   people: {
+    alive: "Живые",
+    stopped: "Перестали пользоваться",
     new_today: "Пришли сегодня",
     new_yesterday: "Пришли вчера",
     new_week: "Пришли за 7 дней",
@@ -124,6 +131,11 @@ export const OVERVIEW_RU = {
 export type OverviewCopy = typeof OVERVIEW_RU;
 
 export const OVERVIEW_EN: OverviewCopy = {
+  aliveHeading: "Active users",
+  alive: "Active",
+  stopped: "Stopped",
+  aliveChart: "Active users by day",
+  weekAgo: "vs a week ago",
   joinedHeading: "Joined",
   today: "Today",
   yesterday: "Yesterday",
@@ -171,6 +183,8 @@ export const OVERVIEW_EN: OverviewCopy = {
   },
 
   people: {
+    alive: "Active users",
+    stopped: "Stopped using the app",
     new_today: "Joined today",
     new_yesterday: "Joined yesterday",
     new_week: "Joined in 7 days",

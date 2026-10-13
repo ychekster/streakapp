@@ -117,7 +117,7 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 
 | Метод | Путь | Описание |
 |---|---|---|
-| `GET` | `/admin/analytics/{section}?period=&platform=&source=&basis=&compare=` | Раздел аналитики (`backend/analytics/`): `overview` (главный экран: пришли, где пользуются, кто заходит, привычки — всегда все пользователи, без периода и фильтра; `analytics/overview.py`), `summary`, `funnel`, `retention`, `churn`, `habits`, `sources`, `messaging`. Период — `today`, `7`, `30`, `90`, `all` (дни по Алматы); фильтр — платформа (`telegram`/`web`) и источник. Администраторы и тестовые аккаунты не считаются. Термины — `backend/analytics/data.py`. |
+| `GET` | `/admin/analytics/{section}?period=&platform=&source=&basis=&compare=` | Раздел аналитики (`backend/analytics/`): `overview` (главный экран: живые, пришли, где пользуются, кто заходит, привычки — всегда все пользователи, без периода и фильтра; `analytics/overview.py`), `summary`, `funnel`, `retention`, `churn`, `habits`, `sources`, `messaging`. Период — `today`, `7`, `30`, `90`, `all` (дни по Алматы); фильтр — платформа (`telegram`/`web`) и источник. Администраторы и тестовые аккаунты не считаются. Термины — `backend/analytics/data.py`. |
 | `POST` | `/admin/segments` | Люди за цифрой аналитики (`metric`, `arg`, фильтр, `title`) — сохраняются группой; список и рассылка — фильтром `segment:<id>`. |
 | `GET` | `/admin/segments/{id}` | Группа: название и сколько людей. |
 | `GET`/`PUT` | `/admin/analytics-config` | Пороги активации (по умолчанию 3 дня и 2 дня с отметками) и данные генератора ссылок с меткой. |

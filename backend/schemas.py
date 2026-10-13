@@ -691,6 +691,8 @@ class AnalyticsOverview(BaseModel):
     generated_at: UtcDateTime
     counts: dict[str, int]
     habits: int = Field(..., description="Привычек сейчас (активных) у всех пользователей")
+    alive_week_ago: int = Field(..., description="Живых неделю назад")
+    alive_by_day: list[DayValue] = Field(..., description="Живых на каждый из 30 дней")
     new_by_day: list[OverviewNewDay] = Field(..., description="Последние 30 дней")
     activity_by_day: list[OverviewActivityDay] = Field(..., description="Последние 30 дней")
 

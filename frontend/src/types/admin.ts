@@ -175,6 +175,8 @@ export interface AnalyticsFilter {
 
 /** Группы людей «Обзора» (backend/analytics/overview.py, OVERVIEW_GROUPS). */
 export type OverviewGroup =
+  | "alive"
+  | "stopped"
   | "new_today"
   | "new_yesterday"
   | "new_week"
@@ -204,6 +206,9 @@ export interface AnalyticsOverview {
   counts: Record<OverviewGroup, number>;
   /** Привычек сейчас у всех пользователей. */
   habits: number;
+  /** Живых неделю назад и на каждый из последних 30 дней. */
+  alive_week_ago: number;
+  alive_by_day: DayValue[];
   /** Последние 30 дней. */
   new_by_day: { date: string; telegram: number; web: number }[];
   activity_by_day: { date: string; opened: number; checked: number }[];

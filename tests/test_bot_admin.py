@@ -279,7 +279,7 @@ def test_analytics_definitions(db_url: str) -> None:
             user = await repo.get_or_create_user(user_id, None, "U", language="ru")
             user.created_at = ago(joined)
         await repo.session.flush()
-        # 1: активирован (отметки в 1-й и 2-й день) и живой (3 дня отметок за неделю).
+        # 1: активирован (отметки в 1-й и 2-й день) и живой (отмечал на этой неделе).
         # 2: открыл, отметил один раз — не активирован; не заходит 20 дней — ушёл.
         # 3: пришёл 2 дня назад — окно активации ещё идёт. 4: только /start.
         for user_id, opened, seen in ((1, 20, 0), (2, 20, 20), (3, 2, 1)):
@@ -374,6 +374,59 @@ def test_activity_is_recorded_once_a_minute_and_once_a_day(db_url: str) -> None:
             UserActivity.__table__.select().where(UserActivity.user_id == 9)
         )).all()
         assert sorted(row.day.isoformat() for row in days) == ["2026-09-22", "2026-09-23"]
+
+    asyncio.run(_with_repo(db_url, check))
+
+
+def test_live_users(db_url: str) -> None:
+    """«Живой»: есть привычка и за неделю — своя отметка, новая привычка или (у привычек с
+    автоотметкой и «раз в месяц») заход в приложение; заблокировавший бота — не живой."""
+    from backend.analytics.data import load_dataset
+    from backend.clock import local_day
+    from backend.models import CheckinDay
+
+    async def check(repo: Repository) -> None:
+        now = utc_now()
+        today = local_day(now)
+        ago = lambda days: now - timedelta(days=days)  # noqa: E731
+        habits = {
+            21: {}, 22: {}, 23: {"auto_mark": True}, 24: {"auto_mark": True},
+            25: {"created": 2}, 26: {"deleted": 1}, 27: {},
+            28: {"frequency_type": "monthly", "start_date": today},
+        }
+        for user_id, options in habits.items():
+            await repo.get_or_create_user(user_id, None, "U", language="ru")
+            deleted = options.get("deleted")
+            repo.session.add(
+                Task(
+                    user_id=user_id,
+                    name="Привычка",
+                    frequency_type=options.get("frequency_type", "daily"),
+                    start_date=options.get("start_date"),
+                    auto_mark=options.get("auto_mark", False),
+                    created_at=ago(options.get("created", 20)),
+                    is_active=deleted is None,
+                    deleted_at=ago(deleted) if deleted is not None else None,
+                )
+            )
+        # Отметки: 21 и 27 — 3 дня назад, 22 — 8 дней назад, 26 — 3 дня назад (до удаления).
+        for user_id, days_ago in ((21, 3), (22, 8), (26, 3), (27, 3)):
+            repo.session.add(CheckinDay(user_id=user_id, day=today - timedelta(days=days_ago)))
+        # Заходы: 22, 23 и 28 — недавно, 24 — 10 дней назад.
+        for user_id, days_ago in ((22, 1), (23, 2), (24, 10), (28, 1)):
+            repo.session.add(UserActivity(user_id=user_id, day=today - timedelta(days=days_ago)))
+        (await repo.get_user(27)).bot_blocked_at = ago(1)
+        await repo.session.flush()
+
+        ds = await load_dataset(repo, now)
+        live = {user_id for user_id in habits if ds.is_live(user_id)}
+        # 22 заходит, но не отмечает обычную привычку; 24 не заходит с автоотметкой;
+        # 26 удалил привычку; 27 заблокировал бота.
+        assert live == {21, 23, 25, 28}
+        # Неделю назад 22 ещё отмечал; 26 — живой, пока привычка была.
+        assert ds.is_live(22, today - timedelta(days=7))
+        assert ds.is_live(26, today - timedelta(days=3))
+        assert ds.is_live(27, today - timedelta(days=2))
 
     asyncio.run(_with_repo(db_url, check))
 

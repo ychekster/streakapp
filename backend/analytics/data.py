@@ -11,7 +11,10 @@
   разных дней (N и M — в настройках панели);
 - **активный за день** — открыл приложение в этот день (user_activity), **отмечающий** —
   отметил хотя бы одну привычку (checkin_days); дни — по Алматы;
-- **живой** — отмечал привычки хотя бы LIVE_MIN_DAYS разных дней за LIVE_WINDOW_DAYS дней;
+- **живой** — есть хоть одна привычка, и за LIVE_WINDOW_DAYS дней он сам отмечал привычку,
+  завёл новую или — если у него есть привычка с автоотметкой или «раз в месяц» — заходил
+  в приложение; заблокировавший бота или заблокированный администратором — не живой
+  (автоотметки бота отметками не считаются: в checkin_days их нет);
 - **ушёл** — открывал приложение, но не заходит CHURN_DAYS дней (бота не блокировал);
 - **вероятно удалил веб-приложение** — аккаунт только веб-приложения (без Telegram) не
   заходит CHURN_DAYS дней или его уведомления перестали доходить (подписка исчезла) и
@@ -33,7 +36,6 @@ from backend.constants import (
     CHURN_DAYS,
     DEFAULT_ACTIVATION_MIN_DAYS,
     DEFAULT_ACTIVATION_WINDOW_DAYS,
-    LIVE_MIN_DAYS,
     LIVE_WINDOW_DAYS,
 )
 from backend.models import FrequencyType
@@ -159,6 +161,22 @@ class TaskRow:
     created: datetime
     is_active: bool
     deleted: datetime | None
+    auto_mark: bool = False
+
+    @property
+    def opens_count(self) -> bool:
+        """Отмечать её нечего (автоотметка или «раз в месяц»), поэтому живость её владельца
+        видна по заходам в приложение."""
+        return self.auto_mark or self.frequency_type == FrequencyType.monthly
+
+    def exists_on(self, day: date) -> bool:
+        """Была у пользователя в этот день (заведена и ещё не удалена). Удалённая до
+        появления deleted_at (is_active=False без даты) — уже не была."""
+        if local_day(self.created) > day:
+            return False
+        if self.is_active:
+            return True
+        return self.deleted is not None and local_day(self.deleted) > day
 
 
 @dataclass(frozen=True)
@@ -215,6 +233,7 @@ class Dataset:
     _activation: dict[int, date | None] = field(default_factory=dict)
     _streaks: dict[int, tuple[int, int]] | None = None
     _gone_push: dict[int, datetime] | None = None
+    _tasks_by_user: dict[int, list[TaskRow]] | None = None
 
     # --- Выборки ---
 
@@ -254,14 +273,29 @@ class Dataset:
     # --- Живые ---
 
     def is_live(self, user_id: int, end: date | None = None) -> bool:
-        """Отмечал привычки хотя бы LIVE_MIN_DAYS разных дней за LIVE_WINDOW_DAYS дней,
-        кончая днём `end` (по умолчанию — сегодня)."""
+        """Живой на день `end` (по умолчанию — сегодня): см. описание модуля."""
         last = end or self.today
-        days = self.checkins.get(user_id)
-        if not days:
+        user = self.users.get(user_id)
+        if user is None:
+            return False
+        for blocked in (user.bot_blocked, user.blocked):
+            if blocked is not None and local_day(blocked) <= last:
+                return False
+        if self._tasks_by_user is None:
+            self._tasks_by_user = self.tasks_of()
+        habits = [task for task in self._tasks_by_user.get(user_id, ()) if task.exists_on(last)]
+        if not habits:
             return False
         first = last - timedelta(days=LIVE_WINDOW_DAYS - 1)
-        return bisect_right(days, last) - bisect_left(days, first) >= LIVE_MIN_DAYS
+
+        def within(days: list[date] | None) -> bool:
+            return bool(days) and bisect_right(days, last) > bisect_left(days, first)  # type: ignore[arg-type]
+
+        if within(self.checkins.get(user_id)):
+            return True
+        if any(first <= local_day(task.created) <= last for task in habits):
+            return True
+        return any(task.opens_count for task in habits) and within(self.activity.get(user_id))
 
     def live_count(self, end: date | None = None) -> int:
         return sum(1 for user_id in self.users if self.is_live(user_id, end))
@@ -456,6 +490,7 @@ async def load_dataset(
             created=row.created_at,
             is_active=bool(row.is_active),
             deleted=row.deleted_at,
+            auto_mark=bool(row.auto_mark),
         )
         for row in await repo.analytics_tasks()
         if keep(row.user_id)

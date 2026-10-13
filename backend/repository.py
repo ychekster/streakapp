@@ -1131,7 +1131,8 @@ class Repository:
         return [(user_id, _as_date(day)) for user_id, day in result.tuples()]
 
     async def analytics_tasks(self) -> list[Any]:
-        """Все привычки (и удалённые): расписание, напоминание, создание и удаление."""
+        """Все привычки (и удалённые): расписание, напоминание, автоотметка, создание и
+        удаление."""
         result = await self.session.execute(
             select(
                 Task.id,
@@ -1141,6 +1142,7 @@ class Repository:
                 Task.days,
                 Task.start_date,
                 Task.reminder_time,
+                Task.auto_mark,
                 Task.created_at,
                 Task.is_active,
                 Task.deleted_at,
