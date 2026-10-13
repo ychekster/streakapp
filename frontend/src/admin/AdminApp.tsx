@@ -8,18 +8,19 @@
  * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
  * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
  * верхний экран):
- *  - Аналитика → нажатая цифра → люди за ней (AdminPeopleScreen) → профиль → …; оттуда
- *    «Рассылка этим людям» переключает на вкладку «Рассылка» с этой группой получателей;
- *  - Аналитика → Источники (или Настройки) → «Ссылки с меткой» (AdminLinksScreen);
+ *  - Аналитика (обзор) → нажатая цифра → люди за ней (AdminPeopleScreen) → профиль → …;
+ *    оттуда «Рассылка этим людям» переключает на вкладку «Рассылка» с этой группой;
+ *  - Аналитика → раздел подробной аналитики (AnalyticsScreen) → цифра → люди → …;
+ *  - Аналитика → Откуда приходят (или Настройки) → «Ссылки с меткой» (AdminLinksScreen);
  *  - Пользователи → «Фильтры» (условия списка, см. AdminUserFiltersScreen);
  *  - Пользователи → профиль → его привычки (тот же список, что он видит сам, только
- *    для просмотра) или его отзыв → …;
+ *    для просмотра), его отзыв или «Подробнее» (сводка, настройки, история действий);
  *  - Отзывы → отзыв → профиль автора → …;
  *  - профиль → «Написать сообщение», отзыв → «Ответить», настройки → «Добавить
  *    администратора» (см. ComposeScreen).
  * При возврате экран открывается на той же позиции прокрутки.
  *
- * Состояние, которое должно пережить переходы, живёт здесь: фильтр и раздел аналитики,
+ * Состояние, которое должно пережить переходы, живёт здесь: фильтр подробной аналитики,
  * списки пользователей (с запросом поиска и фильтром) и отзывов, черновик и ход последней
  * рассылки. Списки загружаются при первом открытии вкладки и обновляются при повторном.
  * Действия в профиле и отзыве (блокировка, удаление, ответ) сразу видны в списках — без
@@ -50,6 +51,7 @@ import { useTextFieldFocused } from "../hooks/useTextFieldFocused";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
 import { AnalyticsScreen, type AnalyticsView } from "./analytics/AnalyticsScreen";
+import { OverviewScreen } from "./analytics/OverviewScreen";
 import { AdminLinksScreen } from "./screens/AdminLinksScreen";
 import { AdminPeopleScreen } from "./screens/AdminPeopleScreen";
 import {
@@ -64,12 +66,14 @@ import { AdminReviewsScreen } from "./screens/AdminReviewsScreen";
 import { AdminSettingsScreen } from "./screens/AdminSettingsScreen";
 import { AdminUserFiltersScreen } from "./screens/AdminUserFiltersScreen";
 import { AdminUserHabitsScreen } from "./screens/AdminUserHabitsScreen";
+import { AdminUserDetailsScreen } from "./screens/AdminUserDetailsScreen";
 import { AdminUserScreen } from "./screens/AdminUserScreen";
 import { AdminUsersScreen } from "./screens/AdminUsersScreen";
 import type {
   AdminReview,
   AdminUserRef,
   AnalyticsFilter,
+  AnalyticsSection,
   Audience,
   Broadcast,
   PeopleQuery,
@@ -82,10 +86,12 @@ type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
   | { kind: "people"; query: PeopleQuery; filter: AnalyticsFilter }
+  | { kind: "analytics"; section: AnalyticsSection }
   | { kind: "links" }
   | { kind: "userFilters" }
   | { kind: "user"; id: number; initial: AdminUserRef | null }
   | { kind: "habits"; id: number }
+  | { kind: "userDetails"; id: number; name: string }
   | { kind: "review"; id: number; initial: AdminReview | null }
   | { kind: "message"; id: number; name: string }
   | { kind: "reply"; id: number }
@@ -109,7 +115,6 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
 
   const [analyticsView, setAnalyticsView] = useState<AnalyticsView>({
     filter: { period: DEFAULT_ANALYTICS_PERIOD, platform: null, source: null },
-    section: "summary",
     basis: "checkin",
     compare: "none",
   });
@@ -247,6 +252,17 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             onBroadcast={broadcastTo}
           />
         );
+      case "analytics":
+        return (
+          <AnalyticsScreen
+            key={`analytics-${page.section}-${stack.length}`}
+            section={page.section}
+            view={analyticsView}
+            onViewChange={setAnalyticsView}
+            onOpenPeople={(query, filter) => push({ kind: "people", query, filter })}
+            onOpenLinks={() => push({ kind: "links" })}
+          />
+        );
       case "links":
         return <AdminLinksScreen />;
       case "userFilters":
@@ -266,6 +282,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             initial={page.initial}
             onOpenReview={openReview}
             onOpenHabits={() => push({ kind: "habits", id: page.id })}
+            onOpenDetails={(name) => push({ kind: "userDetails", id: page.id, name })}
             onWriteMessage={(name) => push({ kind: "message", id: page.id, name })}
             onChanged={(profile) =>
               users.update((items) =>
@@ -284,6 +301,14 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
           <AdminUserHabitsScreen
             key={`habits-${page.id}-${stack.length}`}
             telegramId={page.id}
+          />
+        );
+      case "userDetails":
+        return (
+          <AdminUserDetailsScreen
+            key={`details-${page.id}-${stack.length}`}
+            telegramId={page.id}
+            name={page.name}
           />
         );
       case "review":
@@ -309,11 +334,9 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     switch (tab) {
       case "analytics":
         return (
-          <AnalyticsScreen
-            view={analyticsView}
-            onViewChange={setAnalyticsView}
+          <OverviewScreen
             onOpenPeople={(query, filter) => push({ kind: "people", query, filter })}
-            onOpenLinks={() => push({ kind: "links" })}
+            onOpenSection={(section) => push({ kind: "analytics", section })}
           />
         );
       case "users":

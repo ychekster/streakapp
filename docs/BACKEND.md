@@ -117,7 +117,7 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 
 | Метод | Путь | Описание |
 |---|---|---|
-| `GET` | `/admin/analytics/{section}?period=&platform=&source=&basis=&compare=` | Раздел аналитики (`backend/analytics/`): `summary`, `funnel`, `retention`, `churn`, `habits`, `sources`, `messaging`. Период — `today`, `7`, `30`, `90`, `all` (дни по Алматы); фильтр — платформа (`telegram`/`web`) и источник. Администраторы и тестовые аккаунты не считаются. Термины — `backend/analytics/data.py`. |
+| `GET` | `/admin/analytics/{section}?period=&platform=&source=&basis=&compare=` | Раздел аналитики (`backend/analytics/`): `overview` (главный экран: пришли, где пользуются, кто заходит, привычки — всегда все пользователи, без периода и фильтра; `analytics/overview.py`), `summary`, `funnel`, `retention`, `churn`, `habits`, `sources`, `messaging`. Период — `today`, `7`, `30`, `90`, `all` (дни по Алматы); фильтр — платформа (`telegram`/`web`) и источник. Администраторы и тестовые аккаунты не считаются. Термины — `backend/analytics/data.py`. |
 | `POST` | `/admin/segments` | Люди за цифрой аналитики (`metric`, `arg`, фильтр, `title`) — сохраняются группой; список и рассылка — фильтром `segment:<id>`. |
 | `GET` | `/admin/segments/{id}` | Группа: название и сколько людей. |
 | `GET`/`PUT` | `/admin/analytics-config` | Пороги активации (по умолчанию 3 дня и 2 дня с отметками) и данные генератора ссылок с меткой. |
@@ -316,6 +316,12 @@ NOT NULL-колонку `is_registered`.
 Миграция `0020` — `tasks.description`: описание привычки (форма, под названием; список
 показывает его серым). Существующим привычкам — без описания. Без неё API не прочитает
 привычки.
+
+Миграция `0021` — где человек пользуется приложением (админ-панель): `users.telegram_seen_at`
+(последний запрос из Mini App) и `users.web_seen_at` (из веб-приложения). Восстанавливает
+по старым данным: веб — по сессиям веб-приложения и визитам веб-гостей, Telegram — по
+открытиям из Telegram в ленте действий и последнему визиту тех, кто в веб-приложение не
+заходил. Без неё API не прочитает пользователей.
 
 > Перед миграцией сделайте копию базы: `python scripts/backup_db.py` (база в режиме
 > WAL — простое копирование файла на работающих процессах может потерять последние

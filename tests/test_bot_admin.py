@@ -376,3 +376,18 @@ def test_activity_is_recorded_once_a_minute_and_once_a_day(db_url: str) -> None:
         assert sorted(row.day.isoformat() for row in days) == ["2026-09-22", "2026-09-23"]
 
     asyncio.run(_with_repo(db_url, check))
+
+
+def test_platform_seen_is_recorded_per_platform(db_url: str) -> None:
+    async def check(repo: Repository) -> None:
+        user = await repo.get_or_create_user(10, None, "U", language="ru")
+        morning = datetime(2026, 9, 22, 9, 0)
+        await repo.touch_user(user, morning, via="telegram")
+        assert user.telegram_seen_at == morning and user.web_seen_at is None
+        # Через 20 секунд из веб-приложения — записывается, хотя last_seen свежий.
+        await repo.touch_user(user, morning + timedelta(seconds=20), via="web")
+        assert user.web_seen_at == morning + timedelta(seconds=20)
+        await repo.touch_user(user, morning + timedelta(seconds=30), via="telegram")
+        assert user.telegram_seen_at == morning  # реже раза в минуту — не пишется
+
+    asyncio.run(_with_repo(db_url, check))

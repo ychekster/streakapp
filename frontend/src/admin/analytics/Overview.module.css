@@ -1,0 +1,77 @@
+/*
+ * Обзор аналитики: ряды «подпись — число ›», полоса долей «где пользуются», отступы
+ * между карточками блока. Остальное — общие стили аналитики (Analytics.module.css).
+ */
+
+.overview {
+  --list-row-min-height: var(--form-row-min-height);
+  margin-top: 4px;
+}
+
+/* Между блоками — как между секциями приложения. */
+.overview > section + section {
+  margin-top: calc(var(--space-section-gap) + 8px);
+}
+
+.gap,
+.chart {
+  margin-top: var(--space-stat-grid-gap);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Число и стрелка — вплотную, как значение и стрелка рядов настроек. */
+.trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-menu-chevron);
+  color: var(--color-text-secondary);
+}
+
+.rowValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgb(var(--dot-rgb));
+}
+
+/* Доли платформ одной полосой над рядами (цвета — как точки рядов). */
+.shareBar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin: var(--space-card-padding) var(--space-card-padding) 4px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background-color: var(--color-fill);
+}
+
+.shareBar > span {
+  flex-basis: 0;
+  min-width: 4px;
+  background-color: rgb(var(--dot-rgb));
+}
+
+.subheading {
+  margin: var(--space-section-gap) 0 var(--space-subheading-bottom);
+  font-size: var(--font-size-section-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}

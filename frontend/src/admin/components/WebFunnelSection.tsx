@@ -1,7 +1,7 @@
 /**
  * Admin Analytics → «Веб-приложение»: the web app funnel (spec §10) for the same period
- * as the rest of the screen — each step with its count, distinct devices, and the split
- * by platform and by install source. The same numbers as `scripts/funnel.py`.
+ * as the rest of the screen — each step with its count and distinct devices in brackets.
+ * The split by platform and source is in `scripts/funnel.py`.
  */
 
 import { useAdminFormat } from "../adminFormat";
@@ -12,13 +12,6 @@ import { Card, Section } from "../../components/Section";
 import { ListItem } from "../../components/ListItem";
 import styles from "./WebFunnelSection.module.css";
 
-function split(counts: Record<string, number>): string {
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([key, value]) => `${key} ${value}`)
-    .join(", ");
-}
-
 export function WebFunnelSection({ days }: { days: number }) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
@@ -26,7 +19,7 @@ export function WebFunnelSection({ days }: { days: number }) {
   const steps = funnel.data?.filter((step) => step.total > 0) ?? [];
 
   return (
-    <Section title={strings.webFunnelHeading} footer={strings.webFunnelFooter}>
+    <Section title={strings.webFunnelHeading}>
       <Card>
         {funnel.status === "error" ? (
           <ListItem label={strings.webFunnelLoadFailed} />
@@ -34,18 +27,7 @@ export function WebFunnelSection({ days }: { days: number }) {
           <ListItem label={funnel.status === "loading" ? "…" : strings.webFunnelEmpty} />
         ) : (
           steps.map((step) => (
-            <ListItem
-              key={step.event}
-              alignTop
-              label={
-                <span className={styles.step}>
-                  <span>{strings.webFunnelSteps[step.event] ?? step.event}</span>
-                  <span className={styles.split}>
-                    {split(step.by_platform)} · {split(step.by_src)}
-                  </span>
-                </span>
-              }
-            >
+            <ListItem key={step.event} label={strings.webFunnelSteps[step.event] ?? step.event}>
               <span className={styles.count}>
                 {format.count(step.total)} ({format.count(step.unique)})
               </span>

@@ -204,7 +204,12 @@ async def get_db_user(
     if db_user.blocked_at is not None:
         raise ApiError(403, "user_blocked", "Доступ к приложению ограничен")
     agent = request.headers.get("user-agent")
-    await repo.touch_user(db_user, utc_now(), client_platform(agent) if agent else None)
+    await repo.touch_user(
+        db_user,
+        utc_now(),
+        client_platform(agent) if agent else None,
+        via="telegram" if principal.telegram is not None else "web",
+    )
     return db_user
 
 

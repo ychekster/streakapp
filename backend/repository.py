@@ -364,23 +364,36 @@ class Repository:
             user.telegram_notifications = telegram_notifications
         await self.session.flush()
 
-    async def touch_user(self, user: User, now: datetime, device: str | None = None) -> None:
+    async def touch_user(
+        self,
+        user: User,
+        now: datetime,
+        device: str | None = None,
+        via: str | None = None,
+    ) -> None:
         """Отметить запрос пользователя к API: время последнего запроса, первое открытие
-        приложения, день активности (по Алматы — для аналитики) и устройство (`device` —
-        ios / android / desktop по User-Agent).
+        приложения, день активности (по Алматы — для аналитики), устройство (`device` —
+        ios / android / desktop по User-Agent) и где он пользуется приложением (`via` —
+        "telegram" для Mini App или "web" для веб-приложения).
 
         Пишет не чаще раза в LAST_SEEN_RESOLUTION_SECONDS (и в первый запрос нового
         дня): приложение при открытии делает несколько запросов, а каждый из них был бы
         ещё и записью в базу.
         """
         last = user.last_seen_at
+        seen_field = {"telegram": "telegram_seen_at", "web": "web_seen_at"}.get(via or "")
+        seen = getattr(user, seen_field) if seen_field else now
         if (
             last is not None
             and local_day(last) == local_day(now)
             and now - last < timedelta(seconds=LAST_SEEN_RESOLUTION_SECONDS)
+            and seen is not None
+            and now - seen < timedelta(seconds=LAST_SEEN_RESOLUTION_SECONDS)
         ):
             return
         user.last_seen_at = now
+        if seen_field:
+            setattr(user, seen_field, now)
         if user.app_opened_at is None:
             user.app_opened_at = now
         if device is not None and user.device != device:
@@ -1091,6 +1104,8 @@ class Repository:
                 User.source,
                 User.source_tag,
                 User.signup_platform,
+                User.telegram_seen_at,
+                User.web_seen_at,
                 User.device,
                 User.language,
                 User.timezone,
@@ -1413,6 +1428,8 @@ class Repository:
             telegram_notifications=source.telegram_notifications,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
+            telegram_seen_at=source.telegram_seen_at,
+            web_seen_at=source.web_seen_at,
             first_checkin_at=source.first_checkin_at,
             # For analytics it is the same person: came at the same time, from the same place.
             created_at=source.created_at,
@@ -1476,6 +1493,9 @@ class Repository:
         for field in ("first_checkin_at", "app_opened_at"):
             values = [value for value in (getattr(source, field), getattr(target, field)) if value]
             setattr(target, field, min(values) if values else None)
+        for field in ("telegram_seen_at", "web_seen_at"):
+            values = [value for value in (getattr(source, field), getattr(target, field)) if value]
+            setattr(target, field, max(values) if values else None)
         if target.install_offer_sent_at is None:
             target.install_offer_sent_at = source.install_offer_sent_at
         if target.source is None and source.source is not None:

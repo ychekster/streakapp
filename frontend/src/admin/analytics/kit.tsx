@@ -8,7 +8,7 @@
  *  - DataTable — таблица с сортировкой по столбцу, прокруткой вбок и выгрузкой;
  *  - BarList, HourColumns, WeekdayBars, MultiLineChart — распределения и графики.
  *
- * У каждой таблицы и графика — «Скопировать таблицу» и «Скачать CSV» (ExportBar).
+ * Выгрузка таблиц (ExportBar) в карточках не показывается: экран — для чтения глазами.
  */
 
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -259,10 +259,9 @@ export function ExportBar({ name, data }: { name: string; data: TableData }) {
   );
 }
 
-/** Карточка с заголовком и выгрузкой. */
+/** Карточка с заголовком (`data` — содержимое таблицей; выгрузка не показывается). */
 export function TableCard({
   title,
-  data,
   children,
 }: {
   title?: string;
@@ -271,10 +270,9 @@ export function TableCard({
 }) {
   return (
     <div className={styles.card}>
-      {title || data ? (
+      {title ? (
         <div className={styles.cardHead}>
           <span className={styles.cardTitle}>{title}</span>
-          {data ? <ExportBar name={title ?? "table"} data={data} /> : null}
         </div>
       ) : null}
       {children}

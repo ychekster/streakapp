@@ -7,6 +7,7 @@
 
 import { ApiRequestError, type ApiErrorCode } from "../api/client";
 import { ANALYTICS_EN, ANALYTICS_RU } from "./analyticsCopy";
+import { OVERVIEW_EN, OVERVIEW_RU } from "./overviewCopy";
 import { useLanguage } from "../preferences";
 import type { AudienceKey, BroadcastButton, UndeliveredReason } from "../types/admin";
 import type { Language } from "../types/settings";
@@ -57,6 +58,7 @@ const RU = {
 
   // --- Аналитика (тексты разделов — analyticsCopy.ts) ---
   an: ANALYTICS_RU,
+  ov: OVERVIEW_RU,
   webFunnelHeading: "Все события страницы установки",
   webFunnelFooter:
     "Шаги установки и первого запуска веб-приложения за период: сколько раз и (в скобках) с разных устройств. Подробнее — scripts/funnel.py.",
@@ -382,6 +384,7 @@ const EN: AdminStrings = {
   megabytes: "MB",
 
   an: ANALYTICS_EN,
+  ov: OVERVIEW_EN,
   webFunnelHeading: "All install page events",
   webFunnelFooter:
     "Install and first-launch steps of the web app for the period: times and (in brackets) distinct devices. More — scripts/funnel.py.",

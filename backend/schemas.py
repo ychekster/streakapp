@@ -444,6 +444,8 @@ class AdminUserSummary(AdminUserRef):
     last_seen_at: UtcDateTime | None
     blocked: bool = Field(..., description="Заблокирован администратором")
     is_test: bool = Field(False, description="Тестовый аккаунт")
+    uses_telegram: bool = Field(False, description="Открывал Mini App")
+    uses_web: bool = Field(False, description="Заходил в веб-приложение")
 
 
 class AdminUsersPage(BaseModel):
@@ -514,6 +516,12 @@ class AdminUserProfile(AdminUserRef):
     checkin_days: int = Field(0, description="Сколько разных дней отмечал привычки")
     completion_30d: float | None = Field(None, description="Доля выполнения за 30 дней")
     last_checkin: date | None = None
+    # --- Где пользуется ---
+    uses_telegram: bool = Field(False, description="Открывал Mini App")
+    uses_web: bool = Field(False, description="Заходил в веб-приложение")
+    telegram_seen_at: UtcDateTime | None = Field(None, description="Последний раз в Mini App")
+    web_seen_at: UtcDateTime | None = Field(None, description="Последний раз в веб-приложении")
+    push: bool = Field(False, description="Включены push-уведомления веб-приложения")
 
 
 class AdminUserResponse(BaseModel):
@@ -657,6 +665,34 @@ class AnalyticsSummary(BaseModel):
     became_inactive: Metric
     uninstalled: Metric
     changes: list[ChangeItem]
+
+
+class OverviewNewDay(BaseModel):
+    """Пришли за день — по платформе, где появились."""
+
+    date: date
+    telegram: int
+    web: int
+
+
+class OverviewActivityDay(BaseModel):
+    """Заходили и отмечали привычки за день."""
+
+    date: date
+    opened: int
+    checked: int
+
+
+class AnalyticsOverview(BaseModel):
+    """`GET /admin/analytics/overview` — главный экран аналитики: только основное, без
+    фильтров. `counts` — сколько людей в каждой группе (ключи и люди за ними —
+    analytics/overview.py, OVERVIEW_GROUPS)."""
+
+    generated_at: UtcDateTime
+    counts: dict[str, int]
+    habits: int = Field(..., description="Привычек сейчас (активных) у всех пользователей")
+    new_by_day: list[OverviewNewDay] = Field(..., description="Последние 30 дней")
+    activity_by_day: list[OverviewActivityDay] = Field(..., description="Последние 30 дней")
 
 
 class FunnelStep(BaseModel):

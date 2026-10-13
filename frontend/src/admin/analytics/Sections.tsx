@@ -59,7 +59,7 @@ const TEAL: HabitColor = "teal";
 const GREEN: HabitColor = "green";
 
 /** Загрузка, ошибка или содержимое раздела (прежние данные видны, пока грузятся новые). */
-function Loaded<T>({
+export function Loaded<T>({
   resource,
   children,
 }: {
@@ -112,7 +112,7 @@ function rate(format: ReturnType<typeof useAdminFormat>, value: number | null): 
 }
 
 /** Карточка с линейным графиком по дням (как в прежней аналитике). */
-function SeriesCard({
+export function SeriesCard({
   title,
   values,
   dates,
@@ -306,7 +306,6 @@ function Summary({ data, onOpenPeople }: { data: AnalyticsSections["summary"]; o
 const PERIOD_DAYS: Record<string, number> = { today: 1, "7": 7, "30": 30, "90": 90, all: 365 };
 
 export function FunnelSection({ filter, onOpenPeople }: SectionProps) {
-  const strings = useAdminStrings();
   const resource = useSection("funnel", filter);
   return (
     <Loaded resource={resource}>
@@ -320,7 +319,6 @@ export function FunnelSection({ filter, onOpenPeople }: SectionProps) {
               <WebFunnelSection days={PERIOD_DAYS[filter.period] ?? 30} />
             </div>
           ) : null}
-          <p className={styles.footnote}>{strings.an.funnelFooter}</p>
         </>
       )}
     </Loaded>
@@ -335,10 +333,7 @@ function FunnelBlock({ report, onOpenPeople }: { report: FunnelReport; onOpenPeo
   const web = report.platform === "web";
   return (
     <div className={styles.block} style={habitColorStyle(web ? PURPLE : BLUE)}>
-      <Block
-        title={web ? an.funnelWeb : an.funnelTelegram}
-        footnote={web ? an.pageStepsFooter : undefined}
-      >
+      <Block title={web ? an.funnelWeb : an.funnelTelegram}>
         <TableCard
           data={{
             columns: ["", an.peopleColumn, an.fromPrevious("%"), an.fromStart("%")],
@@ -353,14 +348,8 @@ function FunnelBlock({ report, onOpenPeople }: { report: FunnelReport; onOpenPeo
         >
           {report.steps.map((step, index) => {
             const name = an.steps[step.key] ?? step.key;
-            const meta = [
-              index ? an.fromPrevious(rate(format, step.from_previous)) : null,
-              index ? an.fromStart(rate(format, step.from_start)) : null,
-              step.median_minutes_to_next !== null ? an.usually(an.duration(step.median_minutes_to_next)) : null,
-              an.stepInfo[step.key] ?? null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            // Под шагом — только доля от прошлого шага: остальное видно по полосе.
+            const meta = index ? an.fromPrevious(rate(format, step.from_previous)) : null;
             const body = (
               <>
                 <span className={styles.stepHead}>
@@ -449,7 +438,6 @@ export function RetentionSection({ filter, onOpenPeople, basis, onBasisChange, c
           { value: "open", label: an.basisOpen },
         ]}
       />
-      <p className={styles.footnote}>{an.basisInfo}</p>
       <div className={styles.content}>
         <Loaded resource={resource}>
           {(data) => (
@@ -732,7 +720,7 @@ function Churn({ data, onOpenPeople }: { data: AnalyticsSections["churn"]; onOpe
           <BarList title={an.returnedHeading} items={reasons} />
         </Block>
 
-        <Block title={an.groupsHeading} footnote={an.groupsFooter}>
+        <Block title={an.groupsHeading}>
           <BarList
             title={an.groupsHeading}
             shares={false}
@@ -788,7 +776,7 @@ function Habits({ data, onOpenPeople }: { data: AnalyticsSections["habits"]; onO
         </div>
       </Block>
 
-      <Block title={an.topHeading} footnote={an.topFooter}>
+      <Block title={an.topHeading}>
         <DataTable
           title={an.topHeading}
           rows={data.top_names}
@@ -900,7 +888,7 @@ function Habits({ data, onOpenPeople }: { data: AnalyticsSections["habits"]; onO
         <HourColumns title={an.hoursHeading} values={data.checkin_hours} />
       </Block>
 
-      <Block title={an.featuresHeading} footnote={an.featuresFooter(data.app_users)}>
+      <Block title={an.featuresHeading}>
         <BarList
           title={an.featuresHeading}
           items={data.features.map((feature) => ({

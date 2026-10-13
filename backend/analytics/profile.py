@@ -49,12 +49,24 @@ def user_row(user: User, is_admin: bool) -> UserRow:
         install_offer_sent=user.install_offer_sent_at,
         is_test=user.is_test,
         is_admin=is_admin,
+        telegram_seen=user.telegram_seen_at,
+        web_seen=user.web_seen_at,
     )
+
+
+def uses_telegram(user: User) -> bool:
+    """Открывал Mini App (определение — data.UserRow.uses_telegram)."""
+    return user_row(user, False).uses_telegram
+
+
+def uses_web(user: User) -> bool:
+    """Заходил в веб-приложение."""
+    return user_row(user, False).uses_web
 
 
 async def user_insights(repo: Repository, user: User, is_admin: bool, now: datetime) -> dict:
     """Поля сводки профиля (AdminUserProfile): источник, платформа, статус, активация,
-    серии, дни с отметками и доля выполнения за 30 дней."""
+    серии, дни с отметками, доля выполнения за 30 дней и где он пользуется приложением."""
     row = user_row(user, is_admin)
     tasks = [
         TaskRow(
@@ -120,6 +132,11 @@ async def user_insights(repo: Repository, user: User, is_admin: bool, now: datet
         "checkin_days": len(checkins),
         "completion_30d": ratio(sum(c for _, c in totals), sum(s for s, _ in totals)),
         "last_checkin": checkins[-1] if checkins else None,
+        "uses_telegram": row.uses_telegram,
+        "uses_web": row.uses_web,
+        "telegram_seen_at": user.telegram_seen_at,
+        "web_seen_at": user.web_seen_at,
+        "push": row.id in ds.push_users,
     }
 
 

@@ -1,15 +1,14 @@
 /**
- * Вкладка «Аналитика» админ-панели. Задумана так: открыл с телефона — за 10 секунд понял,
- * как дела (сводка), за минуту — что делать дальше (разделы).
+ * Раздел подробной аналитики — экран поверх «Обзора» (OverviewScreen): ключевые метрики,
+ * воронка, удержание, отток и возврат, привычки, источники, напоминания и рассылки
+ * (Sections.tsx). Администраторы и тестовые аккаунты в цифры не входят.
  *
  * Сверху — фильтр, общий для всех разделов: период (сегодня, 7, 30, 90 дней, всё время;
- * дни — по Алматы), платформа (все / Telegram / веб-приложение) и источник. Под ним —
- * разделы: сводка, воронка, удержание, отток и возврат, привычки, источники, напоминания
- * и рассылки (Sections.tsx). Администраторы и тестовые аккаунты в цифры не входят.
+ * дни — по Алматы), платформа (все / Telegram / веб-приложение) и источник.
  *
  * Любая цифра про людей нажимается: открывается список этих людей (AdminPeopleScreen),
- * оттуда — рассылка именно им. Фильтр, раздел и вид удержания хранит AdminApp — при
- * возврате на вкладку всё как было.
+ * оттуда — рассылка именно им. Фильтр и вид удержания хранит AdminApp — в другом разделе
+ * и при возврате они те же.
  */
 
 import { useAdminStrings } from "../adminStrings";
@@ -38,31 +37,21 @@ import {
 import { useSection } from "./useSection";
 import styles from "./Analytics.module.css";
 
-export const ANALYTICS_SECTIONS: AnalyticsSection[] = [
-  "summary",
-  "funnel",
-  "retention",
-  "churn",
-  "habits",
-  "sources",
-  "messaging",
-];
-
 export interface AnalyticsView {
   filter: AnalyticsFilter;
-  section: AnalyticsSection;
   basis: RetentionBasis;
   compare: RetentionCompare;
 }
 
 interface AnalyticsScreenProps {
+  section: AnalyticsSection;
   view: AnalyticsView;
   onViewChange: (view: AnalyticsView) => void;
   onOpenPeople: (query: PeopleQuery, filter: AnalyticsFilter) => void;
   onOpenLinks: () => void;
 }
 
-export function AnalyticsScreen({ view, onViewChange, onOpenPeople, onOpenLinks }: AnalyticsScreenProps) {
+export function AnalyticsScreen({ section, view, onViewChange, onOpenPeople, onOpenLinks }: AnalyticsScreenProps) {
   const strings = useAdminStrings();
   const an = strings.an;
   const { filter } = view;
@@ -85,7 +74,7 @@ export function AnalyticsScreen({ view, onViewChange, onOpenPeople, onOpenLinks 
   };
 
   return (
-    <Screen title={an.title}>
+    <Screen title={strings.ov.more[section] ?? an.title} withTabBar={false} enterAnimation>
       <div className={styles.filters}>
         <Pills
           label={an.periodLabel}
@@ -114,23 +103,13 @@ export function AnalyticsScreen({ view, onViewChange, onOpenPeople, onOpenLinks 
             />
           </ListItem>
         </ListGroup>
-        <Pills
-          tabs
-          label={an.title}
-          value={view.section}
-          onChange={(section) => {
-            onViewChange({ ...view, section });
-            window.scrollTo(0, 0);
-          }}
-          options={ANALYTICS_SECTIONS.map((section) => ({ value: section, label: an.sections[section] }))}
-        />
       </div>
       <div className={styles.content}>{renderSection()}</div>
     </Screen>
   );
 
   function renderSection() {
-    switch (view.section) {
+    switch (section) {
       case "summary":
         return <SummarySection {...sectionProps} />;
       case "funnel":
@@ -153,6 +132,8 @@ export function AnalyticsScreen({ view, onViewChange, onOpenPeople, onOpenLinks 
         return <SourcesSection {...sectionProps} />;
       case "messaging":
         return <MessagingSection {...sectionProps} />;
+      default:
+        return null;
     }
   }
 }

@@ -143,6 +143,10 @@ class User(Base):
     source_tag: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Где появился впервые: "telegram" (бот или Mini App) или "web" (веб-приложение).
     signup_platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Последний запрос из Mini App (initData) и из веб-приложения (сессия) — где человек
+    # пользуется приложением; None — там не заходил (см. Repository.touch_user).
+    telegram_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    web_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Устройство последнего запроса: ios / android / desktop (по User-Agent).
     device: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Тестовый аккаунт: не входит в аналитику (как и администраторы).

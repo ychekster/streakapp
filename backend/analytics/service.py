@@ -7,6 +7,7 @@ from datetime import datetime
 
 from backend.analytics import people as people_module
 from backend.analytics import report
+from backend.analytics.overview import overview
 from backend.analytics.data import (
     CONFIG_MIN_DAYS,
     CONFIG_WINDOW,
@@ -33,7 +34,7 @@ from backend.schemas import (
     SegmentInfo,
 )
 
-SECTIONS = ("summary", "funnel", "retention", "churn", "habits", "sources", "messaging")
+SECTIONS = ("overview", "summary", "funnel", "retention", "churn", "habits", "sources", "messaging")
 
 
 def _period(key: str, now: datetime) -> Period:
@@ -76,8 +77,11 @@ async def section(
     compare: str | None,
     language: str,
 ) -> object:
-    """Раздел аналитики `name` (SECTIONS) за период под фильтром."""
+    """Раздел аналитики `name` (SECTIONS) за период под фильтром. Обзор — всегда все
+    пользователи, без периода и фильтра."""
     span = _period(period, now)
+    if name == "overview":
+        return overview(await load_dataset(repo, now))
     ds = await _dataset(repo, now, platform, source)
     if name == "summary":
         return await report.summary(repo, ds, span)

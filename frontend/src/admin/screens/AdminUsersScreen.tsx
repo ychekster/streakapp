@@ -1,9 +1,10 @@
 /**
  * Вкладка «Пользователи» админ-панели, устроенная как выбор часового пояса: под крупным
- * заголовком — поиск и одна карточка, в каждом ряду имя и id Telegram (заблокированные —
- * с пометкой). Новые сначала; следующая страница догружается, когда список прокручен к
- * концу. Поиск — по имени, @username и id, на сервере (запрос уходит, когда ввод
- * замер); пока ответа нет, остаются прежние результаты.
+ * заголовком — поиск и одна карточка, в каждом ряду имя, где он пользуется (метки «TG» и
+ * «WEB») и когда был последний раз (заблокированные — с пометкой). Новые сначала;
+ * следующая страница догружается, когда список прокручен к концу. Поиск — по имени,
+ * @username и id, на сервере (запрос уходит, когда ввод замер); пока ответа нет,
+ * остаются прежние результаты.
  *
  * Под поиском — кнопка «Фильтры» (открывает экран фильтров, AdminUserFiltersScreen) и
  * выбранные условия капсулами: нажатие на капсулу снимает условие. Над списком — сколько
@@ -104,7 +105,8 @@ export function AdminUsersScreen({
               <span className={styles.name}>{format.userName(user)}</span>
               <span className={styles.trailing}>
                 {user.blocked ? <span className={styles.blocked}>{strings.blockedTag}</span> : null}
-                <span className={styles.id}>{user.telegram_id}</span>
+                <PlatformBadges user={user} />
+                {user.last_seen_at ? <span className={styles.seen}>{format.relative(user.last_seen_at)}</span> : null}
                 <Disclosure />
               </span>
             </ListItem>
@@ -124,4 +126,14 @@ export function AdminUsersScreen({
       </div>
     );
   }
+}
+
+/** Где человек пользуется приложением: «TG» и «WEB» маленькими метками. */
+export function PlatformBadges({ user }: { user: AdminUserSummary }) {
+  return (
+    <>
+      {user.uses_telegram ? <span className={`${styles.badge} ${styles.telegram}`}>TG</span> : null}
+      {user.uses_web ? <span className={`${styles.badge} ${styles.web}`}>WEB</span> : null}
+    </>
+  );
 }

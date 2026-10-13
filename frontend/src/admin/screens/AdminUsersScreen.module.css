@@ -21,8 +21,30 @@
   color: var(--color-text-secondary);
 }
 
-.id {
+.seen {
+  font-size: var(--font-size-secondary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Метки «TG» / «WEB» — где человек пользуется приложением. */
+.badge {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+.telegram {
+  background-color: rgba(var(--palette-blue), 0.14);
+  color: rgb(var(--palette-blue));
+}
+
+.web {
+  background-color: rgba(var(--palette-teal), 0.16);
+  color: rgb(var(--palette-teal));
 }
 
 .blocked {

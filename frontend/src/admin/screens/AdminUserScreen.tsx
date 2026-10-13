@@ -1,17 +1,18 @@
 /**
  * Профиль пользователя — экран поверх вкладки (во весь экран, без нижней навигации).
- * Сверху — сводка аналитики: откуда пришёл, Telegram или веб, телефон, когда пришёл и был
- * последний раз, статус (активирован, ушёл, заблокировал бота, вероятно удалил), серия, дни
- * с отметками и выполнение за 30 дней; переключатель «Тестовый аккаунт» (такие не входят в
- * аналитику) и лента действий (UserTimeline). Дальше секции — как на экране привычки:
- *  - Профиль — id Telegram, @username, язык, пояс, регистрация, первое открытие
- *    приложения, последний визит, число привычек и статус. Ряд «Привычки» открывает
- *    его привычки (AdminUserHabitsScreen) — тот же список, что видит он сам;
- *  - Отзывы — его отзывы (если есть); нажатие открывает отзыв, там можно ответить;
- *  - Действия — «Написать сообщение» (открывает экран сообщения, бот пришлёт текст в
- *    Telegram), «Заблокировать» / «Разблокировать» и «Удалить». Блокировка и удаление —
- *    только после подтверждения системным диалогом Telegram; администратора нельзя ни
- *    заблокировать, ни удалить (сначала забирают права).
+ * Сверху — только основное, без пояснений:
+ *  - кто это — id, @username, когда и откуда пришёл, когда был последний раз;
+ *  - где пользуется — Telegram и веб-приложение (когда был там последний раз), вошёл ли
+ *    в веб-приложение через Telegram, устройство, уведомления;
+ *  - его привычки — названия и серии; нажатие открывает их так, как видит он сам
+ *    (AdminUserHabitsScreen);
+ *  - отзывы (если есть) — нажатие открывает отзыв, там можно ответить;
+ *  - «Подробнее о пользователе» — сводка аналитики, настройки и история действий
+ *    отдельным экраном (AdminUserDetailsScreen);
+ *  - действия — «Написать сообщение» (бот пришлёт текст в Telegram), «Не учитывать в
+ *    аналитике» (тестовый аккаунт), «Заблокировать» / «Разблокировать» и «Удалить».
+ *    Блокировка и удаление — только после подтверждения системным диалогом Telegram;
+ *    администратора нельзя ни заблокировать, ни удалить (сначала забирают права).
  *
  * После блокировки или удаления список пользователей обновляется (onChanged, onDeleted);
  * после удаления AdminApp возвращает на вкладку. Не удалось — причина под карточкой.
@@ -19,11 +20,10 @@
 
 import { useState } from "react";
 
-import { deleteUser, fetchUser, setUserBlocked, setUserTest } from "../../api/admin";
+import { deleteUser, fetchUser, fetchUserHabits, setUserBlocked, setUserTest } from "../../api/admin";
 import { useAdminFormat } from "../adminFormat";
-import { describeAdminError, useAdminStrings, type AdminStrings } from "../adminStrings";
+import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { BlockIcon, PaperPlaneIcon, UnlockIcon } from "../components/AdminIcons";
-import { UserTimeline } from "../components/UserTimeline";
 import { Disclosure } from "../../components/Disclosure";
 import { ListItem } from "../../components/ListItem";
 import { Screen } from "../../components/Screen";
@@ -33,6 +33,7 @@ import { StatusMessage } from "../../components/StatusMessage";
 import { Switch } from "../../components/Switch";
 import { useResource } from "../../hooks/useResource";
 import { confirmAction, hapticNotification } from "../../telegram/webapp";
+import { habitColorStyle } from "../../theme";
 import type { AdminReview, AdminUserProfile, AdminUserRef } from "../../types/admin";
 import { ReviewRow } from "./AdminReviewsScreen";
 import styles from "./AdminUserScreen.module.css";
@@ -44,6 +45,8 @@ interface AdminUserScreenProps {
   onOpenReview: (review: AdminReview) => void;
   /** Открыть экран привычек этого пользователя. */
   onOpenHabits: () => void;
+  /** Открыть «Подробнее о пользователе». */
+  onOpenDetails: (name: string) => void;
   /** Открыть экран личного сообщения этому пользователю. */
   onWriteMessage: (name: string) => void;
   /** Профиль изменился (блокировка) — обновить список пользователей. */
@@ -52,27 +55,12 @@ interface AdminUserScreenProps {
   onDeleted: (telegramId: number) => void;
 }
 
-function statusLabel(
-  profile: AdminUserProfile,
-  strings: AdminStrings,
-): { text: string; danger: boolean } {
-  if (profile.is_admin) {
-    return { text: strings.statusAdmin, danger: false };
-  }
-  if (profile.blocked_at) {
-    return { text: strings.statusBlocked, danger: true };
-  }
-  if (profile.bot_blocked_at) {
-    return { text: strings.statusBotBlocked, danger: false };
-  }
-  return { text: strings.statusActive, danger: false };
-}
-
 export function AdminUserScreen({
   telegramId,
   initial,
   onOpenReview,
   onOpenHabits,
+  onOpenDetails,
   onWriteMessage,
   onChanged,
   onDeleted,
@@ -80,6 +68,7 @@ export function AdminUserScreen({
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const profile = useResource(() => fetchUser(telegramId), String(telegramId));
+  const habits = useResource(() => fetchUserHabits(telegramId), String(telegramId));
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const data = profile.data;
@@ -180,98 +169,69 @@ export function AdminUserScreen({
         <StatusMessage icon="spinner" title={strings.loading} />
       );
     }
-    const status = statusLabel(data, strings);
     const an = strings.an;
+    const ov = strings.ov;
     const device = data.device ? an.devices[data.device] ?? data.device : null;
+    const seen = (moment: string | null, used: boolean): string =>
+      moment ? format.relative(moment) : used ? an.yes : ov.notUsed;
     return (
       <div className={styles.profile}>
-        <Section title={an.summaryHeading}>
-          <Card>
-            <InfoRow label={an.profileSource} value={an.sourceWithTag(data.source, data.source_tag)} />
-            <InfoRow
-              label={an.profilePlatform}
-              value={[an.platformNames[data.platform] ?? data.platform, device].filter(Boolean).join(" · ")}
-            />
-            <InfoRow label={an.profileCame} value={format.date(data.created_at)} />
-            <InfoRow
-              label={an.profileLastSeen}
-              value={data.last_seen_at ? format.relative(data.last_seen_at) : strings.never}
-            />
-            <ListItem label={an.profileStatus}>
-              <span className={data.status === "active" ? undefined : styles.danger}>
-                {an.statuses[data.status] ?? data.status}
-              </span>
-            </ListItem>
-            <InfoRow label={an.activationLabel} value={an.activation(data.activated)} />
-            <InfoRow label={an.liveLabel} value={data.live ? an.yes : an.no} />
-            <InfoRow label={an.streakLabel} value={an.streakValue(data.current_streak, data.best_streak)} numeric />
-            <InfoRow label={an.checkinDays} value={format.count(data.checkin_days)} numeric />
-            <InfoRow
-              label={an.completion30}
-              value={data.completion_30d === null ? "—" : format.percent(data.completion_30d)}
-              numeric
-            />
-            <InfoRow
-              label={an.lastCheckin}
-              value={data.last_checkin ? format.day(data.last_checkin) : strings.never}
-            />
-          </Card>
-        </Section>
-
-        <Section title={an.testAccount} footer={an.testFooter}>
-          <Card>
-            <ListItem label={an.testAccount}>
-              <Switch
-                checked={data.is_test}
-                onChange={(checked) => void changeTest(checked)}
-                label={an.testAccount}
-              />
-            </ListItem>
-          </Card>
-        </Section>
-
-        <UserTimeline telegramId={data.telegram_id} />
-
         <Section title={strings.profileHeading}>
           <Card>
-            <InfoRow label={strings.profileTelegramId} value={String(data.telegram_id)} numeric />
+            <InfoRow label={ov.profileId} value={String(data.telegram_id)} numeric />
+            {data.username ? <InfoRow label={ov.profileUsername} value={`@${data.username}`} /> : null}
+            <InfoRow label={ov.profileJoined} value={format.date(data.created_at)} />
+            <InfoRow label={ov.profileSource} value={an.sourceWithTag(data.source, data.source_tag)} />
             <InfoRow
-              label={strings.profileUsername}
-              value={data.username ? `@${data.username}` : strings.notSet}
-            />
-            <InfoRow
-              label={strings.profileLanguage}
-              value={strings.languageNames[data.language] ?? data.language}
-            />
-            <InfoRow label={strings.profileTimezone} value={data.timezone ?? strings.notSet} />
-            <InfoRow label={strings.profileRegistered} value={format.date(data.created_at)} />
-            <InfoRow
-              label={strings.profileOpenedApp}
-              value={data.app_opened_at ? format.date(data.app_opened_at) : strings.never}
-            />
-            <InfoRow
-              label={strings.profileLastActive}
+              label={ov.profileLastSeen}
               value={data.last_seen_at ? format.relative(data.last_seen_at) : strings.never}
             />
-            {data.telegram_id > 0 ? (
+            {data.is_admin ? <InfoRow label={strings.profileStatus} value={strings.statusAdmin} /> : null}
+            {data.blocked_at ? (
+              <ListItem label={strings.profileStatus}>
+                <span className={styles.danger}>{strings.statusBlocked}</span>
+              </ListItem>
+            ) : null}
+          </Card>
+        </Section>
+
+        <Section title={ov.whereUses}>
+          <Card>
+            <InfoRow label={ov.telegram} value={seen(data.telegram_seen_at, data.uses_telegram)} />
+            <InfoRow label={ov.web} value={seen(data.web_seen_at, data.uses_web)} />
+            {data.uses_web ? (
               <InfoRow
-                label={strings.profileNotifications}
-                value={
-                  data.telegram_notifications
-                    ? strings.profileNotificationsOn
-                    : strings.profileNotificationsOff
-                }
+                label={ov.webLogin}
+                value={data.telegram_id > 0 ? ov.webLoginTelegram : ov.webLoginGuest}
               />
             ) : null}
-            <ListItem label={strings.profileHabits} onPress={onOpenHabits}>
-              <span className={`${styles.value} ${styles.numeric}`}>
-                {format.count(data.habits)}
-              </span>
-              <Disclosure />
-            </ListItem>
-            <ListItem label={strings.profileStatus}>
-              <span className={status.danger ? styles.danger : undefined}>{status.text}</span>
-            </ListItem>
+            {device ? <InfoRow label={ov.device} value={device} /> : null}
+            {data.telegram_id > 0 ? (
+              data.bot_blocked_at ? (
+                <ListItem label={ov.telegramNotifications}>
+                  <span className={styles.danger}>{ov.botBlocked}</span>
+                </ListItem>
+              ) : (
+                <InfoRow
+                  label={ov.telegramNotifications}
+                  value={data.telegram_notifications ? ov.on : ov.off}
+                />
+              )
+            ) : null}
+            {data.uses_web ? (
+              <InfoRow label={ov.pushNotifications} value={data.push ? ov.on : ov.off} />
+            ) : null}
+          </Card>
+        </Section>
+
+        <Section title={ov.habitsHeading2(data.habits)}>
+          <Card>
+            {renderHabits()}
+            {data.habits > 0 ? (
+              <ListItem label={ov.openHabits} accent onPress={onOpenHabits}>
+                <Disclosure />
+              </ListItem>
+            ) : null}
           </Card>
         </Section>
 
@@ -287,6 +247,14 @@ export function AdminUserScreen({
           </Section>
         ) : null}
 
+        <Section title={ov.detailsTitle}>
+          <Card>
+            <ListItem label={ov.details} onPress={() => onOpenDetails(name)}>
+              <Disclosure />
+            </ListItem>
+          </Card>
+        </Section>
+
         <Section
           title={strings.actionsHeading}
           footer={data.is_admin ? strings.adminNoActions : undefined}
@@ -298,6 +266,13 @@ export function AdminUserScreen({
               label={strings.sendMessage}
               onPress={() => onWriteMessage(name)}
             />
+            <ListItem label={ov.testAccount}>
+              <Switch
+                checked={data.is_test}
+                onChange={(checked) => void changeTest(checked)}
+                label={ov.testAccount}
+              />
+            </ListItem>
             {data.is_admin ? null : (
               <>
                 {data.blocked_at ? (
@@ -336,10 +311,37 @@ export function AdminUserScreen({
       </div>
     );
   }
+
+  /** Привычки списком: цвет, название, серия; нажатие — как у него в приложении. */
+  function renderHabits() {
+    const ov = strings.ov;
+    const list = habits.data?.habits;
+    if (!list) {
+      return habits.status === "error" ? (
+        <ListItem label={strings.habitsLoadFailed} onPress={habits.reload} />
+      ) : (
+        <ListItem label={<span className={styles.muted}>{strings.loading}</span>} />
+      );
+    }
+    if (list.length === 0) {
+      return <ListItem label={<span className={styles.muted}>{ov.noHabits}</span>} />;
+    }
+    return list.map((habit) => (
+      <ListItem key={habit.id} onPress={onOpenHabits}>
+        <span className={styles.habit} style={habitColorStyle(habit.color)}>
+          <span className={styles.habitDot} />
+          <span className={styles.habitName}>{habit.name}</span>
+        </span>
+        {habit.current_streak > 0 ? (
+          <span className={`${styles.value} ${styles.numeric} ${styles.muted}`}>{ov.streakDays(habit.current_streak)}</span>
+        ) : null}
+      </ListItem>
+    ));
+  }
 }
 
 /** Ряд «подпись — значение» профиля. */
-function InfoRow({
+export function InfoRow({
   label,
   value,
   numeric = false,

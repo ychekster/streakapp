@@ -23,6 +23,10 @@ export interface AdminUserSummary extends AdminUserRef {
   blocked: boolean;
   /** Тестовый аккаунт (не входит в аналитику). */
   is_test: boolean;
+  /** Открывал Mini App. */
+  uses_telegram: boolean;
+  /** Заходил в веб-приложение. */
+  uses_web: boolean;
 }
 
 /** Страница списка; `next_cursor` — для следующей (null — последняя). */
@@ -89,6 +93,13 @@ export interface AdminUserProfile extends AdminUserRef {
   checkin_days: number;
   completion_30d: number | null;
   last_checkin: string | null;
+  /** Где пользуется: Mini App и веб-приложение, когда был там последний раз. */
+  uses_telegram: boolean;
+  uses_web: boolean;
+  telegram_seen_at: string | null;
+  web_seen_at: string | null;
+  /** Включены push-уведомления веб-приложения. */
+  push: boolean;
 }
 
 /** Статус пользователя в аналитике. */
@@ -142,6 +153,7 @@ export interface Broadcast {
 export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
 /** Раздел аналитики. */
 export type AnalyticsSection =
+  | "overview"
   | "summary"
   | "funnel"
   | "retention"
@@ -159,6 +171,42 @@ export interface AnalyticsFilter {
   platform: Platform | null;
   /** Точное имя источника; null — все, «direct» — без метки. */
   source: string | null;
+}
+
+/** Группы людей «Обзора» (backend/analytics/overview.py, OVERVIEW_GROUPS). */
+export type OverviewGroup =
+  | "new_today"
+  | "new_yesterday"
+  | "new_week"
+  | "new_month"
+  | "all"
+  | "telegram"
+  | "web"
+  | "both"
+  | "bot_only"
+  | "telegram_week"
+  | "web_week"
+  | "web_logged_in"
+  | "web_guests"
+  | "online"
+  | "active_today"
+  | "active_week"
+  | "active_month"
+  | "checked_today"
+  | "gone"
+  | "with_habits"
+  | "without_habits";
+
+/** GET /admin/analytics/overview — главный экран аналитики (без фильтра). */
+export interface AnalyticsOverview {
+  generated_at: string;
+  /** Сколько людей в каждой группе. */
+  counts: Record<OverviewGroup, number>;
+  /** Привычек сейчас у всех пользователей. */
+  habits: number;
+  /** Последние 30 дней. */
+  new_by_day: { date: string; telegram: number; web: number }[];
+  activity_by_day: { date: string; opened: number; checked: number }[];
 }
 
 /** Цифра и она же за прошлый такой же период (null — у «всего времени» его нет). */
@@ -378,6 +426,7 @@ export interface AnalyticsMessaging {
 
 /** Ответ раздела аналитики по его имени. */
 export interface AnalyticsSections {
+  overview: AnalyticsOverview;
   summary: AnalyticsSummary;
   funnel: AnalyticsFunnel;
   retention: AnalyticsRetention;

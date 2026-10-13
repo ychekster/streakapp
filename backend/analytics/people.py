@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from backend.analytics import report
 from backend.analytics.data import Dataset, Period, UserRow
 from backend.analytics.names import topic
+from backend.analytics.overview import OVERVIEW_GROUPS, groups
 from backend.clock import local_day
 from backend.constants import CHURN_DAYS
 from backend.errors import ApiError
@@ -73,6 +74,12 @@ async def people(
     value = arg or ""
     retention_basis = "checkin" if basis == "checkin" else "open"
     tasks_of = ds.tasks_of()
+
+    # --- Обзор ---
+    if metric == "overview":
+        if value not in OVERVIEW_GROUPS:
+            raise _bad(metric)
+        return groups(ds)[value]
 
     # --- Сводка ---
     if metric == "live":

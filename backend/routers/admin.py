@@ -3,7 +3,8 @@
 403 `admin_required`).
 
     GET    /admin/analytics/{section}?period=&platform=&source=&basis=&compare=
-                                             — раздел аналитики: summary, funnel, retention,
+                                             — раздел аналитики: overview (главный экран,
+                                               без фильтра), summary, funnel, retention,
                                                churn, habits, sources, messaging
     POST   /admin/segments                   — люди за цифрой аналитики (группа)
     GET    /admin/segments/{id}              — группа: название и сколько людей
@@ -76,6 +77,7 @@ from backend.schemas import (
     AnalyticsFunnelResponse,
     AnalyticsHabitsResponse,
     AnalyticsMessagingResponse,
+    AnalyticsOverview,
     AnalyticsRetentionResponse,
     AnalyticsSourcesResponse,
     AnalyticsSummary,
@@ -110,9 +112,10 @@ _Audience = Query(None, max_length=AUDIENCE_MAX_LENGTH, description=_FILTER_DESC
 
 
 # Разделы аналитики (схемы ответа — Analytics* в schemas.py).
-_SECTIONS = ("summary", "funnel", "retention", "churn", "habits", "sources", "messaging")
+_SECTIONS = ("overview", "summary", "funnel", "retention", "churn", "habits", "sources", "messaging")
 _SectionResponse = (
-    AnalyticsSummary
+    AnalyticsOverview
+    | AnalyticsSummary
     | AnalyticsFunnelResponse
     | AnalyticsRetentionResponse
     | AnalyticsChurnResponse

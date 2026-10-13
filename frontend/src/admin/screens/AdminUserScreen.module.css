@@ -26,3 +26,31 @@
   color: var(--color-danger);
   line-height: 1.35;
 }
+
+.muted {
+  color: var(--color-text-secondary);
+}
+
+/* Привычка в профиле: точка её цвета и название (обрезается многоточием). */
+.habit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.habitDot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgb(var(--habit-rgb));
+}
+
+.habitName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

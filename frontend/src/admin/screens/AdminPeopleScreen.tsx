@@ -21,6 +21,7 @@ import { StatusMessage } from "../../components/StatusMessage";
 import { usePagedList } from "../../hooks/usePagedList";
 import { useResource } from "../../hooks/useResource";
 import type { AdminUserRef, AnalyticsFilter, PeopleQuery, Segment } from "../../types/admin";
+import { PlatformBadges } from "./AdminUsersScreen";
 import styles from "./AdminUsersScreen.module.css";
 
 interface AdminPeopleScreenProps {
@@ -116,7 +117,8 @@ export function AdminPeopleScreen({ query, filter, onOpenUser, onBroadcast }: Ad
             <ListItem key={user.telegram_id} onPress={() => onOpenUser(user)}>
               <span className={styles.name}>{format.userName(user)}</span>
               <span className={styles.trailing}>
-                {user.last_seen_at ? <span>{format.relative(user.last_seen_at)}</span> : null}
+                <PlatformBadges user={user} />
+                {user.last_seen_at ? <span className={styles.seen}>{format.relative(user.last_seen_at)}</span> : null}
                 <Disclosure />
               </span>
             </ListItem>

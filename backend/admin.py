@@ -20,7 +20,7 @@ from aiogram import Bot
 from starlette.datastructures import UploadFile
 
 from backend import messaging, validation
-from backend.analytics.profile import user_insights
+from backend.analytics.profile import user_insights, uses_telegram, uses_web
 from backend.audience import audience_key, parse_audience, resolve_audience
 from backend.constants import (
     BROADCAST_PHOTO_MAX_BYTES,
@@ -130,6 +130,8 @@ async def list_users(
                 last_seen_at=user.last_seen_at,
                 blocked=user.blocked_at is not None,
                 is_test=user.is_test,
+                uses_telegram=uses_telegram(user),
+                uses_web=uses_web(user),
             )
             for user in users[:limit]
         ],

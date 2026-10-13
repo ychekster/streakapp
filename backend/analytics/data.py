@@ -117,11 +117,27 @@ class UserRow:
     install_offer_sent: datetime | None
     is_test: bool
     is_admin: bool
+    # Последний запрос из Mini App и из веб-приложения (None — там не заходил).
+    telegram_seen: datetime | None = None
+    web_seen: datetime | None = None
 
     @property
     def web_only(self) -> bool:
         """Аккаунт только веб-приложения (без Telegram)."""
         return self.id < 0
+
+    @property
+    def uses_web(self) -> bool:
+        """Заходил в веб-приложение (гость — всегда)."""
+        return self.web_seen is not None or self.web_only
+
+    @property
+    def uses_telegram(self) -> bool:
+        """Открывал Mini App. Без отметки (до миграции 0021) — открывал приложение, не
+        заходя в веб-приложение."""
+        if self.telegram_seen is not None:
+            return True
+        return self.opened is not None and not self.web_only and not self.uses_web
 
     @property
     def excluded(self) -> bool:
@@ -415,6 +431,8 @@ async def load_dataset(
             install_offer_sent=row.install_offer_sent_at,
             is_test=bool(row.is_test),
             is_admin=bool(row.is_admin),
+            telegram_seen=row.telegram_seen_at,
+            web_seen=row.web_seen_at,
         )
         if include_excluded or not user.excluded:
             every[user.id] = user

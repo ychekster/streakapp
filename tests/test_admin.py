@@ -659,6 +659,55 @@ def test_analytics_sections(client: TestClient, user: AuthUser, admin: AuthUser)
     assert client.get("/admin/analytics/nope", headers=admin.headers).status_code == 404
 
 
+def test_overview_counts_platforms_and_opens_people(
+    client: TestClient, user: AuthUser, admin: AuthUser
+) -> None:
+    habit = client.post(
+        "/tasks", json={"name": "Бег", "frequency_type": "daily"}, headers=user.headers
+    ).json()["habit"]
+    client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
+    guest = client.post("/auth/guest")
+    assert guest.status_code == 201, guest.text
+    guest_id = guest.json()["user_id"]
+    guest_headers = {"Authorization": f"Bearer {guest.json()['token']}"}
+    assert client.get("/settings", headers=guest_headers).status_code == 200
+
+    overview = _section(client, admin, "overview")
+    counts = overview["counts"]
+    assert counts["new_today"] >= 2 and counts["all"] >= counts["new_today"]
+    assert counts["telegram"] >= 1 and counts["web"] >= 1 and counts["web_guests"] >= 1
+    assert counts["checked_today"] >= 1 and counts["with_habits"] >= 1
+    assert len(overview["new_by_day"]) == len(overview["activity_by_day"]) == 30
+    assert overview["new_by_day"][-1]["telegram"] >= 1 and overview["new_by_day"][-1]["web"] >= 1
+
+    # Где пользуется — в профиле и в списке.
+    profile = _profile(client, admin, user.id)
+    assert profile["uses_telegram"] is True and profile["uses_web"] is False
+    assert profile["telegram_seen_at"] is not None and profile["web_seen_at"] is None
+    guest_profile = _profile(client, admin, guest_id)
+    assert guest_profile["uses_web"] is True and guest_profile["uses_telegram"] is False
+    rows = client.get("/admin/users", params={"q": str(user.id)}, headers=admin.headers).json()
+    assert rows["users"][0]["uses_telegram"] is True
+
+    # Цифра открывается людьми: те же группы.
+    segment = client.post(
+        "/admin/segments",
+        json={"metric": "overview", "arg": "web_guests", "period": "all", "title": "x"},
+        headers=admin.headers,
+    ).json()
+    assert segment["count"] == counts["web_guests"]
+    found = client.get(
+        "/admin/users", params={"filter": f"segment:{segment['id']}"}, headers=admin.headers
+    ).json()
+    assert guest_id in [row["telegram_id"] for row in found["users"]]
+    unknown = client.post(
+        "/admin/segments",
+        json={"metric": "overview", "arg": "nope", "period": "all", "title": "x"},
+        headers=admin.headers,
+    )
+    assert unknown.json()["error"]["code"] == "invalid_metric"
+
+
 def test_segment_lists_people_and_feeds_a_broadcast(
     client: TestClient, user: AuthUser, admin: AuthUser
 ) -> None:
