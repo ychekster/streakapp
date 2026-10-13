@@ -57,6 +57,16 @@ const RU = {
   settingsMarkYesterdayFooter:
     "Отметки ставятся за вчерашний день, а не за сегодняшний. Удобно, если вы подводите итоги дня на следующее утро.",
   settingsReview: "Написать отзыв",
+  // «Вид сетки»: ряд настроек и его экран с картинками.
+  settingsGridLayout: "Вид сетки",
+  gridLayoutTitle: "Вид сетки",
+  gridLayoutNames: { rolling: "Со сдвигом", fixed: "По порядку" },
+  gridLayoutFooters: {
+    rolling:
+      "Сегодняшний день всегда в правом нижнем кружке, а с каждым новым днём сетка сдвигается влево.",
+    fixed:
+      "Первый день привычки — в левом верхнем кружке, дальше дни идут по порядку без сдвига. Когда сетка заполнится, она начнётся заново.",
+  },
   // Напоминание «Пора отметить привычки»: ряд настроек и его экран.
   settingsCheckinReminder: "Напоминание",
   settingsCheckinReminderOff: "Выкл.",
@@ -343,6 +353,14 @@ const EN: Strings = {
   settingsMarkYesterdayFooter:
     "Habits are marked for the previous day instead of today. Handy if you review your day the next morning.",
   settingsReview: "Write a Review",
+  settingsGridLayout: "Grid Style",
+  gridLayoutTitle: "Grid Style",
+  gridLayoutNames: { rolling: "Rolling", fixed: "In Order" },
+  gridLayoutFooters: {
+    rolling: "Today is always the bottom-right dot, and the grid shifts left with each new day.",
+    fixed:
+      "The habit’s first day is the top-left dot, and the days follow in order without shifting. Once the grid is full, it starts over.",
+  },
   settingsCheckinReminder: "Reminder",
   settingsCheckinReminderOff: "Off",
   checkinReminderTitle: "Reminder",

@@ -91,6 +91,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   if (patch.mark_yesterday !== undefined) {
     next.mark_yesterday = patch.mark_yesterday;
   }
+  if (patch.grid_layout !== undefined) {
+    next.grid_layout = patch.grid_layout;
+  }
   if (patch.telegram_notifications !== undefined) {
     next.telegram_notifications = patch.telegram_notifications;
   }
@@ -333,8 +336,15 @@ function applyAutoMark(
 }
 
 /** The habit for `today` (the marking day) from its draft; `snapshotToday` — the day the
- *  server's version was counted for. */
-function buildHabit(draft: Draft, id: number, today: string, snapshotToday: string): Habit {
+ *  server's version was counted for; `calendarToday` — the day a habit created on the
+ *  device was created (as the server: the calendar day). */
+function buildHabit(
+  draft: Draft,
+  id: number,
+  today: string,
+  snapshotToday: string,
+  calendarToday: string,
+): Habit {
   const { base, marks } = draft;
   if (
     base &&
@@ -448,6 +458,7 @@ function buildHabit(draft: Draft, id: number, today: string, snapshotToday: stri
       draft.counts.get(today) ??
       (base ? (today === snapshotToday ? base.today_count ?? 0 : baseCount(today)) : 0),
     history_counts: historyCounts,
+    created_on: base ? base.created_on : calendarToday,
   };
 }
 
@@ -551,7 +562,9 @@ export function deriveView(
   return {
     settings,
     today,
-    habits: drafts.map((draft) => buildHabit(draft, displayId(draft.key), today, snapshot.today)),
+    habits: drafts.map((draft) =>
+      buildHabit(draft, displayId(draft.key), today, snapshot.today, calendarToday),
+    ),
   };
 }
 

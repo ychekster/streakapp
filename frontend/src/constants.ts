@@ -42,6 +42,11 @@ export const THEMES = ["light", "dark", "system"] as const;
  *  для нового пользователя). */
 export const DEFAULT_THEME = "system";
 
+/** «Вид сетки»: "rolling" — сегодня в правом нижнем кружке, дни сдвигаются; "fixed" — с
+ *  дня создания привычки от левого верхнего кружка без сдвига. Совпадают с GRID_LAYOUTS
+ *  на бэкенде. */
+export const GRID_LAYOUTS = ["rolling", "fixed"] as const;
+
 /** Цвета (темы) привычки в порядке выбора. Значения — в CSS (`--palette-*` в
  *  styles/variables.css); ключи совпадают с HABIT_COLORS на бэкенде
  *  (backend/constants.py). */

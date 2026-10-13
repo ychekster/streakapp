@@ -155,6 +155,7 @@ def build_habit(
     auto_mark_ahead: bool = True,
     day_counts: Mapping[date, int] | None = None,
     next_day_done: bool = False,
+    created_on: date | None = None,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -167,7 +168,8 @@ def build_habit(
     (Repository.get_history_counts): по ним приложение закрашивает неполные дни привычки
     «несколько раз в день»; в режиме «Отмечать за вчера» — и за следующий день.
     `next_day_done` — выполнен ли день после `today` (календарный сегодня в режиме
-    «Отмечать за вчера»), см. `Habit.next_day_done`.
+    «Отмечать за вчера»), см. `Habit.next_day_done`. `created_on` — день создания
+    привычки в поясе пользователя (`created_day`).
     """
     is_frozen = frozen_check(task, freezes, today)
     current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
@@ -210,7 +212,13 @@ def build_habit(
         ),
         next_day_done=next_day_done,
         next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
+        created_on=created_on,
     )
+
+
+def created_day(task: Task, user: User) -> date:
+    """День создания привычки — календарный день в поясе пользователя (created_at — UTC)."""
+    return pytz.utc.localize(task.created_at).astimezone(resolve_timezone(user.timezone)).date()
 
 
 def _calendar_day(user: User) -> date:
@@ -248,6 +256,7 @@ async def _built_habit(repo: Repository, user: User, task: Task) -> Habit:
         task.id in ahead,
         counts[task.id],
         calendar > today and calendar in done[task.id],
+        created_day(task, user),
     )
 
 
@@ -278,6 +287,7 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
             task.id in ahead,
             counts.get(task.id),
             calendar > today and calendar in done[task.id],
+            created_day(task, user),
         )
         for task in tasks
     ]
@@ -400,8 +410,8 @@ async def _create_task(
 async def create_habit(repo: Repository, user: User, payload: HabitCreate) -> Habit:
     """Создать привычку и вернуть её в форме `Habit` (не больше `MAX_HABITS_PER_USER`)."""
     task = await _create_task(repo, user, payload)
-    # У новой привычки ещё нет отметок.
-    return build_habit(task, set(), user_today(user))
+    # У новой привычки ещё нет отметок; создана сегодня.
+    return build_habit(task, set(), user_today(user), created_on=_calendar_day(user))
 
 
 async def update_habit(
@@ -745,6 +755,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         language=user.language,
         theme=user.theme,
         mark_yesterday=user.mark_yesterday,
+        grid_layout=user.grid_layout,
         telegram_notifications=user.telegram_notifications,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
@@ -790,6 +801,11 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         ),
         theme=validation.validate_theme(payload.theme) if payload.theme is not None else None,
         mark_yesterday=payload.mark_yesterday,
+        grid_layout=(
+            validation.validate_grid_layout(payload.grid_layout)
+            if payload.grid_layout is not None
+            else None
+        ),
         checkin_reminder=(
             (
                 validation.validate_reminder_time(payload.checkin_reminder.time),

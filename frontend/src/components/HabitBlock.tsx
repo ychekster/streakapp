@@ -9,6 +9,9 @@
  * Мемоизирован: отметка одной привычки заменяет в списке только её объект, и остальные
  * блоки (у каждого — сетка из сотен точек) не перерисовываются. Обработчики должны быть
  * стабильными (useCallback).
+ *
+ * Раскладку дней в сетке задаёт «Вид сетки» (gridLayout.ts): в виде "fixed" сетка
+ * показывает только дни с начала текущего «листа», остальные кружки — пустые.
  */
 
 import { memo } from "react";
@@ -18,6 +21,7 @@ import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
+import { fixedGridFill, useGridView } from "./gridLayout";
 import { YearGrid } from "./YearGrid";
 import styles from "./HabitBlock.module.css";
 
@@ -43,6 +47,8 @@ export const HabitBlock = memo(function HabitBlock({
   onOpen,
 }: HabitBlockProps) {
   const strings = useStrings();
+  // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
+  const shown = fixedGridFill(useGridView(), habit.created_on, gridDays) ?? gridDays;
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -72,11 +78,12 @@ export const HabitBlock = memo(function HabitBlock({
         />
       </div>
       <YearGrid
-        history={habit.history.slice(-gridDays)}
-        frozen={habit.frozen_history.slice(-gridDays)}
-        counts={(habit.history_counts ?? []).slice(-gridDays)}
+        history={habit.history.slice(-shown)}
+        frozen={habit.frozen_history.slice(-shown)}
+        counts={(habit.history_counts ?? []).slice(-shown)}
         total={habit.times_per_day}
         columns={gridColumns}
+        cells={gridDays}
       />
     </article>
   );

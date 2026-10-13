@@ -357,6 +357,28 @@ describe("deriveView", () => {
     expect(result.frozen_history.some(Boolean)).toBe(false);
   });
 
+  it("dates a habit created on the device by the calendar day, as the server", () => {
+    const created: Operation = {
+      type: "create",
+      ref: "device-1",
+      habit: {
+        name: "Чтение",
+        frequency_type: "daily",
+        days: [],
+        start_date: null,
+        reminder_time: null,
+        color: "green",
+        times_per_day: 1,
+        auto_mark: false,
+      },
+    };
+    const kept = habit({ created_on: "2026-09-01" });
+    const [server, device] = view(snapshot([kept], { mark_yesterday: true }), [created]).habits;
+    expect(server.created_on).toBe("2026-09-01");
+    // «Отмечать за вчера»: the marking day is yesterday, the habit is created today.
+    expect(device.created_on).toBe(TODAY);
+  });
+
   it("creates, edits and deletes habits", () => {
     const base = habit();
     const created: Operation = {

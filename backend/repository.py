@@ -343,6 +343,7 @@ class Repository:
         language: str | None = None,
         theme: str | None = None,
         mark_yesterday: bool | None = None,
+        grid_layout: str | None = None,
         checkin_reminder: tuple[time | None, str] | None = None,
         telegram_notifications: bool | None = None,
     ) -> None:
@@ -358,6 +359,8 @@ class Repository:
             user.theme = theme
         if mark_yesterday is not None:
             user.mark_yesterday = mark_yesterday
+        if grid_layout is not None:
+            user.grid_layout = grid_layout
         if checkin_reminder is not None:
             user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
         if telegram_notifications is not None:

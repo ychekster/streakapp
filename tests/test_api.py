@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
+import pytz
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -276,6 +279,25 @@ def test_settings_update(client: TestClient, user: AuthUser) -> None:
     invalid = client.put("/settings", json={"timezone": "Mars/Olympus"}, headers=user.headers)
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "invalid_timezone"
+
+
+def test_grid_layout_setting(client: TestClient, user: AuthUser) -> None:
+    assert client.get("/settings", headers=user.headers).json()["grid_layout"] == "rolling"
+    updated = client.put("/settings", json={"grid_layout": "fixed"}, headers=user.headers)
+    assert updated.json()["grid_layout"] == "fixed"
+    invalid = client.put("/settings", json={"grid_layout": "spiral"}, headers=user.headers)
+    assert invalid.status_code == 422
+    assert invalid.json()["error"]["code"] == "invalid_grid_layout"
+
+
+def test_habit_created_on_is_users_calendar_day(client: TestClient, user: AuthUser) -> None:
+    # Сетка «По порядку» начинается с дня создания — в поясе пользователя.
+    client.put("/settings", json={"timezone": "Pacific/Kiritimati"}, headers=user.headers)
+    today = datetime.now(pytz.timezone("Pacific/Kiritimati")).date().isoformat()
+    created = client.post("/tasks", json=_habit(), headers=user.headers).json()["habit"]
+    assert created["created_on"] == today
+    habits = client.get("/tasks", headers=user.headers).json()["habits"]
+    assert habits[0]["created_on"] == today
 
 
 def test_timezone_search(client: TestClient, user: AuthUser) -> None:

@@ -144,6 +144,13 @@ class Habit(BaseModel):
     next_day_count: int = Field(
         0, description="Сколько раз выполнена в тот же день (привычка «несколько раз в день»)"
     )
+    created_on: date | None = Field(
+        None,
+        description=(
+            "День создания привычки в поясе пользователя: с него сетка в «Виде серий» "
+            "fixed начинается с левого верхнего кружка"
+        ),
+    )
     auto_mark_ahead: bool = Field(
         True,
         description=(
@@ -230,6 +237,13 @@ class SettingsResponse(BaseModel):
     mark_yesterday: bool = Field(
         ..., description="«Отмечать за вчера»: отметки ставятся за вчерашний день"
     )
+    grid_layout: str = Field(
+        "rolling",
+        description=(
+            "«Вид серий»: rolling — сегодня в правом нижнем кружке сетки, дни сдвигаются; "
+            "fixed — с дня создания привычки от левого верхнего кружка, без сдвига"
+        ),
+    )
     checkin_reminder_time: str | None = Field(
         None,
         description="Напоминание «Пора отметить привычки»: «ЧЧ:ММ» в поясе пользователя; "
@@ -265,6 +279,7 @@ class SettingsUpdate(BaseModel):
     language: str | None = Field(None, description="Язык интерфейса: ru, en")
     theme: str | None = Field(None, description="Тема оформления: light, dark, system")
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
+    grid_layout: str | None = Field(None, description="Вид серий: rolling, fixed")
     checkin_reminder: CheckinReminderUpdate | None = Field(
         None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
     )

@@ -1,0 +1,90 @@
+/* Две картинки рядом в одной карточке — как выбор оформления в «Настройках» iOS. */
+.options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-card-padding);
+  padding: var(--space-card-padding);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Картинка: маленькая сетка на фоне экрана, кружки — как в сетке привычки. */
+.preview {
+  display: grid;
+  grid-template-columns: repeat(var(--preview-columns), 1fr);
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 16px;
+  background-color: var(--color-background);
+  transition: transform var(--transition-fast);
+}
+
+.option[data-pressed] .preview {
+  transform: scale(0.97);
+}
+
+.dot {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--grid-dot-radius);
+  background-color: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
+  transition: background-color 0.25s ease;
+}
+
+.done {
+  background-color: rgb(var(--habit-rgb));
+}
+
+/* Сегодняшний день — с ободком цвета текста. */
+.today {
+  box-shadow: 0 0 0 1.5px var(--color-text-primary);
+}
+
+.name {
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Кружок выбора: пустой с серым ободком, выбранный — залит акцентом с белой галочкой. */
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-text-secondary);
+  color: var(--color-check-icon);
+}
+
+.check svg {
+  width: 14px;
+  height: 14px;
+}
+
+.checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .preview {
+    transition: none;
+  }
+}

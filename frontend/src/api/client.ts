@@ -49,6 +49,7 @@ export type ApiErrorCode =
   | "invalid_timezone"
   | "invalid_language"
   | "invalid_theme"
+  | "invalid_grid_layout"
   | "validation_error"
   | "internal_error"
   | "http_error"

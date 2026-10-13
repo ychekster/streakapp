@@ -190,3 +190,16 @@ export function AlarmIcon() {
     </svg>
   );
 }
+
+/** «Вид сетки»: сетка точек 3 × 3. */
+export function DotsGridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {[6, 12, 18].flatMap((cy) =>
+        [6, 12, 18].map((cx) => (
+          <circle key={`${cx}-${cy}`} fill="currentColor" cx={cx} cy={cy} r="2.3" />
+        )),
+      )}
+    </svg>
+  );
+}

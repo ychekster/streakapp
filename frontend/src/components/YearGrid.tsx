@@ -8,6 +8,9 @@
  * полупрозрачный — пропущен/нет данных. У привычки «несколько раз в день» неполный день
  * (выполнена, но меньше цели) — между пропуском и выполненным, по доле сделанного:
  * 1 из 4 — на четверть. Кружки масштабируются под ширину карточки.
+ *
+ * В «Виде сетки» fixed история короче сетки (`cells`): дни занимают первые кружки, а
+ * остальные — ещё не наступившие — пустые, как пропуск.
  */
 
 import type { CSSProperties } from "react";
@@ -28,6 +31,8 @@ interface YearGridProps {
   total?: number;
   /** Кружков в ряду. */
   columns?: number;
+  /** Всего кружков; по умолчанию — по дню истории на кружок. */
+  cells?: number;
 }
 
 export function YearGrid({
@@ -36,6 +41,7 @@ export function YearGrid({
   counts = [],
   total = 1,
   columns = GRID_COLUMNS,
+  cells = history.length,
 }: YearGridProps) {
   const strings = useStrings();
   return (
@@ -65,6 +71,9 @@ export function YearGrid({
           />
         );
       })}
+      {Array.from({ length: Math.max(0, cells - history.length) }, (_, index) => (
+        <span key={history.length + index} className={`${styles.cell} ${styles.empty}`} />
+      ))}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import pytz
 
 from backend.cities import City, city_index
 from backend.constants import (
+    GRID_LAYOUTS,
     BROADCAST_BUTTONS,
     HABIT_COLORS,
     HABIT_DESCRIPTION_MAX_LENGTH,
@@ -157,6 +158,13 @@ def validate_theme(value: str) -> str:
     """Проверить тему оформления."""
     if value not in THEMES:
         raise ApiError(422, "invalid_theme", "Неизвестная тема оформления")
+    return value
+
+
+def validate_grid_layout(value: str) -> str:
+    """Проверить «Вид серий»."""
+    if value not in GRID_LAYOUTS:
+        raise ApiError(422, "invalid_grid_layout", "Неизвестный вид серий")
     return value
 
 

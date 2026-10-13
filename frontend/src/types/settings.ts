@@ -1,12 +1,15 @@
 /** Типы настроек пользователя — зеркалят схемы API (backend/schemas.py). */
 
-import type { LANGUAGES, THEMES } from "../constants";
+import type { GRID_LAYOUTS, LANGUAGES, THEMES } from "../constants";
 
 /** Язык интерфейса. */
 export type Language = (typeof LANGUAGES)[number];
 
 /** Выбранная тема оформления; "system" — системная, как в системе. */
 export type ThemePreference = (typeof THEMES)[number];
+
+/** «Вид сетки»: как сетка привычки раскладывает дни. */
+export type GridLayout = (typeof GRID_LAYOUTS)[number];
 
 /** Тема, которая сейчас на экране (системная уже разрешена по системе). */
 export type ResolvedTheme = "light" | "dark";
@@ -24,6 +27,8 @@ export interface Settings {
   theme: ThemePreference;
   /** «Отмечать за вчера»: отметки ставятся за вчерашний день. */
   mark_yesterday: boolean;
+  /** «Вид сетки». Нет в настройках, сохранённых на устройстве до него: "rolling". */
+  grid_layout?: GridLayout;
   /** Напоминание «Пора отметить привычки»: «ЧЧ:ММ»; null — выключено. */
   checkin_reminder_time: string | null;
   /** Дни недели напоминания (mon..sun); помнятся и при выключенном. */
@@ -42,6 +47,7 @@ export interface SettingsUpdate {
   language?: Language;
   theme?: ThemePreference;
   mark_yesterday?: boolean;
+  grid_layout?: GridLayout;
   /** Напоминание «Пора отметить привычки» — время и дни целиком. */
   checkin_reminder?: CheckinReminder;
   telegram_notifications?: boolean;

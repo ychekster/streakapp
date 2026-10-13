@@ -54,9 +54,11 @@ import { loadMeta, loadTimezones } from "./api/meta";
 import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
+import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
+import { todayIn } from "./data/dates";
 import { dataStore } from "./data/store";
 import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
@@ -81,6 +83,7 @@ import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { CheckinReminderScreen } from "./screens/CheckinReminderScreen";
+import { GridLayoutScreen } from "./screens/GridLayoutScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
@@ -231,6 +234,14 @@ export function App() {
   const preferences = useMemo(
     () => ({ language, strings, theme }),
     [language, strings, theme],
+  );
+  // «Вид сетки» и календарный сегодня для сеток привычек (components/gridLayout.ts).
+  // Новый день приходит с пересчётом привычек (data/store.ts) — и с ним новый рендер.
+  const gridLayout = settings?.grid_layout ?? "rolling";
+  const calendarDay = settings ? todayIn(settings.timezone) : null;
+  const gridView = useMemo(
+    () => ({ layout: gridLayout, calendarDay }),
+    [gridLayout, calendarDay],
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);
@@ -684,6 +695,14 @@ export function App() {
           />
         );
       }
+      if (settingsPage === "gridLayout") {
+        return (
+          <GridLayoutScreen
+            value={gridLayout}
+            onChange={(layout) => void saveSettings({ grid_layout: layout })}
+          />
+        );
+      }
       if (settingsPage === "review") {
         return <ReviewScreen />;
       }
@@ -760,7 +779,7 @@ export function App() {
 
   return (
     <PreferencesContext.Provider value={preferences}>
-      {renderScreen()}
+      <GridViewContext.Provider value={gridView}>{renderScreen()}</GridViewContext.Provider>
 
       <TabBar
         tabs={tabs}

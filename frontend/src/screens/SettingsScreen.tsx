@@ -12,7 +12,8 @@
  *     Telegram (account setting `telegram_notifications`; turning it off asks first),
  *     and «Добавить на рабочий стол» (opens the install page in the phone's browser
  *     with a single-use login link, so the installed app opens this account); in the
- *     web app «Уведомления» — push on this device (usePushToggle).
+ *     web app «Уведомления» — push on this device (usePushToggle). Right under
+ *     «Уведомления» — «Вид сетки» (how the habit grid lays out days, GridLayoutScreen).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
@@ -36,6 +37,7 @@ import {
   CalendarBackIcon,
   ClockIcon,
   DocumentIcon,
+  DotsGridIcon,
   InstallIcon,
   PersonIcon,
   ShieldIcon,
@@ -58,6 +60,7 @@ import styles from "./SettingsScreen.module.css";
 export type SettingsPage =
   | "timezone"
   | "checkinReminder"
+  | "gridLayout"
   | "review"
   | "privacy"
   | "terms"
@@ -142,6 +145,20 @@ export function SettingsScreen({
       );
     }
 
+    const gridLayoutRow = (
+      <ListItem
+        icon={<DotsGridIcon />}
+        iconColor="green"
+        label={strings.settingsGridLayout}
+        onPress={() => onOpen("gridLayout")}
+      >
+        <span className={styles.value}>
+          {strings.gridLayoutNames[settings.grid_layout ?? "rolling"]}
+        </span>
+        <Disclosure />
+      </ListItem>
+    );
+
     return (
       <div className={styles.settings}>
         <ListGroup footer={account.guest ? strings.settingsAccountFooter : undefined}>
@@ -205,6 +222,7 @@ export function SettingsScreen({
               />
             </ListItem>
           ) : null}
+          {!web ? gridLayoutRow : null}
           {install ? (
             <ListItem
               icon={<InstallIcon />}
@@ -222,6 +240,7 @@ export function SettingsScreen({
               <Switch checked={push.on} onChange={push.change} label={strings.notificationsRow} />
             </ListItem>
           ) : null}
+          {web ? gridLayoutRow : null}
         </ListGroup>
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>

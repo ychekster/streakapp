@@ -33,6 +33,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from backend.constants import (
     AUDIENCE_MAX_LENGTH,
     CLIENT_REF_MAX_LENGTH,
+    DEFAULT_GRID_LAYOUT,
     DEFAULT_HABIT_COLOR,
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
@@ -103,6 +104,13 @@ class User(Base):
     # Тема оформления (constants.THEMES). Применяет её фронтенд.
     theme: Mapped[str] = mapped_column(
         String(16), default=DEFAULT_THEME, server_default=DEFAULT_THEME, nullable=False
+    )
+    # «Вид серий» (constants.GRID_LAYOUTS): как сетка раскладывает дни. Применяет фронтенд.
+    grid_layout: Mapped[str] = mapped_column(
+        String(16),
+        default=DEFAULT_GRID_LAYOUT,
+        server_default=DEFAULT_GRID_LAYOUT,
+        nullable=False,
     )
     # «Отмечать за вчера»: отметки ставятся за вчерашний день (см. services.user_today).
     mark_yesterday: Mapped[bool] = mapped_column(
