@@ -580,7 +580,9 @@ export const dataStore = {
       task: keyOf(id),
       habit: {
         name: habit.name,
-        description: habit.description ?? "",
+        // Not sent when unknown (a habit saved on the device before descriptions): the
+        // server keeps the one it has instead of clearing it.
+        description: habit.description ?? undefined,
         frequency_type: habit.frequency_type,
         days: habit.days,
         start_date: habit.start_date,
