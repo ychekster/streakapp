@@ -6,14 +6,19 @@
  * кнопка не прячется и не показывается заново (иначе она мигнула бы), меняется только
  * обработчик. Обработчик должен быть стабильным (useCallback), иначе переподписка
  * будет на каждом рендере.
+ *
+ * Тот же обработчик вызывает свайп слева направо (useSwipeBack).
  */
 
 import { useEffect } from "react";
 
 import { onBackButtonClick, setBackButtonVisible } from "../telegram/webapp";
+import { useSwipeBack } from "./useSwipeBack";
 
 export function useBackButton(onBack: (() => void) | null): void {
   const visible = onBack !== null;
+
+  useSwipeBack(onBack);
 
   useEffect(() => (onBack ? onBackButtonClick(onBack) : undefined), [onBack]);
 
