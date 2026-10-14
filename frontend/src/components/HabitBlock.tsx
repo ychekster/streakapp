@@ -11,7 +11,8 @@
  * стабильными (useCallback).
  *
  * Раскладку дней в сетке задаёт «Вид сетки» (gridLayout.ts): в виде "fixed" сетка
- * показывает только дни с начала текущего «листа», остальные кружки — пустые.
+ * показывает только дни с начала текущего «листа», остальные кружки — пустые, а кружок
+ * сегодня обведён ободком (он не в углу сетки, и иначе его не найти).
  */
 
 import { memo } from "react";
@@ -48,7 +49,8 @@ export const HabitBlock = memo(function HabitBlock({
 }: HabitBlockProps) {
   const strings = useStrings();
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
-  const shown = fixedGridFill(useGridView(), habit.created_on, gridDays) ?? gridDays;
+  const fill = fixedGridFill(useGridView(), habit.created_on, gridDays);
+  const shown = fill ?? gridDays;
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -84,6 +86,7 @@ export const HabitBlock = memo(function HabitBlock({
         total={habit.times_per_day}
         columns={gridColumns}
         cells={gridDays}
+        markToday={fill !== null}
       />
     </article>
   );

@@ -10,7 +10,9 @@
  * 1 из 4 — на четверть. Кружки масштабируются под ширину карточки.
  *
  * В «Виде сетки» fixed история короче сетки (`cells`): дни занимают первые кружки, а
- * остальные — ещё не наступившие — пустые, как пропуск.
+ * остальные — ещё не наступившие — пустые, как пропуск. Кружок сегодня (последний день
+ * истории) там, пока не выполнен, обведён ободком цвета привычки (`markToday`); выполнен —
+ * закрашен целиком, как обычно. День заморозки со снежинкой не обводится.
  */
 
 import type { CSSProperties } from "react";
@@ -33,6 +35,8 @@ interface YearGridProps {
   columns?: number;
   /** Всего кружков; по умолчанию — по дню истории на кружок. */
   cells?: number;
+  /** Обвести кружок сегодня — последний день истории. */
+  markToday?: boolean;
 }
 
 export function YearGrid({
@@ -42,8 +46,10 @@ export function YearGrid({
   total = 1,
   columns = GRID_COLUMNS,
   cells = history.length,
+  markToday = false,
 }: YearGridProps) {
   const strings = useStrings();
+  const today = markToday ? history.length - 1 : -1;
   return (
     <div
       className={styles.grid}
@@ -57,7 +63,7 @@ export function YearGrid({
           return (
             <span
               key={index}
-              className={`${styles.cell} ${styles.partial}`}
+              className={`${styles.cell} ${styles.partial} ${index === today ? styles.today : ""}`}
               style={{ "--dot-fill": Math.min(count / total, 1) } as CSSProperties}
             />
           );
@@ -67,7 +73,7 @@ export function YearGrid({
             key={index}
             className={`${styles.cell} ${
               done ? styles.filled : frozen[index] ? styles.frozen : styles.empty
-            }`}
+            } ${index === today && !done && !frozen[index] ? styles.today : ""}`}
           />
         );
       })}
