@@ -9,17 +9,26 @@ import { fixedGridFill, type GridView } from "./gridLayout";
 const fixed = (day: string): GridView => ({ layout: "fixed", day });
 
 /** A habit created on `created_on` with its history up to the marking day `day`, where
- *  only the days `marks` are done; the first mark comes from the server, as in the API. */
-const habit = (created_on: string | undefined, day: string, marks: string[] = []) => {
-  const history = Array<boolean>(HISTORY_DAYS).fill(false);
-  for (const mark of marks) {
-    const index = HISTORY_DAYS - 1 - daysBetween(mark, day);
-    if (index >= 0) {
-      history[index] = true;
+ *  only the days `marks` are done and the days `frozen` are frozen; the first of them
+ *  comes from the server too, as in the API. */
+const habit = (
+  created_on: string | undefined,
+  day: string,
+  marks: string[] = [],
+  frozen: string[] = [],
+) => {
+  const daysOf = (days: string[]) => {
+    const flags = Array<boolean>(HISTORY_DAYS).fill(false);
+    for (const at of days) {
+      const index = HISTORY_DAYS - 1 - daysBetween(at, day);
+      if (index >= 0) {
+        flags[index] = true;
+      }
     }
-  }
-  const first_done_on = marks.length > 0 ? [...marks].sort()[0] : null;
-  return { created_on, first_done_on, history };
+    return flags;
+  };
+  const started_on = [...marks, ...frozen].sort()[0] ?? null;
+  return { created_on, started_on, history: daysOf(marks), frozen_history: daysOf(frozen) };
 };
 
 /** The fixed grid's fill on the marking day `day`. */
@@ -93,13 +102,24 @@ describe("fixedGridFill", () => {
     );
   });
 
+  it("counts a frozen day as a marked one", () => {
+    // Created on the 1st, frozen on the 3rd–5th, first marked on the 7th: starts on the 3rd.
+    const frozen = ["2026-10-03", "2026-10-04", "2026-10-05"];
+    expect(fixedGridFill(fixed("2026-10-07"), habit("2026-10-01", "2026-10-07", ["2026-10-07"], frozen), 184)).toBe(5);
+    // Frozen right after creation and never marked: every frozen day is a dot.
+    expect(fixedGridFill(fixed("2026-10-05"), habit("2026-10-01", "2026-10-05", [], frozen), 184)).toBe(3);
+    // A freeze older than the history still holds the start.
+    const old = habit("2026-10-01", "2027-10-12", ["2027-10-01"], ["2026-10-03"]);
+    expect(fixedGridFill(fixed("2027-10-12"), old, 184)).toBe((daysBetween("2026-10-03", "2027-10-12") % 184) + 1);
+  });
+
   it("is the marking day for an old habit that was never marked", () => {
     expect(fill("2027-10-04", "2026-10-01", [])).toBe(1);
   });
 
   it("goes from the creation day for an old habit saved before the first mark was sent", () => {
-    // Day 369 of a habit kept on the device without `first_done_on`.
-    const old = { ...habit("2026-10-01", "2027-10-04", ["2027-10-01"]), first_done_on: undefined };
+    // Day 369 of a habit kept on the device without `started_on`.
+    const old = { ...habit("2026-10-01", "2027-10-04", ["2027-10-01"]), started_on: undefined };
     expect(fixedGridFill(fixed("2027-10-04"), old, 364, 184)).toBe(183);
   });
 });

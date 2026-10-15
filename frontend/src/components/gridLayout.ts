@@ -38,20 +38,25 @@ export function useGridView(): GridView {
 }
 
 /** Что сетке fixed нужно от привычки. */
-type GridHabit = Pick<Habit, "created_on" | "first_done_on" | "history" | "history_counts">;
+type GridHabit = Pick<
+  Habit,
+  "created_on" | "started_on" | "history" | "history_counts" | "frozen_history"
+>;
 
 /**
- * Первый день привычки в виде "fixed" — день первой отметки (в режиме «Отмечать за вчера»
- * отметили за вчера — первый день вчера). Пока отметок нет — день отметки: сетка
- * начинается с него. Первая отметка старше истории — её день от сервера
- * (`first_done_on`), так начало не сдвигается, когда она уходит из истории. Привычка
+ * Первый день привычки в виде "fixed" — с него идёт её отсчёт: первая отметка (и
+ * частичная) или первый день заморозки — замороженный день считается как отмеченный. Так
+ * в обоих видах сетки одинаково отмеченных, замороженных и пустых кружков. В режиме
+ * «Отмечать за вчера» отметили за вчера — первый день вчера. Пока нет ни отметок, ни
+ * заморозок — день отметки: сетка начинается с него. Первый день старше истории — от
+ * сервера (`started_on`), так начало не сдвигается, когда он уходит из истории. Привычка
  * старше истории без этого поля (сохранена на устройстве до него) — от дня создания.
  */
 function firstDay(habit: GridHabit, createdOn: string, day: string): string {
   const { history } = habit;
   // Последний день истории — день отметки.
   const historyStart = addDays(day, 1 - history.length);
-  const known = habit.first_done_on;
+  const known = habit.started_on;
   if (known && known < historyStart) {
     return known;
   }
@@ -59,7 +64,10 @@ function firstDay(habit: GridHabit, createdOn: string, day: string): string {
     return createdOn;
   }
   const counts = habit.history_counts ?? [];
-  const index = history.findIndex((done, at) => done || (counts[at] ?? 0) > 0);
+  const frozen = habit.frozen_history ?? [];
+  const index = history.findIndex(
+    (done, at) => done || (counts[at] ?? 0) > 0 || (frozen[at] ?? false),
+  );
   return index < 0 ? day : addDays(historyStart, index);
 }
 

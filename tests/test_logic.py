@@ -64,17 +64,28 @@ def test_frozen_days_do_not_break_streak() -> None:
     assert compute_streaks(task, done, TODAY) == (1, 2)
 
 
-def test_first_mark_is_known_beyond_the_history() -> None:
-    # Сетка «По порядку» начинается с первой отметки — и через год, когда она ушла из истории.
+def test_habit_starts_on_its_first_mark_or_freeze() -> None:
+    # Сетка «По порядку» начинается с первой отметки или заморозки — и через год, когда
+    # этот день ушёл из истории. Пока нет ни того ни другого, привычка просто существует.
     task = Task(
         id=1, user_id=1, name="Бег", frequency_type=FrequencyType.daily, color="red",
         times_per_day=1, auto_mark=False, is_active=True,
     )
     old = TODAY - timedelta(days=500)
     habit = build_habit(task, {old, TODAY}, TODAY)
-    assert habit.first_done_on == old
+    assert habit.started_on == old
     assert not any(habit.history[:-1])
-    assert build_habit(task, set(), TODAY).first_done_on is None
+    assert build_habit(task, set(), TODAY).started_on is None
+
+    # Заморозили и разморозили, ничего не отметив: отсчёт — с первого дня заморозки.
+    frozen = (TODAY - timedelta(days=10), TODAY - timedelta(days=7))
+    assert build_habit(task, _days_ago(2), TODAY, [frozen]).started_on == frozen[0]
+    # Заморожена сейчас, отметок нет.
+    task.frozen_since = TODAY - timedelta(days=3)
+    assert build_habit(task, set(), TODAY).started_on == TODAY - timedelta(days=3)
+    # Заморозка нулевой длины (разморозили в тот же день) — не замороженный день.
+    task.frozen_since = None
+    assert build_habit(task, set(), TODAY, [(TODAY, TODAY)]).started_on is None
 
 
 def test_every_other_day_schedule_and_streak() -> None:

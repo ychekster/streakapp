@@ -220,8 +220,21 @@ def build_habit(
         next_day_done=next_day_done,
         next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
         created_on=created_on,
-        first_done_on=min(done_dates) if done_dates else None,
+        started_on=started_day(task, done_dates, freezes, today),
     )
+
+
+def started_day(
+    task: Task, done_dates: Collection[date], freezes: Collection[tuple[date, date]], today: date
+) -> date | None:
+    """Первый день привычки — с него идёт её отсчёт: самая ранняя отметка или первый день
+    заморозки (замороженный день считается как отмеченный), по `today` включительно.
+    Пока нет ни того ни другого — None: привычка просто существует."""
+    days = [day for day in done_dates if day <= today]
+    days += [start for start, end in freezes if start < end and start <= today]
+    if task.frozen_since is not None and task.frozen_since <= today:
+        days.append(task.frozen_since)
+    return min(days, default=None)
 
 
 def created_day(task: Task, user: User) -> date:

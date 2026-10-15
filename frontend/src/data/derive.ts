@@ -466,7 +466,7 @@ function buildHabit(
       (base ? (today === snapshotToday ? base.today_count ?? 0 : baseCount(today)) : 0),
     history_counts: historyCounts,
     created_on: base ? base.created_on : calendarToday,
-    first_done_on: base ? base.first_done_on : null,
+    started_on: base ? base.started_on : null,
   };
 }
 
