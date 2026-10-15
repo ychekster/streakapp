@@ -395,9 +395,9 @@
   /* Галочка выполненного дня — цветом карточки, будто прорезана в кружке. */
   --color-check-icon: var(--color-card);
   --color-text-primary: #ffffff;
-  --color-text-secondary: #98989f;
+  --color-text-secondary: #a3a3a6; /* значение справа и подзаголовок в тёмных «Настройках» */
   --color-accent: #0a84ff;
-  --color-separator: rgba(84, 84, 88, 0.45);
+  --color-separator: rgba(84, 84, 88, 0.52); /* на #1c1c1e ≈ #39393c, как в «Настройках» */
   --color-skeleton: #2c2c2e;
   --color-skeleton-highlight: #3a3a3c;
   --color-danger: #ff453a;
@@ -418,8 +418,10 @@
   --habit-grid-empty-alpha: 0.24;
   --habit-soft-alpha: 0.2;
 
-  --header-bar-tint: rgba(0, 0, 0, 0.8); /* --color-background на 80% */
-  --header-hairline-color: rgba(255, 255, 255, 0.15);
+  /* Чуть светлее чёрного фона, как шапка тёмных «Настроек» iOS 26 (замер: ~#0a0a0a поверх
+     фона), снизу — едва заметная светлая линия. */
+  --header-bar-tint: rgba(13, 13, 13, 0.8);
+  --header-hairline-color: rgba(255, 255, 255, 0.09);
 
   --shadow-card: none;
 
@@ -483,12 +485,12 @@
   --glass-fill: linear-gradient(180deg, #fefefe, #fcfcfd);
   /* Подложка шапки становится непрозрачной: содержимое под ней не просвечивает, как у
      сплошной шапки iOS. Светлая — та же почти белая (rgba(252,252,254,0.8) поверх
-     фона), тёмная — цвет фона. */
+     фона), тёмная — rgba(13,13,13,0.8) поверх чёрного фона. */
   --header-bar-tint: #fafafc;
 }
 
 :root[data-platform="android"][data-theme="dark"] {
-  --header-bar-tint: var(--color-background);
+  --header-bar-tint: #0a0a0a;
   /* rgba(40,40,42,0.74) и 0.8 поверх --color-background (#000000). */
   --glass-fill: linear-gradient(180deg, #1e1e1f, #202022);
 }
@@ -564,8 +566,9 @@
   --scroll-indicator-color: rgba(255, 255, 255, 0.27);
   /* Same weight as the light chevron; the dark switch keeps its own off color. */
   --web-settings-disclosure-color: rgba(235, 235, 245, 0.36);
-  /* The dark --color-switch-off itself: it is defined from this variable above. */
-  --web-settings-switch-off: rgba(120, 120, 128, 0.36);
+  /* The dark --color-switch-off itself: it is defined from this variable above.
+     #5a595f on the dark card, as in dark iOS 26 Settings. */
+  --web-settings-switch-off: rgba(120, 120, 128, 0.67);
   /* Inactive bottom button, from the reference: gray glass and dimmed label. */
   --main-button-disabled-bg: #505052;
   --main-button-disabled-text: #9c9c9e;
@@ -613,7 +616,7 @@
 
 :root[data-app="web"][data-theme="dark"] {
   --brand-blue-soft: rgba(47, 143, 245, 0.18);
-  --web-header-glass: rgba(0, 0, 0, 0.8); /* --color-background at 80% */
+  --web-header-glass: rgba(13, 13, 13, 0.8); /* the dark bar tint */
   --web-back-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14),
     0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 8px 12px -4px rgba(0, 0, 0, 0.5),
     0 2px 3px -1px rgba(0, 0, 0, 0.3);
