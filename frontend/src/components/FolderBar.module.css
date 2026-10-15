@@ -1,0 +1,80 @@
+/*
+ * Таблетка папок над списком привычек. Размеры сняты со скриншота-эталона (папки чатов
+ * Telegram на iOS 26): 38pt высотой, подложка выбранной вкладки с полями 4pt, названия
+ * 15pt, по 16pt от названия до края подложки.
+ */
+
+/*
+ * Таблетка — как карточка привычек по заметности: та же мягкая тень карточки, без
+ * стеклянной кромки. Внутри по краям поля --tabbar-inset; лента вкладок прокручивается в
+ * пределах этих полей, поэтому уходящая за край вкладка обрезается краем подложки, а не
+ * таблетки: подложка у края «сжимается» — её дальний край догоняет ближний.
+ */
+.bar {
+  height: var(--folderbar-height);
+  /* Сверху — как карточка сразу под заголовком (отступ даёт шапка); снизу до списка —
+     столько же, сколько от строки заголовка до таблетки. */
+  margin-bottom: var(--space-folderbar-bottom);
+  padding: var(--tabbar-inset);
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill);
+  box-shadow: var(--shadow-card);
+  color: var(--glass-icon);
+}
+
+/* Лента вкладок: прокручивается вбок, когда вкладки не помещаются (без полосы прокрутки),
+   и обрезается по скруглению подложки. relative — от неё считаются положение вкладок и
+   подложки. */
+.track {
+  position: relative;
+  display: flex;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Серая подложка выбранной вкладки — как у нижней навигации. */
+.thumb {
+  position: absolute;
+  top: calc(var(--tabbar-thumb-top) - var(--tabbar-inset));
+  bottom: 0;
+  left: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--tabbar-thumb);
+}
+
+.animated {
+  transition: transform var(--tabbar-anim), width var(--tabbar-anim);
+}
+
+/* relative — вкладка рисуется поверх подложки. */
+.tab {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--folderbar-tab-pad-x);
+  border-radius: var(--radius-pill);
+  color: inherit;
+  font-size: var(--folderbar-font-size);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+
+.tab[data-pressed] {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated {
+    transition: none;
+  }
+}

@@ -330,3 +330,101 @@ def test_first_checkin_through_sync_offers_the_app_once(
     _sync(client, user, {"type": "mark", "task": "a", "date": today, "done": True})
     offers = [sent for sent in telegram.sent if sent.chat_id == user.id]
     assert len(offers) == 1
+
+
+# --------------------------------------------------------------------------- #
+#  Папки
+# --------------------------------------------------------------------------- #
+
+
+def _folder(name: str = "Утро", habits: list[object] | None = None) -> dict[str, object]:
+    return {"name": name, "habits": habits or []}
+
+
+def test_no_folders_by_default(client: TestClient, user: AuthUser) -> None:
+    data = _sync(client, user)
+    assert data["folders"] == []
+    assert data["all_habits_position"] == 0
+
+
+def test_folder_with_offline_habits_is_created_once(client: TestClient, user: AuthUser) -> None:
+    ops = (
+        {"type": "create", "ref": "h-1", "habit": _habit("Бег")},
+        {"type": "create", "ref": "h-2", "habit": _habit("Зарядка")},
+        {"type": "folder_create", "ref": "f-1", "folder": _folder("Утро", ["h-2", "h-1"])},
+    )
+    first = _sync(client, user, *ops)
+    assert all(result["ok"] for result in first["results"])
+    ids = [habit["id"] for habit in first["habits"]]
+    folder_id = first["results"][2]["id"]
+    # Привычки в папке — в порядке списка привычек.
+    assert first["folders"] == [{"id": folder_id, "name": "Утро", "habits": ids}]
+
+    # Ответ не дошёл — устройство шлёт то же ещё раз: та же папка, не вторая.
+    again = _sync(client, user, *ops)
+    assert again["results"][2]["id"] == folder_id
+    assert len(again["folders"]) == 1
+
+
+def test_folder_update_drops_deleted_habits(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "create", "ref": "h-1", "habit": _habit("Бег")},
+        {"type": "create", "ref": "h-2", "habit": _habit("Зарядка")},
+        {"type": "folder_create", "ref": "f-1", "folder": _folder("Утро", ["h-1"])},
+    )
+    first_id, second_id = (habit["id"] for habit in data["habits"])
+    data = _sync(
+        client,
+        user,
+        {"type": "folder_update", "key": "f-1", "folder": _folder(" Вечер\n", [second_id, 999])},
+    )
+    assert data["folders"][0]["name"] == "Вечер"
+    assert data["folders"][0]["habits"] == [second_id]
+    data = _sync(client, user, {"type": "delete", "task": second_id})
+    assert data["folders"][0]["habits"] == []
+    assert first_id
+
+
+def test_folder_name_and_limit_are_checked(
+    client: TestClient, user: AuthUser, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import backend.services as services
+
+    data = _sync(client, user, {"type": "folder_create", "ref": "f-0", "folder": _folder("  ")})
+    assert data["results"][0]["error"]["code"] == "invalid_folder_name"
+    data = _sync(client, user, {"type": "folder_create", "ref": "f-0", "folder": _folder("x" * 25)})
+    assert data["results"][0]["error"]["code"] == "invalid_folder_name"
+
+    monkeypatch.setattr(services, "MAX_FOLDERS_PER_USER", 1)
+    data = _sync(
+        client,
+        user,
+        {"type": "folder_create", "ref": "f-1", "folder": _folder("Раз")},
+        {"type": "folder_create", "ref": "f-2", "folder": _folder("Два")},
+    )
+    assert data["results"][0]["ok"] is True
+    assert data["results"][1]["error"]["code"] == "folder_limit"
+    assert [folder["name"] for folder in data["folders"]] == ["Раз"]
+
+
+def test_folder_order_and_all_habits_place(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "folder_create", "ref": "a", "folder": _folder("A")},
+        {"type": "folder_create", "ref": "b", "folder": _folder("B")},
+        {"type": "folder_create", "ref": "c", "folder": _folder("C")},
+        {"type": "folder_order", "order": ["c", None, "a"]},
+    )
+    assert [folder["name"] for folder in data["folders"]] == ["C", "A", "B"]
+    assert data["all_habits_position"] == 1
+
+    # Удалили папку перед «Все привычки» — та встаёт на её место.
+    data = _sync(client, user, {"type": "folder_delete", "key": "c"})
+    assert [folder["name"] for folder in data["folders"]] == ["A", "B"]
+    assert data["all_habits_position"] == 0
+    # Уже удалённая — не ошибка.
+    data = _sync(client, user, {"type": "folder_delete", "key": "c"})
+    assert data["results"][0]["ok"] is True

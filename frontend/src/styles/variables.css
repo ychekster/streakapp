@@ -214,6 +214,11 @@
   --tabbar-label-gap: 3px; /* между иконкой и подписью */
   --tabbar-anim: 320ms cubic-bezier(0.32, 0.72, 0, 1); /* скрытие навигации и сдвиг подложки */
   --tabbar-hide-overshoot: 24px; /* запас при скрытии, чтобы за край ушла и тень */
+  /* Таблетка папок над списком привычек (FolderBar): стекло и подложка — как у навигации. */
+  --folderbar-height: 38px;
+  --folderbar-tab-pad-x: 16px; /* от названия папки до края подложки */
+  --folderbar-font-size: 15px;
+  --space-folderbar-bottom: 16px; /* до списка привычек — как от строки заголовка до таблетки */
 
   /* --- Показатели привычки (экран привычки) --- */
   --space-stat-gap: 10px; /* между карточками показателей */
@@ -245,6 +250,18 @@
   /* --- Экран «Настройки» (значения сняты со скриншота-эталона «Настроек» iOS 26) --- */
   --space-list-gap: 35px; /* между карточками-группами */
   --space-list-footer-top: 8px; /* от карточки до пояснения под ней */
+  /* Настройки → «Папки» (FoldersScreen) и форма папки. */
+  --folders-intro-icon-size: 64px;
+  --folders-intro-icon-radius: 15px;
+  --folders-intro-icon-glyph: 42px;
+  --folders-intro-text-width: 300px;
+  --space-folders-intro-gap: 12px; /* от значка до пояснения */
+  --folders-handle-width: 22px; /* ручка перетаскивания ряда */
+  --folders-handle-height: 16px;
+  --folders-handle-hit: 12px; /* запас нажатия вокруг ручки */
+  --folders-shift-anim: 200ms ease;
+  --folders-drag-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  --folder-check-size: 24px; /* кружок выбора привычки в папку */
   --line-height-list-footer: 1.37;
   --disclosure-width: 8px; /* значок › у ряда, открывающего вложенный экран */
   --disclosure-height: 14px;

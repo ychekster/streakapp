@@ -13,7 +13,7 @@
 
 import styles from "./StatusMessage.module.css";
 
-export type StatusIconName = "check" | "alert" | "star" | "send" | "spinner";
+export type StatusIconName = "check" | "alert" | "star" | "send" | "folder" | "spinner";
 
 /*
  * Глифы нарисованы в квадрате 40×40, круг — вписанная окружность (центр 20, радиус 20).
@@ -29,6 +29,13 @@ const GLYPHS: Record<Exclude<StatusIconName, "spinner">, Glyph[]> = {
   // Галочка: пропорции галочки вкладки «Привычки», увеличенные с её круга (r 11.65) до
   // здешнего (r 20).
   check: [{ d: "M12.8 21L18.28 26.7L27.55 14.15", stroke: 3.95 }],
+  // Папка: корешок слева сверху (пустая папка привычек).
+  folder: [
+    {
+      d: "M10.5 15a2 2 0 0 1 2-2h4.4l2.4 2.6h8.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H12.5a2 2 0 0 1-2-2Z",
+      stroke: 3.2,
+    },
+  ],
   // Восклицательный знак: штрих и точка под ним.
   alert: [
     { d: "M20 10.6V23", stroke: 4.2 },

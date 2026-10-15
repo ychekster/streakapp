@@ -1,4 +1,4 @@
-"""ORM-модели: User, Task, TaskLog, TaskFreeze и данные админ-панели (Admin, Review, UserActivity,
+"""ORM-модели: User, Task, TaskLog, TaskFreeze, Folder и данные админ-панели (Admin, Review, UserActivity,
 CheckinDay, ActivityLog, Broadcast, Segment, AppConfig).
 
 Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
@@ -37,6 +37,7 @@ from backend.constants import (
     DEFAULT_HABIT_COLOR,
     DEFAULT_LANGUAGE,
     DEFAULT_THEME,
+    FOLDER_NAME_MAX_LENGTH,
     HABIT_COLOR_MAX_LENGTH,
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
@@ -125,6 +126,11 @@ class User(Base):
     # не присылает (push веб-приложения идут как прежде, см. bot/reminders.py).
     telegram_notifications: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False
+    )
+    # Место папки «Все привычки» среди папок пользователя (Folder.position): сколько папок
+    # стоит перед ней. Пока папок нет, не используется.
+    all_habits_position: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
     )
 
     # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
@@ -331,6 +337,32 @@ class TaskFreeze(Base):
     )
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class Folder(Base):
+    """Папка привычек (настройки → «Папки»): название и привычки, которые в ней видны.
+
+    Привычки — список id задач (`task_ids`); удалённые с экрана пропадают сами
+    (services.list_folders берёт только активные). Порядок папок — `position`; папка «Все
+    привычки» не хранится, её место — `User.all_habits_position`.
+    """
+
+    __tablename__ = "folders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(FOLDER_NAME_MAX_LENGTH), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    task_ids: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    # Id, который дало папке устройство (/sync, folder_create): повтор создания — не дубль.
+    client_ref: Mapped[str | None] = mapped_column(
+        String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
 
 
 class Admin(Base):

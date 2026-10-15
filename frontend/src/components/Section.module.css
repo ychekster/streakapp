@@ -20,6 +20,18 @@
   color: var(--color-text-secondary);
 }
 
+/* Заголовок с действием справа («Изменить»): действие — на одной линии с заголовком. */
+.headingRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-subheading-bottom);
+}
+
+.headingRow > .heading {
+  margin-bottom: 0;
+}
+
 /* Экран привычки: капсом, вровень с краем карточки. */
 .screen {
   text-transform: uppercase;

@@ -1,7 +1,7 @@
 """Синхронизация с устройством.
 
     POST /sync — применить изменения, сделанные на устройстве, и вернуть актуальное
-                 состояние: привычки, настройки и день отметки
+                 состояние: привычки, папки, настройки и день отметки
 
 Приложение (и Mini App, и веб-приложение) меняет привычки и настройки сразу у себя —
 без ожидания сервера и без связи, — копит изменения и отправляет их сюда пачкой (см.
@@ -18,7 +18,14 @@ from backend.models import User
 from backend.repository import Repository
 from backend.routers.tasks import record_checkin, record_first_habit
 from backend.schemas import SyncRequest, SyncResponse
-from backend.services import apply_sync, list_habits, read_settings, user_today
+from backend.services import (
+    all_habits_position,
+    apply_sync,
+    list_folders,
+    list_habits,
+    read_settings,
+    user_today,
+)
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -42,5 +49,7 @@ async def sync(
         results=outcome.results,
         habits=await list_habits(repo, db_user),
         settings=await read_settings(repo, db_user, via_telegram=principal.telegram is not None),
+        folders=await list_folders(repo, db_user),
+        all_habits_position=await all_habits_position(repo, db_user),
         today=user_today(db_user),
     )

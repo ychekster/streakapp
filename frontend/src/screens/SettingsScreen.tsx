@@ -13,7 +13,8 @@
  *     and «Добавить на рабочий стол» (opens the install page in the phone's browser
  *     with a single-use login link, so the installed app opens this account); in the
  *     web app «Уведомления» — push on this device (usePushToggle). Right under
- *     «Уведомления» — «Вид сетки» (how the habit grid lays out days, GridLayoutScreen).
+ *     «Уведомления» — «Вид сетки» (how the habit grid lays out days, GridLayoutScreen)
+ *     and «Папки» (habit folders, FoldersScreen; the value — how many there are).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
@@ -38,6 +39,7 @@ import {
   ClockIcon,
   DocumentIcon,
   DotsGridIcon,
+  FolderIcon,
   InstallIcon,
   PersonIcon,
   ShieldIcon,
@@ -61,6 +63,7 @@ export type SettingsPage =
   | "timezone"
   | "checkinReminder"
   | "gridLayout"
+  | "folders"
   | "review"
   | "privacy"
   | "terms"
@@ -87,6 +90,8 @@ interface SettingsScreenProps {
   /** Install link (Telegram only; null — the row is hidden: the web app is installed). */
   install: HandoffLink | null;
   account: AccountState;
+  /** How many habit folders there are («Папки» row). */
+  folderCount: number;
   /** Web app: load the account again («Нет связи» row). */
   onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
@@ -100,6 +105,7 @@ export function SettingsScreen({
   onOpenAdmin,
   install,
   account,
+  folderCount,
   onRetryAccount,
   onLinkTelegram,
 }: SettingsScreenProps) {
@@ -155,6 +161,17 @@ export function SettingsScreen({
         <span className={styles.value}>
           {strings.gridLayoutNames[settings.grid_layout ?? "rolling"]}
         </span>
+        <Disclosure />
+      </ListItem>
+    );
+    const foldersRow = (
+      <ListItem
+        icon={<FolderIcon />}
+        iconColor="lightblue"
+        label={strings.settingsFolders}
+        onPress={() => onOpen("folders")}
+      >
+        {folderCount > 0 ? <span className={styles.value}>{folderCount}</span> : null}
         <Disclosure />
       </ListItem>
     );
@@ -223,6 +240,7 @@ export function SettingsScreen({
             </ListItem>
           ) : null}
           {!web ? gridLayoutRow : null}
+          {!web ? foldersRow : null}
           {install ? (
             <ListItem
               icon={<InstallIcon />}
@@ -241,6 +259,7 @@ export function SettingsScreen({
             </ListItem>
           ) : null}
           {web ? gridLayoutRow : null}
+          {web ? foldersRow : null}
         </ListGroup>
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>

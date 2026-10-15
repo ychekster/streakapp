@@ -19,12 +19,14 @@
  * A habit created on the device has no server id yet: it gets a device id (`ref`, sent
  * with the operation) and is shown under a negative id; when the server answers, the
  * habit keeps that id on screen for the rest of the run (`aliases`), so open screens and
- * list keys do not change.
+ * list keys do not change. Folders (Settings → «Папки») work the same way
+ * (`folderAliases`).
  */
 
 import { ApiRequestError, authorizationHeader, type ApiErrorCode } from "../api/client";
 import { syncChanges } from "../api/sync";
 import {
+  MAX_FOLDERS_PER_USER,
   MAX_HABITS_PER_USER,
   SYNC_BATCH_SIZE,
   SYNC_DELAY_MS,
@@ -32,13 +34,15 @@ import {
   SYNC_RETRY_MS,
 } from "../constants";
 import { getTelegramUserId, isTelegramAvailable } from "../telegram/webapp";
+import type { Folder, FolderInput } from "../types/folder";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
-import type { SyncOperation, SyncResponse, TaskKey } from "../types/sync";
+import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
 import { currentSessionId } from "../web/session";
 import { clockIn, markingDay } from "./dates";
 import {
   cleanHabitName,
+  deriveFolders,
   deriveView,
   reminderTimesOf,
   reuseUnchanged,
@@ -60,6 +64,10 @@ export interface DataState {
   /** Why the first load failed (status "error"). */
   error: unknown;
   habits: Habit[];
+  /** Habit folders, in order; empty — the habits list has no folder tabs. */
+  folders: Folder[];
+  /** Where the «Все привычки» tab stands among the folders. */
+  allHabitsPosition: number;
   settings: Settings | null;
   /** The last settings change the server refused; cleared when the next one starts. */
   saveError: unknown;
@@ -73,6 +81,8 @@ const EMPTY: DataState = {
   status: "loading",
   error: null,
   habits: [],
+  folders: [],
+  allHabitsPosition: 0,
   settings: null,
   saveError: null,
   rejected: null,
@@ -105,6 +115,7 @@ const tempIds = new Map<string, number>();
 const refOfTemp = new Map<number, string>();
 const serverIdOfRef = new Map<string, number>();
 const aliases = new Map<number, number>();
+const folderAliases = new Map<number, number>();
 
 // --------------------------------------------------------------------------- //
 //  Kept on the device
@@ -183,7 +194,11 @@ function displayIdOfKey(key: TaskKey): number {
   return typeof key === "string" ? tempIdOf(key) : (aliases.get(key) ?? key);
 }
 
-/** The habit an id on screen means, as operations name it. */
+function displayIdOfFolderKey(key: FolderKey): number {
+  return typeof key === "string" ? tempIdOf(key) : (folderAliases.get(key) ?? key);
+}
+
+/** The habit (or folder) an id on screen means, as operations name it. */
 function keyOf(displayId: number): TaskKey {
   const ref = refOfTemp.get(displayId);
   if (ref === undefined) {
@@ -195,16 +210,23 @@ function keyOf(displayId: number): TaskKey {
 function rederive(): void {
   if (!snapshot) {
     viewDay = null;
-    emit({ habits: [], settings: null });
+    emit({ habits: [], folders: [], allHabitsPosition: 0, settings: null });
     return;
   }
   const view = deriveView(snapshot, ops, displayIdOfKey);
   viewDay = view.today;
   viewClock = clockIn(view.settings.timezone);
+  const folders = deriveFolders(snapshot, ops, view.habits, displayIdOfKey, displayIdOfFolderKey);
   emit({
     status: "ready",
     error: null,
     habits: reuseUnchanged(state.habits, view.habits),
+    // The same list while nothing changed: screens that depend on it do not redraw.
+    folders:
+      JSON.stringify(folders.folders) === JSON.stringify(state.folders)
+        ? state.folders
+        : folders.folders,
+    allHabitsPosition: folders.allHabitsPosition,
     settings: view.settings,
   });
 }
@@ -241,6 +263,10 @@ function refersTo(op: Operation, key: TaskKey): boolean {
   return (op.type === "create" && op.ref === key) || ("task" in op && op.task === key);
 }
 
+function refersToFolder(op: Operation, key: FolderKey): boolean {
+  return (op.type === "folder_create" && op.ref === key) || ("key" in op && op.key === key);
+}
+
 /** Add `op` to the unsent part of the queue, merged with what it makes pointless: the
  *  same day marked again, a habit edited twice, a habit created and deleted before
  *  sending, settings changed several times. */
@@ -266,6 +292,26 @@ function enqueue(op: Operation): void {
     if (!createdHere) {
       unsent.push(op);
     }
+  } else if (op.type === "folder_update") {
+    const created = unsent.findIndex((item) => item.type === "folder_create" && item.ref === op.key);
+    if (created >= 0) {
+      unsent[created] = {
+        ...(unsent[created] as Extract<Operation, { type: "folder_create" }>),
+        folder: op.folder,
+      };
+    } else {
+      unsent = unsent.filter((item) => !(item.type === "folder_update" && item.key === op.key));
+      unsent.push(op);
+    }
+  } else if (op.type === "folder_delete") {
+    const createdHere = unsent.some((item) => item.type === "folder_create" && item.ref === op.key);
+    unsent = unsent.filter((item) => !refersToFolder(item, op.key));
+    if (!createdHere) {
+      unsent.push(op);
+    }
+  } else if (op.type === "folder_order") {
+    unsent = unsent.filter((item) => item.type !== "folder_order");
+    unsent.push(op);
   } else if (op.type === "settings") {
     const last = unsent[unsent.length - 1];
     if (last?.type === "settings" && Boolean(last.silent) === Boolean(op.silent)) {
@@ -321,6 +367,7 @@ function scheduleRetry(): void {
 /** The server's answer to `batch`: it is the new snapshot, the batch leaves the queue. */
 function acknowledge(batch: Operation[], response: SyncResponse): void {
   const failedRefs = new Set<string>();
+  const failedFolderRefs = new Set<string>();
   let saveError: unknown = null;
   let rejected = null as RejectedChange | null;
   response.results.forEach((result, index) => {
@@ -335,6 +382,16 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
         failedRefs.add(op.ref);
       }
     }
+    if (op?.type === "folder_create") {
+      if (result.ok && result.id !== null) {
+        serverIdOfRef.set(op.ref, result.id);
+        if (tempIds.has(op.ref)) {
+          folderAliases.set(result.id, tempIdOf(op.ref));
+        }
+      } else {
+        failedFolderRefs.add(op.ref);
+      }
+    }
     if (!op || result.ok || !result.error) {
       return;
     }
@@ -347,9 +404,33 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     // A check-in or deletion of a habit gone from the server: it just disappears.
   });
 
-  // What is left refers to created habits by their server id now; nothing is left for
-  // a habit the server refused to create.
+  // What is left refers to created habits and folders by their server id now; nothing is
+  // left for one the server refused to create.
+  const serverKey = (key: TaskKey): TaskKey =>
+    typeof key === "string" ? (serverIdOfRef.get(key) ?? key) : key;
+  const folderInput = (input: FolderInput): FolderInput => ({
+    ...input,
+    habits: input.habits
+      .filter((key) => typeof key !== "string" || !failedRefs.has(key))
+      .map(serverKey),
+  });
   ops = ops.slice(batch.length).flatMap((op): Operation[] => {
+    if (op.type === "folder_create") {
+      return [{ ...op, folder: folderInput(op.folder) }];
+    }
+    if (op.type === "folder_update" || op.type === "folder_delete") {
+      if (typeof op.key === "string" && failedFolderRefs.has(op.key)) {
+        return [];
+      }
+      return [
+        op.type === "folder_update"
+          ? { ...op, key: serverKey(op.key), folder: folderInput(op.folder) }
+          : { ...op, key: serverKey(op.key) },
+      ];
+    }
+    if (op.type === "folder_order") {
+      return [{ ...op, order: op.order.map((key) => (key === null ? null : serverKey(key))) }];
+    }
     if (!("task" in op) || typeof op.task !== "string") {
       return [op];
     }
@@ -359,7 +440,13 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     const id = serverIdOfRef.get(op.task);
     return [id === undefined ? op : { ...op, task: id }];
   });
-  snapshot = { habits: response.habits, settings: response.settings, today: response.today };
+  snapshot = {
+    habits: response.habits,
+    settings: response.settings,
+    folders: response.folders,
+    all_habits_position: response.all_habits_position,
+    today: response.today,
+  };
   keep(OPS_KEY, ops);
   keep(SNAPSHOT_KEY, snapshot);
   if (saveError) {
@@ -468,6 +555,12 @@ function validateHabit(input: HabitInput, exceptId: number | null): void {
   }
   if (others.some((habit) => habit.name.toLowerCase() === name)) {
     throw new ApiRequestError(409, "duplicate_name", "");
+  }
+}
+
+function validateFolderName(name: string): void {
+  if (cleanHabitName(name) === "") {
+    throw new ApiRequestError(422, "invalid_folder_name", "");
   }
 }
 
@@ -597,6 +690,45 @@ export const dataStore = {
 
   deleteHabit(id: number): void {
     enqueue({ type: "delete", task: keyOf(id) });
+  },
+
+  /** Create a folder of these habits (ids on screen); throws ApiRequestError (as the
+   *  server would) if it can't be. Returns its id on screen. */
+  createFolder(name: string, habitIds: number[]): number {
+    validateFolderName(name);
+    if (state.folders.length >= MAX_FOLDERS_PER_USER) {
+      throw new ApiRequestError(409, "folder_limit", "");
+    }
+    const ref = newRef();
+    enqueue({ type: "folder_create", ref, folder: { name, habits: habitIds.map(keyOf) } });
+    return tempIdOf(ref);
+  },
+
+  /** Change a folder's name and habits (ids on screen). */
+  updateFolder(id: number, name: string, habitIds: number[]): void {
+    validateFolderName(name);
+    enqueue({
+      type: "folder_update",
+      key: keyOf(id),
+      folder: { name, habits: habitIds.map(keyOf) },
+    });
+  },
+
+  /** Put a habit into a folder (a habit just created while the folder was open). */
+  addToFolder(id: number, habitId: number): void {
+    const folder = state.folders.find((item) => item.id === id);
+    if (folder && !folder.habits.includes(habitId)) {
+      dataStore.updateFolder(id, folder.name, [...folder.habits, habitId]);
+    }
+  },
+
+  deleteFolder(id: number): void {
+    enqueue({ type: "folder_delete", key: keyOf(id) });
+  },
+
+  /** Put the folders (ids on screen) in this order; null — where «Все привычки» goes. */
+  orderFolders(order: (number | null)[]): void {
+    enqueue({ type: "folder_order", order: order.map((id) => (id === null ? null : keyOf(id))) });
   },
 
   /** Change settings; `preview` — how it looks until the server answers; `silent` — not

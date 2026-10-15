@@ -1,5 +1,6 @@
 /** POST /sync — mirrors the Sync* schemas in backend/schemas.py. */
 
+import type { Folder, FolderInput } from "./folder";
 import type { Habit, HabitInput } from "./habit";
 import type { Settings, SettingsUpdate } from "./settings";
 
@@ -22,7 +23,18 @@ export type SyncOperation =
   /** Delete a habit (one already gone is not an error). */
   | { type: "delete"; task: TaskKey }
   /** Change settings, as PUT /settings. */
-  | { type: "settings"; patch: SettingsUpdate };
+  | { type: "settings"; patch: SettingsUpdate }
+  /** Create a folder (last in the row); `ref` is its id on the device. */
+  | { type: "folder_create"; ref: string; folder: FolderInput }
+  /** Change a folder — name and habits, whole. */
+  | { type: "folder_update"; key: FolderKey; folder: FolderInput }
+  /** Delete a folder (one already gone is not an error). */
+  | { type: "folder_delete"; key: FolderKey }
+  /** The order of the folders; null — where «Все привычки» stands. */
+  | { type: "folder_order"; order: (FolderKey | null)[] };
+
+/** A folder in an operation: its id on the server or the device's id (`ref`). */
+export type FolderKey = number | string;
 
 export interface SyncResult {
   ok: boolean;
@@ -36,6 +48,9 @@ export interface SyncResponse {
   results: SyncResult[];
   habits: Habit[];
   settings: Settings;
+  folders: Folder[];
+  /** Where «Все привычки» stands among the folders (how many folders are before it). */
+  all_habits_position: number;
   /** Marking day: the last day of every habit's history («YYYY-MM-DD»). */
   today: string;
 }

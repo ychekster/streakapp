@@ -50,6 +50,7 @@ from backend.models import (
     BroadcastStatus,
     CheckinDay,
     Event,
+    Folder,
     FrequencyType,
     PushSubscription,
     Review,
@@ -464,6 +465,7 @@ class Repository:
             TaskFreeze,
             TaskReminder,
             Task,
+            Folder,
             Review,
             UserActivity,
             CheckinDay,
@@ -473,6 +475,71 @@ class Repository:
         ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
         await self.session.execute(delete(User).where(User.telegram_id == telegram_id))
+
+    # ------------------------------------------------------------------ #
+    #  Folders
+    # ------------------------------------------------------------------ #
+
+    async def get_folders(self, user_id: int) -> list[Folder]:
+        """Папки пользователя по порядку."""
+        result = await self.session.execute(
+            select(Folder).where(Folder.user_id == user_id).order_by(Folder.position, Folder.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_folder(self, folder_id: int, user_id: int) -> Folder | None:
+        """Папка пользователя по id или None."""
+        result = await self.session.execute(
+            select(Folder).where(Folder.id == folder_id, Folder.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_folder_by_ref(self, user_id: int, client_ref: str) -> Folder | None:
+        """Папка, созданная устройством под этим id (/sync), или None."""
+        result = await self.session.execute(
+            select(Folder)
+            .where(Folder.user_id == user_id, Folder.client_ref == client_ref)
+            .order_by(Folder.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def create_folder(
+        self, user_id: int, name: str, task_ids: list[int], client_ref: str | None
+    ) -> Folder:
+        """Создать папку последней в ряду папок."""
+        last = await self.session.scalar(
+            select(func.max(Folder.position)).where(Folder.user_id == user_id)
+        )
+        folder = Folder(
+            user_id=user_id,
+            name=name,
+            task_ids=task_ids,
+            position=0 if last is None else last + 1,
+            client_ref=client_ref,
+        )
+        self.session.add(folder)
+        await self.session.flush()
+        return folder
+
+    async def update_folder(self, folder: Folder, name: str, task_ids: list[int]) -> None:
+        folder.name = name
+        folder.task_ids = task_ids
+        await self.session.flush()
+
+    async def delete_folder(self, folder: Folder) -> None:
+        await self.session.delete(folder)
+        await self.session.flush()
+
+    async def set_folder_order(
+        self, user: User, folders: Sequence[Folder], all_habits_position: int
+    ) -> None:
+        """Поставить папки в порядке `folders`, а «Все привычки» — на место
+        `all_habits_position` среди них."""
+        for position, folder in enumerate(folders):
+            folder.position = position
+        user.all_habits_position = all_habits_position
+        await self.session.flush()
 
     # ------------------------------------------------------------------ #
     #  Tasks
@@ -1469,8 +1536,8 @@ class Repository:
         """Move everything of `source` into `target`, delete `source` and return the
         target re-read from the database.
 
-        Nothing is lost: habits, check-ins, reviews, activity days, logins, web sessions,
-        push subscriptions and funnel events all move. An active habit whose name the
+        Nothing is lost: habits, check-ins, folders (after the target's), reviews, activity
+        days, logins, web sessions, push subscriptions and funnel events all move. An active habit whose name the
         target already uses gets a suffix («Бег (2)») instead of being dropped. Settings
         stay the target's; what the target lacks (time zone, first check-in) is taken
         from the source.
@@ -1507,9 +1574,20 @@ class Repository:
             target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
 
+        # The source's folders go after the target's.
+        last_position = await self.session.scalar(
+            select(func.max(Folder.position)).where(Folder.user_id == target_id)
+        )
+        if last_position is not None:
+            await self.session.execute(
+                update(Folder)
+                .where(Folder.user_id == source_id)
+                .values(position=Folder.position + last_position + 1)
+                .execution_options(synchronize_session=False)
+            )
         for model in (
-            Task, TaskLog, TaskFreeze, TaskReminder, Review, WebSession, PushSubscription, Event,
-            ActivityLog,
+            Task, TaskLog, TaskFreeze, TaskReminder, Folder, Review, WebSession,
+            PushSubscription, Event, ActivityLog,
         ):
             await self.session.execute(
                 update(model)

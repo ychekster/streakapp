@@ -20,6 +20,7 @@ from backend.constants import (
     DEFAULT_LANGUAGE,
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
+    MAX_FOLDERS_PER_USER,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
@@ -27,10 +28,12 @@ from backend.constants import (
     WEEKDAYS,
 )
 from backend.errors import ApiError
-from backend.models import FrequencyType, Review, Task, TaskStatus, User
+from backend.models import Folder, FrequencyType, Review, Task, TaskStatus, User
 from backend.repository import Repository, utc_now
 from backend.schedule import due_check, is_due_on, task_days
+from backend.schemas import Folder as FolderView
 from backend.schemas import (
+    FolderInput,
     Habit,
     HabitCreate,
     MetaResponse,
@@ -42,6 +45,10 @@ from backend.schemas import (
     SyncCreate,
     SyncDelete,
     SyncError,
+    SyncFolderCreate,
+    SyncFolderDelete,
+    SyncFolderOrder,
+    SyncFolderUpdate,
     SyncFreeze,
     SyncMark,
     SyncOperation,
@@ -490,6 +497,102 @@ async def _active_task(repo: Repository, user: User, ref: int | str) -> Task:
     return task
 
 
+async def list_folders(repo: Repository, user: User) -> list[FolderView]:
+    """Папки пользователя по порядку; привычки в каждой — только активные, в порядке
+    списка привычек."""
+    folders = await repo.get_folders(user.telegram_id)
+    if not folders:
+        return []
+    active = [task.id for task in await repo.get_active_tasks(user.telegram_id)]
+    views = []
+    for folder in folders:
+        inside = set(folder.task_ids or [])
+        views.append(
+            FolderView(
+                id=folder.id,
+                name=folder.name,
+                habits=[task_id for task_id in active if task_id in inside],
+            )
+        )
+    return views
+
+
+async def all_habits_position(repo: Repository, user: User) -> int:
+    """Место папки «Все привычки» среди папок — не дальше последней."""
+    return min(user.all_habits_position, len(await repo.get_folders(user.telegram_id)))
+
+
+async def _folder_task_ids(repo: Repository, user: User, payload: FolderInput) -> list[int]:
+    """Id привычек папки: каждая — по id или id устройства; удалённые (или так и не
+    созданные) пропускаются — их и на устройстве больше нет."""
+    task_ids: list[int] = []
+    for ref in payload.habits:
+        task = await _task_by_ref(repo, user, ref)
+        if task is not None and task.id not in task_ids:
+            task_ids.append(task.id)
+    return task_ids
+
+
+async def _folder_by_ref(repo: Repository, user: User, ref: int | str) -> Folder | None:
+    """Папка пользователя по id на сервере или по id устройства."""
+    if isinstance(ref, int):
+        return await repo.get_folder(ref, user.telegram_id)
+    return await repo.get_folder_by_ref(user.telegram_id, ref)
+
+
+async def _apply_folder_op(
+    repo: Repository,
+    user: User,
+    op: SyncFolderCreate | SyncFolderUpdate | SyncFolderDelete | SyncFolderOrder,
+) -> SyncResult:
+    """Применить операцию /sync с папками (ошибка — ApiError)."""
+    if isinstance(op, SyncFolderCreate):
+        existing = await repo.get_folder_by_ref(user.telegram_id, op.ref)
+        if existing is not None:
+            return SyncResult(ok=True, id=existing.id)
+        if len(await repo.get_folders(user.telegram_id)) >= MAX_FOLDERS_PER_USER:
+            raise ApiError(
+                409, "folder_limit", f"Можно завести не больше {MAX_FOLDERS_PER_USER} папок"
+            )
+        name = validation.validate_folder_name(op.folder.name)
+        folder = await repo.create_folder(
+            user.telegram_id, name, await _folder_task_ids(repo, user, op.folder), op.ref
+        )
+        return SyncResult(ok=True, id=folder.id)
+    if isinstance(op, SyncFolderUpdate):
+        folder = await _folder_by_ref(repo, user, op.key)
+        if folder is None:
+            raise ApiError(404, "folder_not_found", "Папка не найдена")
+        name = validation.validate_folder_name(op.folder.name)
+        await repo.update_folder(folder, name, await _folder_task_ids(repo, user, op.folder))
+        return SyncResult(ok=True)
+    if isinstance(op, SyncFolderDelete):
+        # Уже удалённая (или так и не созданная) папка — цель достигнута.
+        folder = await _folder_by_ref(repo, user, op.key)
+        if folder is not None:
+            # Папка стояла перед «Все привычки» — та сдвигается на её место.
+            folders = await repo.get_folders(user.telegram_id)
+            if folders.index(folder) < user.all_habits_position:
+                user.all_habits_position -= 1
+            await repo.delete_folder(folder)
+        return SyncResult(ok=True)
+    # Порядок: названные папки — как названы, остальные (созданные на другом устройстве)
+    # — за ними в прежнем порядке; «Все привычки» — на месте null (нет его — первой).
+    folders = await repo.get_folders(user.telegram_id)
+    ordered: list[Folder] = []
+    all_habits_position = 0
+    for ref in op.order:
+        if ref is None:
+            all_habits_position = len(ordered)
+            continue
+        folder = await _folder_by_ref(repo, user, ref)
+        if folder is not None and folder not in ordered:
+            ordered.append(folder)
+    ordered += [folder for folder in folders if folder not in ordered]
+    await repo.set_folder_order(user, ordered, all_habits_position)
+    return SyncResult(ok=True)
+
+
 async def _apply_sync_op(
     repo: Repository, user: User, op: SyncOperation, outcome: SyncOutcome
 ) -> SyncResult:
@@ -539,6 +642,8 @@ async def _apply_sync_op(
     if isinstance(op, SyncUpdate):
         await update_habit(repo, user, await _active_task(repo, user, op.task), op.habit)
         return SyncResult(ok=True)
+    if isinstance(op, (SyncFolderCreate, SyncFolderUpdate, SyncFolderDelete, SyncFolderOrder)):
+        return await _apply_folder_op(repo, user, op)
     if isinstance(op, SyncDelete):
         # Уже удалённая (или так и не созданная) привычка — цель достигнута.
         task = await _task_by_ref(repo, user, op.task)

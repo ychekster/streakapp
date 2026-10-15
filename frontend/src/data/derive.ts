@@ -9,9 +9,10 @@
  */
 
 import { HISTORY_DAYS, WEEKDAYS } from "../constants";
+import type { Folder } from "../types/folder";
 import type { FrequencyType, Habit, HabitInput } from "../types/habit";
 import type { Settings } from "../types/settings";
-import type { SyncOperation, TaskKey } from "../types/sync";
+import type { FolderKey, SyncOperation, TaskKey } from "../types/sync";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
@@ -29,6 +30,9 @@ export type Operation =
 export interface Snapshot {
   habits: Habit[];
   settings: Settings;
+  /** Not in snapshots kept before folders: none. */
+  folders?: Folder[];
+  all_habits_position?: number;
   /** Marking day of the answer: the last day of every habit's history. */
   today: string;
 }
@@ -565,6 +569,75 @@ export function deriveView(
     habits: drafts.map((draft) =>
       buildHabit(draft, displayId(draft.key), today, snapshot.today, calendarToday),
     ),
+  };
+}
+
+export interface FoldersView {
+  folders: Folder[];
+  /** Where «Все привычки» stands among the folders. */
+  allHabitsPosition: number;
+}
+
+/**
+ * The folders after the operations, as the server applies them (services._apply_folder_op):
+ * a folder shows only habits that are in `habits` (the view), in their order. `displayTask`
+ * and `displayFolder` give the ids habits and folders are shown under (store.ts).
+ */
+export function deriveFolders(
+  snapshot: Snapshot,
+  ops: readonly Operation[],
+  habits: readonly Habit[],
+  displayTask: (key: TaskKey) => number,
+  displayFolder: (key: FolderKey) => number,
+): FoldersView {
+  let drafts: { key: FolderKey; name: string; habits: TaskKey[] }[] = (snapshot.folders ?? []).map(
+    (folder) => ({ key: folder.id, name: folder.name, habits: folder.habits }),
+  );
+  let position = snapshot.all_habits_position ?? 0;
+  for (const op of ops) {
+    if (op.type === "folder_create") {
+      drafts.push({ key: op.ref, name: cleanHabitName(op.folder.name), habits: op.folder.habits });
+    } else if (op.type === "folder_update") {
+      drafts = drafts.map((draft) =>
+        draft.key === op.key
+          ? { key: draft.key, name: cleanHabitName(op.folder.name), habits: op.folder.habits }
+          : draft,
+      );
+    } else if (op.type === "folder_delete") {
+      const index = drafts.findIndex((draft) => draft.key === op.key);
+      if (index >= 0) {
+        // It stood before «Все привычки»: that one moves into its place.
+        if (index < position) {
+          position -= 1;
+        }
+        drafts.splice(index, 1);
+      }
+    } else if (op.type === "folder_order") {
+      const ordered: typeof drafts = [];
+      position = 0;
+      for (const key of op.order) {
+        if (key === null) {
+          position = ordered.length;
+          continue;
+        }
+        const draft = drafts.find((item) => item.key === key);
+        if (draft && !ordered.includes(draft)) {
+          ordered.push(draft);
+        }
+      }
+      drafts = [...ordered, ...drafts.filter((draft) => !ordered.includes(draft))];
+    }
+  }
+  return {
+    folders: drafts.map((draft) => {
+      const inside = new Set(draft.habits.map(displayTask));
+      return {
+        id: displayFolder(draft.key),
+        name: draft.name,
+        habits: habits.filter((habit) => inside.has(habit.id)).map((habit) => habit.id),
+      };
+    }),
+    allHabitsPosition: Math.min(position, drafts.length),
   };
 }
 

@@ -15,6 +15,7 @@ from backend.cities import City, city_index
 from backend.constants import (
     GRID_LAYOUTS,
     BROADCAST_BUTTONS,
+    FOLDER_NAME_MAX_LENGTH,
     HABIT_COLORS,
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
@@ -54,6 +55,20 @@ def validate_name(name: str) -> str:
     if len(cleaned) > HABIT_NAME_MAX_LENGTH:
         raise ApiError(
             422, "invalid_name", f"Название не длиннее {HABIT_NAME_MAX_LENGTH} символов"
+        )
+    return cleaned
+
+
+def validate_folder_name(name: str) -> str:
+    """Очистить и проверить название папки — как название привычки (`validate_name`)."""
+    cleaned = _one_line(name)
+    if not cleaned:
+        raise ApiError(422, "invalid_folder_name", "Введите название папки")
+    if len(cleaned) > FOLDER_NAME_MAX_LENGTH:
+        raise ApiError(
+            422,
+            "invalid_folder_name",
+            f"Название папки не длиннее {FOLDER_NAME_MAX_LENGTH} символов",
         )
     return cleaned
 

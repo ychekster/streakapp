@@ -203,3 +203,15 @@ export function DotsGridIcon() {
     </svg>
   );
 }
+
+/** «Папки»: папка с корешком. */
+export function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        {...STROKE}
+        d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2.2 2.3h7a2 2 0 0 1 2 2v7.7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"
+      />
+    </svg>
+  );
+}

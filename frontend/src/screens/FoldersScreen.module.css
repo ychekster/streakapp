@@ -1,0 +1,146 @@
+/* Значок и пояснение над списком папок — как в эталоне (настройки папок Telegram). */
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--space-title-bottom) - var(--space-header-bottom)) var(--space-card-padding) 0;
+  text-align: center;
+}
+
+/* Крупная плашка с папкой — как плашки рядов настроек, только больше. */
+.introIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--folders-intro-icon-size);
+  height: var(--folders-intro-icon-size);
+  border-radius: var(--folders-intro-icon-radius);
+  background-color: rgb(var(--habit-rgb));
+  color: var(--color-list-row-icon);
+}
+
+.introIcon svg {
+  width: var(--folders-intro-icon-glyph);
+  height: var(--folders-intro-icon-glyph);
+}
+
+.introText {
+  max-width: var(--folders-intro-text-width);
+  margin-top: var(--space-folders-intro-gap);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-list-footer);
+  color: var(--color-text-secondary);
+}
+
+/* Ряды — высоты рядов настроек. */
+.list {
+  --list-row-min-height: var(--form-row-min-height);
+  margin-top: var(--space-section-gap);
+}
+
+/* «Изменить» / «Готово» справа от заголовка секции, вровень с правым краем текста рядов. */
+.editButton {
+  padding: 0 var(--space-card-padding) 0 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-accent);
+  transition: opacity var(--transition-fast);
+}
+
+.editButton[data-pressed] {
+  opacity: 0.5;
+}
+
+.dimmed {
+  opacity: var(--list-row-disabled-opacity);
+}
+
+.name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Красный «−» (удалить папку): кружок, вокруг — запас под палец, не занимающий места. */
+.remove {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-shrink: 0;
+  margin: calc(-1 * var(--reminder-badge-hit));
+  padding: var(--reminder-badge-hit);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.minus,
+.removeSpace {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--reminder-badge-size);
+  height: var(--reminder-badge-size);
+  border-radius: 50%;
+}
+
+.minus {
+  background-color: var(--color-danger);
+}
+
+.minus::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--reminder-badge-bar);
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--color-on-habit);
+  transform: translate(-50%, -50%);
+}
+
+.remove[data-pressed] .minus {
+  opacity: 0.6;
+}
+
+/* Ручка перетаскивания: палец на ней не прокручивает страницу. */
+.handle {
+  display: flex;
+  margin: calc(-1 * var(--folders-handle-hit));
+  padding: var(--folders-handle-hit);
+  color: var(--color-text-secondary);
+  opacity: 0.55;
+  touch-action: none;
+  cursor: grab;
+}
+
+.handle svg {
+  width: var(--folders-handle-width);
+  height: var(--folders-handle-height);
+}
+
+/* Пока ряд тянут, соседи плавно уступают ему место. */
+.shifting {
+  transition: transform var(--folders-shift-anim);
+}
+
+/* Перетаскиваемый ряд — над остальными, с тенью и без линии-разделителя. */
+.row.dragging {
+  z-index: 2;
+  background-color: var(--color-card);
+  box-shadow: var(--folders-drag-shadow);
+  transition: none;
+}
+
+.row.dragging::before {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shifting {
+    transition: none;
+  }
+}

@@ -1,0 +1,50 @@
+/* Ряды привычек — высоты рядов настроек. */
+.list {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* Название занимает всё место до кружка и обрезается многоточием. */
+.name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Первая буква названия в плашке цвета привычки. */
+.letter {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Кружок выбора справа — как у выбора «Вида сетки»: пустой с обводкой или залитый с
+   галочкой. */
+.check {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--folder-check-size);
+  height: var(--folder-check-size);
+  border-radius: 50%;
+  border: 1.5px solid var(--color-text-secondary);
+  color: var(--color-check-icon);
+}
+
+.check svg {
+  width: 14px;
+  height: 14px;
+}
+
+.checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+}
+
+.empty {
+  padding: var(--space-section-gap) var(--space-card-padding);
+  text-align: center;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-text-secondary);
+}

@@ -14,10 +14,14 @@
  *  - экран привычки — нажатием на привычку в списке;
  *  - форма привычки — кнопкой «+» (новая привычка) или «Редактировать привычку» на
  *    экране привычки; «Назад» закрывает её без сохранения;
- *  - выбор часового пояса, «Написать отзыв», политика конфиденциальности и условия
- *    использования — из настроек. «Написать отзыв» открывает и кнопка под рассылкой:
+ *  - выбор часового пояса, «Написать отзыв», «Папки», политика конфиденциальности и
+ *    условия использования — из настроек. Поверх «Папок» — форма папки, поверх неё —
+ *    выбор привычек в папку (черновик формы — здесь, folderDraft). «Написать отзыв» открывает и кнопка под рассылкой:
  *    приложение запускается сразу на нём (параметр адреса `open=review`). Так же кнопка
  *    «Добавить привычку» открывает сразу форму новой привычки (`open=new_habit`).
+ * Когда есть папки, над списком привычек — их таблетка; выбранная папка помнится до
+ * закрытия приложения (при запуске — первая вкладка). Новая привычка, созданная, пока
+ * выбрана папка, попадает в эту папку.
  * При возврате экран открывается на той же позиции прокрутки, на которой его оставили.
  * Так же и вкладки: у каждой своя позиция; ещё не прокрученная открывается с начала.
  *
@@ -84,6 +88,10 @@ import { LegalScreen } from "./screens/LegalScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { CheckinReminderScreen } from "./screens/CheckinReminderScreen";
 import { GridLayoutScreen } from "./screens/GridLayoutScreen";
+import { FolderFormScreen, type FolderDraft } from "./screens/FolderFormScreen";
+import { FolderHabitsScreen } from "./screens/FolderHabitsScreen";
+import { FoldersScreen } from "./screens/FoldersScreen";
+import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
@@ -93,11 +101,13 @@ import { STRINGS } from "./strings";
 import {
   getTelegramUserLabel,
   hapticNotification,
+  hapticSelection,
   initTelegram,
   showAlert,
   isTelegramAvailable,
   setTelegramColors,
 } from "./telegram/webapp";
+import type { Folder } from "./types/folder";
 import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
@@ -182,7 +192,7 @@ export function App() {
   const { habits, status, error, reload, refresh } = useHabits();
   const settingsState = useSettings();
   const { settings, save } = settingsState;
-  const { rejected } = useAppData();
+  const { rejected, folders, allHabitsPosition } = useAppData();
   const toggle = useToggle();
   const telegramAvailable = isTelegramAvailable();
   const platform = usePlatform();
@@ -204,6 +214,11 @@ export function App() {
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
     start === "review" ? "review" : start === "install" ? "install" : null,
   );
+  // Форма папки (Настройки → «Папки») и выбор привычек в неё поверх формы.
+  const [folderDraft, setFolderDraft] = useState<FolderDraft | null>(null);
+  const [folderPicker, setFolderPicker] = useState(false);
+  // Выбранная вкладка таблетки папок: "all" или id папки; null — первая.
+  const [folderTab, setFolderTab] = useState<string | null>(null);
   // The account: in the web app — guest or not («!» on the Settings tab, Settings); in
   // both — what Settings → «Аккаунт» shows. Kept on the device in the web app only.
   const [account, setAccount] = useState<Account | null>(() => (web ? keptAccount() : null));
@@ -216,6 +231,8 @@ export function App() {
   const scrollUnderHabit = useRef(0);
   const scrollUnderEditor = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
+  const scrollUnderFolderForm = useRef(0);
+  const scrollUnderFolderPicker = useRef(0);
   const scrollUnderAdmin = useRef(0);
   // Позиция прокрутки каждой вкладки, пока открыта другая.
   const tabScroll = useRef<Record<TabKey, number>>({ habits: 0, settings: 0 });
@@ -245,6 +262,41 @@ export function App() {
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);
+
+  // Таблетка папок над списком: папки и «Все привычки» на своём месте. Выбранной папки
+  // больше нет — первая вкладка.
+  const folderTabs = useMemo(() => {
+    const tabs = folders.map((folder) => ({ key: String(folder.id), label: folder.name }));
+    tabs.splice(Math.min(allHabitsPosition, tabs.length), 0, {
+      key: "all",
+      label: strings.foldersAll,
+    });
+    return tabs;
+  }, [folders, allHabitsPosition, strings]);
+  const activeFolderTab =
+    folderTabs.find((item) => item.key === folderTab)?.key ?? folderTabs[0].key;
+  const activeFolder =
+    activeFolderTab === "all"
+      ? null
+      : (folders.find((folder) => String(folder.id) === activeFolderTab) ?? null);
+  const shownHabits = useMemo(
+    () => (activeFolder ? habits.filter((habit) => activeFolder.habits.includes(habit.id)) : habits),
+    [habits, activeFolder],
+  );
+  const folderBar: FolderBarState | null =
+    folders.length > 0
+      ? {
+          tabs: folderTabs,
+          active: activeFolderTab,
+          onSelect: (key) => {
+            if (key !== activeFolderTab) {
+              hapticSelection();
+              setFolderTab(key);
+            }
+          },
+          inFolder: activeFolder !== null,
+        }
+      : null;
   // In the Mini App Telegram itself says who it is (also before the account loads).
   const telegramLabel =
     (web ? null : getTelegramUserLabel()) ??
@@ -297,6 +349,28 @@ export function App() {
   const hideSettingsPage = useCallback(() => {
     pendingScroll.current = scrollUnderSettingsPage.current;
     setSettingsPage(null);
+  }, []);
+
+  const showFolderForm = useCallback((folder: Folder | null) => {
+    scrollUnderFolderForm.current = window.scrollY;
+    pendingScroll.current = 0;
+    setFolderDraft({ folder, name: folder?.name ?? "", habits: folder?.habits ?? [] });
+  }, []);
+
+  const hideFolderForm = useCallback(() => {
+    pendingScroll.current = scrollUnderFolderForm.current;
+    setFolderDraft(null);
+  }, []);
+
+  const showFolderPicker = useCallback(() => {
+    scrollUnderFolderPicker.current = window.scrollY;
+    pendingScroll.current = 0;
+    setFolderPicker(true);
+  }, []);
+
+  const hideFolderPicker = useCallback(() => {
+    pendingScroll.current = scrollUnderFolderPicker.current;
+    setFolderPicker(false);
   }, []);
 
   const enterAdmin = useCallback(() => {
@@ -352,9 +426,13 @@ export function App() {
   );
 
   // Привычка уже сохранена (на устройстве, сервер — следом): изменённая — возвращаемся на
-  // её экран, новая (она в конце списка) — открывается список привычек.
-  function saveHabit(): void {
+  // её экран, новая (она в конце списка) — открывается список привычек. Новая, пока
+  // выбрана папка, попадает в неё — иначе её не было бы видно в открывшемся списке.
+  function saveHabit(habit: Habit): void {
     hapticNotification("success");
+    if (editor?.habit == null && activeFolder) {
+      dataStore.addToFolder(activeFolder.id, habit.id);
+    }
     if (editor?.habit == null) {
       // Форма открыта с другой вкладки: та запоминает свою позицию, а список привычек
       // открывается на своей.
@@ -403,9 +481,13 @@ export function App() {
         ? hideEditor
         : openHabit
           ? hideHabit
-          : settingsPage
-            ? hideSettingsPage
-            : null,
+          : folderPicker
+            ? hideFolderPicker
+            : folderDraft
+              ? hideFolderForm
+              : settingsPage
+                ? hideSettingsPage
+                : null,
   );
 
   // Пояс не выбран (новый пользователь, до этого считалось по UTC) — ставим пояс
@@ -547,6 +629,8 @@ export function App() {
         }
         setTab("habits");
         setSettingsPage(null);
+        setFolderDraft(null);
+        setFolderPicker(false);
         showHabit(id);
         if (fromTab) {
           // «Назад» с экрана привычки — на список, туда, где его оставили.
@@ -703,6 +787,42 @@ export function App() {
           />
         );
       }
+      if (settingsPage === "folders" && folderDraft && folderPicker) {
+        return (
+          <FolderHabitsScreen
+            habits={habits}
+            selected={folderDraft.habits}
+            onDone={(selected) => {
+              setFolderDraft({ ...folderDraft, habits: selected });
+              hideFolderPicker();
+            }}
+          />
+        );
+      }
+      if (settingsPage === "folders" && folderDraft) {
+        return (
+          <FolderFormScreen
+            key={folderDraft.folder?.id ?? "new"}
+            draft={folderDraft}
+            habits={habits}
+            onChangeName={(name) => setFolderDraft({ ...folderDraft, name })}
+            onPickHabits={showFolderPicker}
+            onDone={hideFolderForm}
+          />
+        );
+      }
+      if (settingsPage === "folders") {
+        return (
+          <FoldersScreen
+            folders={folders}
+            allHabitsPosition={allHabitsPosition}
+            onCreate={() => showFolderForm(null)}
+            onOpen={showFolderForm}
+            onDelete={(folder) => dataStore.deleteFolder(folder.id)}
+            onReorder={(order) => dataStore.orderFolders(order)}
+          />
+        );
+      }
       if (settingsPage === "review") {
         return <ReviewScreen />;
       }
@@ -743,6 +863,7 @@ export function App() {
                 ? { guest: account.is_guest, label: telegramLabel, status: "known" }
                 : { guest: false, label: null, status: accountOffline ? "offline" : "loading" }
           }
+          folderCount={folders.length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />
@@ -750,7 +871,8 @@ export function App() {
     }
     return (
       <HabitsScreen
-        habits={habits}
+        habits={shownHabits}
+        folders={folderBar}
         status={status}
         error={error}
         markYesterday={markYesterday}

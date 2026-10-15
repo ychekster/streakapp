@@ -1,0 +1,19 @@
+/* «+ Добавить привычки»: тонкий «+» цветом акцента перед подписью (как в эталоне). */
+.addLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--reminder-badge-gap);
+}
+
+.plus {
+  flex-shrink: 0;
+  width: var(--reminder-badge-size);
+  height: var(--reminder-badge-size);
+}
+
+.habitName {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

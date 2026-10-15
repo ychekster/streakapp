@@ -64,7 +64,7 @@ function doneHabit(fields: Partial<Habit> = {}): Habit {
 }
 
 function answer(habits: Habit[], results: SyncResponse["results"] = []): SyncResponse {
-  return { results, habits, settings: SETTINGS, today: TODAY };
+  return { results, habits, settings: SETTINGS, folders: [], all_habits_position: 0, today: TODAY };
 }
 
 async function freshStore() {
@@ -258,5 +258,45 @@ describe("dataStore", () => {
     other.start();
     expect(other.getState().status).toBe("loading");
     expect(other.getState().habits).toEqual([]);
+  });
+  it("keeps folders on the device and names them by server id once created", async () => {
+    syncChanges.mockResolvedValueOnce(answer([habit(), habit({ id: 2, name: "Бег" })]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const id = store.createFolder(" Утро ", [2]);
+    store.orderFolders([id, null]);
+    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2] }]);
+    expect(store.getState().allHabitsPosition).toBe(1);
+
+    const ref = (JSON.parse(localStorage.getItem("streak:changes")!).value[0].ref);
+    syncChanges.mockResolvedValueOnce({
+      ...answer(
+        [habit(), habit({ id: 2, name: "Бег" })],
+        [
+          { ok: true, id: 7, error: null },
+          { ok: true, id: null, error: null },
+        ],
+      ),
+      folders: [{ id: 7, name: "Утро", habits: [2] }],
+      all_habits_position: 1,
+    });
+    await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS);
+    expect(syncChanges.mock.calls[1][0]).toEqual([
+      { type: "folder_create", ref, folder: { name: " Утро ", habits: [2] } },
+      { type: "folder_order", order: [ref, null] },
+    ]);
+    // The same id on screen after the server answered.
+    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2] }]);
+
+    store.updateFolder(id, "Вечер", [1, 2]);
+    expect(store.getState().folders).toEqual([{ id, name: "Вечер", habits: [1, 2] }]);
+    expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([
+      { type: "folder_update", key: 7, folder: { name: "Вечер", habits: [1, 2] } },
+    ]);
+    store.deleteFolder(id);
+    expect(store.getState().folders).toEqual([]);
+    expect(store.getState().allHabitsPosition).toBe(0);
   });
 });

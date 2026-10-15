@@ -229,6 +229,11 @@ export const SYNC_REFRESH_MIN_MS = 15_000;
  *  the device, the server checks it again. */
 export const MAX_HABITS_PER_USER = 50;
 
+/** Habit folders (Settings → «Папки»): how many a user can have and how long a name
+ *  can be — MAX_FOLDERS_PER_USER and FOLDER_NAME_MAX_LENGTH on the backend. */
+export const MAX_FOLDERS_PER_USER = 10;
+export const FOLDER_NAME_MAX_LENGTH = 24;
+
 /** Most times a day a habit can be done (MAX_TIMES_PER_DAY on the backend): the form's
  *  −/+ stops there. */
 export const MAX_TIMES_PER_DAY = 96;

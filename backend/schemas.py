@@ -18,6 +18,7 @@ from backend.constants import (
     HABIT_DESCRIPTION_MAX_LENGTH,
     HISTORY_DAYS,
     MAX_DB_INT,
+    MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
     SEGMENT_TITLE_MAX_LENGTH,
@@ -351,8 +352,63 @@ class SyncSettings(BaseModel):
     patch: SettingsUpdate
 
 
+# Папка в операции: id на сервере или id, который дало ей устройство при создании.
+FolderRef = Annotated[int, Field(ge=1, le=MAX_DB_INT)] | ClientRef
+
+
+class FolderInput(BaseModel):
+    """Поля папки (форма папки): название и привычки в ней."""
+
+    name: str = Field(..., description="Название папки")
+    habits: list[TaskRef] = Field(
+        default_factory=list,
+        max_length=MAX_HABITS_PER_USER,
+        description="Привычки в папке (id или id устройства); удалённые пропускаются",
+    )
+
+
+class SyncFolderCreate(BaseModel):
+    """Создать папку (последней); `ref` — её id на устройстве (повтор — не дубль)."""
+
+    type: Literal["folder_create"]
+    ref: ClientRef
+    folder: FolderInput
+
+
+class SyncFolderUpdate(BaseModel):
+    """Изменить папку — название и привычки целиком."""
+
+    type: Literal["folder_update"]
+    key: FolderRef
+    folder: FolderInput
+
+
+class SyncFolderDelete(BaseModel):
+    """Удалить папку (уже удалённая — не ошибка)."""
+
+    type: Literal["folder_delete"]
+    key: FolderRef
+
+
+class SyncFolderOrder(BaseModel):
+    """Порядок папок; null — место папки «Все привычки». Папки, которых нет в списке,
+    встают в конец."""
+
+    type: Literal["folder_order"]
+    order: list[FolderRef | None] = Field(..., max_length=SYNC_MAX_OPS)
+
+
 SyncOperation = Annotated[
-    SyncMark | SyncFreeze | SyncCreate | SyncUpdate | SyncDelete | SyncSettings,
+    SyncMark
+    | SyncFreeze
+    | SyncCreate
+    | SyncUpdate
+    | SyncDelete
+    | SyncSettings
+    | SyncFolderCreate
+    | SyncFolderUpdate
+    | SyncFolderDelete
+    | SyncFolderOrder,
     Field(discriminator="type"),
 ]
 
@@ -378,12 +434,24 @@ class SyncResult(BaseModel):
     error: SyncError | None = None
 
 
+class Folder(BaseModel):
+    """Папка привычек."""
+
+    id: int
+    name: str
+    habits: list[int] = Field(..., description="Id привычек в папке — в порядке списка привычек")
+
+
 class SyncResponse(BaseModel):
     """Ответ `POST /sync`: итог каждой операции (в том же порядке) и состояние после них."""
 
     results: list[SyncResult]
     habits: list[Habit]
     settings: SettingsResponse
+    folders: list[Folder] = Field(default_factory=list, description="Папки по порядку")
+    all_habits_position: int = Field(
+        0, description="Место папки «Все привычки» среди папок (сколько папок перед ней)"
+    )
     today: date = Field(
         ..., description="День отметки — последний день `history` каждой привычки"
     )
