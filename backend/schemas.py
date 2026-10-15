@@ -152,6 +152,13 @@ class Habit(BaseModel):
             "fixed начинается с левого верхнего кружка"
         ),
     )
+    first_done_on: date | None = Field(
+        None,
+        description=(
+            "День первой отметки (самая ранняя выполненная дата, может быть старше "
+            "`history`); null — отметок нет. С него начинается сетка «Вида сетки» fixed"
+        ),
+    )
     auto_mark_ahead: bool = Field(
         True,
         description=(

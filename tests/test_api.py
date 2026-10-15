@@ -291,7 +291,7 @@ def test_grid_layout_setting(client: TestClient, user: AuthUser) -> None:
 
 
 def test_habit_created_on_is_users_calendar_day(client: TestClient, user: AuthUser) -> None:
-    # Сетка «По порядку» начинается с дня создания — в поясе пользователя.
+    # День создания привычки — календарный день в поясе пользователя.
     client.put("/settings", json={"timezone": "Pacific/Kiritimati"}, headers=user.headers)
     today = datetime.now(pytz.timezone("Pacific/Kiritimati")).date().isoformat()
     created = client.post("/tasks", json=_habit(), headers=user.headers).json()["habit"]

@@ -15,10 +15,10 @@ from backend.analytics.report import STREAK_BUCKETS, bucket_of
 from backend.sources import parse_source, parse_start_param, source_group
 from backend.errors import ApiError
 from backend.database import Database
-from backend.models import FrequencyType, TaskStatus
+from backend.models import FrequencyType, Task, TaskStatus
 from backend.repository import Repository, TaskSchedule
 from backend.schedule import is_due_on
-from backend.services import compute_streaks, frozen_check
+from backend.services import build_habit, compute_streaks, frozen_check
 from backend.validation import resolve_timezone, validate_frequency, validate_name
 
 TODAY = date(2026, 9, 22)  # вторник
@@ -62,6 +62,19 @@ def test_frozen_days_do_not_break_streak() -> None:
     assert compute_streaks(task, done, TODAY, is_frozen) == (3, 3)
     # Без заморозки пропуски позавчера и 3–4 дня назад серию прерывают.
     assert compute_streaks(task, done, TODAY) == (1, 2)
+
+
+def test_first_mark_is_known_beyond_the_history() -> None:
+    # Сетка «По порядку» начинается с первой отметки — и через год, когда она ушла из истории.
+    task = Task(
+        id=1, user_id=1, name="Бег", frequency_type=FrequencyType.daily, color="red",
+        times_per_day=1, auto_mark=False, is_active=True,
+    )
+    old = TODAY - timedelta(days=500)
+    habit = build_habit(task, {old, TODAY}, TODAY)
+    assert habit.first_done_on == old
+    assert not any(habit.history[:-1])
+    assert build_habit(task, set(), TODAY).first_done_on is None
 
 
 def test_every_other_day_schedule_and_streak() -> None:

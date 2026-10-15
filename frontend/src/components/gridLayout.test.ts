@@ -9,7 +9,7 @@ import { fixedGridFill, type GridView } from "./gridLayout";
 const fixed = (day: string): GridView => ({ layout: "fixed", day });
 
 /** A habit created on `created_on` with its history up to the marking day `day`, where
- *  only the days `marks` are done. */
+ *  only the days `marks` are done; the first mark comes from the server, as in the API. */
 const habit = (created_on: string | undefined, day: string, marks: string[] = []) => {
   const history = Array<boolean>(HISTORY_DAYS).fill(false);
   for (const mark of marks) {
@@ -18,7 +18,8 @@ const habit = (created_on: string | undefined, day: string, marks: string[] = []
       history[index] = true;
     }
   }
-  return { created_on, history };
+  const first_done_on = marks.length > 0 ? [...marks].sort()[0] : null;
+  return { created_on, first_done_on, history };
 };
 
 /** The fixed grid's fill on the marking day `day`. */
@@ -81,9 +82,24 @@ describe("fixedGridFill", () => {
     expect(year("2027-10-03")).toBe(364);
   });
 
-  it("goes from the creation day once the habit is older than its history", () => {
-    // Day 369 of a habit: its first mark may be out of the history.
+  it("keeps its start once the first mark leaves the history", () => {
+    // Created on Oct 1, first marked on Oct 10: the start stays on Oct 10 a year later.
+    const marks = ["2026-10-10", "2027-10-01"];
+    const before = fill("2027-10-07", "2026-10-01", marks) ?? 0;
+    expect(fill("2027-10-08", "2026-10-01", marks)).toBe(before + 1);
+    expect(fill("2027-10-12", "2026-10-01", marks)).toBe(before + 5);
+    expect(fill("2027-10-12", "2026-10-01", marks)).toBe(
+      (daysBetween("2026-10-10", "2027-10-12") % 184) + 1,
+    );
+  });
+
+  it("is the marking day for an old habit that was never marked", () => {
     expect(fill("2027-10-04", "2026-10-01", [])).toBe(1);
-    expect(fill("2027-10-04", "2026-10-01", ["2027-10-01"], 364, 184)).toBe(183);
+  });
+
+  it("goes from the creation day for an old habit saved before the first mark was sent", () => {
+    // Day 369 of a habit kept on the device without `first_done_on`.
+    const old = { ...habit("2026-10-01", "2027-10-04", ["2027-10-01"]), first_done_on: undefined };
+    expect(fixedGridFill(fixed("2027-10-04"), old, 364, 184)).toBe(183);
   });
 });

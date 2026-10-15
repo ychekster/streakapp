@@ -37,25 +37,30 @@ export function useGridView(): GridView {
   return useContext(GridViewContext);
 }
 
+/** Что сетке fixed нужно от привычки. */
+type GridHabit = Pick<Habit, "created_on" | "first_done_on" | "history" | "history_counts">;
+
 /**
  * Первый день привычки в виде "fixed" — день первой отметки (в режиме «Отмечать за вчера»
  * отметили за вчера — первый день вчера). Пока отметок нет — день отметки: сетка
- * начинается с него. Привычка старше истории (первая отметка могла не попасть в неё) —
- * от дня создания.
+ * начинается с него. Первая отметка старше истории — её день от сервера
+ * (`first_done_on`), так начало не сдвигается, когда она уходит из истории. Привычка
+ * старше истории без этого поля (сохранена на устройстве до него) — от дня создания.
  */
-function firstDay(
-  habit: Pick<Habit, "created_on" | "history" | "history_counts">,
-  createdOn: string,
-  day: string,
-): string {
+function firstDay(habit: GridHabit, createdOn: string, day: string): string {
   const { history } = habit;
-  if (daysBetween(createdOn, day) >= history.length) {
+  // Последний день истории — день отметки.
+  const historyStart = addDays(day, 1 - history.length);
+  const known = habit.first_done_on;
+  if (known && known < historyStart) {
+    return known;
+  }
+  if (known === undefined && daysBetween(createdOn, day) >= history.length) {
     return createdOn;
   }
   const counts = habit.history_counts ?? [];
-  // Последний день истории — день отметки.
   const index = history.findIndex((done, at) => done || (counts[at] ?? 0) > 0);
-  return index < 0 ? day : addDays(day, index - (history.length - 1));
+  return index < 0 ? day : addDays(historyStart, index);
 }
 
 /**
@@ -68,7 +73,7 @@ function firstDay(
  */
 export function fixedGridFill(
   view: GridView,
-  habit: Pick<Habit, "created_on" | "history" | "history_counts">,
+  habit: GridHabit,
   cells: number,
   page: number = GRID_DAYS,
 ): number | null {

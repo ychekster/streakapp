@@ -220,6 +220,7 @@ def build_habit(
         next_day_done=next_day_done,
         next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
         created_on=created_on,
+        first_done_on=min(done_dates) if done_dates else None,
     )
 
 
