@@ -152,7 +152,8 @@
   /* Эффект матового стекла целиком одним токеном: платформа может заменить его на none,
      и тогда backdrop-filter не создаёт слоя вовсе (а не считает размытие на 0px). */
   --header-bar-backdrop: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
-  --header-bar-tint: rgba(242, 242, 246, 0.8); /* --color-background на 80% */
+  /* Почти белая, как шапка «Настроек» iOS 26 (замер: ~#fbfbfd поверх контента). */
+  --header-bar-tint: rgba(252, 252, 254, 0.8);
   --header-hairline-scale: 1;
   --header-hairline-color: rgba(0, 0, 0, 0.09);
   --collapsed-title-rise: 8px; /* на сколько свёрнутый заголовок «всплывает» снизу при появлении */
@@ -481,11 +482,13 @@
   /* rgba(255,255,255,0.9) и 0.78 поверх --color-background (#f2f2f6). */
   --glass-fill: linear-gradient(180deg, #fefefe, #fcfcfd);
   /* Подложка шапки становится непрозрачной: содержимое под ней не просвечивает, как у
-     сплошной шапки iOS. Цвет темы берётся сам — переменная общая для обеих тем. */
-  --header-bar-tint: var(--color-background);
+     сплошной шапки iOS. Светлая — та же почти белая (rgba(252,252,254,0.8) поверх
+     фона), тёмная — цвет фона. */
+  --header-bar-tint: #fafafc;
 }
 
 :root[data-platform="android"][data-theme="dark"] {
+  --header-bar-tint: var(--color-background);
   /* rgba(40,40,42,0.74) и 0.8 поверх --color-background (#000000). */
   --glass-fill: linear-gradient(180deg, #1e1e1f, #202022);
 }
@@ -590,7 +593,7 @@
     var(--color-background),
     var(--web-header-glass) var(--web-header-fade)
   );
-  --web-header-glass: rgba(242, 242, 246, 0.8); /* --color-background at 80% */
+  --web-header-glass: rgba(252, 252, 254, 0.8); /* the light bar tint from :root */
   --web-header-fade: 24px;
   /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
   --web-back-size: 44px;
