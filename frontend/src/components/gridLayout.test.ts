@@ -2,44 +2,88 @@
 
 import { describe, expect, it } from "vitest";
 
+import { HISTORY_DAYS } from "../constants";
+import { daysBetween } from "../data/dates";
 import { fixedGridFill, type GridView } from "./gridLayout";
 
-const fixed = (calendarDay: string): GridView => ({ layout: "fixed", calendarDay });
+const fixed = (day: string): GridView => ({ layout: "fixed", day });
+
+/** A habit created on `created_on` with its history up to the marking day `day`, where
+ *  only the days `marks` are done. */
+const habit = (created_on: string | undefined, day: string, marks: string[] = []) => {
+  const history = Array<boolean>(HISTORY_DAYS).fill(false);
+  for (const mark of marks) {
+    const index = HISTORY_DAYS - 1 - daysBetween(mark, day);
+    if (index >= 0) {
+      history[index] = true;
+    }
+  }
+  return { created_on, history };
+};
+
+/** The fixed grid's fill on the marking day `day`. */
+const fill = (day: string, created: string, marks: string[], cells = 184, page = 184) =>
+  fixedGridFill(fixed(day), habit(created, day, marks), cells, page);
 
 describe("fixedGridFill", () => {
   it("is null for the rolling grid and before the day is known", () => {
-    expect(fixedGridFill({ layout: "rolling", calendarDay: "2026-10-05" }, "2026-10-01", 184)).toBeNull();
-    expect(fixedGridFill({ layout: "fixed", calendarDay: null }, "2026-10-01", 184)).toBeNull();
-    expect(fixedGridFill(fixed("2026-10-05"), undefined, 184)).toBeNull();
+    const water = habit("2026-10-01", "2026-10-05", ["2026-10-01"]);
+    expect(fixedGridFill({ layout: "rolling", day: "2026-10-05" }, water, 184)).toBeNull();
+    expect(fixedGridFill({ layout: "fixed", day: null }, water, 184)).toBeNull();
+    expect(fixedGridFill(fixed("2026-10-05"), { ...water, created_on: undefined }, 184)).toBeNull();
   });
 
-  it("fills from the creation day and starts over once full", () => {
-    expect(fixedGridFill(fixed("2026-10-01"), "2026-10-01", 184)).toBe(1);
-    expect(fixedGridFill(fixed("2026-10-03"), "2026-10-01", 184)).toBe(3);
+  it("starts on the first mark, not on the creation day", () => {
+    expect(fill("2026-10-18", "2026-10-15", ["2026-10-15"])).toBe(4);
+    // Created on the 15th, first marked on the 17th: the 17th is the first dot.
+    expect(fill("2026-10-18", "2026-10-15", ["2026-10-17", "2026-10-18"])).toBe(2);
+    // Marked for yesterday (the 14th) on the creation day: the 14th is the first dot.
+    expect(fill("2026-10-17", "2026-10-15", ["2026-10-14"])).toBe(4);
+  });
+
+  it("counts a partly done day as a mark", () => {
+    const counts = Array<number>(HISTORY_DAYS).fill(0);
+    counts[HISTORY_DAYS - 3] = 1;
+    const partial = { ...habit("2026-10-15", "2026-10-17"), history_counts: counts };
+    expect(fixedGridFill(fixed("2026-10-17"), partial, 184)).toBe(3);
+  });
+
+  it("is just the marking day before the first mark", () => {
+    expect(fill("2026-10-15", "2026-10-15", [])).toBe(1);
+    expect(fill("2026-10-20", "2026-10-15", [])).toBe(1);
+    // «Mark as yesterday» on the creation day: yesterday.
+    expect(fill("2026-10-14", "2026-10-15", [])).toBe(1);
+  });
+
+  it("ends on the marking day: «mark as yesterday» takes one dot off the end", () => {
+    // First marked on the 15th, today the 18th: four dots; marking yesterday — three.
+    expect(fill("2026-10-18", "2026-10-15", ["2026-10-15"])).toBe(4);
+    expect(fill("2026-10-17", "2026-10-15", ["2026-10-15"])).toBe(3);
+  });
+
+  it("starts over once the list grid is full", () => {
+    const first = ["2026-10-01"];
     // Day 184 fills the grid, day 185 is the first dot of a new one.
-    expect(fixedGridFill(fixed("2027-04-02"), "2026-10-01", 184)).toBe(184);
-    expect(fixedGridFill(fixed("2027-04-03"), "2026-10-01", 184)).toBe(1);
+    expect(fill("2027-04-02", "2026-10-01", first)).toBe(184);
+    expect(fill("2027-04-03", "2026-10-01", first)).toBe(1);
   });
 
   it("keeps the last half-year on top of the year grid", () => {
-    const start = "2026-10-01";
-    const year = (day: string) => fixedGridFill(fixed(day), start, 364, 184);
+    const year = (day: string) => fill(day, "2026-10-01", ["2026-10-01"], 364, 184);
     // The first half-year fills the year grid from the top: day 184 — dot 184.
     expect(year("2026-10-01")).toBe(1);
     expect(year("2027-04-02")).toBe(184);
     // Day 185: the list starts over; on the year grid the past half-year is the top half
     // (its last 182 days) and the new one starts at the bottom half.
     expect(year("2027-04-03")).toBe(183);
-    expect(fixedGridFill(fixed("2027-04-03"), start, 184)).toBe(1);
     // The new half-year's day 182 is the last dot; its last two days shift the grid.
     expect(year("2027-10-01")).toBe(364);
     expect(year("2027-10-03")).toBe(364);
-    // The next half-year: the same again.
-    expect(year("2027-10-04")).toBe(183);
   });
 
-  it("never goes before the first dot", () => {
-    // Created «tomorrow» after the time zone moved west.
-    expect(fixedGridFill(fixed("2026-10-01"), "2026-10-02", 184)).toBe(1);
+  it("goes from the creation day once the habit is older than its history", () => {
+    // Day 369 of a habit: its first mark may be out of the history.
+    expect(fill("2027-10-04", "2026-10-01", [])).toBe(1);
+    expect(fill("2027-10-04", "2026-10-01", ["2027-10-01"], 364, 184)).toBe(183);
   });
 });

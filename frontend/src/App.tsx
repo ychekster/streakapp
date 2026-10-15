@@ -62,7 +62,7 @@ import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
-import { todayIn } from "./data/dates";
+import { markingDay } from "./data/dates";
 import { dataStore } from "./data/store";
 import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
@@ -257,13 +257,13 @@ export function App() {
     () => ({ language, strings, theme }),
     [language, strings, theme],
   );
-  // «Вид сетки» и календарный сегодня для сеток привычек (components/gridLayout.ts).
+  // «Вид сетки» и день отметки для сеток привычек (components/gridLayout.ts).
   // Новый день приходит с пересчётом привычек (data/store.ts) — и с ним новый рендер.
   const gridLayout = settings?.grid_layout ?? "rolling";
-  const calendarDay = settings ? todayIn(settings.timezone) : null;
+  const gridDay = settings ? markingDay(settings.timezone, settings.mark_yesterday) : null;
   const gridView = useMemo(
-    () => ({ layout: gridLayout, calendarDay }),
-    [gridLayout, calendarDay],
+    () => ({ layout: gridLayout, day: gridDay }),
+    [gridLayout, gridDay],
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);

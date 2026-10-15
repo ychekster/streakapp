@@ -1,57 +1,81 @@
 /**
  * «Вид сетки» (Настройки): как сетка привычки раскладывает дни.
  *
- *  - "rolling" — сегодня всегда в правом нижнем кружке, вчерашний день уходит влево
+ *  - "rolling" — день отметки всегда в правом нижнем кружке, вчерашний день уходит влево
  *    (и с левого края ряда — на ряд выше);
- *  - "fixed" — день создания привычки в левом верхнем кружке, дальше каждый
- *    календарный день — следующий кружок слева направо, сверху вниз, без сдвига. Дни
- *    идут «листами» по полгода — по сетке списка (GRID_DAYS): лист заполнился —
- *    сетка списка начинается заново. Годовая сетка (экран привычки) показывает два
- *    листа: первый лист заполняет её сверху; дальше прошлый лист — в верхней половине
- *    (без первых дней, что не поместились), текущий — с начала нижней. Последние дни
- *    листа в нижнюю половину не помещаются — в эти дни сетка сдвигается на кружок.
+ *  - "fixed" — первый день привычки (день первой отметки) в левом верхнем кружке, дальше
+ *    каждый календарный день — следующий кружок слева направо, сверху вниз, без сдвига.
+ *    Начало неподвижно, кончается сетка днём отметки: в режиме «Отмечать за вчера» она на
+ *    кружок короче. Дни идут «листами» по
+ *    полгода — по сетке списка (GRID_DAYS): лист заполнился — сетка списка начинается
+ *    заново. Годовая сетка (экран привычки) показывает два листа: первый лист заполняет
+ *    её сверху; дальше прошлый лист — в верхней половине (без первых дней, что не
+ *    поместились), текущий — с начала нижней. Последние дни листа в нижнюю половину не
+ *    помещаются — в эти дни сетка сдвигается на кружок.
  *
- * Вид и календарный сегодня App раздаёт через контекст: так их не нужно передавать
- * через каждый список. Без контекста (админ-панель) — "rolling".
+ * Вид и день отметки App раздаёт через контекст: так их не нужно передавать через
+ * каждый список. Без контекста (админ-панель) — "rolling".
  */
 
 import { createContext, useContext } from "react";
 
 import { GRID_DAYS } from "../constants";
-import { daysBetween } from "../data/dates";
+import { addDays, daysBetween } from "../data/dates";
+import type { Habit } from "../types/habit";
 import type { GridLayout } from "../types/settings";
 
 export interface GridView {
   layout: GridLayout;
-  /** Календарный сегодня в поясе пользователя («ГГГГ-ММ-ДД»); null — ещё неизвестен. */
-  calendarDay: string | null;
+  /** День отметки в поясе пользователя («ГГГГ-ММ-ДД»): сегодня, в режиме «Отмечать за
+   *  вчера» — вчера; null — ещё неизвестен. */
+  day: string | null;
 }
 
-export const GridViewContext = createContext<GridView>({ layout: "rolling", calendarDay: null });
+export const GridViewContext = createContext<GridView>({ layout: "rolling", day: null });
 
 export function useGridView(): GridView {
   return useContext(GridViewContext);
 }
 
 /**
+ * Первый день привычки в виде "fixed" — день первой отметки (в режиме «Отмечать за вчера»
+ * отметили за вчера — первый день вчера). Пока отметок нет — день отметки: сетка
+ * начинается с него. Привычка старше истории (первая отметка могла не попасть в неё) —
+ * от дня создания.
+ */
+function firstDay(
+  habit: Pick<Habit, "created_on" | "history" | "history_counts">,
+  createdOn: string,
+  day: string,
+): string {
+  const { history } = habit;
+  if (daysBetween(createdOn, day) >= history.length) {
+    return createdOn;
+  }
+  const counts = habit.history_counts ?? [];
+  // Последний день истории — день отметки.
+  const index = history.findIndex((done, at) => done || (counts[at] ?? 0) > 0);
+  return index < 0 ? day : addDays(day, index - (history.length - 1));
+}
+
+/**
  * Сколько первых кружков сетки из `cells` занято днями в виде "fixed" (последний из них —
  * день отметки); null — сетка "rolling" (все кружки — последние дни истории).
  *
- * Кружок дня — сколько дней прошло от создания привычки (в режиме «Отмечать за вчера»
- * день отметки — вчера, поэтому он стоит в кружке календарного сегодня). Привычки без
+ * Кружок дня — сколько дней прошло от первого дня привычки (см. `firstDay`). Привычки без
  * дня создания (сохранённые на устройстве до него) — "rolling", пока не ответит сервер.
  * Лист — `page` дней (полгода, сетка списка); сетка больше листа (годовая) — см. выше.
  */
 export function fixedGridFill(
   view: GridView,
-  createdOn: string | null | undefined,
+  habit: Pick<Habit, "created_on" | "history" | "history_counts">,
   cells: number,
   page: number = GRID_DAYS,
 ): number | null {
-  if (view.layout !== "fixed" || !view.calendarDay || !createdOn) {
+  if (view.layout !== "fixed" || !view.day || !habit.created_on) {
     return null;
   }
-  const age = Math.max(0, daysBetween(createdOn, view.calendarDay));
+  const age = daysBetween(firstDay(habit, habit.created_on, view.day), view.day);
   const day = (age % page) + 1;
   if (cells <= page) {
     return day;

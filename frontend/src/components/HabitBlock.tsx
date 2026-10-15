@@ -49,7 +49,7 @@ export const HabitBlock = memo(function HabitBlock({
 }: HabitBlockProps) {
   const strings = useStrings();
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
-  const fill = fixedGridFill(useGridView(), habit.created_on, gridDays);
+  const fill = fixedGridFill(useGridView(), habit, gridDays);
   const shown = fill ?? gridDays;
   return (
     <article
