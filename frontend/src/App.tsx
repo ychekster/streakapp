@@ -225,6 +225,9 @@ export function App() {
   // The account could not be loaded (no connection) and none is kept: the row says so.
   const [accountOffline, setAccountOffline] = useState(false);
   const pendingHabit = useRef(startHabit());
+  // A notification tap with the app already open: the effect that opens the habit runs
+  // again even when the habits did not change.
+  const [habitTap, setHabitTap] = useState(0);
   const install = useHandoffLink("settings", telegramAvailable && tab === "settings");
   const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
@@ -679,7 +682,7 @@ export function App() {
         }
       }
     }
-  }, [status, habits, editor, showHabit, tab, settingsPage]);
+  }, [status, habits, editor, showHabit, tab, settingsPage, habitTap]);
   useEffect(() => {
     if (!web || !("serviceWorker" in navigator)) {
       return undefined;
@@ -692,6 +695,7 @@ export function App() {
       }
       if (event.data?.type === "open-habit" && Number.isInteger(id) && id > 0) {
         pendingHabit.current = id;
+        setHabitTap((count) => count + 1);
         void refresh();
       }
     };

@@ -20,7 +20,8 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
-                    people.py (people behind a number), profile.py; sources.py, clock.py (Almaty days)
+                    overview.py, completion.py, people.py (people behind a number), profile.py,
+                    names.py, service.py (entry for routers); sources.py, clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py
@@ -129,5 +130,5 @@ the installed web app.
 docs/DEPLOYMENT.md §11: backup → `git pull` → pip install → `alembic upgrade head` →
 `npm ci && npm run build` in `frontend/` → restart `streakbot-api` and `streakbot-bot`.
 Check the server's real state first and stop to report if it differs from the docs. The
-one-time move from `tma/` to `backend/` + `frontend/` needs systemd and nginx path
-edits — see the last section of DEPLOYMENT.md.
+one-time move from `tma/` to `backend/` + `frontend/` was done on the server on
+2026-10-05 (last section of DEPLOYMENT.md, kept for history).

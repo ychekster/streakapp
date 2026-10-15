@@ -5,7 +5,9 @@
 `BATCH_SIZE`, параллельно внутри пачки и в общем темпе с напоминаниями (bot/pacing.py).
 После каждой пачки в базе запоминаются курсор (id последнего получателя пачки) и
 счётчики, поэтому после перезапуска рассылка продолжается с того же места; пачка,
-прерванная посередине, может прийти части своих получателей повторно.
+прерванная посередине, может прийти части своих получателей повторно. Если итоги
+отправленной пачки не записались (база занята), она не повторяется: курсор помнится и в
+памяти бота (теряются только счётчики этой пачки).
 
 Получатели считаются на момент создания рассылки (`created_at`): фильтр «были в
 приложении за 7 дней» не расползается, пока идёт долгая рассылка. Автору рассылки её
@@ -60,6 +62,9 @@ BATCH_SIZE = 25
 # Посчитанные признаки фильтра рассылки (см. audience.resolve_audience): id рассылки → id.
 # Получатели считаются на момент создания рассылки, поэтому их хватает на всю рассылку.
 _resolved: dict[int, AudienceIds] = {}
+# Курсор последней отправленной пачки: id рассылки → id последнего получателя. Страхует,
+# если записать курсор в базу не удалось, — иначе та же пачка ушла бы снова.
+_sent_through: dict[int, int] = {}
 
 _Outcome = Literal["sent", "blocked", "failed"]
 
@@ -132,11 +137,13 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
             return True
         if job.id not in _resolved:
             _resolved[job.id] = await resolve_audience(repo, job.audience, job.created_at)
+        cursor = max(job.cursor, _sent_through.get(job.id, job.cursor))
         recipients = await repo.recipients_after(
-            job.audience, job.created_at, job.created_by, job.cursor, BATCH_SIZE, _resolved[job.id]
+            job.audience, job.created_at, job.created_by, cursor, BATCH_SIZE, _resolved[job.id]
         )
         if not recipients:
             _resolved.pop(job.id, None)
+            _sent_through.pop(job.id, None)
             await repo.finish_broadcast(broadcast)
             await session.commit()
             logger.info(
@@ -156,6 +163,7 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
             for chat_id, language in recipients
         )
     )
+    _sent_through[job.id] = recipients[-1][0]
     blocked = [
         chat_id
         for (chat_id, _), outcome in zip(recipients, outcomes)

@@ -91,6 +91,9 @@ export async function checkTelegramBotLogin(): Promise<LinkResult | null> {
     return null;
   }
   try {
+    // The poll may link the account: the guest's habits move with it, so its unsent
+    // changes go first — after a switch the device forgets them.
+    await dataStore.sendAll();
     const answer = await pollTelegramLogin(pending.code);
     if (answer.status !== "done" || !answer.result) {
       return null;

@@ -76,9 +76,8 @@ from bot.pacing import Pacer
 from backend.constants import DEFAULT_LANGUAGE
 from backend.database import Database
 from backend.messaging import app_url
-from backend.repository import Repository
 from backend.models import PushSubscription
-from backend.repository import utc_now
+from backend.repository import Repository, utc_now
 from backend.services import DueReminder, auto_mark_due, due_checkin_reminders, due_reminders
 from backend.webpush import (
     PushOutcome,

@@ -36,6 +36,7 @@ from backend.constants import (
     GUEST_RATE_LIMIT,
     GZIP_MIN_BYTES,
     MAX_REQUEST_BODY_BYTES,
+    PUSH_TEST_RATE_LIMIT,
     SEED_ADMIN_IDS,
     SLOW_REQUEST_SECONDS,
 )
@@ -96,6 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.guest_limiter = RateLimiter(*GUEST_RATE_LIMIT)
     app.state.event_limiter = RateLimiter(*EVENT_RATE_LIMIT)
     app.state.address_limiter = RateLimiter(*ADDRESS_RATE_LIMIT)
+    app.state.push_test_limiter = RateLimiter(*PUSH_TEST_RATE_LIMIT)
     app.state.database = Database(
         settings.database_url,
         pool_size=settings.db_pool_size,

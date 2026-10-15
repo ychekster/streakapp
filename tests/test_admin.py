@@ -468,6 +468,27 @@ def test_personal_message(
     assert undelivered == {"delivered": False, "reason": "bot_blocked"}
 
 
+def test_web_only_account_gets_no_telegram_messages(
+    client: TestClient, admin: AuthUser, telegram: FakeTelegram
+) -> None:
+    """У аккаунта только веб-приложения нет чата с ботом: его отрицательный id в Telegram
+    был бы id группы — сообщение и ответ на отзыв «не доставлены», Telegram не вызывается."""
+    guest = client.post("/auth/guest").json()
+    headers = {"Authorization": f"Bearer {guest['token']}"}
+    review = client.post("/reviews", json={"text": "Хорошо"}, headers=headers)
+    assert review.status_code == 201, review.text
+
+    message = client.post(
+        f"/admin/users/{guest['user_id']}/message", json={"text": "Привет"}, headers=admin.headers
+    )
+    assert message.json() == {"delivered": False, "reason": "chat_not_found"}
+    reply = client.post(
+        f"/admin/reviews/{review.json()['id']}/reply", json={"text": "Спасибо"}, headers=admin.headers
+    ).json()
+    assert (reply["delivered"], reply["reason"]) == (False, "chat_not_found")
+    assert telegram.sent == []
+
+
 # --------------------------------------------------------------------------- #
 #  Администраторы
 # --------------------------------------------------------------------------- #
@@ -568,9 +589,11 @@ def test_broadcast_with_filter_and_button(
     assert button.text == "Написать отзыв"
     assert button.web_app.url == "https://example.com?open=review&from=broadcast"
 
+    # Привычки есть только у открывавших приложение — под этот фильтр не попадёт никто,
+    # какие бы пользователи ни остались от других тестов.
     nobody = client.post(
         "/admin/broadcasts",
-        data={"audience": "joined:1d,activity:inactive_30d", "text": "x"},
+        data={"audience": "app:never,habits:any", "text": "x"},
         headers=admin.headers,
     )
     assert nobody.status_code == 409

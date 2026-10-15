@@ -48,6 +48,7 @@ export type ApiErrorCode =
   | "invalid_frequency"
   | "invalid_start_date"
   | "invalid_reminder_time"
+  | "invalid_times_per_day"
   | "invalid_color"
   | "invalid_timezone"
   | "invalid_language"
@@ -57,6 +58,7 @@ export type ApiErrorCode =
   | "internal_error"
   | "http_error"
   | "not_found"
+  | "method_not_allowed"
   | "payload_too_large"
   | "invalid_date"
   // Отзывы и блокировка пользователя.
@@ -99,6 +101,9 @@ export type ApiErrorCode =
   | "web_only"
   | "telegram_only"
   | "stale_init_data"
+  | "guest_logout"
+  | "invalid_event"
+  | "invalid_subscription"
   | "push_unavailable"
   | "push_not_delivered";
 

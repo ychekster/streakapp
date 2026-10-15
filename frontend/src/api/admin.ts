@@ -103,10 +103,6 @@ export function createSegment(filter: AnalyticsFilter, query: PeopleQuery): Prom
   });
 }
 
-export function fetchSegment(segmentId: number): Promise<Segment> {
-  return apiRequest<Segment>(`/admin/segments/${segmentId}`, { method: "GET" });
-}
-
 /** Пороги активации и данные генератора ссылок. */
 export function fetchAnalyticsConfig(): Promise<AnalyticsConfig> {
   return apiRequest<AnalyticsConfig>("/admin/analytics-config", { method: "GET" });

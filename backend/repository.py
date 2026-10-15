@@ -16,7 +16,6 @@ from typing import Any
 from sqlalchemy import (
     String,
     and_,
-    case,
     cast,
     delete,
     exists,
@@ -33,10 +32,10 @@ from sqlalchemy.orm import selectinload
 
 from backend.clock import day_start, local_day
 from backend.constants import (
-    ACTIVE_NOW_MINUTES,
     DEFAULT_HABIT_COLOR,
     HABIT_NAME_MAX_LENGTH,
     LAST_SEEN_RESOLUTION_SECONDS,
+    MAX_PUSH_SUBSCRIPTIONS_PER_USER,
     SEGMENT_FILTER,
     SOURCE_DIRECT,
     SOURCE_PRESETS,
@@ -1790,6 +1789,7 @@ class Repository:
         device: re-subscribing moves it to the current account). Another account's
         subscription moves only with its own keys — the same browser sends them again,
         while someone who merely learned the address could only break its delivery.
+        An account keeps at most MAX_PUSH_SUBSCRIPTIONS_PER_USER devices: the oldest go.
         False — refused."""
         subscription = await self.session.scalar(
             select(PushSubscription).where(PushSubscription.endpoint == endpoint)
@@ -1813,6 +1813,17 @@ class Repository:
             subscription.p256dh = p256dh
             subscription.auth = auth
         await self.session.flush()
+        kept = select(PushSubscription.id).where(PushSubscription.user_id == user_id)
+        await self.session.execute(
+            delete(PushSubscription).where(
+                PushSubscription.user_id == user_id,
+                PushSubscription.id.not_in(
+                    kept.order_by(PushSubscription.id.desc())
+                    .limit(MAX_PUSH_SUBSCRIPTIONS_PER_USER)
+                    .scalar_subquery()
+                ),
+            )
+        )
         return True
 
     async def delete_push_subscriptions(

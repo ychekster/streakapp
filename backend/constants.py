@@ -326,3 +326,7 @@ EVENT_PROPS_VALUE_MAX_LENGTH = 64
 GUEST_RATE_LIMIT: tuple[int, float] = (10, 0.1)
 EVENT_RATE_LIMIT: tuple[int, float] = (60, 2.0)
 ADDRESS_RATE_LIMIT: tuple[int, float] = (120, 4.0)
+# Test notifications per account (POST /web/push/test sends one push per device).
+PUSH_TEST_RATE_LIMIT: tuple[int, float] = (3, 0.05)
+# Push subscriptions (devices) per account; a new one beyond this replaces the oldest.
+MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10

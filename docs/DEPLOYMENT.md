@@ -349,7 +349,7 @@ sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /
 ```bash
 cd /opt/streakbot/app
 sudo systemctl stop streakbot-api streakbot-bot                         # никто не пишет в базу
-sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py   # копия до всего остального
+sudo -u streakbot /opt/streakbot/venv/bin/python scripts/backup_db.py --output /opt/streakbot/backups/predeploy-$(date +%F-%H%M).db  # копия до всего остального
 sudo -u streakbot git pull
 sudo -u streakbot /opt/streakbot/venv/bin/pip install -r requirements.txt -r backend/requirements.txt
 sudo -u streakbot /opt/streakbot/venv/bin/python -m alembic upgrade head
@@ -418,6 +418,9 @@ PostgreSQL описан в [SCALING.md](SCALING.md): меняется `DATABASE_
 остаётся в одном экземпляре.
 
 ## Переезд на новую структуру папок и веб-приложение (один раз)
+
+> **Уже сделано на сервере 2026-10-05.** Раздел — для истории и для сервера, поднятого
+> из старой копии; обычные обновления — по §11.
 
 В октябре 2026 `tma/backend` переехал в `backend/`, а `tma/frontend` — в `frontend/`, и
 появилось веб-приложение (миграции 0010–0014, `pywebpush`). На сервере со старой

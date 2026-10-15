@@ -27,7 +27,7 @@ cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
 // Page navigations (/, /app, /install) are answered with the cached shell — except the
-// API and the OAuth callback, which must reach the server.
+// API, which must reach the server.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
     denylist: [/^\/api\//],
@@ -87,10 +87,12 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(
+  const asked = new URL(
     (event.notification.data as { url?: string } | null)?.url ?? "/app?pwa=1",
     self.location.origin,
   );
+  // Only the app's own pages: a notification never opens another site.
+  const target = new URL(asked.pathname + asked.search, self.location.origin);
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

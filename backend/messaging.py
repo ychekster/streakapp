@@ -199,6 +199,8 @@ def broadcast_keyboard(
 
 async def send_text(bot: Bot, chat_id: int, text: str) -> Undelivered | None:
     """Личное сообщение как есть. None — доставлено."""
+    if chat_id < 0:  # аккаунт только веб-приложения: в Telegram это был бы id группы
+        return "chat_not_found"
     result = await _send(lambda: bot.send_message(chat_id=chat_id, text=text))
     return result if isinstance(result, str) else None
 
@@ -215,6 +217,8 @@ async def send_review_reply(
 ) -> Undelivered | None:
     """Ответ на отзыв: заголовок на языке пользователя, цитата отзыва и ответ. None —
     доставлено."""
+    if chat_id < 0:  # аккаунт только веб-приложения: в Telegram это был бы id группы
+        return "chat_not_found"
     title = REVIEW_REPLY_TITLES.get(language, REVIEW_REPLY_TITLES[DEFAULT_LANGUAGE])
     content = Text(Bold(title), "\n", ExpandableBlockQuote(_quote(review)), "\n", reply)
     result = await _send(lambda: bot.send_message(chat_id=chat_id, **content.as_kwargs()))

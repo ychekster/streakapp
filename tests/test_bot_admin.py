@@ -72,6 +72,54 @@ def test_broadcast_is_delivered_in_batches(db_url: str, monkeypatch: pytest.Monk
     asyncio.run(_with_repo(db_url, check))
 
 
+def test_broadcast_batch_is_not_resent_when_progress_is_not_saved(
+    db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bot_broadcasts, "BATCH_SIZE", 2)
+    monkeypatch.setattr(bot_broadcasts, "_sent_through", {})
+    telegram = FakeTelegram()
+
+    async def setup(repo: Repository) -> int:
+        for user_id in range(1, 6):
+            await repo.get_or_create_user(user_id, None, "U", language="ru")
+        broadcast = await repo.create_broadcast(
+            created_by=1, audience="", text="Привет", media_type=None,
+            media_file_id=None, button=None, total=4,
+        )
+        return broadcast.id
+
+    broadcast_id = asyncio.run(_with_repo(db_url, setup))
+
+    # Итоги первой пачки не записываются (база занята) — рассылка идёт дальше, не повторяя её.
+    record = Repository.record_broadcast_progress
+    failures = iter([True])
+
+    async def flaky_record(self: Repository, *args, **kwargs) -> None:
+        if next(failures, False):
+            raise RuntimeError("database is locked")
+        await record(self, *args, **kwargs)
+
+    monkeypatch.setattr(Repository, "record_broadcast_progress", flaky_record)
+
+    async def first_batch() -> None:
+        database = Database(db_url)
+        try:
+            with pytest.raises(RuntimeError):
+                await bot_broadcasts._deliver_next_batch(telegram, database, Pacer(1000), _TMA_URL)
+        finally:
+            await database.dispose()
+
+    asyncio.run(first_batch())
+    asyncio.run(_deliver_all(db_url, telegram))
+
+    assert [item.chat_id for item in telegram.sent] == [2, 3, 4, 5]
+
+    async def check(repo: Repository) -> None:
+        assert (await repo.get_broadcast(broadcast_id)).status == BroadcastStatus.done
+
+    asyncio.run(_with_repo(db_url, check))
+
+
 async def _deliver_all(db_url: str, telegram: FakeTelegram) -> None:
     """Разослать все рассылки из очереди, как цикл бота."""
     database = Database(db_url)

@@ -15,12 +15,6 @@ export const DOT_RADIUS = 4;
 export const DOT_RING = 2;
 /** Пунктир отрезка до неполного дня (сегодня). */
 export const PARTIAL_DASH = "4 4";
-/** Столбик — не толще 24px, скругление 4px у вершины; зазор между соседними — от 2px. */
-export const BAR_MAX_WIDTH = 24;
-export const BAR_RADIUS = 4;
-export const BAR_MIN_GAP = 2;
-/** Высота подписи значения над столбиком. */
-export const BAR_LABEL_BAND = 18;
 
 /** «Красивые» деления шкалы от нуля: шаг 1, 2, 2.5 или 5 × 10ⁿ, `count` делений до верха.
  *  Для счётчиков (`integer`) шаг — целый. */
@@ -32,21 +26,4 @@ export function niceTicks(max: number, count: number, integer: boolean): number[
   const nice = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 2.5 ? 2.5 : residual <= 5 ? 5 : 10;
   const step = integer ? Math.max(1, Math.ceil(nice * magnitude)) : nice * magnitude;
   return Array.from({ length: count + 1 }, (_, index) => index * step);
-}
-
-/** Контур столбика: скругление только у вершины, у базовой линии — прямые углы. */
-export function barPath(x: number, top: number, width: number, bottom: number): string {
-  const radius = Math.min(BAR_RADIUS, width / 2, bottom - top);
-  if (radius <= 0) {
-    return "";
-  }
-  return [
-    `M${x} ${bottom}`,
-    `V${top + radius}`,
-    `Q${x} ${top} ${x + radius} ${top}`,
-    `H${x + width - radius}`,
-    `Q${x + width} ${top} ${x + width} ${top + radius}`,
-    `V${bottom}`,
-    "Z",
-  ].join(" ");
 }

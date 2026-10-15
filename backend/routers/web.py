@@ -168,6 +168,7 @@ async def test_push(
     repo: Repository = RepositoryDep,
 ) -> PushStatus:
     """Send a test notification to every device of the account (to check push works)."""
+    limit(request, request.app.state.push_test_limiter, str(db_user.telegram_id))
     settings = get_settings(request)
     if settings.vapid_private_key is None or not settings.vapid_public_key:
         raise ApiError(404, "push_unavailable", "Уведомления не настроены на сервере")
@@ -187,6 +188,8 @@ async def test_push(
         await repo.log_action(db_user.telegram_id, "push_gone")
     await repo.mark_push_delivered(sent, utc_now())
     if not sent:
+        # The error rolls the session back: the cleanup above must stay.
+        await repo.commit()
         raise ApiError(409, "push_not_delivered", "Не удалось доставить уведомление")
     return PushStatus(subscribed=True)
 
