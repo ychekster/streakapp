@@ -212,7 +212,7 @@ const RU = {
   formEditFailed: "Не удалось сохранить привычку",
   formInfoHeading: "Информация",
   formNamePlaceholder: "Название",
-  formDescriptionPlaceholder: "Описание",
+  formDescriptionPlaceholder: "Описание (необязательно)",
   formFrequencyHeading: "Частота",
   formRepeat: "Повтор",
   // Повтор по дням недели: подпись — выбранные дни (weekdayLabel.ts); все — «Каждый день».
@@ -486,7 +486,7 @@ const EN: Strings = {
   formEditFailed: "Couldn’t save the habit",
   formInfoHeading: "Details",
   formNamePlaceholder: "Name",
-  formDescriptionPlaceholder: "Description",
+  formDescriptionPlaceholder: "Description (optional)",
   formFrequencyHeading: "Frequency",
   formRepeat: "Repeat",
   formDaily: "Every Day",
