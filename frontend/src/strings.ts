@@ -68,7 +68,7 @@ const RU = {
     rolling:
       "Сегодняшний день всегда в правом нижнем кружке, а с каждым новым днём сетка сдвигается влево.",
     fixed:
-      "Первый день привычки — в левом верхнем кружке, дальше дни идут по порядку без сдвига. Когда сетка заполнится, она начнётся заново.",
+      "Сетка заполняется день за днём с левого верхнего кружка, а когда кружки закончатся, начинается заново.",
   },
   // «Папки»: ряд настроек, список папок, форма папки и выбор привычек в неё.
   settingsFolders: "Папки",
@@ -422,7 +422,7 @@ const EN: Strings = {
   gridLayoutFooters: {
     rolling: "Today is always the bottom-right dot, and the grid shifts left with each new day.",
     fixed:
-      "The habit’s first day is the top-left dot, and the days follow in order without shifting. Once the grid is full, it starts over.",
+      "The grid fills day by day from the top-left dot, and starts over once it’s full.",
   },
   settingsFolders: "Folders",
   foldersTitle: "Folders",
@@ -689,5 +689,46 @@ const EN: Strings = {
   termsOfUse: LEGAL_EN.terms,
 };
 
+/** Сколько слов должно быть в тексте, чтобы его последние два слова склеивались. */
+const MIN_WORDS_TO_JOIN = 4;
+
 /** Строки интерфейса по языкам. */
-export const STRINGS: Record<Language, Strings> = { ru: RU, en: EN };
+export const STRINGS: Record<Language, Strings> = {
+  ru: keepLastWordsTogether(RU),
+  en: keepLastWordsTogether(EN),
+};
+
+/**
+ * Без «висящего» слова на последней строке: в каждом тексте из MIN_WORDS_TO_JOIN слов
+ * и больше пробел между двумя последними словами заменяется неразрывным, и они
+ * переносятся только вместе. Остальные строки не меняются — браузер переносит их как
+ * обычно (без сужения абзаца, как у CSS `text-wrap: pretty` в Safari). Короткие
+ * подписи и кусочки фраз не трогаем. Применяется ко всем строкам сразу, в том числе к
+ * результатам функций-шаблонов.
+ */
+export function keepLastWordsTogether<T>(value: T): T {
+  if (typeof value === "string") {
+    return joinLastWords(value) as T;
+  }
+  if (typeof value === "function") {
+    const fn = value as (...args: unknown[]) => unknown;
+    return ((...args: unknown[]) => keepLastWordsTogether(fn(...args))) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(keepLastWordsTogether) as T;
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, keepLastWordsTogether(item)]),
+    ) as T;
+  }
+  return value;
+}
+
+function joinLastWords(text: string): string {
+  if (text.trim().split(/\s+/).length < MIN_WORDS_TO_JOIN) {
+    return text;
+  }
+  // Последний обычный пробел перед последним словом (в конце строки — без пробела).
+  return text.replace(/ (\S+)$/, " $1");
+}

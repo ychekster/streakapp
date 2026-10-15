@@ -5,14 +5,15 @@
  *     account, web app devices, log out). Web app: a guest sees «Не привязан» with a red
  *     «!» (the Settings tab has it too) and a footer; a tap opens the bot to link
  *     Telegram — the only login.
+ *     In Telegram, a card of its own under it: «Добавить на рабочий стол» (opens the
+ *     install page in the phone's browser with a single-use login link, so the installed
+ *     app opens this account; hidden once the web app is installed).
  *  1. Часовой пояс (открывает выбор пояса с поиском по городу), язык и тема
  *     (светлая, тёмная или системная — как в системе) — системными меню; «Напоминание»
  *     — время или «Выкл.», открывает CheckinReminderScreen. Under them:
  *     in Telegram «Уведомления» — a switch: the bot's reminders and broadcasts in
- *     Telegram (account setting `telegram_notifications`; turning it off asks first),
- *     and «Добавить на рабочий стол» (opens the install page in the phone's browser
- *     with a single-use login link, so the installed app opens this account); in the
- *     web app «Уведомления» — push on this device (usePushToggle). Right under
+ *     Telegram (account setting `telegram_notifications`; turning it off asks first); in
+ *     the web app «Уведомления» — push on this device (usePushToggle). Right under
  *     «Уведомления» — «Вид сетки» (how the habit grid lays out days, GridLayoutScreen)
  *     and «Папки» (habit folders, FoldersScreen; the value — how many there are).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
@@ -205,6 +206,21 @@ export function SettingsScreen({
           </ListItem>
         </ListGroup>
 
+        {install ? (
+          <ListGroup>
+            <ListItem
+              icon={<InstallIcon />}
+              iconColor="indigo"
+              label={strings.settingsInstall}
+              onPress={
+                install.ready ? () => install.open(() => onOpen("install")) : () => onOpen("install")
+              }
+            >
+              <Disclosure />
+            </ListItem>
+          </ListGroup>
+        ) : null}
+
         <ListGroup>
           <ListItem
             icon={<ClockIcon />}
@@ -241,18 +257,6 @@ export function SettingsScreen({
           ) : null}
           {!web ? gridLayoutRow : null}
           {!web ? foldersRow : null}
-          {install ? (
-            <ListItem
-              icon={<InstallIcon />}
-              iconColor="indigo"
-              label={strings.settingsInstall}
-              onPress={
-                install.ready ? () => install.open(() => onOpen("install")) : () => onOpen("install")
-              }
-            >
-              <Disclosure />
-            </ListItem>
-          ) : null}
           {web ? (
             <ListItem icon={<BellIcon />} iconColor="red" label={strings.notificationsRow}>
               <Switch checked={push.on} onChange={push.change} label={strings.notificationsRow} />

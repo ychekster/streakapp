@@ -10,7 +10,7 @@
  *  - палец сдвинулся дальше MOVE_TOLERANCE_PX, началась прокрутка (любого контейнера)
  *    или касание перехватил браузер (pointercancel) — подсветка снимается;
  *  - быстрое касание (отпустили раньше задержки) — это нажатие: подсветка мелькает на
- *    PRESS_FLASH_MS, чтобы отклик был виден;
+ *    PRESS_FLASH_MS, чтобы отклик был виден (кроме кнопок с `data-no-tap-flash`);
  *  - мышь подсвечивает сразу: прокрутки перетаскиванием у неё нет.
  *
  * Обработчики — одни на весь документ (делегирование), поэтому работают для любой
@@ -91,7 +91,9 @@ function onPointerUp(event: PointerEvent): void {
   window.clearTimeout(delayTimer);
   delayTimer = undefined;
   target = null;
-  if (!quickTap) {
+  // `data-no-tap-flash`: быстрое касание не подсвечивается — нажатие видно и так
+  // (например, ставится галочка выбора); подсветка остаётся только при удержании.
+  if (!quickTap || element.hasAttribute("data-no-tap-flash")) {
     unmark(element);
     return;
   }

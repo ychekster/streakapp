@@ -1,40 +1,30 @@
-/* Две картинки рядом в одной карточке — как выбор оформления в «Настройках» iOS. */
-.options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-card-padding);
-  padding: var(--space-card-padding);
-}
-
+/* Карточка вида — как блок привычки (HabitBlock.module.css .block): название и кружок
+   выбора, под ними сетка; вся карточка — одна кнопка. */
 .option {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 0;
+  gap: var(--space-row-gap);
+  width: 100%;
+  padding: var(--space-card-padding);
   border: none;
-  background: none;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
+  transition: background-color var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Картинка: маленькая сетка на фоне экрана, кружки — как в сетке привычки. */
+.option[data-pressed] {
+  background-color: var(--color-row-press);
+}
+
+/* Сетка — как сетка привычки (YearGrid.module.css). */
 .preview {
   display: grid;
   grid-template-columns: repeat(var(--preview-columns), 1fr);
-  gap: 3px;
+  gap: var(--grid-gap);
   width: 100%;
-  padding: 12px;
-  border-radius: 16px;
-  background-color: var(--color-background);
-  transition: transform var(--transition-fast);
-}
-
-.option[data-pressed] .preview {
-  transform: scale(0.97);
 }
 
 .dot {
@@ -57,38 +47,9 @@
   );
 }
 
-.name {
-  font-size: var(--font-size-body);
-  font-weight: 500;
-  line-height: 1.25;
-  text-align: center;
-}
-
-/* Кружок выбора: пустой с серым ободком, выбранный — залит акцентом с белой галочкой. */
-.check {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-text-secondary);
-  color: var(--color-check-icon);
-}
-
-.check svg {
-  width: 14px;
-  height: 14px;
-}
-
-.checked {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .dot,
-  .preview {
+  .option {
     transition: none;
   }
 }

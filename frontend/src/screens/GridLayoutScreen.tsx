@@ -1,31 +1,38 @@
 /**
  * Настройки → «Вид сетки»: как сетка привычки раскладывает дни (components/gridLayout.ts).
  *
- * Как выбор оформления в «Настройках» iOS: в карточке две картинки рядом — маленькие
- * сетки, на которых проходят одни и те же дни без пропусков (анимация: день за днём), под каждой —
- * название и кружок-галочка. «Со сдвигом» — сегодня всегда в правом нижнем кружке,
- * «По порядку» — дни с левого верхнего. Под карточкой — что делает выбранный вид.
- * Выбор сохраняется сразу, как остальные настройки (App → useSettings).
+ * Каждый вид — своя карточка, оформленная как блок привычки: название вместо названия
+ * привычки, кружок выбора вместо кнопки отметки, под ними — сетка, на которой проходят
+ * одни и те же дни с редкими пропусками (анимация: день за днём). Под каждой карточкой — что
+ * делает этот вид. «Со сдвигом» — сегодня всегда в правом нижнем кружке, «По порядку» —
+ * дни с левого верхнего. Выбор сохраняется сразу, как остальные настройки
+ * (App → useSettings).
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { Screen } from "../components/Screen";
-import { GRID_LAYOUTS } from "../constants";
+import { GRID_COLUMNS, GRID_LAYOUTS } from "../constants";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { GridLayout } from "../types/settings";
+import checkStyles from "../components/CheckButton.module.css";
+import habitStyles from "../components/HabitBlock.module.css";
 import listStyles from "../components/ListGroup.module.css";
 import styles from "./GridLayoutScreen.module.css";
 
-/** Картинка: сетка 7 × 5. */
-const COLUMNS = 7;
-const CELLS = 35;
+/** Картинка: столько же кружков в ряду, сколько в сетке списка, четыре ряда. */
+const COLUMNS = GRID_COLUMNS;
+const CELLS = COLUMNS * 4;
 /** Сколько дней проходит анимация, прежде чем начаться заново. */
-const DAYS = 26;
-const STEP_MS = 650;
+const DAYS = 38;
+const STEP_MS = 500;
 /** Пауза на последнем дне перед новым кругом, в шагах. */
 const HOLD_STEPS = 4;
+/** Пропущенные дни картинки (0 — первый): по ним видно, как дни сдвигаются вместе с
+ *  сеткой или стоят на месте. Вразнобой и без пар через ряд (разница COLUMNS ± 1) —
+ *  иначе соседние ряды складываются в одинаковый узор. */
+const MISSED = new Set([2, 7, 8, 14, 19, 28, 35]);
 
 interface GridLayoutScreenProps {
   value: GridLayout;
@@ -38,30 +45,34 @@ export function GridLayoutScreen({ value, onChange }: GridLayoutScreenProps) {
 
   return (
     <Screen title={strings.gridLayoutTitle} withTabBar={false} enterAnimation>
-      <section className={listStyles.group}>
-        <div className={`${listStyles.card} ${styles.options}`} role="radiogroup">
-          {GRID_LAYOUTS.map((layout) => {
-            const selected = layout === value;
-            return (
+      <div role="radiogroup" aria-label={strings.gridLayoutTitle}>
+        {GRID_LAYOUTS.map((layout) => {
+          const selected = layout === value;
+          return (
+            <section key={layout} className={listStyles.group}>
               <button
-                key={layout}
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                className={styles.option}
+                // Быстрое нажатие видно по галочке — без подсветки; при удержании она есть.
+                data-no-tap-flash=""
+                className={`${listStyles.card} ${styles.option}`}
+                style={habitColorStyle("green")}
                 onClick={() => onChange(layout)}
               >
-                <Preview layout={layout} day={day} />
-                <span className={styles.name}>{strings.gridLayoutNames[layout]}</span>
-                <span className={`${styles.check} ${selected ? styles.checked : ""}`}>
-                  {selected ? <CheckIcon /> : null}
+                <span className={habitStyles.header}>
+                  <span className={habitStyles.name}>{strings.gridLayoutNames[layout]}</span>
+                  <span className={`${checkStyles.button} ${selected ? checkStyles.done : ""}`}>
+                    <CheckIcon />
+                  </span>
                 </span>
+                <Preview layout={layout} day={day} />
               </button>
-            );
-          })}
-        </div>
-        <p className={listStyles.footer}>{strings.gridLayoutFooters[value]}</p>
-      </section>
+              <p className={listStyles.footer}>{strings.gridLayoutFooters[layout]}</p>
+            </section>
+          );
+        })}
+      </div>
     </Screen>
   );
 }
@@ -84,7 +95,8 @@ function usePreviewDay(): number {
   return Math.min(step, DAYS - 1) + 1;
 }
 
-/** Маленькая сетка: прошедшие `day` дней в раскладке `layout`, все выполнены; в сегодняшнем — точка. */
+/** Сетка: прошедшие `day` дней в раскладке `layout`, выполнены все, кроме пропущенных
+ *  (MISSED); в сегодняшнем — точка. */
 function Preview({ layout, day }: { layout: GridLayout; day: number }) {
   // День картинки в каждом кружке (0 — первый); null — кружок без дня.
   const dayAt = (cell: number): number | null => {
@@ -94,7 +106,7 @@ function Preview({ layout, day }: { layout: GridLayout; day: number }) {
   return (
     <span
       className={styles.preview}
-      style={{ ...habitColorStyle("green"), "--preview-columns": COLUMNS } as CSSProperties}
+      style={{ "--preview-columns": COLUMNS } as CSSProperties}
       aria-hidden="true"
     >
       {Array.from({ length: CELLS }, (_, cell) => {
@@ -102,7 +114,7 @@ function Preview({ layout, day }: { layout: GridLayout; day: number }) {
         return (
           <span
             key={cell}
-            className={`${styles.dot} ${index !== null ? styles.done : ""} ${
+            className={`${styles.dot} ${index !== null && !MISSED.has(index) ? styles.done : ""} ${
               index === day - 1 ? styles.today : ""
             }`}
           />
@@ -112,14 +124,14 @@ function Preview({ layout, day }: { layout: GridLayout; day: number }) {
   );
 }
 
-/** Галочка в кружке выбранного вида. */
+/** Галочка в кружке выбранного вида — как у кнопки отметки (CheckButton). */
 function CheckIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg className={checkStyles.check} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M3.5 8.5l3 3 6-7"
+        d="M5 12.75l4.5 4.5L19 7.75"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="3.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
