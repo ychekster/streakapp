@@ -21,7 +21,8 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
                     overview.py, completion.py, people.py (people behind a number), profile.py,
-                    names.py, service.py (entry for routers); sources.py, clock.py (Almaty days)
+                    names.py, service.py (entry for routers)
+  auth.py (initData signature)  database.py (engine, sessions)  sources.py  clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py
@@ -115,6 +116,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |
 | Install page / funnel | frontend/src/landing/, src/web/analytics.ts; backend/funnel.py, scripts/funnel.py |
 | Bot texts / emoji | bot/constants.py, bot/emoji.py |
+| Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

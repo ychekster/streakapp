@@ -58,7 +58,7 @@ SQLite / PostgreSQL
 | Справочник городов | `backend/cities.py`, `backend/data/cities.tsv.gz` | ~64 тыс. городов GeoNames с зонами и названиями; поиск по названию |
 | Репозиторий | `backend/repository.py` | Единственная точка доступа к БД |
 | Web Push и воронка | `backend/webpush.py`, `backend/funnel.py` | Отправка push (VAPID); события и отчёт воронки установки |
-| Модели | `backend/models.py` | ORM-схема (User, Task, TaskLog, Admin, Review, UserActivity, Broadcast, WebSession, AuthCode, PushSubscription, Event) |
+| Модели | `backend/models.py` | ORM-схема (User, Task, TaskReminder, TaskLog, TaskFreeze, Folder, Admin, Review, UserActivity, CheckinDay, ActivityLog, Segment, AppConfig, Broadcast, WebSession, AuthCode, PushSubscription, Event) |
 | Миграции | `alembic/` | Версионирование схемы |
 
 ## Ключевые решения
@@ -128,6 +128,16 @@ SQLite / PostgreSQL
 `constants.HABIT_COLORS`. Во фронтенде корень карточки или экрана привычки получает
 переменную `--habit-rgb`, и всё внутри (сетка, кнопка отметки, иконки показателей)
 берёт цвет из неё.
+
+### Папки привычек
+Папка (`folders`) — название и список id привычек (`task_ids`, JSON); удалённые
+привычки из неё пропадают сами — сервер отдаёт только активные. Рекомендуемые папки
+(`kind`: `unfinished` — ещё не выполненные сегодня, `today` — запланированные на сегодня)
+привычек не хранят: их наполняет устройство по тем же данным, что и список. Папка «Все
+привычки» не хранится, её место среди папок — `users.all_habits_position`. Создание,
+изменение, порядок и удаление папок идут операциями `POST /sync`, как и привычки;
+предел — `MAX_FOLDERS_PER_USER` (одинаковый в `backend/constants.py` и
+`frontend/src/constants.ts`).
 
 ### Регистрация пользователя при первом запросе
 Отдельного онбординга нет. Зависимость `get_db_user` вызывает
