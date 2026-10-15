@@ -267,7 +267,7 @@ describe("dataStore", () => {
 
     const id = store.createFolder(" Утро ", [2]);
     store.orderFolders([id, null]);
-    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2] }]);
+    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2], kind: null }]);
     expect(store.getState().allHabitsPosition).toBe(1);
 
     const ref = (JSON.parse(localStorage.getItem("streak:changes")!).value[0].ref);
@@ -279,7 +279,7 @@ describe("dataStore", () => {
           { ok: true, id: null, error: null },
         ],
       ),
-      folders: [{ id: 7, name: "Утро", habits: [2] }],
+      folders: [{ id: 7, name: "Утро", habits: [2], kind: null }],
       all_habits_position: 1,
     });
     await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS);
@@ -288,15 +288,43 @@ describe("dataStore", () => {
       { type: "folder_order", order: [ref, null] },
     ]);
     // The same id on screen after the server answered.
-    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2] }]);
+    expect(store.getState().folders).toEqual([{ id, name: "Утро", habits: [2], kind: null }]);
 
     store.updateFolder(id, "Вечер", [1, 2]);
-    expect(store.getState().folders).toEqual([{ id, name: "Вечер", habits: [1, 2] }]);
+    expect(store.getState().folders).toEqual([{ id, name: "Вечер", habits: [1, 2], kind: null }]);
     expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([
       { type: "folder_update", key: 7, folder: { name: "Вечер", habits: [1, 2] } },
     ]);
     store.deleteFolder(id);
     expect(store.getState().folders).toEqual([]);
     expect(store.getState().allHabitsPosition).toBe(0);
+  });
+
+  it("fills a recommended folder with today's unfinished habits by itself", async () => {
+    syncChanges.mockResolvedValueOnce(
+      answer([
+        habit(),
+        habit({ id: 2, name: "Бег" }),
+        habit({ id: 3, name: "Йога", scheduled_today: false }),
+      ]),
+    );
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const id = store.createFolder("Невыполненные", [3], "unfinished");
+    store.updateFolder(id, "Не сделано", [3]);
+    expect(store.getState().folders).toEqual([
+      { id, name: "Не сделано", habits: [1, 2], kind: "unfinished" },
+    ]);
+    // The habits are worked out on the device; the server is told only the kind.
+    expect(JSON.parse(localStorage.getItem("streak:changes")!).value[0].folder).toEqual({
+      name: "Не сделано",
+      habits: [],
+      kind: "unfinished",
+    });
+
+    store.toggle(2);
+    expect(store.getState().folders[0].habits).toEqual([1]);
   });
 });

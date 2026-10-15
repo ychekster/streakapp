@@ -234,6 +234,11 @@ export const MAX_HABITS_PER_USER = 50;
 export const MAX_FOLDERS_PER_USER = 10;
 export const FOLDER_NAME_MAX_LENGTH = 24;
 
+/** Recommended folders (Settings → «Папки») fill themselves: «unfinished» — habits due
+ *  today and not done yet, «today» — all habits due today (data/derive.ts). The same as
+ *  FOLDER_KINDS on the backend. */
+export const FOLDER_KINDS = ["unfinished", "today"] as const;
+
 /** Most times a day a habit can be done (MAX_TIMES_PER_DAY on the backend): the form's
  *  −/+ stops there. */
 export const MAX_TIMES_PER_DAY = 96;

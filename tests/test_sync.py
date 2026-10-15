@@ -358,7 +358,7 @@ def test_folder_with_offline_habits_is_created_once(client: TestClient, user: Au
     ids = [habit["id"] for habit in first["habits"]]
     folder_id = first["results"][2]["id"]
     # Привычки в папке — в порядке списка привычек.
-    assert first["folders"] == [{"id": folder_id, "name": "Утро", "habits": ids}]
+    assert first["folders"] == [{"id": folder_id, "name": "Утро", "habits": ids, "kind": None}]
 
     # Ответ не дошёл — устройство шлёт то же ещё раз: та же папка, не вторая.
     again = _sync(client, user, *ops)
@@ -428,3 +428,38 @@ def test_folder_order_and_all_habits_place(client: TestClient, user: AuthUser) -
     # Уже удалённая — не ошибка.
     data = _sync(client, user, {"type": "folder_delete", "key": "c"})
     assert data["results"][0]["ok"] is True
+
+
+def test_recommended_folder_keeps_its_kind_and_no_habits(
+    client: TestClient, user: AuthUser
+) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "create", "ref": "h-1", "habit": _habit("Бег")},
+        {
+            "type": "folder_create",
+            "ref": "f-1",
+            "folder": {"name": "Невыполненные", "habits": ["h-1"], "kind": "unfinished"},
+        },
+        {"type": "folder_create", "ref": "f-2", "folder": _folder("Утро", ["h-1"])},
+    )
+    habit_id = data["habits"][0]["id"]
+    assert [(f["name"], f["kind"], f["habits"]) for f in data["folders"]] == [
+        ("Невыполненные", "unfinished", []),
+        ("Утро", None, [habit_id]),
+    ]
+    # Изменение меняет только название: вид остаётся, привычки не добавляются.
+    data = _sync(
+        client,
+        user,
+        {"type": "folder_update", "key": "f-1", "folder": _folder("Не сделано", [habit_id])},
+    )
+    assert (data["folders"][0]["name"], data["folders"][0]["kind"]) == ("Не сделано", "unfinished")
+    assert data["folders"][0]["habits"] == []
+
+
+def test_folder_swipe_setting_is_off_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["folder_swipe"] is False
+    data = _sync(client, user, {"type": "settings", "patch": {"folder_swipe": True}})
+    assert data["settings"]["folder_swipe"] is True

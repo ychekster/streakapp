@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: calc(var(--space-title-bottom) - var(--space-header-bottom)) var(--space-card-padding) 0;
+  padding: var(--space-folders-intro-top) var(--space-card-padding) 0;
   text-align: center;
 }
 
@@ -55,6 +55,65 @@
 
 .dimmed {
   opacity: var(--list-row-disabled-opacity);
+}
+
+/* Рекомендуемая папка — как ряд операции в Notch: название (обычным начертанием), под
+   ним пояснение, справа — «Добавить». */
+.recommended {
+  padding-top: var(--folders-recommended-pad-y);
+  padding-bottom: var(--folders-recommended-pad-y);
+}
+
+.recommendedText {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+}
+
+.recommendedName,
+.recommendedDescription {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+/* Тот же размер, что у названий папок выше («Все привычки»). */
+.recommendedName {
+  font-size: var(--font-size-habit-name);
+}
+
+/* Секция без заголовка («Переключение свайпом») — дальше от карточки над ней, как в
+   эталоне. */
+.swipe {
+  margin-top: var(--space-folders-swipe-gap);
+}
+
+.recommendedDescription {
+  font-size: var(--folders-recommended-description-size);
+  color: var(--color-text-secondary);
+}
+
+/* «Добавить» — капсула цвета акцента, как в рекомендуемых папках Telegram. */
+.addButton {
+  flex-shrink: 0;
+  height: var(--folders-add-height);
+  padding: 0 var(--folders-add-pad-x);
+  border: none;
+  border-radius: calc(var(--folders-add-height) / 2);
+  background-color: var(--color-accent);
+  font-family: inherit;
+  font-size: var(--folders-add-font-size);
+  font-weight: 600;
+  color: var(--color-on-habit);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.addButton[data-pressed] {
+  opacity: 0.6;
 }
 
 .name {

@@ -35,6 +35,9 @@ export interface Settings {
   checkin_reminder_days: string[];
   /** «Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram. */
   telegram_notifications: boolean;
+  /** «Переключение свайпом» (Настройки → «Папки»): свайп по списку привычек — соседняя
+   *  папка. Нет в настройках, сохранённых на устройстве до неё: выключено. */
+  folder_swipe?: boolean;
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
 }
@@ -51,6 +54,7 @@ export interface SettingsUpdate {
   /** Напоминание «Пора отметить привычки» — время и дни целиком. */
   checkin_reminder?: CheckinReminder;
   telegram_notifications?: boolean;
+  folder_swipe?: boolean;
 }
 
 export interface CheckinReminder {

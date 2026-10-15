@@ -105,6 +105,26 @@ const RU = {
   folderPickerDone: "Готово",
   folderPickerEmpty: "Привычек пока нет",
   folderHabitCount: (count: number) => `${count}`,
+  foldersRecommendedHeading: "Рекомендуемые папки",
+  foldersRecommendedAdd: "Добавить",
+  folderKindNames: { unfinished: "Невыполненные", today: "На сегодня" },
+  folderKindDescriptions: {
+    unfinished: "Ещё не выполненные сегодня",
+    today: "Все привычки на сегодня",
+  },
+  folderKindFooter: {
+    unfinished:
+      "Привычки попадают в эту папку сами: запланированные на сегодня и ещё не выполненные.",
+    today: "Привычки попадают в эту папку сами: все запланированные на сегодня.",
+  },
+  folderKindEmptyTitle: { unfinished: "Всё выполнено", today: "На сегодня ничего нет" },
+  folderKindEmptyDescription: {
+    unfinished: "Все привычки на сегодня отмечены",
+    today: "Сегодня ни одна привычка не запланирована",
+  },
+  foldersSwipe: "Переключение свайпом",
+  foldersSwipeFooter:
+    "Свайп влево или вправо по списку привычек открывает соседнюю папку.",
   // Напоминание «Пора отметить привычки»: ряд настроек и его экран.
   settingsCheckinReminder: "Напоминание",
   settingsCheckinReminderOff: "Выкл.",
@@ -437,6 +457,24 @@ const EN: Strings = {
   folderPickerDone: "Done",
   folderPickerEmpty: "No habits yet",
   folderHabitCount: (count: number) => `${count}`,
+  foldersRecommendedHeading: "Recommended Folders",
+  foldersRecommendedAdd: "Add",
+  folderKindNames: { unfinished: "Unfinished", today: "Today" },
+  folderKindDescriptions: {
+    unfinished: "Not done yet today",
+    today: "All habits due today",
+  },
+  folderKindFooter: {
+    unfinished: "Habits get into this folder by themselves: those due today and not done yet.",
+    today: "Habits get into this folder by themselves: all those due today.",
+  },
+  folderKindEmptyTitle: { unfinished: "All Done", today: "Nothing for Today" },
+  folderKindEmptyDescription: {
+    unfinished: "Every habit due today is checked off",
+    today: "No habits are due today",
+  },
+  foldersSwipe: "Switch by Swiping",
+  foldersSwipeFooter: "Swipe left or right across the habits list to open the next folder.",
   settingsCheckinReminder: "Reminder",
   settingsCheckinReminderOff: "Off",
   checkinReminderTitle: "Reminder",

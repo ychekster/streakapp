@@ -1,10 +1,16 @@
 /**
  * Настройки → «Папки»: папки привычек, как «Папки с чатами» в Telegram.
  *
- * Сверху — значок и пояснение, под ними секция «Папки»: «Создать папку» (форма новой
- * папки, FolderFormScreen), «Все привычки» и папки пользователя по порядку — в таком же
- * порядке их вкладки стоят в таблетке над списком привычек. Нажатие на папку открывает её
- * форму (название, привычки, удаление).
+ * Заголовок экрана — сразу маленький, по центру шапки (Screen `pinnedTitle`): подложка
+ * шапки проявляется, когда контент уходит под неё. Сверху — значок и пояснение, под ними
+ * секция «Папки»: «Создать папку» (форма новой папки, FolderFormScreen), «Все привычки» и
+ * папки пользователя по порядку — в таком же порядке их вкладки стоят в таблетке над
+ * списком привычек. Нажатие на папку открывает её форму (название, привычки, удаление).
+ *
+ * «Рекомендуемые папки» — папки, которые наполняются сами (FOLDER_KINDS): название,
+ * под ним пояснение, справа «Добавить» — папка сразу создаётся и пропадает отсюда. Ниже,
+ * без заголовка, — переключатель «Переключение свайпом» (настройка `folder_swipe`) с
+ * пояснением.
  *
  * «Изменить» справа от заголовка секции (кнопку в шапке не поставить: в Mini App там
  * кнопки Telegram) включает правку: у папок слева красный «−» — удалить (с
@@ -16,14 +22,16 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 
 import { Disclosure } from "../components/Disclosure";
+import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { FolderIcon } from "../components/SettingsIcons";
-import { MAX_FOLDERS_PER_USER } from "../constants";
+import { Switch } from "../components/Switch";
+import { FOLDER_KINDS, MAX_FOLDERS_PER_USER } from "../constants";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticImpact, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
-import type { Folder } from "../types/folder";
+import type { Folder, FolderKind } from "../types/folder";
 import rowStyles from "../components/ListItem.module.css";
 import styles from "./FoldersScreen.module.css";
 
@@ -36,6 +44,11 @@ interface FoldersScreenProps {
   onDelete: (folder: Folder) => void;
   /** Новый порядок: id папок, null — «Все привычки». */
   onReorder: (order: (number | null)[]) => void;
+  /** Добавить рекомендуемую папку. */
+  onAddRecommended: (kind: FolderKind) => void;
+  /** «Переключение свайпом». */
+  swipe: boolean;
+  onSwipeChange: (on: boolean) => void;
 }
 
 /** Перетаскиваемый ряд: какой, на сколько сдвинут пальцем и куда встанет. */
@@ -52,6 +65,9 @@ export function FoldersScreen({
   onOpen,
   onDelete,
   onReorder,
+  onAddRecommended,
+  swipe,
+  onSwipeChange,
 }: FoldersScreenProps) {
   const strings = useStrings();
   const [editing, setEditing] = useState(false);
@@ -64,6 +80,10 @@ export function FoldersScreen({
   const rows: (Folder | null)[] = [...folders];
   rows.splice(Math.min(allHabitsPosition, folders.length), 0, null);
   const canCreate = folders.length < MAX_FOLDERS_PER_USER;
+  // Рекомендуемые — те, которых ещё нет среди папок (и пока можно создать папку).
+  const recommended = canCreate
+    ? FOLDER_KINDS.filter((kind) => !folders.some((folder) => folder.kind === kind))
+    : [];
 
   // Папок не осталось — правке нечего делать.
   useEffect(() => {
@@ -156,7 +176,7 @@ export function FoldersScreen({
   const rowHeight = start.current?.height ?? 0;
 
   return (
-    <Screen title={strings.foldersTitle} withTabBar={false} enterAnimation>
+    <Screen title={strings.foldersTitle} withTabBar={false} enterAnimation pinnedTitle>
       <div className={styles.intro}>
         <span className={styles.introIcon} style={habitColorStyle("blue")} aria-hidden="true">
           <FolderIcon />
@@ -272,6 +292,40 @@ export function FoldersScreen({
             })}
           </Card>
         </Section>
+
+        {recommended.length > 0 ? (
+          <Section variant="form" title={strings.foldersRecommendedHeading}>
+            <Card>
+              {recommended.map((kind) => (
+                <div key={kind} className={`${rowStyles.row} ${styles.recommended}`}>
+                  <span className={styles.recommendedText}>
+                    <span className={styles.recommendedName}>{strings.folderKindNames[kind]}</span>
+                    <span className={styles.recommendedDescription}>
+                      {strings.folderKindDescriptions[kind]}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.addButton}
+                    onClick={() => onAddRecommended(kind)}
+                  >
+                    {strings.foldersRecommendedAdd}
+                  </button>
+                </div>
+              ))}
+            </Card>
+          </Section>
+        ) : null}
+
+        <div className={styles.swipe}>
+          <Section variant="form" footer={strings.foldersSwipeFooter}>
+            <Card>
+              <ListItem label={strings.foldersSwipe}>
+                <Switch checked={swipe} onChange={onSwipeChange} label={strings.foldersSwipe} />
+              </ListItem>
+            </Card>
+          </Section>
+        </div>
       </div>
     </Screen>
   );

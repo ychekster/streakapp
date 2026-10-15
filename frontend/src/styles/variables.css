@@ -252,6 +252,9 @@
   --space-list-gap: 35px; /* между карточками-группами */
   --space-list-footer-top: 8px; /* от карточки до пояснения под ней */
   /* Настройки → «Папки» (FoldersScreen) и форма папки. */
+  /* Верх значка — ~57pt ниже середины заголовка шапки, как в эталоне (настройки папок
+     Telegram): строка шапки 46 / 2 + отступ экрана 11 + этот. */
+  --space-folders-intro-top: 23px;
   --folders-intro-icon-size: 64px;
   --folders-intro-icon-radius: 15px;
   --folders-intro-icon-glyph: 42px;
@@ -262,6 +265,14 @@
   --folders-handle-hit: 12px; /* запас нажатия вокруг ручки */
   --folders-shift-anim: 200ms ease;
   --folders-drag-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  /* Ряд рекомендуемой папки — пропорции ряда операции в Notch (название — как у рядов, подпись 14,
+     по 10 сверху и снизу); «Добавить» — капсула 30pt. */
+  --folders-recommended-pad-y: 11px; /* ряд 61.5pt, как в эталоне (Telegram) */
+  --space-folders-swipe-gap: 36px; /* от рекомендуемых папок до «Переключения свайпом» */
+  --folders-recommended-description-size: 14px;
+  --folders-add-height: 30px;
+  --folders-add-pad-x: 14px;
+  --folders-add-font-size: 15px;
   --folder-check-size: 24px; /* кружок выбора привычки в папку */
   --line-height-list-footer: 1.37;
   --disclosure-width: 8px; /* значок › у ряда, открывающего вложенный экран */

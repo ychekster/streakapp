@@ -132,6 +132,11 @@ class User(Base):
     all_habits_position: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
+    # «Переключение свайпом» (настройки → «Папки»): свайп по списку привычек открывает
+    # соседнюю папку. Применяет фронтенд.
+    folder_swipe: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
     # (/start записывает пользователя, см. bot/handlers/start.py).
@@ -343,7 +348,8 @@ class Folder(Base):
     """Папка привычек (настройки → «Папки»): название и привычки, которые в ней видны.
 
     Привычки — список id задач (`task_ids`); удалённые с экрана пропадают сами
-    (services.list_folders берёт только активные). Порядок папок — `position`; папка «Все
+    (services.list_folders берёт только активные). У рекомендуемой папки (`kind`) привычек
+    не выбирают: её наполняет устройство. Порядок папок — `position`; папка «Все
     привычки» не хранится, её место — `User.all_habits_position`.
     """
 
@@ -356,6 +362,9 @@ class Folder(Base):
     name: Mapped[str] = mapped_column(String(FOLDER_NAME_MAX_LENGTH), nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     task_ids: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    # Рекомендуемая папка (constants.FOLDER_KINDS) наполняется сама — `task_ids` у неё
+    # пуст; None — привычки выбраны пользователем.
+    kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Id, который дало папке устройство (/sync, folder_create): повтор создания — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True

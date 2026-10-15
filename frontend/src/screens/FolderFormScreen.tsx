@@ -6,6 +6,8 @@
  *  - «Привычки в папке» — «Добавить привычки» открывает выбор привычек
  *    (FolderHabitsScreen), под ним — выбранные привычки;
  *  - у существующей папки внизу — «Удалить папку» (с подтверждением).
+ * У рекомендуемой папки (`kind`) привычек не выбирают — она наполняется сама: вместо
+ * «Привычки в папке» под названием пояснение, какие привычки в неё попадают.
  *
  * Черновик (название и привычки) хранит App: он переживает выбор привычек, который
  * открывается отдельным экраном поверх формы. Сохраняет нижняя кнопка — «Создать папку»
@@ -62,7 +64,8 @@ export function FolderFormScreen({
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const valid = draft.name.trim().length > 0;
-  const selected = habits.filter((habit) => draft.habits.includes(habit.id));
+  const kind = draft.folder?.kind ?? null;
+  const selected = kind ? [] : habits.filter((habit) => draft.habits.includes(habit.id));
 
   // Цвета нижней кнопки — из дизайн-токенов (см. HabitFormScreen).
   const buttonColors = useMemo(
@@ -134,7 +137,11 @@ export function FolderFormScreen({
       enterAnimation
     >
       <div className={formStyles.form}>
-        <Section variant="form" title={strings.folderNameHeading}>
+        <Section
+          variant="form"
+          title={strings.folderNameHeading}
+          footer={kind ? strings.folderKindFooter[kind] : undefined}
+        >
           <Card>
             <ListItem>
               <input
@@ -152,28 +159,34 @@ export function FolderFormScreen({
           </Card>
         </Section>
 
-        <Section variant="form" title={strings.folderHabitsHeading} footer={strings.folderHabitsFooter}>
-          <Card>
-            <ListItem
-              accent
-              onPress={onPickHabits}
-              label={
-                <span className={styles.addLabel}>
-                  <PlusIcon />
-                  {strings.folderAddHabits}
-                </span>
-              }
-            />
-            {selected.map((habit) => (
+        {kind ? null : (
+          <Section
+            variant="form"
+            title={strings.folderHabitsHeading}
+            footer={strings.folderHabitsFooter}
+          >
+            <Card>
               <ListItem
-                key={habit.id}
-                icon={<HabitAvatar habit={habit} />}
-                iconColor={habit.color}
-                label={<span className={styles.habitName}>{habit.name}</span>}
+                accent
+                onPress={onPickHabits}
+                label={
+                  <span className={styles.addLabel}>
+                    <PlusIcon />
+                    {strings.folderAddHabits}
+                  </span>
+                }
               />
-            ))}
-          </Card>
-        </Section>
+              {selected.map((habit) => (
+                <ListItem
+                  key={habit.id}
+                  icon={<HabitAvatar habit={habit} />}
+                  iconColor={habit.color}
+                  label={<span className={styles.habitName}>{habit.name}</span>}
+                />
+              ))}
+            </Card>
+          </Section>
+        )}
 
         {error ? (
           <p ref={errorRef} className={formStyles.error} role="alert">

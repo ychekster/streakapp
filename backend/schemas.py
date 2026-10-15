@@ -258,6 +258,9 @@ class SettingsResponse(BaseModel):
         True,
         description="«Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram",
     )
+    folder_swipe: bool = Field(
+        False, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
+    )
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -287,6 +290,7 @@ class SettingsUpdate(BaseModel):
     telegram_notifications: bool | None = Field(
         None, description="Напоминания и рассылки от бота в Telegram"
     )
+    folder_swipe: bool | None = Field(None, description="Переключение папок свайпом")
 
 
 # --------------------------------------------------------------------------- #
@@ -365,6 +369,11 @@ class FolderInput(BaseModel):
         max_length=MAX_HABITS_PER_USER,
         description="Привычки в папке (id или id устройства); удалённые пропускаются",
     )
+    kind: Literal["unfinished", "today"] | None = Field(
+        None,
+        description="Рекомендуемая папка (constants.FOLDER_KINDS): наполняется сама, "
+        "`habits` не читаются; при изменении папки вид не меняется",
+    )
 
 
 class SyncFolderCreate(BaseModel):
@@ -439,7 +448,11 @@ class Folder(BaseModel):
 
     id: int
     name: str
-    habits: list[int] = Field(..., description="Id привычек в папке — в порядке списка привычек")
+    habits: list[int] = Field(
+        ...,
+        description="Id привычек в папке — в порядке списка привычек; у рекомендуемой пуст",
+    )
+    kind: str | None = Field(None, description="Рекомендуемая папка (unfinished, today) или null")
 
 
 class SyncResponse(BaseModel):

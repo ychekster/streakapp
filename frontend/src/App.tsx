@@ -107,7 +107,7 @@ import {
   isTelegramAvailable,
   setTelegramColors,
 } from "./telegram/webapp";
-import type { Folder } from "./types/folder";
+import type { Folder, FolderKind } from "./types/folder";
 import type { Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
@@ -279,10 +279,27 @@ export function App() {
     activeFolderTab === "all"
       ? null
       : (folders.find((folder) => String(folder.id) === activeFolderTab) ?? null);
-  const shownHabits = useMemo(
-    () => (activeFolder ? habits.filter((habit) => activeFolder.habits.includes(habit.id)) : habits),
-    [habits, activeFolder],
-  );
+  // «Невыполненные»: отмеченная привычка не пропадает из открытой папки сразу — её можно
+  // снять обратно; уходит, когда папку (или вкладку) сменили.
+  const keptInFolder = useRef({ key: "", ids: new Set<number>() });
+  const shownHabits = useMemo(() => {
+    if (!activeFolder) {
+      return habits;
+    }
+    const kept = keptInFolder.current;
+    const key = `${tab}:${activeFolder.id}`;
+    if (kept.key !== key || activeFolder.kind !== "unfinished") {
+      keptInFolder.current = { key, ids: new Set() };
+    }
+    const ids = keptInFolder.current.ids;
+    const shown = habits.filter(
+      (habit) => activeFolder.habits.includes(habit.id) || ids.has(habit.id),
+    );
+    if (activeFolder.kind === "unfinished") {
+      shown.forEach((habit) => ids.add(habit.id));
+    }
+    return shown;
+  }, [habits, activeFolder, tab]);
   const folderBar: FolderBarState | null =
     folders.length > 0
       ? {
@@ -295,6 +312,8 @@ export function App() {
             }
           },
           inFolder: activeFolder !== null,
+          kind: activeFolder?.kind ?? null,
+          swipe: settings?.folder_swipe ?? false,
         }
       : null;
   // In the Mini App Telegram itself says who it is (also before the account loads).
@@ -443,6 +462,20 @@ export function App() {
       setTab("habits");
     }
     hideEditor();
+  }
+
+  // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.
+  function addRecommendedFolder(kind: FolderKind): void {
+    try {
+      dataStore.createFolder(strings.folderKindNames[kind], [], kind);
+      hapticNotification("success");
+    } catch (error) {
+      hapticNotification("error");
+      void showAlert({
+        title: strings.folderSaveFailed,
+        message: describeError(strings, error, strings.folderSaveFailed),
+      });
+    }
   }
 
   // Заморозить привычку и вернуться к списку или разморозить её, оставшись на экране —
@@ -820,6 +853,9 @@ export function App() {
             onOpen={showFolderForm}
             onDelete={(folder) => dataStore.deleteFolder(folder.id)}
             onReorder={(order) => dataStore.orderFolders(order)}
+            onAddRecommended={addRecommendedFolder}
+            swipe={settings?.folder_swipe ?? false}
+            onSwipeChange={(on) => saveSettings({ folder_swipe: on })}
           />
         );
       }

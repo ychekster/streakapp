@@ -9,7 +9,7 @@
  */
 
 import { HISTORY_DAYS, WEEKDAYS } from "../constants";
-import type { Folder } from "../types/folder";
+import type { Folder, FolderKind } from "../types/folder";
 import type { FrequencyType, Habit, HabitInput } from "../types/habit";
 import type { Settings } from "../types/settings";
 import type { FolderKey, SyncOperation, TaskKey } from "../types/sync";
@@ -100,6 +100,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   }
   if (patch.telegram_notifications !== undefined) {
     next.telegram_notifications = patch.telegram_notifications;
+  }
+  if (patch.folder_swipe !== undefined) {
+    next.folder_swipe = patch.folder_swipe;
   }
   if (patch.checkin_reminder !== undefined) {
     next.checkin_reminder_time = patch.checkin_reminder.time;
@@ -578,9 +581,19 @@ export interface FoldersView {
   allHabitsPosition: number;
 }
 
+/** Is a habit in a recommended folder: due on the marking day (not frozen) and, for
+ *  «unfinished», not done yet. */
+export function inFolderOfKind(kind: FolderKind, habit: Habit): boolean {
+  if (!habit.scheduled_today || habit.frozen_since !== null) {
+    return false;
+  }
+  return kind === "today" || !habit.done_today;
+}
+
 /**
  * The folders after the operations, as the server applies them (services._apply_folder_op):
- * a folder shows only habits that are in `habits` (the view), in their order. `displayTask`
+ * a folder shows only habits that are in `habits` (the view), in their order; a recommended
+ * one — the habits of its kind (inFolderOfKind), the server keeps none in it. `displayTask`
  * and `displayFolder` give the ids habits and folders are shown under (store.ts).
  */
 export function deriveFolders(
@@ -590,17 +603,31 @@ export function deriveFolders(
   displayTask: (key: TaskKey) => number,
   displayFolder: (key: FolderKey) => number,
 ): FoldersView {
-  let drafts: { key: FolderKey; name: string; habits: TaskKey[] }[] = (snapshot.folders ?? []).map(
-    (folder) => ({ key: folder.id, name: folder.name, habits: folder.habits }),
-  );
+  let drafts: { key: FolderKey; name: string; habits: TaskKey[]; kind: FolderKind | null }[] = (
+    snapshot.folders ?? []
+  ).map((folder) => ({
+    key: folder.id,
+    name: folder.name,
+    habits: folder.habits,
+    kind: folder.kind ?? null,
+  }));
   let position = snapshot.all_habits_position ?? 0;
   for (const op of ops) {
     if (op.type === "folder_create") {
-      drafts.push({ key: op.ref, name: cleanHabitName(op.folder.name), habits: op.folder.habits });
+      drafts.push({
+        key: op.ref,
+        name: cleanHabitName(op.folder.name),
+        habits: op.folder.kind ? [] : op.folder.habits,
+        kind: op.folder.kind ?? null,
+      });
     } else if (op.type === "folder_update") {
       drafts = drafts.map((draft) =>
         draft.key === op.key
-          ? { key: draft.key, name: cleanHabitName(op.folder.name), habits: op.folder.habits }
+          ? {
+              ...draft,
+              name: cleanHabitName(op.folder.name),
+              habits: draft.kind ? [] : op.folder.habits,
+            }
           : draft,
       );
     } else if (op.type === "folder_delete") {
@@ -631,10 +658,14 @@ export function deriveFolders(
   return {
     folders: drafts.map((draft) => {
       const inside = new Set(draft.habits.map(displayTask));
+      const kind = draft.kind;
       return {
         id: displayFolder(draft.key),
         name: draft.name,
-        habits: habits.filter((habit) => inside.has(habit.id)).map((habit) => habit.id),
+        habits: habits
+          .filter((habit) => (kind ? inFolderOfKind(kind, habit) : inside.has(habit.id)))
+          .map((habit) => habit.id),
+        kind,
       };
     }),
     allHabitsPosition: Math.min(position, drafts.length),

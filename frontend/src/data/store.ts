@@ -34,7 +34,7 @@ import {
   SYNC_RETRY_MS,
 } from "../constants";
 import { getTelegramUserId, isTelegramAvailable } from "../telegram/webapp";
-import type { Folder, FolderInput } from "../types/folder";
+import type { Folder, FolderInput, FolderKind } from "../types/folder";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
@@ -295,9 +295,13 @@ function enqueue(op: Operation): void {
   } else if (op.type === "folder_update") {
     const created = unsent.findIndex((item) => item.type === "folder_create" && item.ref === op.key);
     if (created >= 0) {
+      const create = unsent[created] as Extract<Operation, { type: "folder_create" }>;
+      // A recommended folder stays one.
       unsent[created] = {
-        ...(unsent[created] as Extract<Operation, { type: "folder_create" }>),
-        folder: op.folder,
+        ...create,
+        folder: create.folder.kind
+          ? { ...op.folder, habits: [], kind: create.folder.kind }
+          : op.folder,
       };
     } else {
       unsent = unsent.filter((item) => !(item.type === "folder_update" && item.key === op.key));
@@ -692,15 +696,19 @@ export const dataStore = {
     enqueue({ type: "delete", task: keyOf(id) });
   },
 
-  /** Create a folder of these habits (ids on screen); throws ApiRequestError (as the
-   *  server would) if it can't be. Returns its id on screen. */
-  createFolder(name: string, habitIds: number[]): number {
+  /** Create a folder of these habits (ids on screen) or a recommended one (`kind`, no
+   *  habits); throws ApiRequestError (as the server would) if it can't be. Returns its id
+   *  on screen. */
+  createFolder(name: string, habitIds: number[], kind?: FolderKind): number {
     validateFolderName(name);
     if (state.folders.length >= MAX_FOLDERS_PER_USER) {
       throw new ApiRequestError(409, "folder_limit", "");
     }
     const ref = newRef();
-    enqueue({ type: "folder_create", ref, folder: { name, habits: habitIds.map(keyOf) } });
+    const folder: FolderInput = kind
+      ? { name, habits: [], kind }
+      : { name, habits: habitIds.map(keyOf) };
+    enqueue({ type: "folder_create", ref, folder });
     return tempIdOf(ref);
   },
 
@@ -717,7 +725,7 @@ export const dataStore = {
   /** Put a habit into a folder (a habit just created while the folder was open). */
   addToFolder(id: number, habitId: number): void {
     const folder = state.folders.find((item) => item.id === id);
-    if (folder && !folder.habits.includes(habitId)) {
+    if (folder && !folder.kind && !folder.habits.includes(habitId)) {
       dataStore.updateFolder(id, folder.name, [...folder.habits, habitId]);
     }
   },

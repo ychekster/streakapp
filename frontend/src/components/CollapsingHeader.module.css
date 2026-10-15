@@ -45,6 +45,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   text-align: center;
+  margin: 0;
   font-size: var(--font-size-title-collapsed);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -58,7 +59,9 @@
     filter var(--header-anim);
 }
 
-/* Появление Б: всплывает снизу на своё место, размытие сходит на нет, проявляется. */
+/* Появление Б: всплывает снизу на своё место, размытие сходит на нет, проявляется.
+   С `pinned` (заголовок по центру с самого начала) Б на месте всегда. */
+.pinned .titleCollapsed,
 .collapsed .titleCollapsed {
   opacity: 1;
   transform: translateY(-50%);
@@ -104,6 +107,11 @@
 
 .collapsed .bar {
   opacity: 1;
+}
+
+/* `pinned`: подложка идёт за прокруткой (opacity ставит JS) — без перехода. */
+.pinned .bar {
+  transition: none;
 }
 
 /* Состояние без анимации: экран, открытый на запомненной позиции прокрутки, сразу

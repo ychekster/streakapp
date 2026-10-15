@@ -25,6 +25,10 @@
  * Экран без крупного заголовка (экран привычки) передаёт `anchorRef`: А там нет, и шапка
  * сворачивается после той же прокрутки, что и на экране с крупным заголовком, — её
  * считает невидимая проба заголовка А (см. standardTitleHeight).
+ *
+ * Экран с `pinned` (настройки папок): заголовок Б стоит по центру с самого начала, А
+ * нет (отступ сверху задаёт сам контент). Подложка проявляется вслед за прокруткой — от прозрачной в начале до полной, когда
+ * верх первого блока контента доходит до её нижнего края.
  */
 
 import { type RefObject, useLayoutEffect, useRef } from "react";
@@ -35,6 +39,8 @@ interface CollapsingHeaderProps {
   title: string;
   /** Элемент в потоке вместо крупного заголовка А (тогда А не рендерится). */
   anchorRef?: RefObject<HTMLElement>;
+  /** Заголовок Б виден всегда (А нет); прокрутка проявляет только подложку. */
+  pinned?: boolean;
 }
 
 let probe: HTMLDivElement | null = null;
@@ -90,9 +96,10 @@ export const SCROLL_RESTORED_EVENT = "app:scroll-restored";
 // Гистерезис порога (px), чтобы класс не «дёргался» при остановке ровно на границе.
 const COLLAPSE_HYSTERESIS = 8;
 
-export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
+export function CollapsingHeader({ title, anchorRef, pinned = false }: CollapsingHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
   const titleExpandedRef = useRef<HTMLHeadingElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
 
   // Layout-эффект: начальное состояние шапки ставится до первой отрисовки экрана.
   useLayoutEffect(() => {
@@ -109,6 +116,11 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
     // offsetWidth), после чего переходы возвращаются для обычной прокрутки.
     const updateState = (instant = false): void => {
       const y = window.scrollY;
+      if (pinned) {
+        const progress = Math.min(1, Math.max(0, y / collapseThreshold));
+        barRef.current?.style.setProperty("opacity", String(progress));
+        return;
+      }
       const next = collapsed
         ? y > collapseThreshold - COLLAPSE_HYSTERESIS
         : y >= collapseThreshold;
@@ -151,10 +163,14 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
 
       // Порог сворачивания: scrollY, при котором верх контента под А касается нижнего
       // края шапки. Без А (экран с якорем) — та же прокрутка, что у экрана с А в одну
-      // строку: контент там начинался бы ниже на высоту А.
+      // строку: контент там начинался бы ниже на высоту А. У `pinned` — прокрутка, при
+      // которой до подложки доходит сам первый блок (без его верхнего отступа).
+      const firstBlock = contentEl.firstElementChild;
       const blockTop = anchorRef
         ? documentTop(headerEl) + standardTitleHeight(headerEl)
-        : documentTop(contentEl);
+        : pinned && firstBlock
+          ? documentTop(firstBlock) + Number.parseFloat(getComputedStyle(firstBlock).paddingTop)
+          : documentTop(contentEl);
       collapseThreshold = Math.max(1, blockTop - barBottom);
       updateState(instant);
     };
@@ -179,20 +195,24 @@ export function CollapsingHeader({ title, anchorRef }: CollapsingHeaderProps) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("app:insets", onResize);
     };
-  }, [title, anchorRef]);
+  }, [title, anchorRef, pinned]);
 
   return (
-    <div ref={headerRef}>
+    <div ref={headerRef} className={pinned ? styles.pinned : undefined}>
       {/* Подложка шапки: матовое стекло + линия-разделитель (см. CollapsingHeader.module.css). */}
-      <div className={styles.bar} aria-hidden="true" />
-      {anchorRef ? null : (
+      <div ref={barRef} className={styles.bar} aria-hidden="true" />
+      {anchorRef || pinned ? null : (
         <h1 ref={titleExpandedRef} className={styles.titleExpanded}>
           {title}
         </h1>
       )}
-      <span className={styles.titleCollapsed} aria-hidden="true">
-        {title}
-      </span>
+      {pinned ? (
+        <h1 className={styles.titleCollapsed}>{title}</h1>
+      ) : (
+        <span className={styles.titleCollapsed} aria-hidden="true">
+          {title}
+        </span>
+      )}
     </div>
   );
 }

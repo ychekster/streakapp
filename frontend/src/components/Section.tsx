@@ -6,7 +6,8 @@
  *    карточки (форма привычки, как в эталоне). Шрифт у обоих одинаковый.
  *
  * Под содержимым может стоять приглушённое пояснение (`footer`), как под группой списка,
- * а справа от заголовка — действие (`action`, «Изменить» у списка папок).
+ * а справа от заголовка — действие (`action`, «Изменить» у списка папок). Без `title` —
+ * секция без заголовка (переключатель с пояснением в настройках папок).
  *
  * `Card` — белая карточка секции; `padded` добавляет горизонтальный отступ (карточка
  * привычки — вертикальный отступ задаёт сам блок привычки). Ряды списка (ListItem)
@@ -18,7 +19,7 @@ import type { ReactNode, Ref } from "react";
 import styles from "./Section.module.css";
 
 interface SectionProps {
-  title: string;
+  title?: string;
   variant?: "screen" | "form";
   /** Ссылка на заголовок (якорь сворачивающейся шапки, см. CollapsingHeader). */
   headingRef?: Ref<HTMLHeadingElement>;
@@ -37,11 +38,12 @@ export function Section({
   action,
   children,
 }: SectionProps) {
-  const heading = (
-    <h2 ref={headingRef} className={`${styles.heading} ${styles[variant]}`}>
-      {title}
-    </h2>
-  );
+  const heading =
+    title !== undefined ? (
+      <h2 ref={headingRef} className={`${styles.heading} ${styles[variant]}`}>
+        {title}
+      </h2>
+    ) : null;
   return (
     <section className={styles.section}>
       {action ? (

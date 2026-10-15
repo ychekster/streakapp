@@ -347,6 +347,7 @@ class Repository:
         grid_layout: str | None = None,
         checkin_reminder: tuple[time | None, str] | None = None,
         telegram_notifications: bool | None = None,
+        folder_swipe: bool | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
         меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
@@ -366,6 +367,8 @@ class Repository:
             user.checkin_reminder_time, user.checkin_reminder_days = checkin_reminder
         if telegram_notifications is not None:
             user.telegram_notifications = telegram_notifications
+        if folder_swipe is not None:
+            user.folder_swipe = folder_swipe
         await self.session.flush()
 
     async def touch_user(
@@ -505,9 +508,14 @@ class Repository:
         return result.scalar_one_or_none()
 
     async def create_folder(
-        self, user_id: int, name: str, task_ids: list[int], client_ref: str | None
+        self,
+        user_id: int,
+        name: str,
+        task_ids: list[int],
+        client_ref: str | None,
+        kind: str | None = None,
     ) -> Folder:
-        """Создать папку последней в ряду папок."""
+        """Создать папку последней в ряду папок; `kind` — рекомендуемая."""
         last = await self.session.scalar(
             select(func.max(Folder.position)).where(Folder.user_id == user_id)
         )
@@ -517,6 +525,7 @@ class Repository:
             task_ids=task_ids,
             position=0 if last is None else last + 1,
             client_ref=client_ref,
+            kind=kind,
         )
         self.session.add(folder)
         await self.session.flush()
@@ -1498,6 +1507,7 @@ class Repository:
             theme=source.theme,
             mark_yesterday=source.mark_yesterday,
             telegram_notifications=source.telegram_notifications,
+            folder_swipe=source.folder_swipe,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
             telegram_seen_at=source.telegram_seen_at,

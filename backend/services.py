@@ -499,7 +499,8 @@ async def _active_task(repo: Repository, user: User, ref: int | str) -> Task:
 
 async def list_folders(repo: Repository, user: User) -> list[FolderView]:
     """Папки пользователя по порядку; привычки в каждой — только активные, в порядке
-    списка привычек."""
+    списка привычек. Рекомендуемую папку (`kind`) наполняет устройство — привычек в ней
+    нет."""
     folders = await repo.get_folders(user.telegram_id)
     if not folders:
         return []
@@ -512,6 +513,7 @@ async def list_folders(repo: Repository, user: User) -> list[FolderView]:
                 id=folder.id,
                 name=folder.name,
                 habits=[task_id for task_id in active if task_id in inside],
+                kind=folder.kind,
             )
         )
     return views
@@ -555,8 +557,9 @@ async def _apply_folder_op(
                 409, "folder_limit", f"Можно завести не больше {MAX_FOLDERS_PER_USER} папок"
             )
         name = validation.validate_folder_name(op.folder.name)
+        task_ids = [] if op.folder.kind else await _folder_task_ids(repo, user, op.folder)
         folder = await repo.create_folder(
-            user.telegram_id, name, await _folder_task_ids(repo, user, op.folder), op.ref
+            user.telegram_id, name, task_ids, op.ref, kind=op.folder.kind
         )
         return SyncResult(ok=True, id=folder.id)
     if isinstance(op, SyncFolderUpdate):
@@ -564,7 +567,9 @@ async def _apply_folder_op(
         if folder is None:
             raise ApiError(404, "folder_not_found", "Папка не найдена")
         name = validation.validate_folder_name(op.folder.name)
-        await repo.update_folder(folder, name, await _folder_task_ids(repo, user, op.folder))
+        # Вид папки не меняется: у рекомендуемой меняется только название.
+        task_ids = [] if folder.kind else await _folder_task_ids(repo, user, op.folder)
+        await repo.update_folder(folder, name, task_ids)
         return SyncResult(ok=True)
     if isinstance(op, SyncFolderDelete):
         # Уже удалённая (или так и не созданная) папка — цель достигнута.
@@ -862,6 +867,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         mark_yesterday=user.mark_yesterday,
         grid_layout=user.grid_layout,
         telegram_notifications=user.telegram_notifications,
+        folder_swipe=user.folder_swipe,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
             if user.checkin_reminder_time is not None
@@ -920,6 +926,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
             else None
         ),
         telegram_notifications=payload.telegram_notifications,
+        folder_swipe=payload.folder_swipe,
     )
     changed = sorted(payload.model_dump(exclude_none=True))
     if changed:
