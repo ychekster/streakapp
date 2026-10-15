@@ -48,9 +48,13 @@
   background-color: rgb(var(--habit-rgb));
 }
 
-/* Сегодняшний день — с ободком цвета текста. */
+/* Сегодняшний день — точка в центре, как в сетке привычки (YearGrid.module.css .today). */
 .today {
-  box-shadow: 0 0 0 1.5px var(--color-text-primary);
+  background-image: radial-gradient(
+    circle closest-side,
+    var(--color-text-primary) var(--grid-today-dot),
+    transparent calc(var(--grid-today-dot) + 8%)
+  );
 }
 
 .name {
