@@ -14,7 +14,7 @@
   left: 0;
   right: 0;
   height: 16px;
-  background-color: rgba(242, 242, 247, 0.02); /* --color-background at 2% */
+  background-color: rgba(242, 242, 246, 0.02); /* --color-background at 2% */
   pointer-events: none;
 }
 

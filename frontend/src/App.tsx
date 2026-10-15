@@ -124,7 +124,7 @@ function readBackgroundColor(): string {
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue("--color-background")
     .trim();
-  return value || "#f2f2f7";
+  return value || "#f2f2f6";
 }
 
 /** Часовой пояс устройства (IANA) или null, если браузер его не сообщает. */

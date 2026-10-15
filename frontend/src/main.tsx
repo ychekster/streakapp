@@ -68,7 +68,7 @@ if (entry === "landing" && !elsewhere) {
     const background = getComputedStyle(document.documentElement)
       .getPropertyValue("--color-background")
       .trim();
-    setTelegramColors(background || "#f2f2f7");
+    setTelegramColors(background || "#f2f2f6");
   };
   applySystemTheme();
   darkQuery.addEventListener("change", applySystemTheme);
@@ -81,7 +81,7 @@ if (entry === "web") {
   const background = getComputedStyle(document.documentElement)
     .getPropertyValue("--color-background")
     .trim();
-  setTelegramColors(background || "#f2f2f7");
+  setTelegramColors(background || "#f2f2f6");
   // Scroll is the app's own: each tab and the screen under a nested one reopen where they
   // were left (App). The browser must not restore its saved position when «Назад» steps
   // back through history (web/WebChrome.tsx) — it would throw the list back to the top.

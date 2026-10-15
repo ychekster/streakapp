@@ -14,15 +14,15 @@
   color-scheme: light; /* системные меню, выбор времени, клавиатура — в тон теме */
 
   /* --- Цвета --- */
-  --color-background: #f2f2f7; /* системный светло-серый фон iOS */
+  --color-background: #f2f2f6; /* фон «Настроек» iOS 26 (замер со скриншота) */
   --color-card: #ffffff;
-  --color-text-primary: #1c1c1e;
-  --color-text-secondary: #8e8e93;
+  --color-text-primary: #000000; /* заголовки и подписи рядов в «Настройках» — чистый чёрный */
+  --color-text-secondary: #8a8a8e; /* значение справа и подзаголовок в «Настройках» */
   --color-accent: #007aff; /* системный синий iOS */
   --color-check-icon: #ffffff;
-  --color-separator: rgba(60, 60, 67, 0.1); /* бледная линия-разделитель (малозаметная) */
+  --color-separator: rgba(60, 60, 67, 0.12); /* разделитель: на белом #e7e7e8, как в «Настройках» */
   --color-skeleton: #e5e5ea;
-  --color-skeleton-highlight: #f2f2f7;
+  --color-skeleton-highlight: #f2f2f6;
   --color-danger: #ff3b30;
 
   /*
@@ -152,7 +152,7 @@
   /* Эффект матового стекла целиком одним токеном: платформа может заменить его на none,
      и тогда backdrop-filter не создаёт слоя вовсе (а не считает размытие на 0px). */
   --header-bar-backdrop: blur(var(--header-bar-blur)) saturate(var(--header-bar-saturate));
-  --header-bar-tint: rgba(242, 242, 247, 0.8); /* --color-background на 80% */
+  --header-bar-tint: rgba(242, 242, 246, 0.8); /* --color-background на 80% */
   --header-hairline-scale: 1;
   --header-hairline-color: rgba(0, 0, 0, 0.09);
   --collapsed-title-rise: 8px; /* на сколько свёрнутый заголовок «всплывает» снизу при появлении */
@@ -165,8 +165,9 @@
   --screen-enter-anim: 320ms cubic-bezier(0.32, 0.72, 0, 1);
   --screen-enter-shift: 24px;
 
-  /* --- Тени (мягкие, в духе iOS) --- */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* --- Тени --- */
+  /* Карточки, списки и таблетка папок — без тени, как в «Настройках» iOS 26. */
+  --shadow-card: none;
 
   /*
    * --- Liquid glass (нижняя навигация и кнопка «+») ---
@@ -477,7 +478,7 @@
 :root[data-platform="android"] {
   --glass-backdrop: none;
   --header-bar-backdrop: none;
-  /* rgba(255,255,255,0.9) и 0.78 поверх --color-background (#f2f2f7). */
+  /* rgba(255,255,255,0.9) и 0.78 поверх --color-background (#f2f2f6). */
   --glass-fill: linear-gradient(180deg, #fefefe, #fcfcfd);
   /* Подложка шапки становится непрозрачной: содержимое под ней не просвечивает, как у
      сплошной шапки iOS. Цвет темы берётся сам — переменная общая для обеих тем. */
@@ -520,7 +521,7 @@
   --web-settings-disclosure-height: 12.7px;
   --web-settings-disclosure-stroke: 1.6px;
   --web-settings-disclosure-trailing: 1.9px;
-  --web-settings-disclosure-color: rgba(60, 60, 67, 0.36);
+  --web-settings-disclosure-color: rgba(60, 60, 67, 0.3); /* #c5c5c7 on white */
   --web-settings-switch-width: 63px;
   --web-settings-switch-thumb-width: 37px;
   --web-settings-switch-trailing: -2px;
@@ -589,7 +590,7 @@
     var(--color-background),
     var(--web-header-glass) var(--web-header-fade)
   );
-  --web-header-glass: rgba(242, 242, 247, 0.8); /* --color-background at 80% */
+  --web-header-glass: rgba(242, 242, 246, 0.8); /* --color-background at 80% */
   --web-header-fade: 24px;
   /* Back button: a 44pt glass circle 15pt from the edge, black chevron. */
   --web-back-size: 44px;
