@@ -1,7 +1,10 @@
 /** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр).
  *  Сам список — HabitsList: тот же, что показывает админ-панель. Если у пользователя есть
  *  папки, над списком — таблетка папок (FolderBar), и список показывает привычки
- *  выбранной (App отдаёт уже отобранные). */
+ *  выбранной (App отдаёт уже отобранные). Свайп по экрану справа налево — следующая
+ *  папка (вкладка правее), слева направо — предыдущая; на крайней вкладке дальше не идёт. */
+
+import { useCallback, useRef } from "react";
 
 import { FolderBar, type FolderTab } from "../components/FolderBar";
 import { HabitsList } from "../components/HabitsList";
@@ -10,6 +13,7 @@ import { Skeleton } from "../components/Skeleton";
 import { StatusMessage } from "../components/StatusMessage";
 import { describeError } from "../errors";
 import type { HabitsStatus } from "../hooks/useHabits";
+import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
 import { useStrings } from "../preferences";
 import type { Habit } from "../types/habit";
 
@@ -47,6 +51,23 @@ export function HabitsScreen({
   onReload,
 }: HabitsScreenProps) {
   const strings = useStrings();
+  // Обработчик свайпа стабилен (иначе переподписка на каждом рендере), а таблетку берёт
+  // свежую из ref.
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
+  const switchFolder = useCallback((direction: SwipeDirection) => {
+    const bar = foldersRef.current;
+    if (!bar) {
+      return;
+    }
+    const index = bar.tabs.findIndex((tab) => tab.key === bar.active);
+    const next = bar.tabs[index + (direction === "left" ? 1 : -1)];
+    if (index !== -1 && next) {
+      bar.onSelect(next.key);
+    }
+  }, []);
+  useHorizontalSwipe(folders && status === "ready" ? switchFolder : null);
+
   return (
     <Screen title={strings.screenTitle}>
       {folders && status === "ready" ? (
