@@ -20,6 +20,7 @@ from backend.constants import (
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
     LANGUAGES,
+    MAX_DB_INT,
     MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
     REMINDER_TIME_FORMAT,
@@ -266,3 +267,16 @@ def validate_broadcast_button(value: str) -> str | None:
     if value not in BROADCAST_BUTTONS:
         raise ApiError(422, "invalid_button", "Неизвестная кнопка")
     return value
+
+
+def parse_db_int(text: object) -> int | None:
+    """Целое из строки ASCII-цифр, которое помещается в колонку БД, иначе None.
+
+    `str.isdigit()` пропускает «²», а `int()` на таких строках и на строках длиннее
+    4300 цифр падает — поэтому только цифры 0–9 и не длиннее MAX_DB_INT.
+    """
+    raw = str(text)
+    if not raw.isascii() or not raw.isdecimal() or len(raw) > len(str(MAX_DB_INT)):
+        return None
+    value = int(raw)
+    return value if value <= MAX_DB_INT else None

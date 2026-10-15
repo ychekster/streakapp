@@ -28,7 +28,6 @@ from backend.constants import (
     BROADCAST_VIDEO_MAX_BYTES,
     BROADCAST_VIDEO_TYPES,
     CAPTION_MAX_LENGTH,
-    MAX_DB_INT,
     MESSAGE_MAX_LENGTH,
 )
 from backend.errors import ApiError
@@ -99,9 +98,10 @@ def _parse_cursor(cursor: str | None) -> int | None:
     """
     if cursor is None or cursor == "":
         return None
-    if not cursor.isdigit() or int(cursor) > MAX_DB_INT:
+    value = validation.parse_db_int(cursor)
+    if value is None:
         raise ApiError(422, "invalid_cursor", "Некорректный курсор страницы")
-    return int(cursor)
+    return value
 
 
 # --------------------------------------------------------------------------- #

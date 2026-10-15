@@ -20,11 +20,11 @@ from backend.constants import (
     AUDIENCE_FILTERS,
     AUDIENCE_MAX_LENGTH,
     BROADCAST_EXCLUDED_FILTERS,
-    MAX_DB_INT,
     SEGMENT_FILTER,
 )
 from backend.errors import ApiError
 from backend.repository import Repository
+from backend.validation import parse_db_int
 
 # Разобранный фильтр: признак → значение.
 Audience = dict[str, str]
@@ -47,7 +47,7 @@ def parse_audience(value: str | None, *, broadcast: bool = False) -> Audience:
     for part in filter(None, (item.strip() for item in text.split(","))):
         key, _, option = part.partition(":")
         if key == SEGMENT_FILTER:
-            if not option.isdigit() or int(option) > MAX_DB_INT:
+            if parse_db_int(option) is None:
                 raise _invalid(f"Неизвестный фильтр: {part[:40]}")
         elif key not in AUDIENCE_FILTERS or option not in AUDIENCE_FILTERS[key]:
             raise _invalid(f"Неизвестный фильтр: {part[:40]}")

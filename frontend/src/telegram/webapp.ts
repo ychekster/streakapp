@@ -478,13 +478,3 @@ export function openExternalLink(url: string): void {
   }
   window.open(url, "_blank", "noopener");
 }
-
-/** Open a t.me link: inside Telegram without leaving it, otherwise via the browser. */
-export function openTelegramLink(url: string): void {
-  const webApp = getWebApp();
-  if (isTelegramAvailable() && webApp?.openTelegramLink) {
-    webApp.openTelegramLink(url);
-    return;
-  }
-  window.location.href = url;
-}

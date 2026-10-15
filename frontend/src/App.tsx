@@ -104,7 +104,6 @@ import {
   hapticSelection,
   initTelegram,
   showAlert,
-  isTelegramAvailable,
   setTelegramColors,
 } from "./telegram/webapp";
 import type { Folder, FolderKind } from "./types/folder";
@@ -194,8 +193,8 @@ export function App() {
   const { settings, save } = settingsState;
   const { rejected, folders, allHabitsPosition } = useAppData();
   const toggle = useToggle();
-  const telegramAvailable = isTelegramAvailable();
   const platform = usePlatform();
+  const telegramAvailable = platform === "telegram";
   const web = platform === "web";
   // «Открыл приложение» и откуда — для аналитики админ-панели (на экране ничего не меняет).
   useEffect(trackAppOpen, []);

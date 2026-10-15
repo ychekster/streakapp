@@ -1046,7 +1046,7 @@ class Repository:
                 User.first_name.ilike(pattern, escape="\\"),
                 User.username.ilike(pattern, escape="\\"),
             ]
-            if text.isdigit():
+            if text.isdecimal():
                 conditions.append(cast(User.telegram_id, String).like(f"{text}%"))
             condition = and_(condition, or_(*conditions))
         return condition
@@ -1504,8 +1504,12 @@ class Repository:
             timezone_city=source.timezone_city,
             language=source.language,
             theme=source.theme,
+            grid_layout=source.grid_layout,
             mark_yesterday=source.mark_yesterday,
+            checkin_reminder_time=source.checkin_reminder_time,
+            checkin_reminder_days=source.checkin_reminder_days,
             telegram_notifications=source.telegram_notifications,
+            all_habits_position=source.all_habits_position,
             folder_swipe=source.folder_swipe,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,

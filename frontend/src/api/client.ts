@@ -159,20 +159,21 @@ export async function apiRequest<T>(
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
+  let body: unknown;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
       signal: controller.signal,
     });
+    // Тело — под тем же таймаутом: зависшее на середине тело иначе ждали бы вечно.
+    body = await parseJsonSafe(response);
   } catch {
     // fetch падает при сетевой недоступности и по таймауту — отдельный понятный код.
     throw new ApiRequestError(0, "network_error", "Нет связи с сервером");
   } finally {
     window.clearTimeout(timeout);
   }
-
-  const body = await parseJsonSafe(response);
 
   if (!response.ok) {
     const errorBody = (body as ApiErrorBody | null)?.error;

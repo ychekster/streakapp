@@ -91,7 +91,7 @@ async def people(
         want = metric == "activated"
         return {user.id for user in known if (ds.activation_day(user.id) is not None) == want}
     if metric in ("day_n", "day_n_lost", "d7_retained", "d7_lost"):
-        n = 7 if metric.startswith("d7") else int(value) if value.isdigit() else -1
+        n = 7 if metric.startswith("d7") else int(value) if value.isdecimal() else -1
         if n not in (1, 7, 30):
             raise _bad(metric)
         keep = metric in ("day_n", "d7_retained")
@@ -129,7 +129,7 @@ async def people(
         members = [user for user in users if start <= user.created_day <= start + timedelta(days=6)]
         if metric == "cohort_week":
             return {user.id for user in members}
-        if not week_text.isdigit():
+        if not week_text.isdecimal():
             raise _bad(metric)
         first = start + timedelta(days=7 * int(week_text))
         days_of = ds.checkins if retention_basis == "checkin" else ds.activity
@@ -205,7 +205,7 @@ async def people(
     if metric in ("streak_current", "streak_best", "streak_min"):
         streaks = await ds.load_streaks(repo)
         if metric == "streak_min":
-            if not value.isdigit():
+            if not value.isdecimal():
                 raise _bad(metric)
             return {user_id for user_id, (current, _) in streaks.items() if current >= int(value)}
         index = 0 if metric == "streak_current" else 1
@@ -263,7 +263,7 @@ async def people(
             if detail == "reminder" and period.contains(local_day(moment)) and user_id in ds.users
         }
     if metric.startswith("broadcast_"):
-        if not value.isdigit():
+        if not value.isdecimal():
             raise _bad(metric)
         broadcast_id = int(value)
         actions = await repo.actions(["broadcast_sent", "app_open", "checkin", "bot_blocked"])

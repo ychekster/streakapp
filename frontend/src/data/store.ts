@@ -33,7 +33,8 @@ import {
   SYNC_REFRESH_MIN_MS,
   SYNC_RETRY_MS,
 } from "../constants";
-import { getTelegramUserId, isTelegramAvailable } from "../telegram/webapp";
+import { isTelegram } from "../platform";
+import { getTelegramUserId } from "../telegram/webapp";
 import type { Folder, FolderInput, FolderKind } from "../types/folder";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
@@ -122,7 +123,7 @@ const folderAliases = new Map<number, number>();
 // --------------------------------------------------------------------------- //
 
 function currentOwner(): string | null {
-  const telegramId = isTelegramAvailable() ? getTelegramUserId() : null;
+  const telegramId = isTelegram() ? getTelegramUserId() : null;
   if (telegramId !== null) {
     return `tg:${telegramId}`;
   }

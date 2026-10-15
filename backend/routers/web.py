@@ -91,7 +91,7 @@ async def read_web_config(request: Request) -> WebConfig:
     return WebConfig(
         vapid_public_key=settings.vapid_public_key or None,
         telegram_bot_username=settings.telegram_bot_username.lstrip("@") or None,
-        telegram_bot_id=int(bot_id) if bot_id.isdigit() else None,
+        telegram_bot_id=int(bot_id) if bot_id.isdecimal() else None,
     )
 
 

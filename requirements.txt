@@ -14,6 +14,9 @@ aiosqlite>=0.22.1,<1.0
 pytz>=2026.2
 # Нужен слою данных backend (названия часовых поясов).
 Babel>=2.18,<3.0
+# Рассылки и сообщения бота берут ошибки и разбор файлов из backend (backend.errors,
+# backend.messaging) — без FastAPI бот не запустится.
+fastapi>=0.138.0,<1.0
 pydantic>=2.13.4,<3.0
 pydantic-settings>=2.14.1,<3.0
 loguru>=0.7.3,<1.0

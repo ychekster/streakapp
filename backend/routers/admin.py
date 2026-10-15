@@ -429,7 +429,10 @@ async def create_broadcast(
     Форма разбирается здесь, уже после проверки прав, а не объявленными параметрами
     `Form`/`File`: их FastAPI читает до зависимостей, и анонимный запрос успевал бы
     загрузить файл до 50 МБ (путь рассылки — единственный с таким пределом тела).
+    Перед разбором — коммит: отметка запроса администратора (touch_user) уже могла
+    открыть запись, и SQLite держал бы блокировку всё время загрузки файла.
     """
+    await repo.commit()
     async with request.form(max_files=1, max_fields=4) as form:
         media = form.get("media")
         if media is not None and not isinstance(media, UploadFile):

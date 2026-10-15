@@ -349,6 +349,32 @@ def test_new_telegram_login_turns_the_guest_into_a_telegram_account(client: Test
     assert _names(client, session) == _names(client, telegram_user.headers) == ["Вода"]
 
 
+def test_a_guest_keeps_every_setting_after_linking_telegram(client: TestClient) -> None:
+    guest = _guest(client)
+    changed = {
+        "theme": "dark",
+        "mark_yesterday": True,
+        "grid_layout": "fixed",
+        "checkin_reminder": {"time": "21:00", "days": ["mon", "fri"]},
+        "folder_swipe": True,
+    }
+    assert client.put("/settings", json=changed, headers=guest).status_code == 200
+    ops = [
+        {"type": "folder_create", "ref": "a", "folder": {"name": "A", "habits": []}},
+        {"type": "folder_order", "order": ["a", None]},
+    ]
+    assert client.post("/sync", json={"ops": ops}, headers=guest).json()["all_habits_position"] == 1
+    before = client.get("/settings", headers=guest).json()
+
+    result = _bot_login(client, guest, new_user())
+    session = _bearer(result["session"]["token"])
+    after = client.get("/settings", headers=session).json()
+    assert after == before
+    assert after["grid_layout"] == "fixed"
+    assert after["checkin_reminder_time"] == "21:00"
+    assert client.post("/sync", json={"ops": []}, headers=session).json()["all_habits_position"] == 1
+
+
 def test_empty_guest_switches_to_the_existing_account(client: TestClient, user: AuthUser) -> None:
     _habit(client, user.headers, "Зарядка")
     guest = _guest(client)
@@ -462,6 +488,13 @@ def test_events_are_recorded_and_counted(client: TestClient) -> None:
         )
         assert response.status_code == 204, response.text
     assert client.post("/events", json={"event": "nonsense"}).status_code == 422
+    # A broadcast id that only looks like a number is ignored, not a server error.
+    guest = _guest(client)
+    for odd in ("²", "٣", "9" * 5000, 2**70, True):
+        response = client.post(
+            "/events", json={"event": "app_open", "props": {"b": odd}}, headers=guest
+        )
+        assert response.status_code == 204, (odd, response.text)
 
     admin = auth_user(SEED_ADMIN_IDS[0])
     report = client.get("/admin/funnel", headers=admin.headers)

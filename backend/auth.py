@@ -91,7 +91,7 @@ def verify_init_data(
 
     if max_age_seconds > 0:
         auth_date_raw = fields.get("auth_date")
-        if not auth_date_raw or not auth_date_raw.isdigit():
+        if not auth_date_raw or not auth_date_raw.isdecimal():
             raise InitDataError("initData has no valid auth_date")
         if time.time() - int(auth_date_raw) > max_age_seconds:
             raise InitDataError("initData is expired")
@@ -110,5 +110,5 @@ def verify_init_data(
         raise InitDataError("initData user has unexpected shape") from exc
     user.start_param = fields.get("start_param") or None
     auth_date = fields.get("auth_date") or ""
-    user.auth_date = int(auth_date) if auth_date.isdigit() else None
+    user.auth_date = int(auth_date) if auth_date.isdecimal() else None
     return user

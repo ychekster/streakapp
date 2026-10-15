@@ -22,13 +22,13 @@ from backend.constants import (
     EVENT_PROPS_MAX_KEYS,
     EVENT_PROPS_VALUE_MAX_LENGTH,
     FUNNEL_EVENTS,
-    MAX_DB_INT,
     SERVER_FUNNEL_EVENTS,
 )
 from backend.errors import ApiError
 from backend.repository import Repository
 from backend.schemas import EventIn, FunnelResponse, FunnelRow
 from backend.sources import parse_source
+from backend.validation import parse_db_int
 
 # Shown instead of an empty platform or source in the report.
 UNKNOWN = "unknown"
@@ -66,7 +66,7 @@ async def _record_app_open(repo: Repository, payload: EventIn, user_id: int) -> 
         user_id,
         APP_OPEN_EVENT,
         detail=origin if origin in APP_OPEN_SOURCES else None,
-        ref_id=int(broadcast) if str(broadcast).isdigit() and int(str(broadcast)) <= MAX_DB_INT else None,
+        ref_id=parse_db_int(broadcast) if broadcast is not None else None,
     )
 
 

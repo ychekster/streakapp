@@ -74,10 +74,10 @@ def verify_telegram_login(
         raise TelegramLoginError("signature mismatch")
     auth_date = fields.get("auth_date", "")
     if max_age_seconds > 0:
-        if not auth_date.isdigit() or time.time() - int(auth_date) > max_age_seconds:
+        if not auth_date.isdecimal() or time.time() - int(auth_date) > max_age_seconds:
             raise TelegramLoginError("expired")
     user_id = fields.get("id", "")
-    if not user_id.isdigit():
+    if not user_id.isdecimal():
         raise TelegramLoginError("no user id")
     return TelegramUser(
         id=int(user_id),
