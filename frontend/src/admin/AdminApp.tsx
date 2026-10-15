@@ -35,6 +35,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fetchReviews, fetchUsers } from "../api/admin";
 import { audienceParam } from "./audience";
 import { useAdminStrings } from "./adminStrings";
+import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "../components/CollapsingHeader";
 import { TabBar, type TabItem } from "../components/TabBar";
 import {
   AnalyticsIcon,
@@ -112,6 +113,8 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
   // Позиции прокрутки экранов под открытыми: при возврате — там же.
   const scrollStack = useRef<number[]>([]);
   const pendingScroll = useRef<number | null>(null);
+  // Эта прокрутка — возврат «Назад» на экран под закрытым (см. Screen, enterAnimation).
+  const pendingBack = useRef(false);
 
   const [analyticsView, setAnalyticsView] = useState<AnalyticsView>({
     filter: { period: DEFAULT_ANALYTICS_PERIOD, platform: null, source: null },
@@ -166,6 +169,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
 
   const pop = useCallback(() => {
     pendingScroll.current = scrollStack.current.pop() ?? 0;
+    pendingBack.current = true;
     setStack((current) => current.slice(0, -1));
   }, []);
 
@@ -197,15 +201,20 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     users.update((items) => items.filter((user) => user.telegram_id !== telegramId));
     reviews.update((items) => items.filter((review) => review.user.telegram_id !== telegramId));
     pendingScroll.current = scrollStack.current[0] ?? 0;
+    pendingBack.current = true;
     scrollStack.current = [];
     setStack([]);
   }
 
-  // Открытый экран — с начала, экран под ним — на сохранённой позиции.
+  // Открытый экран — с начала, экран под ним — на сохранённой позиции; шапка и экран
+  // сразу принимают вид для неё, без анимации (как в App).
   useLayoutEffect(() => {
     if (pendingScroll.current !== null) {
       window.scrollTo(0, pendingScroll.current);
       pendingScroll.current = null;
+      const detail: ScrollRestoredDetail = { back: pendingBack.current };
+      pendingBack.current = false;
+      window.dispatchEvent(new CustomEvent(SCROLL_RESTORED_EVENT, { detail }));
     }
   });
 

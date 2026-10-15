@@ -57,7 +57,7 @@ import { ApiRequestError, type ApiErrorCode } from "./api/client";
 import { loadMeta, loadTimezones } from "./api/meta";
 import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
-import { SCROLL_RESTORED_EVENT } from "./components/CollapsingHeader";
+import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "./components/CollapsingHeader";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
@@ -238,6 +238,8 @@ export function App() {
   const tabScroll = useRef<Record<TabKey, number>>({ habits: 0, settings: 0 });
   // Прокрутка, которую нужно поставить после ближайшего рендера (см. layout-эффект ниже).
   const pendingScroll = useRef<number | null>(null);
+  // Эта прокрутка — возврат «Назад» на экран под закрытым (см. Screen, enterAnimation).
+  const pendingBack = useRef(false);
   // Пояс устройства уже предлагался серверу в этом запуске (см. эффект ниже).
   const deviceTimezoneSent = useRef(false);
 
@@ -344,6 +346,7 @@ export function App() {
 
   const hideHabit = useCallback(() => {
     pendingScroll.current = scrollUnderHabit.current;
+    pendingBack.current = true;
     setOpenHabitId(null);
   }, []);
 
@@ -355,6 +358,7 @@ export function App() {
 
   const hideEditor = useCallback(() => {
     pendingScroll.current = scrollUnderEditor.current;
+    pendingBack.current = true;
     setHabitEntering(false);
     setEditor(null);
   }, []);
@@ -367,6 +371,7 @@ export function App() {
 
   const hideSettingsPage = useCallback(() => {
     pendingScroll.current = scrollUnderSettingsPage.current;
+    pendingBack.current = true;
     setSettingsPage(null);
   }, []);
 
@@ -378,6 +383,7 @@ export function App() {
 
   const hideFolderForm = useCallback(() => {
     pendingScroll.current = scrollUnderFolderForm.current;
+    pendingBack.current = true;
     setFolderDraft(null);
   }, []);
 
@@ -389,6 +395,7 @@ export function App() {
 
   const hideFolderPicker = useCallback(() => {
     pendingScroll.current = scrollUnderFolderPicker.current;
+    pendingBack.current = true;
     setFolderPicker(false);
   }, []);
 
@@ -401,6 +408,7 @@ export function App() {
   // Выход из админ-панели — на экран настроек, откуда в неё вошли.
   const exitAdmin = useCallback(() => {
     pendingScroll.current = scrollUnderAdmin.current;
+    pendingBack.current = true;
     setTab("settings");
     setAdminMode(false);
   }, []);
@@ -743,12 +751,14 @@ export function App() {
   // Вложенный экран открывается с начала, экран под ним — на сохранённой позиции.
   // Layout-эффект: прокрутка ставится до отрисовки и до эффектов шапки, читающих scrollY.
   // Шапка экрана (CollapsingHeader) по событию сразу принимает вид для этой позиции, без
-  // анимации.
+  // анимации, а экран, на который вернулись «Назад», не въезжает заново (Screen).
   useLayoutEffect(() => {
     if (pendingScroll.current !== null) {
       window.scrollTo(0, pendingScroll.current);
       pendingScroll.current = null;
-      window.dispatchEvent(new Event(SCROLL_RESTORED_EVENT));
+      const detail: ScrollRestoredDetail = { back: pendingBack.current };
+      pendingBack.current = false;
+      window.dispatchEvent(new CustomEvent(SCROLL_RESTORED_EVENT, { detail }));
     }
   });
 

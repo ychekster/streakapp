@@ -93,6 +93,11 @@ function standardTitleHeight(container: HTMLElement): number {
 /** App ставит сохранённую прокрутку экрана и сообщает об этом (см. App, pendingScroll). */
 export const SCROLL_RESTORED_EVENT = "app:scroll-restored";
 
+/** detail события: back — экран открыт возвратом «Назад» (см. Screen, enterAnimation). */
+export interface ScrollRestoredDetail {
+  back: boolean;
+}
+
 // Гистерезис порога (px), чтобы класс не «дёргался» при остановке ровно на границе.
 const COLLAPSE_HYSTERESIS = 8;
 
