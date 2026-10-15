@@ -1,8 +1,7 @@
 /**
  * Люди за цифрой аналитики — экран поверх вкладки. При открытии сервер собирает список
  * этих людей группой (POST /admin/segments, на момент нажатия) — дальше экран показывает
- * её как список пользователей (фильтр «segment:<id>»), а «Рассылка этим людям» открывает
- * вкладку «Рассылка» уже с этой группой получателей.
+ * её как список пользователей (фильтр «segment:<id>»).
  *
  * Нажатие на человека — его профиль (сводка, лента действий, личное сообщение).
  */
@@ -11,7 +10,6 @@ import { createSegment, fetchUsers } from "../../api/admin";
 import { rememberSegment } from "../audience";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
-import { PaperPlaneIcon } from "../components/AdminIcons";
 import { LoadMore } from "../components/LoadMore";
 import { Disclosure } from "../../components/Disclosure";
 import { ListItem } from "../../components/ListItem";
@@ -20,7 +18,7 @@ import { Card, Section } from "../../components/Section";
 import { StatusMessage } from "../../components/StatusMessage";
 import { usePagedList } from "../../hooks/usePagedList";
 import { useResource } from "../../hooks/useResource";
-import type { AdminUserRef, AnalyticsFilter, PeopleQuery, Segment } from "../../types/admin";
+import type { AdminUserRef, AnalyticsFilter, PeopleQuery } from "../../types/admin";
 import { PlatformBadges } from "./AdminUsersScreen";
 import styles from "./AdminUsersScreen.module.css";
 
@@ -28,10 +26,9 @@ interface AdminPeopleScreenProps {
   query: PeopleQuery;
   filter: AnalyticsFilter;
   onOpenUser: (user: AdminUserRef) => void;
-  onBroadcast: (segment: Segment) => void;
 }
 
-export function AdminPeopleScreen({ query, filter, onOpenUser, onBroadcast }: AdminPeopleScreenProps) {
+export function AdminPeopleScreen({ query, filter, onOpenUser }: AdminPeopleScreenProps) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const an = strings.an;
@@ -75,19 +72,7 @@ export function AdminPeopleScreen({ query, filter, onOpenUser, onBroadcast }: Ad
     const created = segment.data;
     return (
       <div className={styles.list}>
-        <Section title={an.peopleCount(created.count)} footer={an.peopleBroadcastFooter}>
-          <Card>
-            <ListItem
-              icon={<PaperPlaneIcon />}
-              iconColor="blue"
-              label={an.peopleBroadcast}
-              accent
-              disabled={created.count === 0}
-              onPress={() => onBroadcast(created)}
-            />
-          </Card>
-        </Section>
-        <div style={{ marginTop: "var(--space-section-gap)" }}>{renderList()}</div>
+        <Section title={an.peopleCount(created.count)}>{renderList()}</Section>
       </div>
     );
   }

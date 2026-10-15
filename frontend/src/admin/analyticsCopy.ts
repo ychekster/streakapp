@@ -120,7 +120,7 @@ export const ANALYTICS_RU = {
   // --- Сводка ---
   liveTitle: "Живые пользователи",
   liveInfo:
-    "Есть хоть одна привычка, и за последние 7 дней человек сам отмечал привычку, завёл новую или — если у него автоотметка или привычка раз в месяц — заходил в приложение. Заблокировавшие бота не считаются.",
+    "Пришли больше недели назад, есть хоть одна привычка, и за 7 прошедших дней (без сегодня) человек сам отмечал привычку или — если у него автоотметка или привычка раз в месяц — заходил в приложение. Просто завести привычку мало. Заблокировавшие бота считаются, если продолжают отмечать.",
   liveCompare: "к неделе назад",
   liveWeeks: "8 недель",
   newTitle: "Новые пользователи",
@@ -410,9 +410,6 @@ export const ANALYTICS_RU = {
   // --- Люди за цифрой ---
   peopleTitle: "Люди",
   peopleCount: (count: number) => people(count),
-  peopleBroadcast: "Рассылка этим людям",
-  peopleBroadcastFooter:
-    "Рассылку получат только те, у кого есть Telegram и кто не заблокировал бота. Список — на момент нажатия.",
   peopleEmpty: "Никого нет",
   peopleFailed: "Не удалось собрать список",
   segmentChip: (title: string) => `Группа: ${title}`,
@@ -596,7 +593,7 @@ export const ANALYTICS_EN: AnalyticsCopy = {
 
   liveTitle: "Live users",
   liveInfo:
-    "Has at least one habit and in the last 7 days checked one off, added a new one or — with auto check-off or a monthly habit — opened the app. People who blocked the bot aren’t counted.",
+    "Joined over a week ago, has at least one habit and in the past 7 days (not counting today) checked one off or — with auto check-off or a monthly habit — opened the app. Just adding a habit isn’t enough. People who blocked the bot count if they keep checking off.",
   liveCompare: "vs a week ago",
   liveWeeks: "8 weeks",
   newTitle: "New users",
@@ -873,9 +870,6 @@ export const ANALYTICS_EN: AnalyticsCopy = {
 
   peopleTitle: "People",
   peopleCount: peopleEn,
-  peopleBroadcast: "Broadcast to These People",
-  peopleBroadcastFooter:
-    "Only people with Telegram who haven’t blocked the bot get it. The list is fixed at the moment you tapped.",
   peopleEmpty: "No one here",
   peopleFailed: "Couldn’t build the list",
   segmentChip: (title: string) => `Group: ${title}`,

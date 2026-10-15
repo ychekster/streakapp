@@ -11,12 +11,14 @@ import type {
   AdminUserSummary,
   AnalyticsConfig,
   AnalyticsFilter,
+  AnalyticsOverviewGroup,
   AnalyticsSection,
   AnalyticsSections,
   Audience,
   Broadcast,
   BroadcastButton,
   Delivery,
+  OverviewGroup,
   Page,
   PeopleQuery,
   RetentionBasis,
@@ -86,6 +88,11 @@ export function fetchAnalyticsSection<S extends AnalyticsSection>(
     `/admin/analytics/${section}?${analyticsParams(filter, extra)}`,
     { method: "GET" },
   );
+}
+
+/** Подробности цифры «Обзора» (всегда все пользователи, без фильтра). */
+export function fetchOverviewGroup(group: OverviewGroup): Promise<AnalyticsOverviewGroup> {
+  return apiRequest<AnalyticsOverviewGroup>(`/admin/analytics/overview/${group}`, { method: "GET" });
 }
 
 /** Сохранить людей за цифрой группой — для списка и рассылки. */

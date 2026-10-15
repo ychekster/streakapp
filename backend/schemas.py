@@ -793,6 +793,37 @@ class AnalyticsOverview(BaseModel):
     activity_by_day: list[OverviewActivityDay] = Field(..., description="Последние 30 дней")
 
 
+class OverviewGroupMoves(BaseModel):
+    """Живые: кто за неделю стал живым и кто перестал (сейчас против недели назад)."""
+
+    joined: int
+    left: int
+
+
+class AnalyticsOverviewGroup(BaseModel):
+    """`GET /admin/analytics/overview/{group}` — подробности цифры «Обзора»: из чего
+    складывается группа (analytics/overview.py, group_details)."""
+
+    group: str
+    users: int
+    all_users: int
+    trend_kind: str | None = Field(
+        None, description="Что на графике: alive, new, total, opened, checked; нет — None"
+    )
+    trend: list[DayValue] = Field(default_factory=list, description="Последние 30 дней")
+    moves: OverviewGroupMoves | None = None
+    platforms: list[LeaveBucket] = Field(..., description="telegram, both, web, bot")
+    sources: list[LeaveBucket] = Field(..., description="Источник → людей, по убыванию")
+    joined: list[LeaveBucket] = Field(..., description="Давность прихода: week, month, quarter, older")
+    habits: list[LeaveBucket] = Field(..., description="Привычек у человека: 0, 1, 2-3, 4+")
+    last_seen: list[LeaveBucket] = Field(
+        ..., description="Последний заход: today, week, month, older, never"
+    )
+    checked: list[LeaveBucket] = Field(
+        ..., description="Дней с отметками за 7 прошедших дней: 0, 1-2, 3-5, 6-7"
+    )
+
+
 class FunnelStep(BaseModel):
     key: str
     users: int

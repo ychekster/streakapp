@@ -7,7 +7,7 @@ from datetime import datetime
 
 from backend.analytics import people as people_module
 from backend.analytics import report
-from backend.analytics.overview import overview
+from backend.analytics.overview import OVERVIEW_GROUPS, group_details, overview
 from backend.analytics.data import (
     CONFIG_MIN_DAYS,
     CONFIG_WINDOW,
@@ -30,6 +30,7 @@ from backend.repository import Repository
 from backend.schemas import (
     AnalyticsConfig,
     AnalyticsConfigUpdate,
+    AnalyticsOverviewGroup,
     SegmentCreate,
     SegmentInfo,
 )
@@ -98,6 +99,13 @@ async def section(
     if name == "sources":
         return report.sources(ds, span, language)
     return await report.messaging(repo, ds, span)
+
+
+async def overview_group(repo: Repository, group: str, now: datetime) -> AnalyticsOverviewGroup:
+    """Подробности цифры «Обзора» (все пользователи, без фильтра)."""
+    if group not in OVERVIEW_GROUPS:
+        raise ApiError(404, "not_found", "Нет такой группы")
+    return group_details(await load_dataset(repo, now), group)
 
 
 async def create_segment(

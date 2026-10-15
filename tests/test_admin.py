@@ -678,10 +678,29 @@ def test_overview_counts_platforms_and_opens_people(
     assert counts["telegram"] >= 1 and counts["web"] >= 1 and counts["web_guests"] >= 1
     assert counts["checked_today"] >= 1 and counts["with_habits"] >= 1
     assert len(overview["new_by_day"]) == len(overview["activity_by_day"]) == 30
-    # Живые + перестали + без привычек = все; отметивший сегодня — живой.
-    assert counts["alive"] + counts["stopped"] + counts["without_habits"] == counts["all"]
-    assert counts["alive"] >= 1 and overview["alive_by_day"][-1]["value"] == counts["alive"]
+    # Живые + новички + перестали + без привычек = все; пришедший сегодня — новичок, не живой.
+    parts = ("alive", "newcomers", "stopped", "without_habits")
+    assert sum(counts[key] for key in parts) == counts["all"]
+    assert counts["newcomers"] >= 1 and overview["alive_by_day"][-1]["value"] == counts["alive"]
     assert overview["new_by_day"][-1]["telegram"] >= 1 and overview["new_by_day"][-1]["web"] >= 1
+
+    # Подробности цифры: те же люди, разложенные по признакам; у живых — движение за неделю.
+    def group(key: str) -> dict:
+        response = client.get(f"/admin/analytics/overview/{key}", headers=admin.headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    newcomers = group("newcomers")
+    assert newcomers["users"] == counts["newcomers"] and newcomers["all_users"] == counts["all"]
+    for name in ("platforms", "sources", "joined", "habits", "last_seen", "checked"):
+        assert sum(bucket["users"] for bucket in newcomers[name]) == counts["newcomers"]
+    assert newcomers["trend"] == [] and newcomers["moves"] is None
+    alive = group("alive")
+    assert alive["moves"] is not None and len(alive["trend"]) == 30
+    total = group("all")
+    assert total["trend_kind"] == "total" and total["trend"][-1]["value"] == counts["all"]
+    missing = client.get("/admin/analytics/overview/nope", headers=admin.headers)
+    assert missing.status_code == 404
 
     # Где пользуется — в профиле и в списке.
     profile = _profile(client, admin, user.id)

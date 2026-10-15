@@ -22,6 +22,7 @@ export const OVERVIEW_RU = {
   // --- Обзор ---
   aliveHeading: "Живые",
   alive: "Живые",
+  newcomers: "Новички, меньше недели",
   stopped: "Перестали",
   aliveChart: "Живые по дням",
   weekAgo: "к неделе назад",
@@ -30,7 +31,7 @@ export const OVERVIEW_RU = {
   yesterday: "Вчера",
   week: "7 дней",
   month: "30 дней",
-  totalUsers: "Всего пользователей",
+  totalUsers: "За всё время",
   newChart: "Новые по дням",
   last30: "за 30 дней",
 
@@ -74,6 +75,7 @@ export const OVERVIEW_RU = {
   /** Заголовок списка людей за цифрой. */
   people: {
     alive: "Живые",
+    newcomers: "Новички: пришли меньше недели назад",
     stopped: "Перестали пользоваться",
     new_today: "Пришли сегодня",
     new_yesterday: "Пришли вчера",
@@ -96,6 +98,94 @@ export const OVERVIEW_RU = {
     gone: "Не заходят больше 2 недель",
     with_habits: "С привычками",
     without_habits: "Без привычек",
+  } as Record<OverviewGroup, string>,
+  // --- Пояснения на «Обзоре» (под блоками) ---
+  aliveNote:
+    "Живые — пришли больше недели назад и сами отмечали привычки за прошедшие 7 дней. Новички — пришли меньше недели назад. Нажмите на любую цифру — откроются подробности.",
+  joinedNote:
+    "Впервые нажали /start в боте или открыли приложение. «За всё время» — все пользователи. Администраторы и тестовые аккаунты нигде не считаются.",
+  whereNote: "«Только бот» — нажали /start, но приложение ни разу не открыли.",
+  activeNote: "Открывали приложение — в Telegram или веб. «Сейчас» — за последние 5 минут.",
+
+  // --- Подробности цифры ---
+  groupWho: "Кто это",
+  groupPeople: "Человек",
+  groupMovesHeading: "За неделю",
+  groupJoinedAlive: "Стали живыми",
+  groupLeftAlive: "Перестали быть живыми",
+  groupMovesNote: "Сравнение с тем, что было ровно неделю назад.",
+  groupBreakdownHeading: "Из чего складывается",
+  groupPeopleHeading: "Люди",
+  groupPeopleList: "Открыть список",
+  trend: {
+    alive: "Живые по дням",
+    new: "Пришли по дням",
+    total: "Всего пользователей на каждый день",
+    opened: "Заходили по дням",
+    checked: "Отмечали привычки по дням",
+  } as Record<string, string>,
+  breakdown: {
+    platforms: "Где пользуются",
+    sources: "Откуда пришли",
+    joined: "Когда пришли",
+    habits: "Сколько привычек сейчас",
+    last_seen: "Когда последний раз открывали приложение",
+    checked: "Сколько дней отмечали привычки за прошедшую неделю",
+  },
+  bucket: {
+    platforms: {
+      telegram: "Только Telegram",
+      both: "И Telegram, и веб",
+      web: "Только веб-приложение",
+      bot: "Только бот, приложение не открывали",
+    },
+    joined: {
+      week: "Меньше недели назад",
+      month: "1–4 недели назад",
+      quarter: "1–3 месяца назад",
+      older: "Больше 3 месяцев назад",
+    },
+    habits: { "0": "Нет привычек", "1": "1 привычка", "2-3": "2–3 привычки", "4+": "4 и больше" },
+    last_seen: {
+      today: "Сегодня",
+      week: "1–6 дней назад",
+      month: "1–4 недели назад",
+      older: "Больше месяца назад",
+      never: "Ни разу не открывали",
+    },
+    checked: { "0": "Ни разу", "1-2": "1–2 дня", "3-5": "3–5 дней", "6-7": "6–7 дней — почти каждый день" },
+  } as Record<string, Record<string, string>>,
+  otherSources: "Остальные",
+  /** Кто эти люди — одной-двумя фразами, простыми словами. */
+  explain: {
+    alive:
+      "Пришли больше недели назад и сами отмечали хотя бы одну привычку за 7 прошедших дней (сегодня не считается — день ещё идёт). У кого привычка с автоотметкой или «раз в месяц» — достаточно заходить в приложение. Заблокировали бота, но отмечают — тоже живые.",
+    newcomers:
+      "Пришли меньше недели назад и завели привычку. Через 7 дней станут живыми, если будут отмечать, иначе попадут в «перестали».",
+    stopped:
+      "Привычки есть, но за 7 прошедших дней сами ничего не отмечали. Сюда же — заблокированные администратором.",
+    new_today: "Впервые появились сегодня: нажали /start в боте или открыли приложение. Дни — по Алматы.",
+    new_yesterday: "Впервые появились вчера: нажали /start в боте или открыли приложение. Дни — по Алматы.",
+    new_week: "Впервые появились за последние 7 дней, включая сегодня.",
+    new_month: "Впервые появились за последние 30 дней, включая сегодня.",
+    all: "Все, кто хоть раз нажал /start в боте или открыл приложение, — за всё время. Заблокировавшие бота тоже здесь. Не считаются только администраторы и тестовые аккаунты.",
+    telegram: "Открывали приложение внутри Telegram (Mini App). Часть из них пользуется и веб-приложением.",
+    web: "Открывали веб-приложение — установленное на телефон или в браузере. Часть из них пользуется и Telegram.",
+    both: "Открывали и Mini App в Telegram, и веб-приложение.",
+    bot_only: "Нажали /start в боте, но приложение ни разу не открыли.",
+    telegram_week: "Открывали Mini App в Telegram за последние 7 дней.",
+    web_week: "Открывали веб-приложение за последние 7 дней.",
+    web_logged_in: "Пользуются веб-приложением и вошли через Telegram — у них один аккаунт с Mini App.",
+    web_guests: "Пользуются веб-приложением без входа — их аккаунт живёт только на этом устройстве.",
+    online: "Открывали приложение за последние 5 минут.",
+    active_today: "Открывали приложение сегодня — в Telegram или веб.",
+    active_week: "Открывали приложение хотя бы раз за последние 7 дней, включая сегодня.",
+    active_month: "Открывали приложение хотя бы раз за последние 30 дней, включая сегодня.",
+    checked_today: "Сегодня сами отметили хотя бы одну привычку. Автоотметки не считаются.",
+    gone: "Раньше открывали приложение, но не заходят больше 14 дней.",
+    with_habits: "Сейчас есть хотя бы одна привычка.",
+    without_habits:
+      "Нет ни одной привычки: не завели или удалили все. Сюда же — те, кто только нажал /start в боте.",
   } as Record<OverviewGroup, string>,
 
   // --- Профиль ---
@@ -133,6 +223,7 @@ export type OverviewCopy = typeof OVERVIEW_RU;
 export const OVERVIEW_EN: OverviewCopy = {
   aliveHeading: "Active users",
   alive: "Active",
+  newcomers: "New, under a week",
   stopped: "Stopped",
   aliveChart: "Active users by day",
   weekAgo: "vs a week ago",
@@ -141,7 +232,7 @@ export const OVERVIEW_EN: OverviewCopy = {
   yesterday: "Yesterday",
   week: "7 days",
   month: "30 days",
-  totalUsers: "Total users",
+  totalUsers: "All time",
   newChart: "New users by day",
   last30: "in 30 days",
 
@@ -184,6 +275,7 @@ export const OVERVIEW_EN: OverviewCopy = {
 
   people: {
     alive: "Active users",
+    newcomers: "New: joined less than a week ago",
     stopped: "Stopped using the app",
     new_today: "Joined today",
     new_yesterday: "Joined yesterday",
@@ -206,6 +298,90 @@ export const OVERVIEW_EN: OverviewCopy = {
     gone: "Away for over 2 weeks",
     with_habits: "With habits",
     without_habits: "No habits",
+  },
+  aliveNote:
+    "Active — joined over a week ago and checked off habits themselves in the past 7 days. New — joined less than a week ago. Tap any number for details.",
+  joinedNote:
+    "First pressed /start in the bot or opened the app. “All time” is every user. Admins and test accounts are never counted.",
+  whereNote: "“Only started the bot” — pressed /start but never opened the app.",
+  activeNote: "Opened the app — in Telegram or on the web. “Right now” is the last 5 minutes.",
+
+  groupWho: "Who they are",
+  groupPeople: "People",
+  groupMovesHeading: "This week",
+  groupJoinedAlive: "Became active",
+  groupLeftAlive: "Stopped being active",
+  groupMovesNote: "Compared with exactly a week ago.",
+  groupBreakdownHeading: "Breakdown",
+  groupPeopleHeading: "People",
+  groupPeopleList: "Open the list",
+  trend: {
+    alive: "Active users by day",
+    new: "New users by day",
+    total: "Total users on each day",
+    opened: "Visitors by day",
+    checked: "Checked off habits by day",
+  },
+  breakdown: {
+    platforms: "Where they use it",
+    sources: "Where they came from",
+    joined: "When they joined",
+    habits: "How many habits now",
+    last_seen: "Last time they opened the app",
+    checked: "Days with check-offs in the past week",
+  },
+  bucket: {
+    platforms: {
+      telegram: "Only Telegram",
+      both: "Telegram and web",
+      web: "Only the web app",
+      bot: "Only the bot, never opened the app",
+    },
+    joined: {
+      week: "Less than a week ago",
+      month: "1–4 weeks ago",
+      quarter: "1–3 months ago",
+      older: "Over 3 months ago",
+    },
+    habits: { "0": "No habits", "1": "1 habit", "2-3": "2–3 habits", "4+": "4 or more" },
+    last_seen: {
+      today: "Today",
+      week: "1–6 days ago",
+      month: "1–4 weeks ago",
+      older: "Over a month ago",
+      never: "Never opened it",
+    },
+    checked: { "0": "Never", "1-2": "1–2 days", "3-5": "3–5 days", "6-7": "6–7 days — almost every day" },
+  },
+  otherSources: "Others",
+  explain: {
+    alive:
+      "Joined over a week ago and checked off at least one habit themselves in the past 7 days (today doesn’t count yet). With auto check-off or a monthly habit, opening the app is enough. People who blocked the bot but keep checking off count too.",
+    newcomers:
+      "Joined less than a week ago and added a habit. In 7 days they become active if they keep checking off, otherwise they move to “Stopped”.",
+    stopped:
+      "Have habits but didn’t check anything off themselves in the past 7 days. Also people blocked by an admin.",
+    new_today: "First showed up today: pressed /start in the bot or opened the app. Days are in Almaty time.",
+    new_yesterday: "First showed up yesterday: pressed /start in the bot or opened the app. Days are in Almaty time.",
+    new_week: "First showed up in the last 7 days, today included.",
+    new_month: "First showed up in the last 30 days, today included.",
+    all: "Everyone who ever pressed /start in the bot or opened the app. People who blocked the bot are here too. Only admins and test accounts aren’t counted.",
+    telegram: "Opened the app inside Telegram (Mini App). Some of them also use the web app.",
+    web: "Opened the web app — installed on the phone or in a browser. Some of them also use Telegram.",
+    both: "Opened both the Mini App in Telegram and the web app.",
+    bot_only: "Pressed /start in the bot but never opened the app.",
+    telegram_week: "Opened the Mini App in Telegram in the last 7 days.",
+    web_week: "Opened the web app in the last 7 days.",
+    web_logged_in: "Use the web app and logged in with Telegram — one account with the Mini App.",
+    web_guests: "Use the web app without logging in — their account lives only on that device.",
+    online: "Opened the app in the last 5 minutes.",
+    active_today: "Opened the app today — in Telegram or on the web.",
+    active_week: "Opened the app at least once in the last 7 days, today included.",
+    active_month: "Opened the app at least once in the last 30 days, today included.",
+    checked_today: "Checked off at least one habit themselves today. Auto check-offs don’t count.",
+    gone: "Used to open the app but haven’t been back for over 14 days.",
+    with_habits: "Have at least one habit right now.",
+    without_habits: "Don’t have a single habit: never added one or deleted them all. Also people who only pressed /start.",
   },
 
   profileId: "ID",

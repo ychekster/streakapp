@@ -176,6 +176,7 @@ export interface AnalyticsFilter {
 /** Группы людей «Обзора» (backend/analytics/overview.py, OVERVIEW_GROUPS). */
 export type OverviewGroup =
   | "alive"
+  | "newcomers"
   | "stopped"
   | "new_today"
   | "new_yesterday"
@@ -439,6 +440,27 @@ export interface AnalyticsSections {
   habits: AnalyticsHabits;
   sources: AnalyticsSources;
   messaging: AnalyticsMessaging;
+}
+
+/** GET /admin/analytics/overview/{group} — подробности цифры «Обзора»: из чего
+ *  складывается группа (backend/analytics/overview.py, group_details). */
+export interface AnalyticsOverviewGroup {
+  group: OverviewGroup;
+  users: number;
+  all_users: number;
+  /** Что на графике; null — графика нет. */
+  trend_kind: "alive" | "new" | "total" | "opened" | "checked" | null;
+  /** Последние 30 дней. */
+  trend: DayValue[];
+  /** Только у живых: стали живыми и перестали за неделю. */
+  moves: { joined: number; left: number } | null;
+  platforms: Bucket[];
+  /** Источник → людей, по убыванию. */
+  sources: Bucket[];
+  joined: Bucket[];
+  habits: Bucket[];
+  last_seen: Bucket[];
+  checked: Bucket[];
 }
 
 /** Какие люди стоят за цифрой (POST /admin/segments, backend/analytics/people.py). */

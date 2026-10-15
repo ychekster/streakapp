@@ -8,8 +8,8 @@
  * Профиль пользователя, отзыв и экраны написания открываются стопкой поверх вкладки
  * (нижняя навигация скрыта, «Закрыть» Telegram заменена на «Назад», которая снимает
  * верхний экран):
- *  - Аналитика (обзор) → нажатая цифра → люди за ней (AdminPeopleScreen) → профиль → …;
- *    оттуда «Рассылка этим людям» переключает на вкладку «Рассылка» с этой группой;
+ *  - Аналитика (обзор) → нажатая цифра → её подробности (OverviewGroupScreen) → люди за
+ *    ней (AdminPeopleScreen) → профиль → …;
  *  - Аналитика → раздел подробной аналитики (AnalyticsScreen) → цифра → люди → …;
  *  - Аналитика → Откуда приходят (или Настройки) → «Ссылки с меткой» (AdminLinksScreen);
  *  - Пользователи → «Фильтры» (условия списка, см. AdminUserFiltersScreen);
@@ -52,7 +52,8 @@ import { useTextFieldFocused } from "../hooks/useTextFieldFocused";
 import type { UseSettingsResult } from "../hooks/useSettings";
 import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
 import { AnalyticsScreen, type AnalyticsView } from "./analytics/AnalyticsScreen";
-import { OverviewScreen } from "./analytics/OverviewScreen";
+import { OverviewGroupScreen } from "./analytics/OverviewGroupScreen";
+import { OVERVIEW_FILTER, OverviewScreen } from "./analytics/OverviewScreen";
 import { AdminLinksScreen } from "./screens/AdminLinksScreen";
 import { AdminPeopleScreen } from "./screens/AdminPeopleScreen";
 import {
@@ -77,8 +78,8 @@ import type {
   AnalyticsSection,
   Audience,
   Broadcast,
+  OverviewGroup,
   PeopleQuery,
-  Segment,
 } from "../types/admin";
 import type { SettingsUpdate } from "../types/settings";
 
@@ -86,6 +87,7 @@ type AdminTab = "analytics" | "users" | "reviews" | "broadcast" | "settings";
 
 /** Экран поверх вкладки; `initial` — уже известное (строка списка). */
 type AdminPage =
+  | { kind: "group"; group: OverviewGroup }
   | { kind: "people"; query: PeopleQuery; filter: AnalyticsFilter }
   | { kind: "analytics"; section: AnalyticsSection }
   | { kind: "links" }
@@ -226,16 +228,6 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
     push({ kind: "review", id: review.id, initial: review });
   }
 
-  // «Рассылка этим людям»: вкладка «Рассылка» с этой группой получателей (остальные
-  // условия фильтра снимаются — получатели ровно эти люди).
-  function broadcastTo(segment: Segment): void {
-    setDraft((current) => ({ ...current, audience: { segment: String(segment.id) } }));
-    scrollStack.current = [];
-    setStack([]);
-    pendingScroll.current = 0;
-    setTab("broadcast");
-  }
-
   // Отправленный ответ виден и в списке отзывов, и на экране отзыва под этим — туда он
   // попадает как «уже известный» отзыв (`initial`), пока экран перечитывает свежий.
   function applyReply(updated: AdminReview): void {
@@ -251,6 +243,20 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
 
   function renderPage(page: AdminPage) {
     switch (page.kind) {
+      case "group":
+        return (
+          <OverviewGroupScreen
+            key={`group-${page.group}-${stack.length}`}
+            group={page.group}
+            onOpenPeople={() =>
+              push({
+                kind: "people",
+                query: { metric: "overview", arg: page.group, title: strings.ov.people[page.group] },
+                filter: OVERVIEW_FILTER,
+              })
+            }
+          />
+        );
       case "people":
         return (
           <AdminPeopleScreen
@@ -258,7 +264,6 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             query={page.query}
             filter={page.filter}
             onOpenUser={openUser}
-            onBroadcast={broadcastTo}
           />
         );
       case "analytics":
@@ -344,7 +349,7 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
       case "analytics":
         return (
           <OverviewScreen
-            onOpenPeople={(query, filter) => push({ kind: "people", query, filter })}
+            onOpenGroup={(group) => push({ kind: "group", group })}
             onOpenSection={(section) => push({ kind: "analytics", section })}
           />
         );

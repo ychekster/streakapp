@@ -1,10 +1,10 @@
 /**
- * Вкладка «Аналитика» админ-панели — главный экран: только основное, без фильтров и
- * пояснений, читается с одного взгляда.
+ * Вкладка «Аналитика» админ-панели — главный экран: только основное, без фильтров,
+ * читается с одного взгляда; под блоками — короткие пояснения, где цифра неочевидна.
  *
  *  - Живые — сколько людей пользуются приложением (определение — backend/analytics/
  *    data.py, Dataset.is_live) и изменение к неделе назад; все пользователи полосой:
- *    живые, перестали, без привычек; график живых по дням;
+ *    живые, новички, перестали, без привычек; график живых по дням;
  *  - Пришли — сегодня, вчера, за 7 и 30 дней, всего; график новых по дням;
  *  - Где пользуются — Telegram, веб-приложение, оба, только бот (полоса долей); в
  *    веб-приложении — вошли через Telegram или без входа;
@@ -14,9 +14,9 @@
  *  - Подробная аналитика — разделы (воронка, удержание…) открываются отдельными экранами
  *    поверх (AnalyticsScreen) со своим фильтром.
  *
- * Любая цифра про людей нажимается: открывается список этих людей (группа «overview» на
- * сервере, backend/analytics/overview.py), оттуда — рассылка именно им. Администраторы и
- * тестовые аккаунты в цифры не входят.
+ * Любая цифра про людей нажимается: открываются её подробности (OverviewGroupScreen —
+ * кто эти люди и из чего складывается группа), оттуда — список этих людей. Администраторы
+ * и тестовые аккаунты в цифры не входят.
  */
 
 import type { CSSProperties } from "react";
@@ -33,7 +33,6 @@ import type {
   AnalyticsOverview,
   AnalyticsSection,
   OverviewGroup,
-  PeopleQuery,
 } from "../../types/admin";
 import { Block, MetricCard } from "./kit";
 import { Loaded, SeriesCard } from "./Sections";
@@ -56,17 +55,17 @@ const DETAIL_SECTIONS: AnalyticsSection[] = [
 ];
 
 interface OverviewScreenProps {
-  onOpenPeople: (query: PeopleQuery, filter: AnalyticsFilter) => void;
+  onOpenGroup: (group: OverviewGroup) => void;
   onOpenSection: (section: AnalyticsSection) => void;
 }
 
-export function OverviewScreen({ onOpenPeople, onOpenSection }: OverviewScreenProps) {
+export function OverviewScreen({ onOpenGroup, onOpenSection }: OverviewScreenProps) {
   const strings = useAdminStrings();
   const resource = useSection("overview", OVERVIEW_FILTER);
   return (
     <Screen title={strings.an.title}>
       <Loaded resource={resource}>
-        {(data) => <Overview data={data} onOpenPeople={onOpenPeople} onOpenSection={onOpenSection} />}
+        {(data) => <Overview data={data} onOpenGroup={onOpenGroup} onOpenSection={onOpenSection} />}
       </Loaded>
     </Screen>
   );
@@ -74,23 +73,22 @@ export function OverviewScreen({ onOpenPeople, onOpenSection }: OverviewScreenPr
 
 function Overview({
   data,
-  onOpenPeople,
+  onOpenGroup,
   onOpenSection,
 }: {
   data: AnalyticsOverview;
-  onOpenPeople: OverviewScreenProps["onOpenPeople"];
+  onOpenGroup: OverviewScreenProps["onOpenGroup"];
   onOpenSection: OverviewScreenProps["onOpenSection"];
 }) {
   const strings = useAdminStrings();
   const format = useAdminFormat();
   const ov = strings.ov;
   const { counts } = data;
-  const open = (group: OverviewGroup) => () =>
-    onOpenPeople({ metric: "overview", arg: group, title: ov.people[group] }, OVERVIEW_FILTER);
+  const open = (group: OverviewGroup) => () => onOpenGroup(group);
   const share = (group: OverviewGroup) =>
     counts.all ? ov.ofAll(format.percent(counts[group] / counts.all)) : undefined;
 
-  /** Ряд «подпись — число ›», открывает людей группы. */
+  /** Ряд «подпись — число ›», открывает подробности группы. */
   const row = (group: OverviewGroup, label: string, color?: string) => (
     <ListItem key={group} onPress={open(group)}>
       <span className={overviewStyles.rowLabel}>
@@ -109,7 +107,7 @@ function Overview({
 
   return (
     <div className={overviewStyles.overview}>
-      <Block title={ov.aliveHeading}>
+      <Block title={ov.aliveHeading} footnote={ov.aliveNote}>
         <div className={styles.grid} style={habitColorStyle("green")}>
           <MetricCard
             wide
@@ -125,11 +123,13 @@ function Overview({
               label={ov.aliveHeading}
               segments={[
                 { key: "alive", value: counts.alive, color: "--palette-green" },
+                { key: "newcomers", value: counts.newcomers, color: "--palette-blue" },
                 { key: "stopped", value: counts.stopped, color: "--palette-orange" },
                 { key: "none", value: counts.without_habits, color: "--palette-graphite" },
               ]}
             />
             {row("alive", ov.alive, "--palette-green")}
+            {row("newcomers", ov.newcomers, "--palette-blue")}
             {row("stopped", ov.stopped, "--palette-orange")}
             {row("without_habits", ov.withoutHabits, "--palette-graphite")}
           </Card>
@@ -144,7 +144,7 @@ function Overview({
         </div>
       </Block>
 
-      <Block title={ov.joinedHeading}>
+      <Block title={ov.joinedHeading} footnote={ov.joinedNote}>
         <div className={styles.grid} style={habitColorStyle("blue")}>
           <MetricCard label={ov.today} value={format.count(counts.new_today)} onPress={open("new_today")} />
           <MetricCard label={ov.yesterday} value={format.count(counts.new_yesterday)} onPress={open("new_yesterday")} />
@@ -162,7 +162,7 @@ function Overview({
         </div>
       </Block>
 
-      <Block title={ov.whereHeading}>
+      <Block title={ov.whereHeading} footnote={ov.whereNote}>
         <Card>
           <ShareBar
             label={ov.whereHeading}
@@ -185,7 +185,7 @@ function Overview({
         </Card>
       </Block>
 
-      <Block title={ov.activeHeading}>
+      <Block title={ov.activeHeading} footnote={ov.activeNote}>
         <div className={styles.grid} style={habitColorStyle("green")}>
           <MetricCard label={ov.online} value={format.count(counts.online)} onPress={open("online")} />
           <MetricCard label={ov.activeToday} value={format.count(counts.active_today)} onPress={open("active_today")} />

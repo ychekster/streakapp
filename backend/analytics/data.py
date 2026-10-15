@@ -11,10 +11,13 @@
   разных дней (N и M — в настройках панели);
 - **активный за день** — открыл приложение в этот день (user_activity), **отмечающий** —
   отметил хотя бы одну привычку (checkin_days); дни — по Алматы;
-- **живой** — есть хоть одна привычка, и за LIVE_WINDOW_DAYS дней он сам отмечал привычку,
-  завёл новую или — если у него есть привычка с автоотметкой или «раз в месяц» — заходил
-  в приложение; заблокировавший бота или заблокированный администратором — не живой
-  (автоотметки бота отметками не считаются: в checkin_days их нет);
+- **живой на день D** — пришёл не позже D − LIVE_WINDOW_DAYS (прожил хотя бы полную
+  неделю), есть хоть одна привычка, и за LIVE_WINDOW_DAYS закончившихся дней перед D
+  (D−7…D−1) он сам отмечал привычку или — если у него есть привычка с автоотметкой или
+  «раз в месяц» — заходил в приложение. Заведённая привычка живым не делает. Блокировка
+  бота не важна (может пользоваться веб-приложением), заблокированный администратором — не
+  живой (автоотметки бота отметками не считаются: в checkin_days их нет);
+- **новичок** — пришёл меньше LIVE_WINDOW_DAYS дней назад: живым ещё быть не может;
 - **ушёл** — открывал приложение, но не заходит CHURN_DAYS дней (бота не блокировал);
 - **вероятно удалил веб-приложение** — аккаунт только веб-приложения (без Telegram) не
   заходит CHURN_DAYS дней или его уведомления перестали доходить (подписка исчезла) и
@@ -272,28 +275,30 @@ class Dataset:
 
     # --- Живые ---
 
+    def is_newcomer(self, user: UserRow, end: date | None = None) -> bool:
+        """Новичок на день `end` (по умолчанию — сегодня): не прожил ещё полной недели."""
+        return user.created_day > (end or self.today) - timedelta(days=LIVE_WINDOW_DAYS)
+
     def is_live(self, user_id: int, end: date | None = None) -> bool:
-        """Живой на день `end` (по умолчанию — сегодня): см. описание модуля."""
-        last = end or self.today
+        """Живой на день `end` (по умолчанию — сегодня): см. описание модуля. Смотрим
+        закончившиеся дни, поэтому цифра за день не меняется до полуночи."""
+        day = end or self.today
         user = self.users.get(user_id)
-        if user is None:
+        if user is None or self.is_newcomer(user, day):
             return False
-        for blocked in (user.bot_blocked, user.blocked):
-            if blocked is not None and local_day(blocked) <= last:
-                return False
+        if user.blocked is not None and local_day(user.blocked) <= day:
+            return False
         if self._tasks_by_user is None:
             self._tasks_by_user = self.tasks_of()
-        habits = [task for task in self._tasks_by_user.get(user_id, ()) if task.exists_on(last)]
+        habits = [task for task in self._tasks_by_user.get(user_id, ()) if task.exists_on(day)]
         if not habits:
             return False
-        first = last - timedelta(days=LIVE_WINDOW_DAYS - 1)
+        first, last = day - timedelta(days=LIVE_WINDOW_DAYS), day - timedelta(days=1)
 
         def within(days: list[date] | None) -> bool:
             return bool(days) and bisect_right(days, last) > bisect_left(days, first)  # type: ignore[arg-type]
 
         if within(self.checkins.get(user_id)):
-            return True
-        if any(first <= local_day(task.created) <= last for task in habits):
             return True
         return any(task.opens_count for task in habits) and within(self.activity.get(user_id))
 

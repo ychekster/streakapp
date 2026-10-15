@@ -6,6 +6,8 @@
                                              — раздел аналитики: overview (главный экран,
                                                без фильтра), summary, funnel, retention,
                                                churn, habits, sources, messaging
+    GET    /admin/analytics/overview/{group} — подробности цифры «Обзора» (из чего
+                                               складывается группа, график)
     POST   /admin/segments                   — люди за цифрой аналитики (группа)
     GET    /admin/segments/{id}              — группа: название и сколько людей
     GET    /admin/analytics-config           — пороги активации, данные для ссылок с меткой
@@ -78,6 +80,7 @@ from backend.schemas import (
     AnalyticsHabitsResponse,
     AnalyticsMessagingResponse,
     AnalyticsOverview,
+    AnalyticsOverviewGroup,
     AnalyticsRetentionResponse,
     AnalyticsSourcesResponse,
     AnalyticsSummary,
@@ -151,6 +154,16 @@ async def read_analytics(
         compare=compare,
         language=admin.language,
     )
+
+
+@router.get("/analytics/overview/{group}", response_model=AnalyticsOverviewGroup)
+async def read_overview_group(
+    group: str = Path(..., max_length=32, description="Группа «Обзора» (OVERVIEW_GROUPS)"),
+    admin: User = Depends(get_admin_user),
+    repo: Repository = RepositoryDep,
+) -> AnalyticsOverviewGroup:
+    """Подробности цифры «Обзора»: из чего складывается группа людей."""
+    return await analytics.overview_group(repo, group, utc_now())
 
 
 @router.post("/segments", response_model=SegmentInfo, status_code=201)

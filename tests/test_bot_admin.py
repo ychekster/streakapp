@@ -379,9 +379,11 @@ def test_activity_is_recorded_once_a_minute_and_once_a_day(db_url: str) -> None:
 
 
 def test_live_users(db_url: str) -> None:
-    """«Живой»: есть привычка и за неделю — своя отметка, новая привычка или (у привычек с
-    автоотметкой и «раз в месяц») заход в приложение; заблокировавший бота — не живой."""
+    """«Живой» на день D: пришёл не позже D−7, есть привычка и за D−7…D−1 — своя отметка или
+    (у привычек с автоотметкой и «раз в месяц») заход в приложение. Новая привычка и
+    сегодняшняя отметка не считаются; блокировка бота не важна, блокировка админом — важна."""
     from backend.analytics.data import load_dataset
+    from backend.analytics.overview import groups
     from backend.clock import local_day
     from backend.models import CheckinDay
 
@@ -393,9 +395,11 @@ def test_live_users(db_url: str) -> None:
             21: {}, 22: {}, 23: {"auto_mark": True}, 24: {"auto_mark": True},
             25: {"created": 2}, 26: {"deleted": 1}, 27: {},
             28: {"frequency_type": "monthly", "start_date": today},
+            29: {}, 30: {"joined": 3, "created": 3}, 31: {},
         }
         for user_id, options in habits.items():
-            await repo.get_or_create_user(user_id, None, "U", language="ru")
+            user = await repo.get_or_create_user(user_id, None, "U", language="ru")
+            user.created_at = ago(options.get("joined", 20))
             deleted = options.get("deleted")
             repo.session.add(
                 Task(
@@ -409,24 +413,31 @@ def test_live_users(db_url: str) -> None:
                     deleted_at=ago(deleted) if deleted is not None else None,
                 )
             )
-        # Отметки: 21 и 27 — 3 дня назад, 22 — 8 дней назад, 26 — 3 дня назад (до удаления).
-        for user_id, days_ago in ((21, 3), (22, 8), (26, 3), (27, 3)):
+        # Отметки: 21, 26, 27 и 31 — 3 дня назад, 22 — 8 дней назад, 29 — только сегодня,
+        # 30 (новичок) — вчера.
+        for user_id, days_ago in ((21, 3), (22, 8), (26, 3), (27, 3), (29, 0), (30, 1), (31, 3)):
             repo.session.add(CheckinDay(user_id=user_id, day=today - timedelta(days=days_ago)))
         # Заходы: 22, 23 и 28 — недавно, 24 — 10 дней назад.
         for user_id, days_ago in ((22, 1), (23, 2), (24, 10), (28, 1)):
             repo.session.add(UserActivity(user_id=user_id, day=today - timedelta(days=days_ago)))
         (await repo.get_user(27)).bot_blocked_at = ago(1)
+        (await repo.get_user(31)).blocked_at = ago(1)
         await repo.session.flush()
 
         ds = await load_dataset(repo, now)
         live = {user_id for user_id in habits if ds.is_live(user_id)}
         # 22 заходит, но не отмечает обычную привычку; 24 не заходит с автоотметкой;
-        # 26 удалил привычку; 27 заблокировал бота.
-        assert live == {21, 23, 25, 28}
-        # Неделю назад 22 ещё отмечал; 26 — живой, пока привычка была.
+        # 25 только завёл привычку; 26 удалил привычку; 29 отметил лишь сегодня;
+        # 30 — новичок; 31 заблокирован администратором. 27 заблокировал бота, но отмечает.
+        assert live == {21, 23, 27, 28}
+        # Неделю назад 22 ещё отмечал (8 дней назад — в окне); 26 — живой, пока привычка была.
         assert ds.is_live(22, today - timedelta(days=7))
-        assert ds.is_live(26, today - timedelta(days=3))
-        assert ds.is_live(27, today - timedelta(days=2))
+        assert ds.is_live(26, today - timedelta(days=2))
+        # Новичок станет живым только на 7-й день после прихода.
+        assert ds.is_newcomer(ds.users[30]) and not ds.is_newcomer(ds.users[29])
+        overview = groups(ds)
+        assert 30 in overview["newcomers"] and 30 not in overview["stopped"]
+        assert 25 in overview["stopped"]
 
     asyncio.run(_with_repo(db_url, check))
 
