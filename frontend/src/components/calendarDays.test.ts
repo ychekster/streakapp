@@ -111,6 +111,20 @@ describe("calendarMonth", () => {
     expect(before.find((cell) => cell?.date === "2026-09-30")?.state).toBe("off");
   });
 
+  it("tints days off the schedule from the first day", () => {
+    // Mon/Wed/Fri from Mon 5 Oct; the marking day is Fri 16 Oct.
+    const gym = habit("2026-10-16", ["2026-10-05"], {
+      frequency_type: "specific_days",
+      days: ["mon", "wed", "fri"],
+    });
+    const days = calendarMonth(gym, "2026-10", "2026-10-16");
+    const state = (date: string) => days.find((cell) => cell?.date === date)?.state;
+    expect(state("2026-10-04")).toBe("off");
+    expect(state("2026-10-06")).toBe("rest");
+    expect(state("2026-10-07")).toBe("missed");
+    expect(state("2026-10-17")).toBe("off");
+  });
+
   it("starts at the first month of the habit, not older than the history", () => {
     const run = habit("2026-10-10", ["2026-08-20"]);
     expect(firstMonth(run, "2026-10-10")).toBe("2026-08");

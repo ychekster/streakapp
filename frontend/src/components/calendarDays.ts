@@ -16,9 +16,16 @@ import { firstDay } from "./gridLayout";
 /** Что было в день:
  *  - `done` — выполнена; `partial` — «несколько раз в день», но меньше цели;
  *  - `missed` — была запланирована и не выполнена (в день отметки — ещё не выполнена);
- *  - `frozen` — заморожена; `off` — не запланирована, до первого дня или ещё не наступил;
- *  - `unknown` — старше истории. */
-export type CalendarDayState = "done" | "partial" | "missed" | "frozen" | "off" | "unknown";
+ *  - `frozen` — заморожена; `rest` — не запланирована (с первого дня по день отметки);
+ *  - `off` — до первого дня или ещё не наступил; `unknown` — старше истории. */
+export type CalendarDayState =
+  | "done"
+  | "partial"
+  | "missed"
+  | "frozen"
+  | "rest"
+  | "off"
+  | "unknown";
 
 export interface CalendarDay {
   /** «ГГГГ-ММ-ДД». */
@@ -117,10 +124,10 @@ function stateOf(habit: Habit, date: string, day: string, start: string | null):
   if (total > 1 && (habit.history_counts?.[index] ?? 0) > 0) {
     return "partial";
   }
-  if (start === null || date < start || !isDueOn(habit, date)) {
+  if (start === null || date < start) {
     return "off";
   }
-  return "missed";
+  return isDueOn(habit, date) ? "missed" : "rest";
 }
 
 /**
