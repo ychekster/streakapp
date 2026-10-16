@@ -39,7 +39,7 @@
  * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
  */
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import { ColorPicker } from "../components/ColorPicker";
 import { DateField, localDate } from "../components/DateField";
@@ -68,9 +68,9 @@ import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
-import { useResolvedTheme, useStrings } from "../preferences";
+import { useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
-import { habitColorHex, habitColorStyle, readRootVariable } from "../theme";
+import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import { weekdayLabel } from "../weekdayLabel";
@@ -86,7 +86,6 @@ interface HabitFormScreenProps {
 export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
-  const theme = useResolvedTheme();
   const [name, setName] = useState(habit?.name ?? "");
   const [description, setDescription] = useState(habit?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
@@ -135,23 +134,10 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     { value: "monthly", label: strings.formMonthly },
   ] as const;
 
-  // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»); у
-  // тёмной темы они свои, поэтому при её смене перечитываются.
-  const buttonColors = useMemo(
-    () =>
-      valid
-        ? { color: habitColorHex(color), textColor: readRootVariable("--color-on-habit") }
-        : {
-            color: readRootVariable("--main-button-disabled-bg"),
-            textColor: readRootVariable("--main-button-disabled-text"),
-          },
-    [valid, color, theme],
-  );
-
   useMainButton(
     {
       text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
-      ...buttonColors,
+      ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
       active: valid,
       progress: submitting,
     },

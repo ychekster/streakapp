@@ -1,10 +1,9 @@
 /**
- * Цвет (тема) привычки в разметке и в кнопках Telegram.
+ * Цвет (тема) привычки в разметке и в нижней кнопке.
  *
  * Сами цвета — дизайн-токены `--palette-*` (styles/variables.css): каналы R, G, B через
  * запятую. Разметка получает цвет привычки переменной `--habit-rgb` на своём корне
- * (компоненты берут rgb(var(--habit-rgb))), а кнопкам Telegram, которые понимают только
- * «#RRGGBB», токен переводится в hex.
+ * (компоненты берут rgb(var(--habit-rgb))).
  */
 
 import type { CSSProperties } from "react";
@@ -29,16 +28,26 @@ export function readRootVariable(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** Каналы «R, G, B» → «#rrggbb». */
-function channelsToHex(channels: string): string {
-  const hex = channels
-    .split(",")
-    .map((channel) => Number.parseInt(channel, 10).toString(16).padStart(2, "0"))
-    .join("");
-  return `#${hex}`;
-}
+/*
+ * Цвета нижней кнопки (MainButtonBar) — ссылки на токены, а не прочитанные значения:
+ * браузер сам берёт их из текущей темы. Чтение стилей в рендере опережает смену темы
+ * (она применяется в эффекте App) — и кнопка оставалась в цветах прежней темы, например
+ * когда iOS перекрашивает свёрнутое веб-приложение для снимка переключателя приложений.
+ */
 
-/** Цвет привычки в виде «#rrggbb» (для кнопок Telegram). */
-export function habitColorHex(color: string): string {
-  return channelsToHex(readRootVariable(`--palette-${knownColor(color)}`));
+/** Нижняя кнопка в акцентном цвете. */
+export const MAIN_BUTTON_ACCENT = {
+  color: "var(--color-accent)",
+  textColor: "var(--color-on-habit)",
+};
+
+/** Нижняя кнопка, пока форма не заполнена. */
+export const MAIN_BUTTON_DISABLED = {
+  color: "var(--main-button-disabled-bg)",
+  textColor: "var(--main-button-disabled-text)",
+};
+
+/** Нижняя кнопка в цвете привычки. */
+export function mainButtonHabitColors(color: string): { color: string; textColor: string } {
+  return { color: `rgb(var(--palette-${knownColor(color)}))`, textColor: "var(--color-on-habit)" };
 }

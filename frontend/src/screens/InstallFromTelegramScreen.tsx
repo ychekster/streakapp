@@ -10,33 +10,22 @@
  * Looks like the landing it leads to: the app icon and one line, centred.
  */
 
-import { useMemo } from "react";
-
 import { Screen } from "../components/Screen";
 import { describeError } from "../errors";
 import { useHandoffLink } from "../hooks/useHandoffLink";
 import { useMainButton } from "../hooks/useMainButton";
-import { useResolvedTheme, useStrings } from "../preferences";
-import { readRootVariable } from "../theme";
+import { useStrings } from "../preferences";
+import { MAIN_BUTTON_ACCENT } from "../theme";
 import styles from "./InstallFromTelegramScreen.module.css";
 
 export function InstallFromTelegramScreen({ src }: { src: string }) {
   const strings = useStrings();
-  const theme = useResolvedTheme();
   const link = useHandoffLink(src, true);
 
-  // Цвета нижней кнопки — из дизайн-токенов; у тёмной темы они свои.
-  const buttonColors = useMemo(
-    () => ({
-      color: readRootVariable("--color-accent"),
-      textColor: readRootVariable("--color-on-habit"),
-    }),
-    [theme],
-  );
   useMainButton(
     {
       text: strings.installOpen,
-      ...buttonColors,
+      ...MAIN_BUTTON_ACCENT,
       active: true,
       progress: !link.ready && !link.failed,
     },

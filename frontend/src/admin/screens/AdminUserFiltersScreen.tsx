@@ -8,8 +8,6 @@
  * Фильтр хранит AdminApp: он общий с экраном списка и переживает переходы.
  */
 
-import { useMemo } from "react";
-
 import { AUDIENCE_KEYS, audienceParam } from "../audience";
 import { countUsers } from "../../api/admin";
 import { useAdminStrings } from "../adminStrings";
@@ -21,8 +19,7 @@ import { AUDIENCE_COUNT_DELAY_MS } from "../../constants";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useMainButton } from "../../hooks/useMainButton";
 import { useResource } from "../../hooks/useResource";
-import { useResolvedTheme } from "../../preferences";
-import { readRootVariable } from "../../theme";
+import { MAIN_BUTTON_ACCENT } from "../../theme";
 import type { Audience } from "../../types/admin";
 import styles from "./AdminUserFiltersScreen.module.css";
 
@@ -41,7 +38,6 @@ export function AdminUserFiltersScreen({
   onClose,
 }: AdminUserFiltersScreenProps) {
   const strings = useAdminStrings();
-  const theme = useResolvedTheme();
   // Пока значения переключают подряд, число не пересчитывается на каждое.
   const settled = useDebouncedValue(audience, AUDIENCE_COUNT_DELAY_MS);
   const counted = useResource(
@@ -51,17 +47,8 @@ export function AdminUserFiltersScreen({
   const current = audienceParam(settled) === audienceParam(audience) && !counted.refreshing;
   const count = current && counted.status === "ready" ? counted.data : null;
 
-  // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»); у
-  // тёмной темы они свои.
-  const buttonColors = useMemo(
-    () => ({
-      color: readRootVariable("--color-accent"),
-      textColor: readRootVariable("--color-on-habit"),
-    }),
-    [theme],
-  );
   useMainButton(
-    { text: strings.filtersShow(count), ...buttonColors, active: true, progress: false },
+    { text: strings.filtersShow(count), ...MAIN_BUTTON_ACCENT, active: true, progress: false },
     onClose,
   );
 

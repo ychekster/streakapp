@@ -324,7 +324,7 @@ export function onBackButtonClick(handler: () => void): () => void {
   return () => backButton?.offClick(handler);
 }
 
-/** Состояние нижней кнопки (MainButtonBar). Цвета — «#RRGGBB». */
+/** Состояние нижней кнопки (MainButtonBar). Цвета — любые цвета CSS, обычно var(--токен). */
 export interface MainButtonState {
   text: string;
   color: string;

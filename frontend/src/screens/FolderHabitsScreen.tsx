@@ -5,7 +5,7 @@
  * Нижняя кнопка «Готово» возвращает выбор в форму, «Назад» — закрывает без изменений.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
@@ -13,9 +13,9 @@ import { SearchField } from "../components/SearchField";
 import { Card } from "../components/Section";
 import { StatusMessage } from "../components/StatusMessage";
 import { useMainButton } from "../hooks/useMainButton";
-import { useResolvedTheme, useStrings } from "../preferences";
+import { useStrings } from "../preferences";
 import { hapticSelection } from "../telegram/webapp";
-import { readRootVariable } from "../theme";
+import { MAIN_BUTTON_ACCENT } from "../theme";
 import type { Habit } from "../types/habit";
 import styles from "./FolderHabitsScreen.module.css";
 
@@ -28,7 +28,6 @@ interface FolderHabitsScreenProps {
 
 export function FolderHabitsScreen({ habits, selected, onDone }: FolderHabitsScreenProps) {
   const strings = useStrings();
-  const theme = useResolvedTheme();
   const [chosen, setChosen] = useState(() => new Set(selected));
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
@@ -36,17 +35,8 @@ export function FolderHabitsScreen({ habits, selected, onDone }: FolderHabitsScr
     ? habits.filter((habit) => habit.name.toLowerCase().includes(needle))
     : habits;
 
-  // Цвета нижней кнопки — из дизайн-токенов; у тёмной темы свои.
-  const buttonColors = useMemo(
-    () => ({
-      color: readRootVariable("--color-accent"),
-      textColor: readRootVariable("--color-on-habit"),
-    }),
-    [theme],
-  );
-
   useMainButton(
-    { text: strings.folderPickerDone, ...buttonColors, active: true, progress: false },
+    { text: strings.folderPickerDone, ...MAIN_BUTTON_ACCENT, active: true, progress: false },
     // В порядке списка привычек.
     () => onDone(habits.filter((habit) => chosen.has(habit.id)).map((habit) => habit.id)),
   );

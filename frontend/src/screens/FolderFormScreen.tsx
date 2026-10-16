@@ -14,7 +14,7 @@
  * или «Сохранить», неактивная, пока нет названия; «Назад» закрывает форму без сохранения.
  */
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import { DestructiveButton } from "../components/DestructiveButton";
 import { ListItem } from "../components/ListItem";
@@ -24,9 +24,9 @@ import { FOLDER_NAME_MAX_LENGTH } from "../constants";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
-import { useResolvedTheme, useStrings } from "../preferences";
+import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
-import { readRootVariable } from "../theme";
+import { MAIN_BUTTON_ACCENT, MAIN_BUTTON_DISABLED } from "../theme";
 import type { Folder } from "../types/folder";
 import type { Habit } from "../types/habit";
 import { HabitAvatar } from "./FolderHabitsScreen";
@@ -60,32 +60,16 @@ export function FolderFormScreen({
   onDone,
 }: FolderFormScreenProps) {
   const strings = useStrings();
-  const theme = useResolvedTheme();
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const valid = draft.name.trim().length > 0;
   const kind = draft.folder?.kind ?? null;
   const selected = kind ? [] : habits.filter((habit) => draft.habits.includes(habit.id));
 
-  // Цвета нижней кнопки — из дизайн-токенов (см. HabitFormScreen).
-  const buttonColors = useMemo(
-    () =>
-      valid
-        ? {
-            color: readRootVariable("--color-accent"),
-            textColor: readRootVariable("--color-on-habit"),
-          }
-        : {
-            color: readRootVariable("--main-button-disabled-bg"),
-            textColor: readRootVariable("--main-button-disabled-text"),
-          },
-    [valid, theme],
-  );
-
   useMainButton(
     {
       text: draft.folder ? strings.folderEditSubmit : strings.folderCreateSubmit,
-      ...buttonColors,
+      ...(valid ? MAIN_BUTTON_ACCENT : MAIN_BUTTON_DISABLED),
       active: valid,
       progress: false,
     },

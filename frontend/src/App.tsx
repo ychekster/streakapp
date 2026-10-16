@@ -284,10 +284,12 @@ export function App() {
       ? null
       : (folders.find((folder) => String(folder.id) === activeFolderTab) ?? null);
   // «Невыполненные»: отмеченная привычка не пропадает из открытой папки сразу — её можно
-  // снять обратно; уходит, когда папку (или вкладку) сменили.
+  // снять обратно (и открыть привычку или форму новой); уходит, когда сменили папку —
+  // в том числе на «Все привычки» — или вкладку.
   const keptInFolder = useRef({ key: "", ids: new Set<number>() });
   const shownHabits = useMemo(() => {
     if (!activeFolder) {
+      keptInFolder.current = { key: "", ids: new Set() };
       return habits;
     }
     const kept = keptInFolder.current;

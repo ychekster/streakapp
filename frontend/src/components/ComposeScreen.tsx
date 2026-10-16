@@ -13,12 +13,11 @@
  * отправив, можно кнопкой «Назад» Telegram (её ставит владелец экрана).
  */
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { useMainButton } from "../hooks/useMainButton";
-import { useResolvedTheme } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
-import { readRootVariable } from "../theme";
+import { MAIN_BUTTON_ACCENT, MAIN_BUTTON_DISABLED } from "../theme";
 import { ListItem } from "./ListItem";
 import { Screen } from "./Screen";
 import { Card } from "./Section";
@@ -66,7 +65,6 @@ export function ComposeScreen({
   onClose,
   done,
 }: ComposeScreenProps) {
-  const theme = useResolvedTheme();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,26 +78,10 @@ export function ComposeScreen({
   const success: ComposeDone | null = sent && done ? done : null;
   const ready = success !== null || text.trim() !== "";
 
-  // Цвета нижней кнопки — из дизайн-токенов (Telegram понимает только «#RRGGBB»); у
-  // тёмной темы они свои, поэтому при её смене перечитываются.
-  const buttonColors = useMemo(
-    () =>
-      ready
-        ? {
-            color: readRootVariable("--color-accent"),
-            textColor: readRootVariable("--color-on-habit"),
-          }
-        : {
-            color: readRootVariable("--main-button-disabled-bg"),
-            textColor: readRootVariable("--main-button-disabled-text"),
-          },
-    [ready, theme],
-  );
-
   useMainButton(
     {
       text: success ? success.label : sendLabel,
-      ...buttonColors,
+      ...(ready ? MAIN_BUTTON_ACCENT : MAIN_BUTTON_DISABLED),
       active: ready,
       progress: busy,
     },
