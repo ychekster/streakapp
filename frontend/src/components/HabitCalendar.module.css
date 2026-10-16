@@ -1,0 +1,118 @@
+/*
+ * Календарь привычки внутри карточки (Card padded — горизонтальный отступ задаёт
+ * карточка, вертикальный — календарь). Дни — 7 колонок по 1fr, кружок дня квадратный
+ * и подстраивается под ширину карточки, но не крупнее --calendar-day-max.
+ */
+.calendar {
+  --calendar-day-max: 40px;
+  padding: 10px 0 var(--space-card-padding);
+  /* Свайп влево-вправо листает месяцы, вертикальная прокрутка страницы остаётся. */
+  touch-action: pan-y;
+}
+
+/* Шапка: стрелки по краям, месяц и год по центру. */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: var(--font-size-habit-name);
+  font-weight: var(--font-weight-habit-name);
+  color: var(--color-text-primary);
+}
+
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0 -10px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: rgb(var(--habit-rgb));
+  transition: opacity var(--transition-fast);
+}
+
+.arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.chevron {
+  width: 9px;
+  height: 16px;
+}
+
+.chevron path {
+  stroke-width: 2.4;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 6px;
+  justify-items: center;
+}
+
+.weekday {
+  padding-bottom: 4px;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* Кружок дня с числом. Пустые места до первого и после последнего дня — без кружка. */
+.day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, var(--calendar-day-max));
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.done {
+  background-color: rgb(var(--habit-rgb));
+  color: var(--color-check-icon);
+  font-weight: 600;
+}
+
+/* Пропущенный день — бледный цвет привычки, как пропуск в сетке. */
+.missed {
+  background-color: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
+}
+
+/* Неполный день «несколько раз в день» — между пропуском и выполненным (как в сетке). */
+.partial {
+  background-color: rgba(
+    var(--habit-rgb),
+    calc(var(--habit-grid-empty-alpha) + (1 - var(--habit-grid-empty-alpha)) * var(--dot-fill))
+  );
+}
+
+/* Заморозка — голубой у всех привычек, как снежинка в сетке. */
+.frozen {
+  background-color: rgba(var(--palette-lightblue), var(--habit-grid-empty-alpha));
+  color: rgb(var(--palette-lightblue));
+  font-weight: 600;
+}
+
+/* Не запланирован, до первого дня, ещё не наступил или старше истории — просто число. */
+.off,
+.unknown {
+  color: var(--color-text-secondary);
+}
+
+/* День отметки — обводка цветом привычки (у выполненного сливается с заливкой). */
+.today {
+  box-shadow: inset 0 0 0 2px rgb(var(--habit-rgb));
+}

@@ -1,6 +1,7 @@
 /**
  * Экран привычки: карточка с сеткой выполнения за последние 364 дня, основные
- * показатели (текущая и лучшая серии, всего выполнено, цель серии) и настройки
+ * показатели (текущая и лучшая серии, всего выполнено — «18/25»: из скольких дней с первого
+ * дня привычки, цель серии), календарь по месяцам (HabitCalendar) и настройки
  * привычки (редактировать, заморозить / разморозить, удалить). Весь экран окрашен в цвет
  * привычки.
  *
@@ -20,7 +21,10 @@
 import { useRef, useState } from "react";
 
 import { Disclosure } from "../components/Disclosure";
+import { useGridView } from "../components/gridLayout";
 import { HabitBlock } from "../components/HabitBlock";
+import { HabitCalendar } from "../components/HabitCalendar";
+import { trackedDays } from "../components/calendarDays";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
@@ -91,6 +95,10 @@ export function HabitScreen({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const frozen = habit.frozen_since !== null;
+  // День отметки — последний день истории; неизвестен (ещё нет настроек) — без календаря
+  // и без «из скольких дней».
+  const markDay = useGridView().day;
+  const days = markDay ? trackedDays(habit, markDay) : 0;
 
   async function toggleFreeze(): Promise<void> {
     if (frozen) {
@@ -160,7 +168,7 @@ export function HabitScreen({
             />
             <StatCard
               icon={<CompletedIcon />}
-              value={habit.total_done}
+              value={days > 0 ? `${habit.total_done} / ${days}` : habit.total_done}
               label={strings.statTotalDone}
             />
             <StatCard
@@ -170,6 +178,14 @@ export function HabitScreen({
             />
           </div>
         </Section>
+
+        {markDay ? (
+          <Section title={strings.calendarHeading}>
+            <Card padded>
+              <HabitCalendar habit={habit} day={markDay} />
+            </Card>
+          </Section>
+        ) : null}
 
         <Section title={strings.habitSettingsHeading}>
           <Card>

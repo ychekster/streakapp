@@ -232,6 +232,27 @@ const RU = {
   goalDaily: "Ежедневно",
   goalEveryOtherDay: "Через день",
   goalMonthly: "Каждый месяц",
+  // Календарь экрана привычки (HabitCalendar.tsx).
+  calendarHeading: "Календарь",
+  calendarPrevMonth: "Предыдущий месяц",
+  calendarNextMonth: "Следующий месяц",
+  monthNames: [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+  ],
+  // «16 октября» — для скринридеров.
+  monthNamesOf: [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  ],
+  calendarDayStates: {
+    done: "выполнено",
+    partial: "выполнено не полностью",
+    missed: "не выполнено",
+    frozen: "заморожено",
+    off: "не запланировано",
+    unknown: "нет данных",
+  },
   habitSettingsHeading: "Настройки",
   editHabit: "Редактировать привычку",
   freezeHabit: "Заморозить привычку",
@@ -567,6 +588,25 @@ const EN: Strings = {
   goalDaily: "Daily",
   goalEveryOtherDay: "Every Other Day",
   goalMonthly: "Every Month",
+  calendarHeading: "Calendar",
+  calendarPrevMonth: "Previous month",
+  calendarNextMonth: "Next month",
+  monthNames: [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ],
+  monthNamesOf: [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ],
+  calendarDayStates: {
+    done: "completed",
+    partial: "partly completed",
+    missed: "not completed",
+    frozen: "frozen",
+    off: "not scheduled",
+    unknown: "no data",
+  },
   habitSettingsHeading: "Settings",
   editHabit: "Edit Habit",
   freezeHabit: "Freeze Habit",

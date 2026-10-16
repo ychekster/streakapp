@@ -52,7 +52,7 @@ type GridHabit = Pick<
  * сервера (`started_on`), так начало не сдвигается, когда он уходит из истории. Привычка
  * старше истории без этого поля (сохранена на устройстве до него) — от дня создания.
  */
-function firstDay(habit: GridHabit, createdOn: string, day: string): string {
+export function firstDay(habit: GridHabit, createdOn: string, day: string): string {
   const { history } = habit;
   // Последний день истории — день отметки.
   const historyStart = addDays(day, 1 - history.length);
