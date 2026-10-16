@@ -1,9 +1,9 @@
 /**
  * The app's own back and bottom buttons in the web app (spec §5).
  *
- * Inside Telegram, the «Назад» button and the bottom MainButton are Telegram's own. The
- * installed web app has neither, so telegram/webapp.ts routes the same calls here, and
- * <WebChrome> draws the buttons. Screens keep using useBackButton / useMainButton — one
+ * Inside Telegram, the «Назад» button is Telegram's own; the bottom button is drawn here
+ * (MainButtonBar) on both platforms. The installed web app has no Telegram buttons, so
+ * telegram/webapp.ts routes the same calls here, and <WebChrome> draws them. Screens keep using useBackButton / useMainButton — one
  * code path for both platforms.
  */
 
