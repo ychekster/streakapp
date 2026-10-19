@@ -51,6 +51,14 @@
 }
 
 /* Under the reminder card in the web app: notifications are off and how to turn them on. */
+/* New shared habit: how it works, under the title — like a section footer. */
+.intro {
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-list-footer);
+  color: var(--color-text-secondary);
+}
+
 .note {
   margin-top: var(--space-list-footer-top);
   padding: 0 var(--space-card-padding);

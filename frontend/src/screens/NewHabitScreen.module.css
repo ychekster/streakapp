@@ -1,0 +1,51 @@
+/* Поиск — под маленьким заголовком по центру шапки, как в эталоне («Новое сообщение»). */
+.search {
+  padding-top: var(--space-new-habit-search-top);
+}
+
+/* Ряды — высоты рядов настроек. */
+.list {
+  --list-row-min-height: var(--form-row-min-height);
+}
+
+/* «+ Новая привычка», «Совместная привычка»: тонкий значок цветом акцента перед подписью. */
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--new-habit-action-gap);
+  min-width: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+  width: var(--new-habit-action-icon);
+  height: var(--new-habit-action-icon);
+}
+
+/* Шаблон: название, под ним — расписание серым (как «был(а) недавно» у контактов). */
+.template {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.schedule {
+  font-size: var(--folders-recommended-description-size);
+  color: var(--color-text-secondary);
+}
+
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Первая буква названия в кружке цвета шаблона. */
+.letter {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1;
+}

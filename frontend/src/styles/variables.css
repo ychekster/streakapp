@@ -265,6 +265,10 @@
   /* Верх значка — ~57pt ниже середины заголовка шапки, как в эталоне (настройки папок
      Telegram): строка шапки 46 / 2 + отступ экрана 11 + этот. */
   --space-folders-intro-top: 23px;
+  /* «Добавить привычку» (NewHabitScreen), как «Новое сообщение» Telegram. */
+  --space-new-habit-search-top: 12px; /* от шапки до поиска */
+  --new-habit-action-icon: 26px; /* значок перед «Новая привычка» / «Совместная привычка» */
+  --new-habit-action-gap: 14px;
   --folders-intro-icon-size: 64px;
   --folders-intro-icon-radius: 15px;
   --folders-intro-icon-glyph: 42px;

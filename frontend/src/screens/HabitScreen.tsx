@@ -27,7 +27,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiRequestError } from "../api/client";
 import { Disclosure } from "../components/Disclosure";
 import { GroupMembers } from "../components/GroupMembers";
 import { useGridView } from "../components/gridLayout";
@@ -61,12 +60,13 @@ import {
   leaveShared,
   notifyShared,
   removeFromShared,
+  reportGroupError,
   resetSharedLink,
 } from "../data/groups";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
 import type { Strings } from "../strings";
-import { confirmAction, hapticNotification, showAlert } from "../telegram/webapp";
+import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { GroupMember, Habit } from "../types/habit";
 import { weekdayLabel } from "../weekdayLabel";
@@ -187,22 +187,7 @@ export function HabitScreen({
       }
     } catch (error) {
       hapticNotification("error");
-      if (error instanceof ApiRequestError && error.code === "group_needs_telegram") {
-        const login = await confirmAction({
-          title: strings.groupLoginTitle,
-          message: strings.groupLoginMessage,
-          confirmLabel: strings.groupLoginConfirm,
-          cancelLabel: strings.groupDialogCancel,
-        });
-        if (login) {
-          onLinkTelegram();
-        }
-      } else {
-        void showAlert({
-          title: strings.groupActionFailed,
-          message: describeError(strings, error, strings.groupActionFailed),
-        });
-      }
+      await reportGroupError(error, strings, onLinkTelegram);
     } finally {
       setGroupBusy(false);
     }

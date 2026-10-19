@@ -42,7 +42,7 @@ const RU = {
   // --- Нижняя навигация ---
   tabHabits: "Привычки",
   tabSettings: "Настройки",
-  addHabit: "Новая привычка",
+  addHabit: "Добавить привычку",
 
   // --- Настройки ---
   settingsTitle: "Настройки",
@@ -313,6 +313,25 @@ const RU = {
   checkCount: (name: string, count: number, total: number) =>
     `Отметить ещё раз: ${name} (${count} из ${total})`,
 
+  // --- «Добавить привычку» (кнопка «+»): обычная, совместная или из шаблона ---
+  newHabitPlain: "Новая привычка",
+  newHabitShared: "Совместная привычка",
+  templatesHeading: "Популярные",
+  templatesSearch: "Поиск",
+  // Поиск не нашёл шаблона — создать привычку с таким названием.
+  templateCreate: (name: string) => `Создать «${name}»`,
+
+  // --- Форма совместной привычки ---
+  sharedFormTitle: "Совместная привычка",
+  sharedFormIntro:
+    "Ведите привычку вместе с друзьями: день засчитывается, когда свою часть выполнили все. До 12 участников.",
+  sharedCommonHeading: "Общее для всех",
+  sharedCommonFooter:
+    "Название, повтор и цель одинаковы у всех участников. Менять их можете только вы.",
+  sharedOwnHeading: "Только для вас",
+  sharedOwnFooter: "Описание и напоминания у каждого участника свои, как и цвет.",
+  sharedSubmit: "Создать и пригласить",
+
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
   formEditTitle: "Редактирование",
@@ -457,7 +476,7 @@ const EN: Strings = {
 
   tabHabits: "Habits",
   tabSettings: "Settings",
-  addHabit: "New Habit",
+  addHabit: "Add Habit",
 
   settingsTitle: "Settings",
   settingsLoading: "Loading settings…",
@@ -696,6 +715,22 @@ const EN: Strings = {
   checkFrozen: (name: string) => `${name}: frozen`,
   checkCount: (name: string, count: number, total: number) =>
     `Mark once more: ${name} (${count} of ${total})`,
+
+  newHabitPlain: "New Habit",
+  newHabitShared: "Shared Habit",
+  templatesHeading: "Popular",
+  templatesSearch: "Search",
+  templateCreate: (name: string) => `Create “${name}”`,
+
+  sharedFormTitle: "Shared Habit",
+  sharedFormIntro:
+    "Keep up a habit together with friends: a day counts when everyone has done their part. Up to 12 members.",
+  sharedCommonHeading: "Same for Everyone",
+  sharedCommonFooter:
+    "The name, repeat and goal are the same for all members. Only you can change them.",
+  sharedOwnHeading: "Just for You",
+  sharedOwnFooter: "Each member has their own description and reminders, and their own color.",
+  sharedSubmit: "Create and Invite",
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",

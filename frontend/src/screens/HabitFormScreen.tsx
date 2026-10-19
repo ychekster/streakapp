@@ -36,8 +36,13 @@
  * Совместная привычка: название, повтор (с днями и датой) и цель меняет только владелец —
  * у остальных они бледные и не нажимаются; автоотметки в ней нет.
  *
- * Открывается кнопкой «+» (новая привычка) или рядом «Редактировать привычку» на экране
- * привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
+ * Новая совместная привычка («Совместная привычка» на экране «Добавить привычку»): под
+ * заголовком — как она работает, поля в двух секциях: «Общее для всех» (название, повтор,
+ * цель) и «Только для вас» (описание, напоминания), ниже тема; автоотметки нет. Нижняя
+ * кнопка — «Создать и пригласить»: App создаёт привычку и сразу отправляет ссылку.
+ *
+ * Открывается с экрана «Добавить привычку» (кнопка «+»: пустая, из шаблона или с названием
+ * из поиска — `initial`) или рядом «Редактировать привычку» на экране привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
  * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Создать привычку» или
  * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
  */
@@ -82,29 +87,44 @@ import styles from "./HabitFormScreen.module.css";
 interface HabitFormScreenProps {
   /** Редактируемая привычка; null — создание новой. */
   habit: Habit | null;
+  /** Новая привычка: начальные значения (шаблон, название из поиска) вместо пустых. */
+  initial?: Partial<HabitInput> | null;
+  /** Новая совместная привычка: поля «Общее для всех» / «Только для вас», кнопка
+   *  «Создать и пригласить» (пригласить — App). */
+  newShared?: boolean;
   /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
 }
 
-export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
+export function HabitFormScreen({
+  habit,
+  initial = null,
+  newShared = false,
+  onSaved,
+}: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
   // Совместная привычка: общие поля — у владельца.
   const shared = habit !== null && isShared(habit);
   const locked = shared && !habit.group?.is_owner;
-  const [name, setName] = useState(habit?.name ?? "");
-  const [description, setDescription] = useState(habit?.description ?? "");
+  const sharedLayout = habit === null && newShared;
+  // Начальные значения: редактируемая привычка, иначе шаблон (или пусто).
+  const seed = habit ?? initial;
+  const [name, setName] = useState(seed?.name ?? "");
+  const [description, setDescription] = useState(seed?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
   const [repeat, setRepeat] = useState<RepeatMode>(() =>
-    habit && usesStartDate(habit.frequency_type) ? (habit.frequency_type as RepeatMode) : "weekly",
+    seed?.frequency_type && usesStartDate(seed.frequency_type)
+      ? (seed.frequency_type as RepeatMode)
+      : "weekly",
   );
   // Дни недели; у «каждый день» и у новой привычки — все. Помнятся при смене частоты.
   const [days, setDays] = useState<Set<string>>(
-    () => new Set(habit?.frequency_type === "specific_days" ? habit.days : WEEKDAYS),
+    () => new Set(seed?.frequency_type === "specific_days" ? seed.days : WEEKDAYS),
   );
   // Первый день «через день» / «каждый месяц»: по умолчанию сегодня; помнится при смене
   // частоты.
-  const [startDate, setStartDate] = useState(() => habit?.start_date ?? localDate());
+  const [startDate, setStartDate] = useState(() => seed?.start_date ?? localDate());
   const [reminderOn, setReminderOn] = useState(habit?.reminder_time != null);
   // Времена помнятся, даже если напоминание выключить и включить снова. `key` — для
   // React: строки удаляются из середины.
@@ -116,8 +136,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       time,
     }));
   });
-  const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
-  const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
+  const [color, setColor] = useState<HabitColor>(seed?.color ?? DEFAULT_HABIT_COLOR);
+  const [timesPerDay, setTimesPerDay] = useState(seed?.times_per_day ?? 1);
   // Помнится, пока цель больше одного раза (ряд скрыт), но сохраняется только при одном.
   const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -142,7 +162,11 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
 
   useMainButton(
     {
-      text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
+      text: habit
+        ? strings.formEditSubmit
+        : sharedLayout
+          ? strings.sharedSubmit
+          : strings.formCreateSubmit,
       ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
       active: valid,
       progress: submitting,
@@ -210,8 +234,8 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
       reminder_times: reminderOn ? reminders.map((item) => item.time) : [],
       color,
       times_per_day: timesPerDay,
-      // У «несколько раз в день» автоотметки нет (ряд скрыт).
-      auto_mark: autoMark && timesPerDay === 1,
+      // У «несколько раз в день» и в совместной автоотметки нет (ряд скрыт).
+      auto_mark: autoMark && timesPerDay === 1 && !sharedLayout,
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
@@ -235,175 +259,233 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
     }
   }
 
+  const nameRow = (
+    <ListItem>
+      <input
+        className={styles.textInput}
+        type="text"
+        placeholder={strings.formNamePlaceholder}
+        aria-label={strings.formNamePlaceholder}
+        maxLength={nameMaxLength}
+        disabled={locked}
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        // «Готово» на клавиатуре просто её убирает.
+        enterKeyHint="done"
+        onKeyDown={blurOnEnter}
+      />
+    </ListItem>
+  );
+
+  const descriptionRow = (
+    <ListItem>
+      <input
+        className={styles.textInput}
+        type="text"
+        placeholder={strings.formDescriptionPlaceholder}
+        aria-label={strings.formDescriptionPlaceholder}
+        maxLength={HABIT_DESCRIPTION_MAX_LENGTH}
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+        enterKeyHint="done"
+        onKeyDown={blurOnEnter}
+      />
+    </ListItem>
+  );
+
+  const frequencyRows = (
+    <>
+      <ListItem label={strings.formRepeat}>
+        <MenuSelect<RepeatMode>
+          options={repeatOptions}
+          value={repeat}
+          onChange={setRepeat}
+          label={strings.formRepeat}
+        />
+      </ListItem>
+      {repeat === "weekly" ? (
+        <ListItem>
+          <DayPicker selected={days} onToggle={toggleDay} />
+        </ListItem>
+      ) : null}
+      {usesStartDate(frequency) ? (
+        <ListItem label={strings.formStartDate}>
+          <DateField
+            value={startDate}
+            onChange={setStartDate}
+            label={strings.formStartDate}
+            max={localDate(START_DATE_MAX_AHEAD_DAYS)}
+          />
+        </ListItem>
+      ) : null}
+    </>
+  );
+
+  const goalRow = (
+    <ListItem label={strings.formTimesPerDay(timesPerDay)}>
+      <Stepper
+        value={timesPerDay}
+        min={1}
+        max={MAX_TIMES_PER_DAY}
+        onChange={setTimesPerDay}
+        decreaseLabel={strings.formTimesLess}
+        increaseLabel={strings.formTimesMore}
+      />
+    </ListItem>
+  );
+
+  const reminderRows = (
+    <>
+      <ListItem label={strings.formReminderToggle}>
+        <Switch checked={reminderOn} onChange={setReminderOn} label={strings.formReminderToggle} />
+      </ListItem>
+      {reminderOn
+        ? reminders.map((reminder, index) => (
+            <ListItem
+              key={reminder.key}
+              label={
+                index === 0 ? (
+                  strings.formReminderTime
+                ) : (
+                  <span className={styles.reminderLabel}>
+                    <button
+                      type="button"
+                      className={styles.removeReminder}
+                      aria-label={strings.formReminderRemove(reminder.time)}
+                      onClick={() => removeReminder(reminder.key)}
+                    >
+                      <span className={`${styles.reminderBadge} ${styles.minus}`} />
+                    </button>
+                    {strings.formReminderTime}
+                  </span>
+                )
+              }
+            >
+              <TimeField
+                value={reminder.time}
+                onChange={(time) => setReminderTime(reminder.key, time)}
+                label={strings.formReminderTime}
+              />
+            </ListItem>
+          ))
+        : null}
+      {reminderOn && reminders.length < MAX_REMINDERS_PER_HABIT ? (
+        <ListItem
+          accent
+          // Нажатие сдвигает строку вниз — подсветка мигнула бы уже на новом месте.
+          noPressHighlight
+          onPress={addReminder}
+          label={
+            <span className={styles.reminderLabel}>
+              <span className={`${styles.reminderBadge} ${styles.plus}`} aria-hidden="true" />
+              {strings.formReminderAdd}
+            </span>
+          }
+        />
+      ) : null}
+    </>
+  );
+
+  const deniedNote =
+    web && reminderOn && permission === "denied" ? (
+      <p className={styles.note}>{strings.notificationsDenied}</p>
+    ) : null;
+
+  const themeSection = (
+    <Section variant="form" title={strings.formThemeHeading}>
+      <Card>
+        <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
+      </Card>
+    </Section>
+  );
+
   return (
     <Screen
-      title={habit ? strings.formEditTitle : strings.formCreateTitle}
+      title={
+        habit
+          ? strings.formEditTitle
+          : sharedLayout
+            ? strings.sharedFormTitle
+            : strings.formCreateTitle
+      }
       withTabBar={false}
       enterAnimation
     >
       <div className={styles.form} style={habitColorStyle(color)}>
-        <Section variant="form" title={strings.formInfoHeading}>
-          <Card>
-            <ListItem>
-              <input
-                className={styles.textInput}
-                type="text"
-                placeholder={strings.formNamePlaceholder}
-                aria-label={strings.formNamePlaceholder}
-                maxLength={nameMaxLength}
-                disabled={locked}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                // «Готово» на клавиатуре просто её убирает.
-                enterKeyHint="done"
-                onKeyDown={blurOnEnter}
-              />
-            </ListItem>
-            <ListItem>
-              <input
-                className={styles.textInput}
-                type="text"
-                placeholder={strings.formDescriptionPlaceholder}
-                aria-label={strings.formDescriptionPlaceholder}
-                maxLength={HABIT_DESCRIPTION_MAX_LENGTH}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                enterKeyHint="done"
-                onKeyDown={blurOnEnter}
-              />
-            </ListItem>
-          </Card>
-        </Section>
+        {sharedLayout ? (
+          <>
+            <p className={styles.intro}>{strings.sharedFormIntro}</p>
+            <Section
+              variant="form"
+              title={strings.sharedCommonHeading}
+              footer={strings.sharedCommonFooter}
+            >
+              <Card>
+                {nameRow}
+                {frequencyRows}
+                {goalRow}
+              </Card>
+            </Section>
+            <Section
+              variant="form"
+              title={strings.sharedOwnHeading}
+              footer={strings.sharedOwnFooter}
+            >
+              <Card>
+                {descriptionRow}
+                {reminderRows}
+              </Card>
+              {deniedNote}
+            </Section>
+            {themeSection}
+          </>
+        ) : (
+          <>
+            <Section variant="form" title={strings.formInfoHeading}>
+              <Card>
+                {nameRow}
+                {descriptionRow}
+              </Card>
+            </Section>
 
-        <Section variant="form" title={strings.formFrequencyHeading}>
-          <fieldset className={styles.fieldset} disabled={locked}>
-            <Card>
-              <ListItem label={strings.formRepeat}>
-                <MenuSelect<RepeatMode>
-                  options={repeatOptions}
-                  value={repeat}
-                  onChange={setRepeat}
-                  label={strings.formRepeat}
-                />
-              </ListItem>
-              {repeat === "weekly" ? (
-                <ListItem>
-                  <DayPicker selected={days} onToggle={toggleDay} />
-                </ListItem>
-              ) : null}
-              {usesStartDate(frequency) ? (
-                <ListItem label={strings.formStartDate}>
-                  <DateField
-                    value={startDate}
-                    onChange={setStartDate}
-                    label={strings.formStartDate}
-                    max={localDate(START_DATE_MAX_AHEAD_DAYS)}
-                  />
-                </ListItem>
-              ) : null}
-            </Card>
-          </fieldset>
-        </Section>
+            <Section variant="form" title={strings.formFrequencyHeading}>
+              <fieldset className={styles.fieldset} disabled={locked}>
+                <Card>{frequencyRows}</Card>
+              </fieldset>
+            </Section>
 
-        <Section variant="form" title={strings.formGoalHeading}>
-          <fieldset className={styles.fieldset} disabled={locked}>
-            <Card>
-              <ListItem label={strings.formTimesPerDay(timesPerDay)}>
-                <Stepper
-                  value={timesPerDay}
-                  min={1}
-                  max={MAX_TIMES_PER_DAY}
-                  onChange={setTimesPerDay}
-                  decreaseLabel={strings.formTimesLess}
-                  increaseLabel={strings.formTimesMore}
-                />
-              </ListItem>
-            </Card>
-          </fieldset>
-        </Section>
+            <Section variant="form" title={strings.formGoalHeading}>
+              <fieldset className={styles.fieldset} disabled={locked}>
+                <Card>{goalRow}</Card>
+              </fieldset>
+            </Section>
 
-        <Section variant="form" title={strings.formReminderHeading}>
-          <Card>
-            <ListItem label={strings.formReminderToggle}>
-              <Switch
-                checked={reminderOn}
-                onChange={setReminderOn}
-                label={strings.formReminderToggle}
-              />
-            </ListItem>
-            {reminderOn
-              ? reminders.map((reminder, index) => (
-                  <ListItem
-                    key={reminder.key}
-                    label={
-                      index === 0 ? (
-                        strings.formReminderTime
-                      ) : (
-                        <span className={styles.reminderLabel}>
-                          <button
-                            type="button"
-                            className={styles.removeReminder}
-                            aria-label={strings.formReminderRemove(reminder.time)}
-                            onClick={() => removeReminder(reminder.key)}
-                          >
-                            <span className={`${styles.reminderBadge} ${styles.minus}`} />
-                          </button>
-                          {strings.formReminderTime}
-                        </span>
-                      )
-                    }
-                  >
-                    <TimeField
-                      value={reminder.time}
-                      onChange={(time) => setReminderTime(reminder.key, time)}
-                      label={strings.formReminderTime}
+            <Section variant="form" title={strings.formReminderHeading}>
+              <Card>{reminderRows}</Card>
+              {deniedNote}
+            </Section>
+
+            {themeSection}
+
+            {timesPerDay === 1 && !shared ? (
+              <Section
+                variant="form"
+                title={strings.formAutoMarkHeading}
+                footer={strings.formAutoMarkFooter}
+              >
+                <Card>
+                  <ListItem label={strings.formAutoMarkToggle}>
+                    <Switch
+                      checked={autoMark}
+                      onChange={setAutoMark}
+                      label={strings.formAutoMarkToggle}
                     />
                   </ListItem>
-                ))
-              : null}
-            {reminderOn && reminders.length < MAX_REMINDERS_PER_HABIT ? (
-              <ListItem
-                accent
-                // Нажатие сдвигает строку вниз — подсветка мигнула бы уже на новом месте.
-                noPressHighlight
-                onPress={addReminder}
-                label={
-                  <span className={styles.reminderLabel}>
-                    <span className={`${styles.reminderBadge} ${styles.plus}`} aria-hidden="true" />
-                    {strings.formReminderAdd}
-                  </span>
-                }
-              />
+                </Card>
+              </Section>
             ) : null}
-          </Card>
-          {web && reminderOn && permission === "denied" ? (
-            <p className={styles.note}>{strings.notificationsDenied}</p>
-          ) : null}
-        </Section>
-
-        <Section variant="form" title={strings.formThemeHeading}>
-          <Card>
-            <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
-          </Card>
-        </Section>
-
-        {timesPerDay === 1 && !shared ? (
-          <Section
-            variant="form"
-            title={strings.formAutoMarkHeading}
-            footer={strings.formAutoMarkFooter}
-          >
-            <Card>
-              <ListItem label={strings.formAutoMarkToggle}>
-                <Switch
-                  checked={autoMark}
-                  onChange={setAutoMark}
-                  label={strings.formAutoMarkToggle}
-                />
-              </ListItem>
-            </Card>
-          </Section>
-        ) : null}
+          </>
+        )}
 
         {error ? (
           <p ref={errorRef} className={styles.error} role="alert">

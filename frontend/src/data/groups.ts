@@ -16,9 +16,10 @@ import {
   resetInvite,
   setGroupNotify,
 } from "../api/groups";
+import { describeError } from "../errors";
 import { appPlatform } from "../platform";
 import type { Strings } from "../strings";
-import { shareToTelegram, showAlert } from "../telegram/webapp";
+import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
 import { dataStore } from "./store";
 
 /** The habit's id on the server: a habit created offline is sent first. */
@@ -69,6 +70,30 @@ export async function inviteToShared(
   const invite = await inviteToHabit(await serverIdOf(habitId));
   dataStore.refresh();
   await share(invite.invite_url, strings.inviteShareText(habitName), strings);
+}
+
+/** A shared-habit action failed: a dialog; without a Telegram login — the offer to log in. */
+export async function reportGroupError(
+  error: unknown,
+  strings: Strings,
+  onLinkTelegram: () => void,
+): Promise<void> {
+  if (error instanceof ApiRequestError && error.code === "group_needs_telegram") {
+    const login = await confirmAction({
+      title: strings.groupLoginTitle,
+      message: strings.groupLoginMessage,
+      confirmLabel: strings.groupLoginConfirm,
+      cancelLabel: strings.groupDialogCancel,
+    });
+    if (login) {
+      onLinkTelegram();
+    }
+  } else {
+    await showAlert({
+      title: strings.groupActionFailed,
+      message: describeError(strings, error, strings.groupActionFailed),
+    });
+  }
 }
 
 /** «Сбросить ссылку» (owner): the old link stops working. */
