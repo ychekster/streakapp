@@ -7,7 +7,8 @@
  * со снежинкой — не выполнен, но привычка в этот день была заморожена,
  * полупрозрачный — пропущен/нет данных. У привычки «несколько раз в день» неполный день
  * (выполнена, но меньше цели) — между пропуском и выполненным, по доле сделанного:
- * 1 из 4 — на четверть. Кружки масштабируются под ширину карточки.
+ * 1 из 4 — на четверть. У совместной — по доле, сделанной всеми (`fills`): каждое нажатие
+ * любого участника — 1 / (участники × цель). Кружки масштабируются под ширину карточки.
  *
  * В «Виде сетки» fixed история короче сетки (`cells`): дни занимают первые кружки, а
  * остальные — ещё не наступившие — пустые, как пропуск. Кружок сегодня (последний день
@@ -31,6 +32,8 @@ interface YearGridProps {
   counts?: readonly number[];
   /** Цель на день (`times_per_day`): доля неполного дня — counts / total. */
   total?: number;
+  /** Совместная привычка: доля дня, выполненная всеми (0…1), — вместо `counts`. */
+  fills?: readonly number[];
   /** Кружков в ряду. */
   columns?: number;
   /** Всего кружков; по умолчанию — по дню истории на кружок. */
@@ -44,6 +47,7 @@ export function YearGrid({
   frozen = [],
   counts = [],
   total = 1,
+  fills,
   columns = GRID_COLUMNS,
   cells = history.length,
   markToday = false,
@@ -58,13 +62,17 @@ export function YearGrid({
       aria-label={strings.habitHistoryLabel}
     >
       {history.map((done, index) => {
-        const count = counts[index] ?? 0;
-        if (!done && !frozen[index] && count > 0 && total > 1) {
+        const part = fills
+          ? (fills[index] ?? 0)
+          : total > 1
+            ? Math.min((counts[index] ?? 0) / total, 1)
+            : 0;
+        if (!done && !frozen[index] && part > 0) {
           return (
             <span
               key={index}
               className={`${styles.cell} ${styles.partial} ${index === today ? styles.today : ""}`}
-              style={{ "--dot-fill": Math.min(count / total, 1) } as CSSProperties}
+              style={{ "--dot-fill": part } as CSSProperties}
             />
           );
         }

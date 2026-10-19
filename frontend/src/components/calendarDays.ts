@@ -9,7 +9,7 @@
  */
 
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "../data/dates";
-import { isDueOnDay } from "../data/derive";
+import { groupFill, isDueOnDay } from "../data/derive";
 import type { Habit } from "../types/habit";
 import { firstDay } from "./gridLayout";
 
@@ -97,6 +97,17 @@ export function firstMonth(habit: Habit, day: string): string {
   return monthOf(start > historyStart ? start : historyStart);
 }
 
+/** Доля неполного дня (0…1): у совместной — сделанная всеми, у «несколько раз в день» — по
+ *  счёту, у остальных — 0. `index` — день в `history`. */
+function partOf(habit: Habit, index: number): number {
+  const fills = groupFill(habit);
+  if (fills) {
+    return fills[index] ?? 0;
+  }
+  const total = habit.times_per_day;
+  return total > 1 ? Math.min((habit.history_counts?.[index] ?? 0) / total, 1) : 0;
+}
+
 /** Что было в день `date`; `day` — день отметки. */
 function stateOf(habit: Habit, date: string, day: string, start: string | null): CalendarDayState {
   const total = habit.times_per_day;
@@ -121,7 +132,7 @@ function stateOf(habit: Habit, date: string, day: string, start: string | null):
   if (habit.frozen_history[index]) {
     return "frozen";
   }
-  if (total > 1 && (habit.history_counts?.[index] ?? 0) > 0) {
+  if (partOf(habit, index) > 0) {
     return "partial";
   }
   if (start === null || date < start) {
@@ -150,11 +161,10 @@ export function calendarMonth(habit: Habit, month: string, day: string): (Calend
     let fill = 0;
     if (state === "partial") {
       const historyStart = addDays(day, 1 - habit.history.length);
-      const count =
+      fill =
         date > day
-          ? habit.next_day_count ?? 0
-          : habit.history_counts?.[daysBetween(historyStart, date)] ?? 0;
-      fill = Math.min(count / total, 1);
+          ? Math.min((habit.next_day_count ?? 0) / total, 1)
+          : partOf(habit, daysBetween(historyStart, date));
     }
     return { date, state, fill, today: date === day };
   });

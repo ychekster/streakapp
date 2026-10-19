@@ -92,19 +92,10 @@ export function isShared(habit: { group?: HabitGroup | null }): habit is { group
   return (habit.group?.members.length ?? 0) > 1;
 }
 
-/** Share of a shared habit done on the marking day — every press of anyone fills
- *  1 / (people × times a day); frozen people do not count. `mine` — my count now. */
-export function groupProgress(habit: Habit): number {
-  const group = habit.group;
-  if (!group) {
-    return 0;
-  }
-  const total = habit.times_per_day;
-  const mine = habit.done_today ? total : Math.min(habit.today_count, total);
-  const others = group.members.filter((member) => !member.is_me && !member.frozen);
-  const people = others.length + 1;
-  const done = others.reduce((sum, member) => sum + Math.min(member.count, total), mine);
-  return Math.min(done / (people * total), 1);
+/** How much of each history day a shared habit's group did (0…1), as the grid and the
+ *  calendar shade it; null — not shared. */
+export function groupFill(habit: Habit): number[] | null {
+  return isShared(habit) ? (habit.group.fill_history ?? null) : null;
 }
 
 /** The schedule in force on a day: a past one or the current
@@ -471,6 +462,34 @@ function buildHabit(
     return index < 0 || group.others_history[index];
   };
   const shownMark = (day: string, done: boolean): boolean => done && othersDone(day);
+  // How much of a day the group did: the others' presses (the server's answer) and mine
+  // (as on the device), out of people × times a day — every press of anyone is one share.
+  const target = fields.times_per_day;
+  const myUnits = (day: string): number => {
+    const mark = marks.get(day);
+    if (mark !== undefined) {
+      return mark ? target : Math.min(draft.counts.get(day) ?? 0, target);
+    }
+    return Math.min(baseCount(day), target);
+  };
+  const groupFillOf = (day: string): number => {
+    if (!group) {
+      return 0;
+    }
+    const units = group.others_units ?? [];
+    const index = units.length - 1 - daysBetween(day, snapshotToday);
+    let others = 0;
+    let people = 1;
+    if (index >= 0 && index < units.length) {
+      others = units[index];
+      people = group.people?.[index] ?? 1;
+    } else if (index >= units.length) {
+      // After the server's answer: nobody else is known to have done it yet.
+      people = group.members.filter((member) => !member.frozen).length;
+    }
+    return Math.min((others + myUnits(day)) / (Math.max(people, 1) * target), 1);
+  };
+  const fillHistory: number[] = [];
   const severalTimes = fields.times_per_day > 1;
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
@@ -479,6 +498,9 @@ function buildHabit(
     const day = addDays(today, index - HISTORY_DAYS + 1);
     const mark = marks.get(day);
     history.push(mark === undefined ? baseDone(day) : shownMark(day, mark));
+    if (group) {
+      fillHistory.push(groupFillOf(day));
+    }
     frozenHistory.push(frozenOn(day));
     if (severalTimes) {
       // As the server: a mark without a count leaves none (0).
@@ -557,7 +579,7 @@ function buildHabit(
     created_on: base ? base.created_on : calendarToday,
     started_on: base ? base.started_on : null,
     schedule_history: scheduleHistory,
-    group,
+    group: group ? { ...group, fill_history: fillHistory } : group,
   };
 }
 

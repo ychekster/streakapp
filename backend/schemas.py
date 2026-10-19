@@ -78,6 +78,24 @@ class HabitGroupView(BaseModel):
     others_next_day: bool = Field(
         False, description="То же за день после дня отметки («Отмечать за вчера»)"
     )
+    others_units: list[int] = Field(
+        default_factory=list,
+        description=(
+            "За те же дни, что `history`: сколько раз выполнили остальные, кто тогда был в "
+            "группе и не был заморожен (каждый — не больше цели)"
+        ),
+    )
+    people: list[int] = Field(
+        default_factory=list,
+        description="За те же дни: сколько человек было в счёт вместе со мной (вне моего участия — 1)",
+    )
+    fill_history: list[float] = Field(
+        default_factory=list,
+        description=(
+            "За те же дни: доля дня, выполненная всеми, 0…1 — (остальные + я) / (люди × цель); "
+            "ей закрашиваются сетка и календарь"
+        ),
+    )
     open_from: date | None = Field(
         None,
         description=(
@@ -231,8 +249,8 @@ class Habit(BaseModel):
         None,
         description=(
             "Совместная привычка; null — обычная. В совместной `history`, серии и "
-            "`total_done` — по дням, выполненным всеми, а `done_today` и `today_count` — моя "
-            "часть"
+            "`total_done` — по дням, выполненным всеми, а `done_today`, `today_count` и "
+            "`history_counts` (при любой цели: выполненный день — цель) — моя часть"
         ),
     )
 

@@ -279,6 +279,8 @@ const RU = {
   groupOwner: "владелец",
   groupMemberDone: "выполнено",
   groupMemberFrozen: "заморожено",
+  // Кружки участников у кнопки отметки (для скринридеров).
+  groupFacesLabel: (done: number, total: number) => `Участники: выполнили ${done} из ${total}`,
   inviteHabit: "Пригласить",
   inviteShareText: (name: string) => `Присоединяйся к привычке «${name}» в Knot`,
   inviteCopiedTitle: "Ссылка скопирована",
@@ -664,6 +666,7 @@ const EN: Strings = {
   groupOwner: "owner",
   groupMemberDone: "done",
   groupMemberFrozen: "frozen",
+  groupFacesLabel: (done: number, total: number) => `Members: ${done} of ${total} done`,
   inviteHabit: "Invite",
   inviteShareText: (name: string) => `Join me in the habit “${name}” on Knot`,
   inviteCopiedTitle: "Link Copied",

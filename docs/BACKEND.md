@@ -99,8 +99,9 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 Telegram, гостю веб-приложения — `403 group_needs_telegram`). Вступают по ссылке через бота
 (`/start join_<код>`, bot/handlers/group_invite.py); состояние после действия приложение
 берёт из следующего `POST /sync` — у совместной привычки в нём поле `group` (участники, кто
-сегодня выполнил свою часть, `others_history`, `open_from`), а `history`, серии и
-`total_done` — по дням, выполненным всеми; `done_today` и `today_count` — своя часть.
+сегодня выполнил свою часть, `others_history`, `open_from`, а по дням — `others_units`,
+`people` и `fill_history`: доля дня, сделанная всеми), а `history`, серии и `total_done` —
+по дням, выполненным всеми; `done_today`, `today_count` и `history_counts` — своя часть.
 
 | Метод | Путь | Описание |
 |---|---|---|

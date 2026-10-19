@@ -1,0 +1,40 @@
+/* Кружки участников внахлёст; каждый следующий наезжает на предыдущий и отделён от него
+   ободком цвета карточки. */
+.faces {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin-right: calc(var(--group-faces-gap) - var(--space-habit-title-button));
+  /* Не перехватывают нажатие: под ними — кнопка открытия привычки. */
+  pointer-events: none;
+}
+
+.face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--group-face-size);
+  height: var(--group-face-size);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 var(--group-face-ring) var(--color-card);
+  /* Ещё не выполнил — бледный кружок, буква цветом привычки. */
+  background-color: rgba(var(--habit-rgb), var(--group-face-pending-opacity));
+  color: rgb(var(--habit-rgb));
+  font-size: var(--group-face-font-size);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.face + .face {
+  margin-left: calc(-1 * var(--group-face-overlap));
+}
+
+/* Выполнил свою часть — залитый цветом привычки, буква белая. */
+.done {
+  background-color: rgb(var(--habit-rgb));
+  color: var(--color-check-icon);
+}
+
+.more {
+  font-size: var(--group-face-more-font-size);
+}

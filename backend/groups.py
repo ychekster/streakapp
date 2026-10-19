@@ -118,6 +118,8 @@ class ViewerGroup:
     others_done: Callable[[date], bool]
     # С этого дня день ещё не закончился у кого-то из участников.
     open_from: date
+    # Моя часть по дням истории (выполненный день — цель).
+    my_units: list[int]
 
 
 async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int, GroupState]:
@@ -187,7 +189,24 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
             if item.covers(day) and not item.is_frozen(day)
         )
 
+    def required(day: date) -> list[_Member]:
+        """Остальные, чья часть нужна в этот день (вне моего участия — никто)."""
+        if not me.covers(day):
+            return []
+        return [item for item in others if item.covers(day) and not item.is_frozen(day)]
+
     history_start = today - timedelta(days=HISTORY_DAYS - 1)
+    history_days = [history_start + timedelta(days=offset) for offset in range(HISTORY_DAYS)]
+    target = me.task.times_per_day
+    others_units, people, fill, mine = [], [], [], []
+    for day in history_days:
+        needed = required(day)
+        units = sum(min(item.count_on(day), target) for item in needed)
+        own = min(me.count_on(day), target)
+        others_units.append(units)
+        people.append(len(needed) + 1)
+        mine.append(own)
+        fill.append(round(min((units + own) / ((len(needed) + 1) * target), 1.0), 4))
     owner_id = state.group.owner_id
     view = HabitGroupView(
         id=state.group.id,
@@ -205,13 +224,16 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
             )
             for item in state.members
         ],
-        others_history=[
-            others_done(history_start + timedelta(days=offset)) for offset in range(HISTORY_DAYS)
-        ],
+        others_history=[others_done(day) for day in history_days],
         others_next_day=others_done(today + timedelta(days=1)),
         open_from=min(item.today for item in state.members),
+        others_units=others_units,
+        people=people,
+        fill_history=fill,
     )
-    return ViewerGroup(view=view, others_done=others_done, open_from=view.open_from or today)
+    return ViewerGroup(
+        view=view, others_done=others_done, open_from=view.open_from or today, my_units=mine
+    )
 
 
 # --------------------------------------------------------------------------- #

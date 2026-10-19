@@ -5,11 +5,6 @@
  *  а посередине — плюс цветом привычки. Каждое нажатие плавно закрашивает следующую долю обводки
  *  — дугой от 12 часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у
  *  обычной привычки; следующее обнуляет день.
- *
- *  Совместная привычка (`group`): обводка бледная, дуга — общий прогресс (каждое нажатие
- *  любого участника — 1 / (участники × цель)). Посередине — пусто (у «несколько раз в
- *  день» — плюс), пока я не выполнил свою часть, потом — галочка цветом привычки. Залитый
- *  кружок с белой галочкой (`done`) — день выполнили все.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -82,8 +77,6 @@ interface CheckButtonProps {
   total?: number;
   /** Сколько раз выполнена за день отметки. */
   count?: number;
-  /** Совместная привычка: доля, выполненная всеми (0…1), и выполнил ли я свою часть. */
-  group?: { fraction: number; mine: boolean };
 }
 
 export function CheckButton({
@@ -94,22 +87,17 @@ export function CheckButton({
   frozen = false,
   total = 1,
   count = 0,
-  group,
 }: CheckButtonProps) {
   const strings = useStrings();
-  // Бледная обводка с дугой: «несколько раз в день» и совместная привычка.
-  const multi = total > 1 || group !== undefined;
-  const mine = group?.mine ?? false;
-  const progress = group ? group.fraction : Math.min(count, total) / total;
+  const multi = total > 1;
   // Выполненный день — галочка без дуги: дуга обнуляется, а не докрашивается.
-  const fraction = useAnimatedFraction(multi && !done ? progress : 0);
+  const fraction = useAnimatedFraction(multi && !done ? Math.min(count, total) / total : 0);
   return (
     <button
       type="button"
       className={[
         styles.button,
         multi ? styles.multi : "",
-        mine && !done ? styles.mine : "",
         done ? styles.done : "",
         disabled ? styles.disabled : "",
       ]
@@ -125,18 +113,16 @@ export function CheckButton({
             : frozen
               ? strings.checkFrozen(habitName)
               : strings.checkNotScheduled(habitName)
-          : done || mine
+          : done
             ? strings.checkUnmark(habitName)
-            : total > 1
+            : multi
               ? strings.checkCount(habitName, Math.min(count, total), total)
               : strings.checkMark(habitName)
       }
     >
       {multi ? (
         <svg className={styles.progress} viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
-          {total > 1 ? (
-            <path className={styles.plus} d={PLUS_PATH} strokeWidth={PLUS_STROKE} />
-          ) : null}
+          <path className={styles.plus} d={PLUS_PATH} strokeWidth={PLUS_STROKE} />
           {fraction > 0.001 ? (
             <circle
               className={styles.arc}
@@ -150,8 +136,7 @@ export function CheckButton({
           ) : null}
         </svg>
       ) : null}
-      {/* Галочка появляется только в выполненном состоянии (в совместной — и когда моя
-          часть сделана: цветом привычки). */}
+      {/* Галочка появляется только в выполненном состоянии. */}
       <svg
         className={styles.check}
         viewBox="0 0 24 24"

@@ -18,11 +18,12 @@
 import { memo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
-import { groupProgress, isShared } from "../data/derive";
+import { groupFill, isShared } from "../data/derive";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
+import { GroupFaces } from "./GroupFaces";
 import { fixedGridFill, useGridView } from "./gridLayout";
 import { YearGrid } from "./YearGrid";
 import styles from "./HabitBlock.module.css";
@@ -71,17 +72,16 @@ export const HabitBlock = memo(function HabitBlock({
           <h3 className={styles.name}>{habit.name}</h3>
           {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
         </div>
+        {/* Совместная: слева от кнопки — кто из остальных уже выполнил свою часть; кнопка —
+            моя часть, как у обычной привычки. */}
+        {shared ? <GroupFaces members={habit.group.members} /> : null}
         <CheckButton
-          // Совместная: залитый кружок — день выполнили все; моя часть — галочка цветом.
-          done={shared ? habit.history[habit.history.length - 1] : habit.done_today}
+          done={habit.done_today}
           habitName={habit.name}
           disabled={!interactive}
           frozen={habit.frozen_since !== null}
           total={habit.times_per_day}
           count={habit.today_count}
-          group={
-            shared ? { fraction: groupProgress(habit), mine: habit.done_today } : undefined
-          }
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>
@@ -90,6 +90,7 @@ export const HabitBlock = memo(function HabitBlock({
         frozen={habit.frozen_history.slice(-shown)}
         counts={(habit.history_counts ?? []).slice(-shown)}
         total={habit.times_per_day}
+        fills={groupFill(habit)?.slice(-shown)}
         columns={gridColumns}
         cells={gridDays}
         markToday={fill !== null}

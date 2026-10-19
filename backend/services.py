@@ -238,11 +238,13 @@ def build_habit(
         auto_mark=task.auto_mark,
         auto_mark_ahead=auto_mark_ahead,
         history_counts=(
-            [
+            group.my_units
+            if group is not None
+            else [
                 (day_counts or {}).get(history_start + timedelta(days=offset), 0)
                 for offset in range(HISTORY_DAYS)
             ]
-            if task.times_per_day > 1 and group is None
+            if task.times_per_day > 1
             else []
         ),
         next_day_done=next_day_done and (group is None or group.view.others_next_day),

@@ -327,3 +327,26 @@ def test_member_days_before_joining_are_the_owners(client: TestClient, user: Aut
     assert owner["history"][-2] is True and owner["current_streak"] == 1
     friend_habit = _only(client, friend)
     assert friend_habit["total_done"] == 0 and friend_habit["history"][-2] is False
+
+
+def test_day_is_shaded_by_everyone(client: TestClient, user: AuthUser) -> None:
+    owner_task = _habit(client, user, "Отжимания", times_per_day=3)
+    _, code = _invite(client, user, owner_task)
+    first, second = new_user(), new_user()
+    _join(first, code)
+    _join(second, code)
+    today = _today(client, user)
+
+    def count(person: AuthUser, task_id: int, value: int) -> None:
+        _sync(client, person, {"type": "mark", "task": task_id, "date": today.isoformat(),
+                               "done": False, "count": value})
+
+    count(user, owner_task, 3)
+    count(first, _only(client, first, "Отжимания")["id"], 1)
+    habit = _only(client, user, "Отжимания")
+    group = habit["group"]
+    # 3 + 1 из 3 человек × 3 раза.
+    assert (group["others_units"][-1], group["people"][-1]) == (1, 3)
+    assert group["fill_history"][-1] == pytest.approx(4 / 9, abs=1e-3)
+    # Моя часть — в history_counts, день группы не выполнен.
+    assert habit["history_counts"][-1] == 3 and habit["history"][-1] is False

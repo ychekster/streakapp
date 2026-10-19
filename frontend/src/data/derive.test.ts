@@ -12,7 +12,7 @@ import { addDays, markingDay, weekdayIndex } from "./dates";
 import {
   cleanHabitName,
   deriveView,
-  groupProgress,
+  groupFill,
   isDueOn,
   isShared,
   reuseUnchanged,
@@ -575,14 +575,34 @@ describe("shared habit", () => {
     expect(marked.current_streak).toBe(1);
   });
 
-  it("fills the ring by everyone's presses", () => {
+  it("shades a day by everyone's presses, without flicker", () => {
+    // Three people, 3 times a day: today the others pressed 3 times in all.
+    const base = group(history([]), [member({ count: 3 }), member({ user_id: 3 })]);
     const shared = habit({
       times_per_day: 3,
-      today_count: 1,
-      group: group(history([]), [member({ count: 3, done: true }), member({ user_id: 3, frozen: true })]),
+      group: {
+        ...base,
+        others_units: Array<number>(HISTORY_DAYS).fill(3),
+        people: Array<number>(HISTORY_DAYS).fill(3),
+        fill_history: Array<number>(HISTORY_DAYS).fill(3 / 9),
+      },
     });
-    // Me 1 of 3, the friend 3 of 3, the frozen one does not count: 4 of 6.
-    expect(groupProgress(shared)).toBeCloseTo(4 / 6);
+    expect(groupFill(shared)?.[HISTORY_DAYS - 1]).toBeCloseTo(3 / 9);
+    // Each of my presses adds 1/9 on the device — the same share the server will count.
+    const presses = [1, 2, 3].map(
+      (count) =>
+        view(snapshot([shared]), [
+          { type: "mark", task: 1, date: TODAY, done: count === 3, count },
+        ]).habits[0],
+    );
+    expect(presses.map((item) => item.group?.fill_history?.[HISTORY_DAYS - 1])).toEqual([
+      4 / 9,
+      5 / 9,
+      6 / 9,
+    ]);
+    // My part is done, the group's day is not.
+    expect(presses[2].done_today).toBe(true);
+    expect(presses[2].history[HISTORY_DAYS - 1]).toBe(false);
   });
 
   it("is an ordinary habit while alone", () => {
