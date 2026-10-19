@@ -28,7 +28,8 @@
   content: "";
   position: absolute;
   top: 0;
-  left: var(--space-card-padding);
+  /* Ряды со значком в подписи (NewHabitScreen) начинают линию от текста. */
+  left: var(--list-row-separator-left, var(--space-card-padding));
   right: var(--space-card-padding);
   height: 1px;
   background-color: var(--color-separator);

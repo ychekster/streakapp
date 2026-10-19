@@ -56,75 +56,81 @@ export function NewHabitScreen({ habits, onCreate, onCreateShared }: NewHabitScr
 
       <div className={styles.list}>
         <Section variant="form">
-          <Card>
-            {typed ? (
-              <ListItem
-                accent
-                onPress={() => onCreate({ name: typed })}
-                label={
-                  <span className={styles.action}>
-                    <PlusIcon />
-                    <span className={styles.ellipsis}>{strings.templateCreate(typed)}</span>
-                  </span>
-                }
-              />
-            ) : (
-              <>
+          <div className={styles.actions}>
+            <Card>
+              {typed ? (
                 <ListItem
                   accent
-                  onPress={() => onCreate(null)}
+                  onPress={() => onCreate({ name: typed })}
                   label={
                     <span className={styles.action}>
                       <PlusIcon />
-                      {strings.newHabitPlain}
+                      <span className={styles.ellipsis}>{strings.templateCreate(typed)}</span>
                     </span>
                   }
                 />
-                <ListItem
-                  accent
-                  onPress={onCreateShared}
-                  label={
-                    <span className={styles.action}>
-                      <PeopleIcon />
-                      {strings.newHabitShared}
-                    </span>
-                  }
-                />
-              </>
-            )}
-          </Card>
+              ) : (
+                <>
+                  <ListItem
+                    accent
+                    onPress={() => onCreate(null)}
+                    label={
+                      <span className={styles.action}>
+                        <PlusIcon />
+                        {strings.newHabitPlain}
+                      </span>
+                    }
+                  />
+                  <ListItem
+                    accent
+                    onPress={onCreateShared}
+                    label={
+                      <span className={styles.action}>
+                        <PeopleIcon />
+                        {strings.newHabitShared}
+                      </span>
+                    }
+                  />
+                </>
+              )}
+            </Card>
+          </div>
         </Section>
 
         {templates.length > 0 ? (
           <Section variant="form" title={strings.templatesHeading}>
-            <Card>
-              {templates.map((template) => {
-                const name = template.name[language];
-                const schedule = weekdayLabel(
-                  template.frequency_type === "daily" ? WEEKDAYS : (template.days ?? []),
-                  strings,
-                  strings.formDaily,
-                );
-                const times = template.times_per_day ?? 1;
-                return (
-                  <ListItem
-                    key={template.key}
-                    icon={<span className={styles.letter}>{Array.from(name)[0]}</span>}
-                    iconColor={template.color}
-                    roundIcon
-                    onPress={() => onCreate(templateInput(template, language))}
-                    label={
-                      <span className={styles.template}>
-                        <span className={styles.ellipsis}>{name}</span>
-                        <span className={`${styles.schedule} ${styles.ellipsis}`}>
-                          {times > 1 ? `${schedule} · ${strings.formTimesPerDay(times)}` : schedule}
+            <div className={styles.templates}>
+              <Card>
+                {templates.map((template) => {
+                  const name = template.name[language];
+                  const schedule = weekdayLabel(
+                    template.frequency_type === "daily" ? WEEKDAYS : (template.days ?? []),
+                    strings,
+                    strings.formDaily,
+                  );
+                  const times = template.times_per_day ?? 1;
+                  const subtitle =
+                    times > 1 ? `${schedule} · ${strings.formTimesPerDay(times)}` : schedule;
+                  return (
+                    <ListItem
+                      key={template.key}
+                      icon={<span className={styles.letter}>{Array.from(name)[0]}</span>}
+                      iconColor={template.color}
+                      roundIcon
+                      onPress={() => onCreate(templateInput(template, language))}
+                      label={
+                        <span className={styles.template}>
+                          <span className={`${styles.templateName} ${styles.ellipsis}`}>{name}</span>
+                          <span className={`${styles.schedule} ${styles.ellipsis}`}>
+                            {subtitle}
+                          </span>
                         </span>
-                      </span>
-                    }
-                  />
-                );
-              })}
-            </Card>
+                      }
+                    />
+                  );
+                })}
+              </Card>
+            </div>
           </Section>
         ) : null}
       </div>

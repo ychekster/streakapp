@@ -269,6 +269,17 @@
   --space-new-habit-search-top: 12px; /* от шапки до поиска */
   --new-habit-action-icon: 26px; /* значок перед «Новая привычка» / «Совместная привычка» */
   --new-habit-action-gap: 14px;
+  /* Шаблоны — пропорции ряда операции в Notch (TransactionRow), только кружок вместо
+     скруглённого квадрата: 38 + по 10 сверху и снизу, текст 17/600 и 14 — ряд ~60. */
+  --new-habit-avatar-size: 38px;
+  --new-habit-avatar-letter: 17px;
+  --new-habit-avatar-inset: 14px; /* от края карточки до кружка */
+  --new-habit-avatar-gap: 14px; /* от кружка до текста */
+  --new-habit-template-pad-y: 10px;
+  --new-habit-template-line-gap: 1px; /* название ↔ расписание */
+  --new-habit-template-name: 17px;
+  --new-habit-template-name-weight: 600;
+  --new-habit-template-subtitle: 14px;
   --folders-intro-icon-size: 64px;
   --folders-intro-icon-radius: 15px;
   --folders-intro-icon-glyph: 42px;

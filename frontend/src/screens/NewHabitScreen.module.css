@@ -8,6 +8,23 @@
   --list-row-min-height: var(--form-row-min-height);
 }
 
+/* Линия между «Новая привычка» и «Совместная привычка» — от текста, не под значком. */
+.actions {
+  --list-row-separator-left: calc(
+    var(--space-card-padding) + var(--new-habit-action-icon) + var(--new-habit-action-gap)
+  );
+}
+
+/* Шаблоны — как контакты в эталоне («Новое сообщение» Telegram): крупный кружок, ряд
+   плотнее, линия от текста (ListItem считает её от размеров кружка). */
+.templates {
+  --list-row-min-height: 0px;
+  --list-row-pad-y: var(--new-habit-template-pad-y);
+  --list-row-icon-size: var(--new-habit-avatar-size);
+  --list-row-icon-inset: var(--new-habit-avatar-inset);
+  --list-row-icon-gap: var(--new-habit-avatar-gap);
+}
+
 /* «+ Новая привычка», «Совместная привычка»: тонкий значок цветом акцента перед подписью. */
 .action {
   display: flex;
@@ -26,13 +43,19 @@
 .template {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--new-habit-template-line-gap);
   min-width: 0;
   line-height: 1.25;
 }
 
+/* Название — жирнее подписи, как заголовок операции в Notch. */
+.templateName {
+  font-size: var(--new-habit-template-name);
+  font-weight: var(--new-habit-template-name-weight);
+}
+
 .schedule {
-  font-size: var(--folders-recommended-description-size);
+  font-size: var(--new-habit-template-subtitle);
   color: var(--color-text-secondary);
 }
 
@@ -43,9 +66,9 @@
   text-overflow: ellipsis;
 }
 
-/* Первая буква названия в кружке цвета шаблона. */
+/* Первая буква названия в кружке цвета шаблона — как буква в аватарке без фото. */
 .letter {
-  font-size: var(--font-size-body);
+  font-size: var(--new-habit-avatar-letter);
   font-weight: 600;
   line-height: 1;
 }
