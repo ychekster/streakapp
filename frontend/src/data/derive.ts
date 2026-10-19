@@ -10,7 +10,7 @@
 
 import { HISTORY_DAYS, WEEKDAYS } from "../constants";
 import type { Folder, FolderKind } from "../types/folder";
-import type { FrequencyType, Habit, HabitInput } from "../types/habit";
+import type { FrequencyType, Habit, HabitGroup, HabitInput, SchedulePeriod } from "../types/habit";
 import type { Settings } from "../types/settings";
 import type { FolderKey, SyncOperation, TaskKey } from "../types/sync";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
@@ -76,6 +76,63 @@ export function isDueOn(habit: Schedule, day: string): boolean {
     return true;
   }
   return habit.days.includes(WEEKDAYS[weekdayIndex(day)]);
+}
+
+/** A schedule with its past ones: days before a change are judged by the schedule then
+ *  in force (models.TaskSchedulePeriod). */
+type ScheduleWithHistory = Schedule & {
+  times_per_day: number;
+  schedule_history?: readonly SchedulePeriod[];
+  /** A shared habit: from this day the day is not over for someone (time zones). */
+  open_from?: string | null;
+};
+
+/** Is the habit shared with someone (a group of more than one). */
+export function isShared(habit: { group?: HabitGroup | null }): habit is { group: HabitGroup } {
+  return (habit.group?.members.length ?? 0) > 1;
+}
+
+/** Share of a shared habit done on the marking day — every press of anyone fills
+ *  1 / (people × times a day); frozen people do not count. `mine` — my count now. */
+export function groupProgress(habit: Habit): number {
+  const group = habit.group;
+  if (!group) {
+    return 0;
+  }
+  const total = habit.times_per_day;
+  const mine = habit.done_today ? total : Math.min(habit.today_count, total);
+  const others = group.members.filter((member) => !member.is_me && !member.frozen);
+  const people = others.length + 1;
+  const done = others.reduce((sum, member) => sum + Math.min(member.count, total), mine);
+  return Math.min(done / (people * total), 1);
+}
+
+/** The schedule in force on a day: a past one or the current
+ *  (schedule.due_check_with_history). */
+export function scheduleOn(
+  habit: ScheduleWithHistory,
+): (day: string) => Schedule & { times_per_day: number } {
+  const periods = habit.schedule_history ?? [];
+  return (day) => periods.find((period) => day < period.until) ?? habit;
+}
+
+/** Was the habit due on `day` by the schedule in force on that day. */
+export function isDueOnDay(habit: ScheduleWithHistory, day: string): boolean {
+  return isDueOn(scheduleOn(habit)(day), day);
+}
+
+/** Does a form change the schedule (repeat, days, first day or times a day) —
+ *  services._schedule_changed. */
+function scheduleChanged(
+  before: Schedule & { times_per_day: number },
+  after: Schedule & { times_per_day: number },
+): boolean {
+  return (
+    before.frequency_type !== after.frequency_type ||
+    before.days.join(",") !== after.days.join(",") ||
+    before.start_date !== after.start_date ||
+    before.times_per_day !== after.times_per_day
+  );
 }
 
 /** Settings with the operation's change applied. */
@@ -171,13 +228,12 @@ function breaksRun(
   frozen: readonly boolean[],
   index: number,
   lastDay: string,
-  schedule: Schedule,
+  schedule: ScheduleWithHistory,
 ): boolean {
-  return (
-    index < history.length - 1 &&
-    !frozen[index] &&
-    isDueOn(schedule, addDays(lastDay, index - history.length + 1))
-  );
+  const day = addDays(lastDay, index - history.length + 1);
+  // Not over yet: the marking day, and for a shared habit — days not over for someone.
+  const open = schedule.open_from && schedule.open_from < lastDay ? schedule.open_from : lastDay;
+  return day < open && !frozen[index] && isDueOnDay(schedule, day);
 }
 
 /** Run of done days ending on the last day of `history` (compute_streaks): an undone
@@ -187,7 +243,7 @@ function currentRun(
   history: boolean[],
   frozen: readonly boolean[],
   lastDay: string,
-  schedule: Schedule,
+  schedule: ScheduleWithHistory,
 ): { count: number; exhausted: boolean } {
   let count = 0;
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -205,7 +261,7 @@ function bestRun(
   history: boolean[],
   frozen: readonly boolean[],
   lastDay: string,
-  schedule: Schedule,
+  schedule: ScheduleWithHistory,
 ): number {
   let best = 0;
   let current = 0;
@@ -269,6 +325,8 @@ interface Draft {
   counts: Map<string, number>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
+  /** Past schedules after a change on the device; none — as on the server. */
+  periods?: SchedulePeriod[];
   /** Calendar day whose unchecked record auto check-off turned on here has forgotten
    *  (services.update_habit) — applyAutoMark may mark it again. */
   autoMarkFresh?: string;
@@ -356,6 +414,7 @@ function buildHabit(
   if (
     base &&
     !draft.fields &&
+    !draft.periods &&
     marks.size === 0 &&
     !draft.freezes &&
     today === snapshotToday &&
@@ -394,13 +453,32 @@ function buildHabit(
     const index = counts.length - 1 - daysBetween(day, snapshotToday);
     return index >= 0 && index < counts.length ? counts[index] : 0;
   };
+  // A shared habit: a day is the group's when I did it and so did the others (the
+  // server's answer). Days after it are unknown — not done by the others yet; a group of
+  // one is an ordinary habit.
+  const group = base?.group ?? null;
+  const othersDone = (day: string): boolean => {
+    if (!group || group.members.length <= 1) {
+      return true;
+    }
+    if (day === nextDay) {
+      return group.others_next_day;
+    }
+    const index = group.others_history.length - 1 - daysBetween(day, snapshotToday);
+    if (index >= group.others_history.length) {
+      return false;
+    }
+    return index < 0 || group.others_history[index];
+  };
+  const shownMark = (day: string, done: boolean): boolean => done && othersDone(day);
   const severalTimes = fields.times_per_day > 1;
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
   const historyCounts: number[] = [];
   for (let index = 0; index < HISTORY_DAYS; index += 1) {
     const day = addDays(today, index - HISTORY_DAYS + 1);
-    history.push(marks.get(day) ?? baseDone(day));
+    const mark = marks.get(day);
+    history.push(mark === undefined ? baseDone(day) : shownMark(day, mark));
     frozenHistory.push(frozenOn(day));
     if (severalTimes) {
       // As the server: a mark without a count leaves none (0).
@@ -413,7 +491,7 @@ function buildHabit(
   marks.forEach((done, day) => {
     if (day <= today) {
       // The server's total has its days only (up to snapshotToday).
-      total += Number(done) - (day <= snapshotToday ? Number(baseDone(day)) : 0);
+      total += Number(shownMark(day, done)) - (day <= snapshotToday ? Number(baseDone(day)) : 0);
     }
   });
   if (base && snapshotToday > today) {
@@ -431,14 +509,21 @@ function buildHabit(
     }
   }
 
-  const run = currentRun(history, frozenHistory, today, fields);
+  const scheduleHistory = draft.periods ?? base?.schedule_history ?? [];
+  const openFrom = group?.open_from ?? null;
+  const schedule = { ...fields, schedule_history: scheduleHistory, open_from: openFrom };
+  const run = currentRun(history, frozenHistory, today, schedule);
   let current = run.count;
-  let best = Math.max(current, bestRun(history, frozenHistory, today, fields));
+  let best = Math.max(current, bestRun(history, frozenHistory, today, schedule));
   if (base) {
     if (run.exhausted) {
       // The run started before the history: the server knows how much earlier.
       const baseHistory = base.history;
-      const baseRun = currentRun(baseHistory, baseFrozenHistory, snapshotToday, fields);
+      const baseRun = currentRun(baseHistory, baseFrozenHistory, snapshotToday, {
+        ...habitFields(base),
+        schedule_history: base.schedule_history ?? [],
+        open_from: openFrom,
+      });
       current += Math.max(0, base.current_streak - baseRun.count);
       best = Math.max(best, current);
     }
@@ -449,10 +534,14 @@ function buildHabit(
     }
   }
 
+  // A shared habit: my part (the button) — the history has the group's days.
+  const myDoneToday =
+    marks.get(today) ??
+    (group ? (base && today === snapshotToday ? base.done_today : false) : undefined);
   return {
     id,
     ...fields,
-    done_today: history[history.length - 1],
+    done_today: myDoneToday ?? history[history.length - 1],
     scheduled_today: isDueOn(fields, today),
     history,
     current_streak: current,
@@ -467,6 +556,8 @@ function buildHabit(
     history_counts: historyCounts,
     created_on: base ? base.created_on : calendarToday,
     started_on: base ? base.started_on : null,
+    schedule_history: scheduleHistory,
+    group,
   };
 }
 
@@ -519,6 +610,27 @@ export function deriveView(
       if (draft && op.type === "update") {
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
         draft.fields = habitFields(op.habit, before);
+        // As the server (services._remember_schedule): the schedule before the marking day
+        // is kept — past days are still judged by it. A habit created that day has no past.
+        const periods = draft.periods ?? draft.base?.schedule_history ?? [];
+        const createdOn = draft.base ? draft.base.created_on : calendarToday;
+        if (
+          before &&
+          scheduleChanged(before, draft.fields) &&
+          (createdOn == null || createdOn < today) &&
+          !periods.some((period) => period.until >= today)
+        ) {
+          draft.periods = [
+            ...periods,
+            {
+              until: today,
+              frequency_type: before.frequency_type,
+              days: before.days,
+              start_date: before.start_date,
+              times_per_day: before.times_per_day,
+            },
+          ];
+        }
         // As the server (services.update_habit): auto check-off turned on means «mark
         // again», also if today (calendar day) was unchecked. Without a reminder today is
         // marked at once; otherwise (reminders, frozen, not due today) an unchecked today

@@ -61,6 +61,10 @@
   margin-right: calc(var(--list-row-icon-gap) - var(--space-card-padding));
 }
 
+.roundIcon {
+  border-radius: var(--radius-pill);
+}
+
 .icon svg {
   width: var(--list-row-icon-glyph);
   height: var(--list-row-icon-glyph);

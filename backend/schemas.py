@@ -36,6 +36,57 @@ def _assume_utc(value: datetime) -> datetime:
 UtcDateTime = Annotated[datetime, AfterValidator(_assume_utc)]
 
 
+class SchedulePeriod(BaseModel):
+    """Прежнее расписание привычки: действовало до дня `until` (не включая его)."""
+
+    until: date = Field(..., description="Первый день следующего расписания")
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"]
+    days: list[str] = Field(default_factory=list, description="Дни недели для specific_days")
+    start_date: date | None = None
+    times_per_day: int = 1
+
+
+class GroupMember(BaseModel):
+    """Участник совместной привычки — как он выглядит в списке «Участники»."""
+
+    user_id: int
+    name: str = Field(..., description="@username, если есть, иначе имя из Telegram")
+    is_me: bool
+    is_owner: bool
+    done: bool = Field(..., description="Выполнил ли свою часть в день отметки")
+    count: int = Field(0, description="Сколько раз выполнил в день отметки (до цели)")
+    frozen: bool = Field(False, description="Заморожен в день отметки — не в счёт")
+
+
+class HabitGroupView(BaseModel):
+    """Совместная привычка с точки зрения участника (backend/groups.py)."""
+
+    id: int
+    is_owner: bool = Field(..., description="Я — владелец: меняю общие поля, исключаю")
+    notify_marks: bool = Field(False, description="«Отметки участников» включены")
+    members: list[GroupMember] = Field(
+        default_factory=list, description="Активные участники по времени вступления"
+    )
+    others_history: list[bool] = Field(
+        default_factory=list,
+        description=(
+            "За те же дни, что `history`: выполнили ли свою часть все остальные, кто тогда "
+            "был в группе и не был заморожен (дни вне моего участия — true). День группы "
+            "= моя отметка и это"
+        ),
+    )
+    others_next_day: bool = Field(
+        False, description="То же за день после дня отметки («Отмечать за вчера»)"
+    )
+    open_from: date | None = Field(
+        None,
+        description=(
+            "С этого дня дни ещё не закончились у кого-то из участников (пояса): не "
+            "выполненные группой, они серию не рвут"
+        ),
+    )
+
+
 class Habit(BaseModel):
     """Привычка пользователя: расписание, история выполнения и статистика серий."""
 
@@ -166,6 +217,22 @@ class Habit(BaseModel):
             "За календарный сегодня (в режиме «Отмечать за вчера» — день после `today`) "
             "записи ещё нет: ни отметки, ни снятой отметки. Приложение по нему само "
             "показывает автоотметку, когда ей пора, — не дожидаясь бота"
+        ),
+    )
+    schedule_history: list[SchedulePeriod] = Field(
+        default_factory=list,
+        description=(
+            "Прежние расписания по возрастанию `until`: каждое — с `until` предыдущего (первое"
+            " — с самого начала). Прошлые дни оцениваются по расписанию того дня; после "
+            "последнего — текущее"
+        ),
+    )
+    group: HabitGroupView | None = Field(
+        None,
+        description=(
+            "Совместная привычка; null — обычная. В совместной `history`, серии и "
+            "`total_done` — по дням, выполненным всеми, а `done_today` и `today_count` — моя "
+            "часть"
         ),
     )
 
@@ -428,6 +495,31 @@ SyncOperation = Annotated[
     | SyncFolderOrder,
     Field(discriminator="type"),
 ]
+
+
+class GroupInviteRequest(BaseModel):
+    """Запрос `POST /groups/invite` — пригласить в привычку (создаёт совместную привычку)."""
+
+    task: int = Field(..., ge=1, le=MAX_DB_INT, description="Id привычки на сервере")
+
+
+class GroupInviteResponse(BaseModel):
+    """Ссылка-приглашение совместной привычки."""
+
+    group_id: int
+    invite_url: str = Field(..., description="t.me/<бот>?start=join_<код>")
+
+
+class GroupKickRequest(BaseModel):
+    """Запрос `POST /groups/{id}/kick` — исключить участника (только владелец)."""
+
+    user_id: int = Field(..., ge=1, le=MAX_DB_INT)
+
+
+class GroupNotifyRequest(BaseModel):
+    """Запрос `POST /groups/{id}/notify` — «Отметки участников»."""
+
+    on: bool
 
 
 class SyncRequest(BaseModel):

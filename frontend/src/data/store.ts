@@ -754,6 +754,12 @@ export const dataStore = {
     return aliases.get(serverId) ?? serverId;
   },
 
+  /** The server id of a habit shown under `id`; null — not on the server yet. */
+  serverId(id: number): number | null {
+    const key = keyOf(id);
+    return typeof key === "number" ? key : null;
+  },
+
   /** Try the first load again (the error screen's «Повторить»). */
   retry(): void {
     if (!snapshot) {

@@ -23,6 +23,7 @@ from backend.sources import source_name
 _HABIT_ACTIONS = (
     "habit_created", "habit_updated", "habit_deleted", "habit_frozen", "habit_unfrozen",
     "checkin", "uncheck", "auto_checkin", "reminder_sent", "reminder_failed",
+    "group_created", "group_joined", "group_left", "group_mark_sent", "group_mark_failed",
 )
 
 

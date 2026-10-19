@@ -468,6 +468,18 @@ export function hapticSelection(): void {
   getWebApp()?.HapticFeedback?.selectionChanged();
 }
 
+/** Telegram's «share» window: pick a chat and send `url` with `text` (the Mini App stays
+ *  open). Outside Telegram — the t.me share page. */
+export function shareToTelegram(url: string, text: string): void {
+  const link = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+  const webApp = getWebApp();
+  if (isTelegramAvailable() && webApp?.openTelegramLink) {
+    webApp.openTelegramLink(link);
+    return;
+  }
+  openExternalLink(link);
+}
+
 /** Open a link in the phone's real browser: from Telegram via openLink (leaves the Mini
  *  App open), otherwise a new tab. */
 export function openExternalLink(url: string): void {

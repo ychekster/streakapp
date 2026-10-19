@@ -48,6 +48,12 @@ FOLDER_NAME_MAX_LENGTH = 24
 # schemas.FolderInput); какие в ней привычки, считает устройство (data/derive.ts).
 FOLDER_KINDS: tuple[str, ...] = ("unfinished", "today")
 
+# Совместные привычки (backend/groups.py): сколько участников может быть в одной (совпадает
+# с MAX_GROUP_MEMBERS во фронтенде) и длина кода ссылки-приглашения
+# (`t.me/<бот>?start=join_<код>`; параметр /start — до 64 символов [A-Za-z0-9_-]).
+MAX_GROUP_MEMBERS = 12
+INVITE_CODE_LENGTH = 10
+
 # Сколько раз в день можно поставить целью привычки (форма: «Раз в день» −/+); совпадает
 # с MAX_TIMES_PER_DAY во фронтенде. 96 — раз в 15 минут круглые сутки.
 MAX_TIMES_PER_DAY = 96

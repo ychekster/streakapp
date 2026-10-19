@@ -133,6 +133,35 @@ describe("calendarMonth", () => {
   });
 });
 
+describe("schedule history", () => {
+  it("tints past days by the schedule then in force", () => {
+    // Every other day from 2026-09-01 until 2026-09-10, then daily.
+    const day = "2026-09-12";
+    const item = habit(day, ["2026-09-01", "2026-09-03"], {
+      schedule_history: [
+        {
+          until: "2026-09-10",
+          frequency_type: "every_other_day",
+          days: [],
+          start_date: "2026-09-01",
+          times_per_day: 1,
+        },
+      ],
+    });
+    const states = Object.fromEntries(
+      calendarMonth(item, "2026-09", day)
+        .filter((cell) => cell !== null)
+        .map((cell) => [cell!.date.slice(8), cell!.state]),
+    );
+    expect(states["02"]).toBe("rest");
+    expect(states["05"]).toBe("missed");
+    expect(states["06"]).toBe("rest");
+    expect(states["11"]).toBe("missed");
+    // 01..09: 01, 03, 05, 07, 09 due; 10, 11 daily (the marking day 12 is not over).
+    expect(trackedDays(item, day)).toBe(7);
+  });
+});
+
 describe("addMonths", () => {
   it("moves across years", () => {
     expect(addMonths("2026-01", -1)).toBe("2025-12");

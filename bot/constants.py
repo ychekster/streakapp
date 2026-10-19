@@ -105,3 +105,63 @@ LOGIN_CANCEL_BUTTON = "Отмена"
 LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение Knot — вход выполнен."
 LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
 LOGIN_CANCELLED_TEXT = "Вход отменён."
+
+# --------------------------------------------------------------------------- #
+#  Совместные привычки (bot/handlers/group_invite.py, bot/reminders.py)
+# --------------------------------------------------------------------------- #
+
+# Ссылка-приглашение открывает бота с /start join_<код>. Ключ — язык интерфейса
+# пользователя. Заголовок жирный; под ним — расписание и участники.
+INVITE_TITLE: dict[str, str] = {
+    "ru": "Вас приглашают в привычку «{name}»",
+    "en": "You're invited to the habit “{name}”",
+}
+# «{schedule} · {members} ({count} из {limit})».
+INVITE_DETAILS: dict[str, str] = {
+    "ru": "{schedule} · {members} ({count} из {limit})",
+    "en": "{schedule} · {members} ({count} of {limit})",
+}
+INVITE_ACCEPT: dict[str, str] = {"ru": "Принять", "en": "Accept"}
+INVITE_REJOIN: dict[str, str] = {"ru": "Вернуться", "en": "Rejoin"}
+INVITE_DECLINE: dict[str, str] = {"ru": "Отклонить", "en": "Decline"}
+INVITE_DONE: dict[str, str] = {
+    "ru": "Готово! «{name}» уже в ваших привычках.",
+    "en": "Done! “{name}” is now in your habits.",
+}
+INVITE_DECLINED: dict[str, str] = {"ru": "Приглашение отклонено.", "en": "Invitation declined."}
+INVITE_EXPIRED: dict[str, str] = {
+    "ru": "Приглашение больше не действует.",
+    "en": "This invitation is no longer valid.",
+}
+INVITE_MEMBER: dict[str, str] = {
+    "ru": "Вы уже в этой привычке.",
+    "en": "You're already in this habit.",
+}
+INVITE_FULL: dict[str, str] = {
+    "ru": "В привычке уже максимум участников.",
+    "en": "This habit already has the most people it can.",
+}
+INVITE_HABIT_LIMIT: dict[str, str] = {
+    "ru": "У вас уже максимум привычек.",
+    "en": "You already have the most habits you can.",
+}
+
+# Расписание в приглашении — как «Повтор» в приложении.
+SCHEDULE_DAILY: dict[str, str] = {"ru": "Каждый день", "en": "Every day"}
+SCHEDULE_EVERY_OTHER_DAY: dict[str, str] = {"ru": "Через день", "en": "Every other day"}
+SCHEDULE_MONTHLY: dict[str, str] = {"ru": "Каждый месяц", "en": "Every month"}
+SCHEDULE_WEEKDAYS: dict[str, tuple[str, ...]] = {
+    "ru": ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"),
+    "en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+}
+# «Пн, Ср и Пт».
+SCHEDULE_AND: dict[str, str] = {"ru": " и ", "en": " and "}
+# Цель больше одного раза: « · 3 раза в день».
+SCHEDULE_TIMES: dict[str, str] = {"ru": "{count} р. в день", "en": "{count}× a day"}
+
+# «Отметки участников» (включаются в совместной привычке): другой участник выполнил день.
+# {name} — название привычки у получателя, {actor} — @username или имя.
+GROUP_MARK_TEXTS: dict[str, str] = {
+    "ru": "«{name}» — отметка от {actor}",
+    "en": "“{name}” — {actor} checked in",
+}

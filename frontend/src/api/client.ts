@@ -105,7 +105,13 @@ export type ApiErrorCode =
   | "invalid_event"
   | "invalid_subscription"
   | "push_unavailable"
-  | "push_not_delivered";
+  | "push_not_delivered"
+  // Совместные привычки.
+  | "group_needs_telegram"
+  | "group_not_found"
+  | "group_full"
+  | "group_not_owner"
+  | "group_member_not_found";
 
 /** Единая ошибка запроса к API. */
 export class ApiRequestError extends Error {

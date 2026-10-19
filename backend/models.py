@@ -1,5 +1,6 @@
-"""ORM-модели: User, Task, TaskLog, TaskFreeze, Folder и данные админ-панели (Admin, Review, UserActivity,
-CheckinDay, ActivityLog, Broadcast, Segment, AppConfig).
+"""ORM-модели: User, Task, TaskLog, TaskFreeze, TaskSchedulePeriod, Folder, совместные
+привычки (HabitGroup, HabitGroupMember, HabitGroupPeriod) и данные админ-панели (Admin,
+Review, UserActivity, CheckinDay, ActivityLog, Broadcast, Segment, AppConfig).
 
 Прогресс нигде не хранится как поле — история выполнения вычисляется по записям
 TaskLog (см. `services.build_history`). Это исключает рассинхронизацию данных.
@@ -320,6 +321,9 @@ class TaskLog(Base):
     # Сколько раз привычка «несколько раз в день» выполнена за день; день выполнен (done),
     # когда набрано Task.times_per_day. У обычных отметок — None.
     count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Совместная привычка: когда остальным участникам ушло уведомление «отметил» (один раз
+    # за день, см. bot/reminders.py); None — ещё не уходило.
+    group_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -342,6 +346,93 @@ class TaskFreeze(Base):
     )
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class TaskSchedulePeriod(Base):
+    """Прежнее расписание привычки: действовало до дня `until` (не включая его — с него
+    действует следующее). Прошлые дни оцениваются по расписанию, которое было в тот день:
+    смена расписания не переписывает прошлое (services.update_habit). Периоды идут подряд:
+    каждый — с `until` предыдущего; текущее расписание — в самой `Task`."""
+
+    __tablename__ = "task_schedule_periods"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    until: Mapped[date] = mapped_column(Date, nullable=False)
+    frequency_type: Mapped[FrequencyType] = mapped_column(
+        Enum(FrequencyType, native_enum=False, length=20), nullable=False
+    )
+    days: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    times_per_day: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
+
+
+class HabitGroup(Base):
+    """Совместная привычка: у каждого участника своя привычка (Task) со своими отметками,
+    группа их связывает (backend/groups.py). День засчитан, когда его выполнили все
+    участники. Общие поля (название, расписание, цель) — у привычки владельца; их меняет
+    только он. Ссылка-приглашение — `t.me/<бот>?start=join_<invite_code>`."""
+
+    __tablename__ = "habit_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    # Код ссылки-приглашения; «Сбросить ссылку» заменяет его новым.
+    invite_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class HabitGroupMember(Base):
+    """Участник совместной привычки. Вышедший (`active` = False) остаётся записью: пока его
+    привычка жива (`task_id`), он может вернуться, и его прошлые периоды участия снова
+    считаются. Удалил привычку — `task_id` = None, периоды стёрты: вернётся с нуля."""
+
+    __tablename__ = "habit_group_members"
+    __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_member"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    group_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("habit_groups.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    task_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=True, index=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # «Отметки участников»: присылать уведомление, когда другой участник выполнил день.
+    notify_marks: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    # Когда вступил (в последний раз): ушёл владелец — владельцем становится вступивший
+    # раньше всех.
+    joined_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class HabitGroupPeriod(Base):
+    """Период участия: дни с `start_on` по `end_on` (не включая его; None — идёт), даты — в
+    поясе участника. В эти дни день группы требует его отметки."""
+
+    __tablename__ = "habit_group_periods"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    member_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("habit_group_members.id"), nullable=False, index=True
+    )
+    start_on: Mapped[date] = mapped_column(Date, nullable=False)
+    end_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class Folder(Base):
@@ -454,7 +545,10 @@ class ActivityLog(Base):
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
     вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),
-    broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent.
+    broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent;
+    совместные привычки: group_created (пригласил впервые), group_joined, group_left
+    (`ref_id` — его привычка), group_kicked (`ref_id` — исключённый), group_mark_sent /
+    group_mark_failed («Отметки участников», `ref_id` — привычка получателя).
 
     `user_id` без внешнего ключа — как у events: запись пишется и тогда, когда строки
     пользователя ещё нет (первое открытие).

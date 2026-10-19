@@ -9,7 +9,7 @@
  */
 
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "../data/dates";
-import { isDueOn } from "../data/derive";
+import { isDueOnDay } from "../data/derive";
 import type { Habit } from "../types/habit";
 import { firstDay } from "./gridLayout";
 
@@ -68,11 +68,11 @@ export function trackedDays(habit: Habit, day: string): number {
   let count = habit.next_day_done ? 1 : 0;
   for (let date = start; date <= day; date = addDays(date, 1)) {
     if (date < historyStart) {
-      count += isDueOn(habit, date) ? 1 : 0;
+      count += isDueOnDay(habit, date) ? 1 : 0;
       continue;
     }
     const index = daysBetween(historyStart, date);
-    if (history[index] || (date < day && !frozen[index] && isDueOn(habit, date))) {
+    if (history[index] || (date < day && !frozen[index] && isDueOnDay(habit, date))) {
       count += 1;
     }
   }
@@ -127,7 +127,7 @@ function stateOf(habit: Habit, date: string, day: string, start: string | null):
   if (start === null || date < start) {
     return "off";
   }
-  return isDueOn(habit, date) ? "missed" : "rest";
+  return isDueOnDay(habit, date) ? "missed" : "rest";
 }
 
 /**

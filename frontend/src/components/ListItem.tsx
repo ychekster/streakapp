@@ -22,6 +22,8 @@ interface ListItemProps {
   icon?: ReactNode;
   /** Цвет плашки иконки — из палитры; без него — цвет привычки (синий вне привычки). */
   iconColor?: HabitColor;
+  /** Круглая плашка (монограмма участника), а не скруглённый квадрат. */
+  roundIcon?: boolean;
   /** Деструктивное действие (удаление): подпись и плашка иконки — красные. */
   destructive?: boolean;
   /** Действие (отправить, добавить): подпись — цветом акцента. */
@@ -40,6 +42,7 @@ export function ListItem({
   children,
   icon,
   iconColor,
+  roundIcon = false,
   destructive = false,
   accent = false,
   disabled = false,
@@ -64,7 +67,7 @@ export function ListItem({
     <>
       {icon ? (
         <span
-          className={styles.icon}
+          className={`${styles.icon} ${roundIcon ? styles.roundIcon : ""}`}
           style={iconColor ? habitColorStyle(iconColor) : undefined}
           aria-hidden="true"
         >

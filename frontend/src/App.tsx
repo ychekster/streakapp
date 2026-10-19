@@ -801,6 +801,7 @@ export function App() {
           onFreeze={freezeHabit}
           onAutoMark={setAutoMark}
           onDelete={deleteOpenHabit}
+          onLinkTelegram={linkTelegram}
         />
       );
     }

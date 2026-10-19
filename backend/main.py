@@ -48,6 +48,7 @@ from backend.repository import Repository
 from backend.routers import (
     admin,
     auth,
+    groups,
     meta,
     reviews,
     settings as settings_router,
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(settings_router.router)
     app.include_router(sync.router)
+    app.include_router(groups.router)
     app.include_router(meta.router)
     app.include_router(reviews.router)
     app.include_router(admin.router)

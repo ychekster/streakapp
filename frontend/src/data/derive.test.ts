@@ -9,7 +9,17 @@ import { HISTORY_DAYS } from "../constants";
 import type { Habit } from "../types/habit";
 import type { Settings } from "../types/settings";
 import { addDays, markingDay, weekdayIndex } from "./dates";
-import { cleanHabitName, deriveView, isDueOn, reuseUnchanged, type Operation, type Snapshot } from "./derive";
+import {
+  cleanHabitName,
+  deriveView,
+  groupProgress,
+  isDueOn,
+  isShared,
+  reuseUnchanged,
+  type Operation,
+  type Snapshot,
+} from "./derive";
+import type { GroupMember, HabitGroup } from "../types/habit";
 
 const TODAY = "2026-10-05"; // a Monday
 const NOW = new Date(`${TODAY}T12:00:00Z`);
@@ -455,6 +465,131 @@ describe("deriveView", () => {
     ]);
     expect(result.settings).toMatchObject({ timezone: "Asia/Tokyo", timezone_display: "Токио" });
     expect(result.today).toBe(markingDay("Asia/Tokyo", false, NOW));
+  });
+});
+
+describe("schedule history", () => {
+  // TODAY is a Monday. «Every other day» from last Monday: Mon, Wed, Fri, Sun done.
+  const lastMonday = addDays(TODAY, -7);
+  const everyOtherDay = {
+    frequency_type: "every_other_day" as const,
+    days: [],
+    start_date: lastMonday,
+  };
+  const done = [7, 5, 3, 1];
+
+  it("judges past days by the schedule then in force", () => {
+    const base = habit({
+      ...everyOtherDay,
+      history: history(done),
+      current_streak: 4,
+      best_streak: 4,
+      total_done: 4,
+      created_on: lastMonday,
+    });
+    // Switched to Saturdays only today: the past keeps «every other day», so Tuesday and
+    // Thursday never break the run.
+    const result = view(snapshot([base]), [
+      {
+        type: "update",
+        task: 1,
+        habit: {
+          name: "Зарядка",
+          frequency_type: "specific_days",
+          days: ["sat"],
+          start_date: null,
+          reminder_time: null,
+          color: "blue",
+          times_per_day: 1,
+          auto_mark: false,
+        },
+      },
+    ]);
+    const [changed] = result.habits;
+    expect(changed.schedule_history).toEqual([
+      { until: TODAY, ...everyOtherDay, times_per_day: 1 },
+    ]);
+    expect(changed.current_streak).toBe(4);
+    expect(changed.scheduled_today).toBe(false);
+  });
+
+  it("uses the server's periods for streaks", () => {
+    const base = habit({
+      frequency_type: "specific_days",
+      days: ["sat"],
+      start_date: null,
+      history: history(done),
+      current_streak: 4,
+      best_streak: 4,
+      total_done: 4,
+      schedule_history: [{ until: TODAY, ...everyOtherDay, times_per_day: 1 }],
+    });
+    // A mark on the device recounts the habit: the periods still apply.
+    const result = view(snapshot([base]), [
+      { type: "mark", task: 1, date: addDays(TODAY, -1), done: false },
+    ]);
+    expect(result.habits[0].current_streak).toBe(0);
+    const again = view(snapshot([base]), [
+      { type: "mark", task: 1, date: addDays(TODAY, -1), done: true },
+    ]);
+    expect(again.habits[0].current_streak).toBe(4);
+  });
+});
+
+describe("shared habit", () => {
+  const member = (fields: Partial<GroupMember>): GroupMember => ({
+    user_id: 2,
+    name: "@petya",
+    is_me: false,
+    is_owner: false,
+    done: false,
+    count: 0,
+    frozen: false,
+    ...fields,
+  });
+  const group = (others: boolean[], members: GroupMember[]): HabitGroup => ({
+    id: 7,
+    is_owner: true,
+    notify_marks: false,
+    members: [member({ user_id: 1, name: "@me", is_me: true, is_owner: true }), ...members],
+    others_history: others,
+    others_next_day: false,
+    open_from: TODAY,
+  });
+
+  it("is a group day only when the others did it too", () => {
+    // Yesterday the friend did it, today not yet.
+    const shared = habit({
+      group: group(history([1]), [member({})]),
+      history: history([]),
+    });
+    expect(isShared(shared)).toBe(true);
+    const marked = view(snapshot([shared]), [
+      { type: "mark", task: 1, date: TODAY, done: true },
+      { type: "mark", task: 1, date: addDays(TODAY, -1), done: true },
+    ]).habits[0];
+    // My part today is done; the group's day is not.
+    expect(marked.done_today).toBe(true);
+    expect(marked.history.slice(-2)).toEqual([true, false]);
+    expect(marked.total_done).toBe(1);
+    expect(marked.current_streak).toBe(1);
+  });
+
+  it("fills the ring by everyone's presses", () => {
+    const shared = habit({
+      times_per_day: 3,
+      today_count: 1,
+      group: group(history([]), [member({ count: 3, done: true }), member({ user_id: 3, frozen: true })]),
+    });
+    // Me 1 of 3, the friend 3 of 3, the frozen one does not count: 4 of 6.
+    expect(groupProgress(shared)).toBeCloseTo(4 / 6);
+  });
+
+  it("is an ordinary habit while alone", () => {
+    const alone = habit({ group: group(history([]), []) });
+    expect(isShared(alone)).toBe(false);
+    const marked = view(snapshot([alone]), [{ type: "mark", task: 1, date: TODAY, done: true }]);
+    expect(marked.habits[0].history[HISTORY_DAYS - 1]).toBe(true);
   });
 });
 

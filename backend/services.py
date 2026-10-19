@@ -9,13 +9,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 import pytz
 
-from backend import validation
+from backend import groups, validation
 from backend.constants import (
     DEFAULT_LANGUAGE,
     HABIT_NAME_MAX_LENGTH,
@@ -28,15 +28,24 @@ from backend.constants import (
     WEEKDAYS,
 )
 from backend.errors import ApiError
-from backend.models import Folder, FrequencyType, Review, Task, TaskStatus, User
+from backend.models import (
+    Folder,
+    FrequencyType,
+    Review,
+    Task,
+    TaskSchedulePeriod,
+    TaskStatus,
+    User,
+)
 from backend.repository import Repository, utc_now
-from backend.schedule import due_check, is_due_on, task_days
+from backend.schedule import due_check_with_history, is_due_on, task_days
 from backend.schemas import Folder as FolderView
 from backend.schemas import (
     FolderInput,
     Habit,
     HabitCreate,
     MetaResponse,
+    SchedulePeriod,
     ReviewCreate,
     ReviewsResponse,
     UserReview,
@@ -129,6 +138,8 @@ def compute_streaks(
     done_dates: set[date],
     today: date,
     is_frozen: Callable[[date], bool] = lambda day: False,
+    periods: Sequence[TaskSchedulePeriod] = (),
+    open_from: date | None = None,
 ) -> tuple[int, int]:
     """Текущая и лучшая серии выполнения (в днях).
 
@@ -136,18 +147,21 @@ def compute_streaks(
     запланированный день: незапланированные дни (у привычек «по дням недели», «через
     день» и «каждый месяц») и дни заморозки серию не рвут, а выполнение в такой день её продолжает.
     Сегодняшний день ещё не закончился, поэтому пока он не отмечен, текущая серия тянется
-    со вчерашнего.
+    со вчерашнего. Запланирован ли прошлый день — по расписанию того дня (`periods`).
+    `open_from` — с этого дня дни ещё не закончились (у совместной привычки — у кого-то из
+    участников): невыполненные, они тоже не рвут серию.
     """
     if not done_dates:
         return 0, 0
-    is_due = due_check(task)
+    is_due = due_check_with_history(task, periods)
+    open_day = min(today, open_from) if open_from is not None else today
     current = best = 0
     day = min(done_dates)
     while day <= today:
         if day in done_dates:
             current += 1
             best = max(best, current)
-        elif day < today and is_due(day) and not is_frozen(day):
+        elif day < open_day and is_due(day) and not is_frozen(day):
             current = 0
         day += timedelta(days=1)
     return current, best
@@ -163,6 +177,8 @@ def build_habit(
     day_counts: Mapping[date, int] | None = None,
     next_day_done: bool = False,
     created_on: date | None = None,
+    periods: Sequence[TaskSchedulePeriod] = (),
+    group: groups.ViewerGroup | None = None,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -176,10 +192,22 @@ def build_habit(
     «несколько раз в день»; в режиме «Отмечать за вчера» — и за следующий день.
     `next_day_done` — выполнен ли день после `today` (календарный сегодня в режиме
     «Отмечать за вчера»), см. `Habit.next_day_done`. `created_on` — день создания
-    привычки в поясе пользователя (`created_day`).
+    привычки в поясе пользователя (`created_day`). `periods` — прежние расписания
+    (Repository.get_schedule_periods).
+
+    Совместная привычка (`group`): сетка, серии и `total_done` — по дням, выполненным
+    всеми (мои отметки и `group.others_done`), а `done_today` и `today_count` — моя часть
+    (её и переключает кнопка).
     """
     is_frozen = frozen_check(task, freezes, today)
-    current_streak, best_streak = compute_streaks(task, done_dates, today, is_frozen)
+    shown = (
+        done_dates
+        if group is None
+        else {day for day in done_dates if group.others_done(day)}
+    )
+    current_streak, best_streak = compute_streaks(
+        task, shown, today, is_frozen, periods, group.open_from if group else None
+    )
     history_start = _history_start(today)
     return Habit(
         id=task.id,
@@ -190,10 +218,10 @@ def build_habit(
         frequency_type=task.frequency_type.value,
         days=task_days(task),
         start_date=task.start_date,
-        history=build_history(done_dates, today),
+        history=build_history(shown, today),
         current_streak=current_streak,
         best_streak=best_streak,
-        total_done=len(done_dates),
+        total_done=len(shown),
         reminder_time=(
             task.reminder_time.strftime(REMINDER_TIME_FORMAT)
             if task.reminder_time is not None
@@ -214,13 +242,24 @@ def build_habit(
                 (day_counts or {}).get(history_start + timedelta(days=offset), 0)
                 for offset in range(HISTORY_DAYS)
             ]
-            if task.times_per_day > 1
+            if task.times_per_day > 1 and group is None
             else []
         ),
-        next_day_done=next_day_done,
+        next_day_done=next_day_done and (group is None or group.view.others_next_day),
         next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
         created_on=created_on,
         started_on=started_day(task, done_dates, freezes, today),
+        schedule_history=[
+            SchedulePeriod(
+                until=period.until,
+                frequency_type=period.frequency_type.value,
+                days=task_days(period),
+                start_date=period.start_date,
+                times_per_day=period.times_per_day,
+            )
+            for period in periods
+        ],
+        group=group.view if group is not None else None,
     )
 
 
@@ -262,32 +301,19 @@ async def _auto_mark_ahead(repo: Repository, user: User, task_ids: list[int]) ->
 
 async def _built_habit(repo: Repository, user: User, task: Task) -> Habit:
     """Привычка с отметками из базы (после изменения или отметки)."""
-    today, calendar = user_today(user), _calendar_day(user)
-    # По календарный день: в режиме «Отмечать за вчера» приложение знает и следующий день.
-    done = await repo.get_done_dates([task.id], calendar)
-    freezes = await repo.get_freezes([task.id])
-    counts = await repo.get_history_counts([task.id], _history_start(today), calendar)
-    ahead = await _auto_mark_ahead(repo, user, [task.id])
-    return build_habit(
-        task,
-        {day for day in done[task.id] if day <= today},
-        today,
-        freezes[task.id],
-        counts[task.id].get(today, 0),
-        task.id in ahead,
-        counts[task.id],
-        calendar > today and calendar in done[task.id],
-        created_day(task, user),
-    )
+    [habit] = await _build_habits(repo, user, [task])
+    return habit
 
 
 async def list_habits(repo: Repository, user: User) -> list[Habit]:
-    """Все активные привычки пользователя с историей и статистикой (для `GET /tasks`).
+    """Все активные привычки пользователя с историей и статистикой (для `GET /tasks`)."""
+    return await _build_habits(repo, user, await repo.get_active_tasks(user.telegram_id))
 
-    Отметки всех привычек читаются одним запросом, а не по запросу на привычку.
-    """
+
+async def _build_habits(repo: Repository, user: User, tasks: list[Task]) -> list[Habit]:
+    """Привычки пользователя с историей и статистикой. Отметки всех привычек читаются
+    одним запросом, а не по запросу на привычку; совместные — вместе с участниками."""
     today, calendar = user_today(user), _calendar_day(user)
-    tasks = await repo.get_active_tasks(user.telegram_id)
     task_ids = [task.id for task in tasks]
     # По календарный день: в режиме «Отмечать за вчера» приложение знает и следующий день
     # — выключили режим, и сегодняшние отметки видны сразу, без ответа сервера.
@@ -298,6 +324,15 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
         [task.id for task in tasks if task.times_per_day > 1], _history_start(today), calendar
     )
     ahead = await _auto_mark_ahead(repo, user, task_ids)
+    periods = await repo.get_schedule_periods(task_ids)
+    members = await repo.members_of_tasks(task_ids)
+    states = await groups.load_groups(repo, {member.group_id for member in members.values()})
+
+    def group_of(task: Task) -> groups.ViewerGroup | None:
+        member = members.get(task.id)
+        state = states.get(member.group_id) if member is not None else None
+        return groups.viewer_part(state, task.id, today) if state is not None else None
+
     return [
         build_habit(
             task,
@@ -309,6 +344,8 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
             counts.get(task.id),
             calendar > today and calendar in done[task.id],
             created_day(task, user),
+            periods[task.id],
+            group_of(task),
         )
         for task in tasks
     ]
@@ -440,10 +477,19 @@ async def update_habit(
 ) -> Habit:
     """Изменить привычку (все поля формы) и вернуть её в форме `Habit`.
 
-    История отметок не трогается: серии пересчитываются по новому расписанию.
+    История отметок не трогается. Новое расписание действует с дня отметки: прежнее
+    запоминается (TaskSchedulePeriod), и прошлые дни по-прежнему оцениваются по нему.
+
+    Совместная привычка: общие поля (название, расписание, цель) меняет только владелец —
+    и они меняются у всех участников; автоотметки в ней нет (groups.py).
     """
+    payload = await groups.restrict_update(repo, user, task, payload)
     fields = await _validate_habit_fields(repo, user, payload, task_id=task.id)
     auto_mark_turned_on = fields.auto_mark and not task.auto_mark
+    await remember_schedule(
+        repo, user, task, fields.frequency_type, fields.days, fields.start_date,
+        fields.times_per_day,
+    )
     await repo.update_task(
         task,
         name=fields.name,
@@ -461,6 +507,7 @@ async def update_habit(
         auto_mark=fields.auto_mark,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
+    await groups.share_owner_changes(repo, user, task)
     # Включили автоотметку — это «отмечай заново», даже если отметку за сегодня сняли
     # (бот сам снятую отметку не трогает). День, который уже пора отметить (без
     # напоминания — сегодняшний, с напоминаниями — если последнее сегодня уже было),
@@ -479,8 +526,33 @@ async def update_habit(
     return await _built_habit(repo, user, task)
 
 
+async def remember_schedule(
+    repo: Repository,
+    user: User,
+    task: Task,
+    frequency_type: FrequencyType,
+    days: str | None,
+    start_date: date | None,
+    times_per_day: int,
+) -> None:
+    """Расписание задачи меняется на это (повтор, дни, первый день или цель на день) —
+    запомнить прежнее как действовавшее до дня отметки. У привычки, созданной в этот же
+    день, прошлого нет — запоминать нечего."""
+    changed = (
+        task.frequency_type != frequency_type
+        or (task.days or None) != (days or None)
+        or task.start_date != start_date
+        or task.times_per_day != times_per_day
+    )
+    today = user_today(user)
+    if changed and created_day(task, user) < today:
+        await repo.add_schedule_period(task, today)
+
+
 async def delete_habit(repo: Repository, user: User, task: Task) -> None:
-    """Удалить привычку (мягко) и записать это в ленту."""
+    """Удалить привычку (мягко) и записать это в ленту. Совместная — сначала выход из
+    группы (вернуться потом можно только с нуля)."""
+    await groups.forget_task(repo, user, task)
     await repo.soft_delete_task(task)
     await repo.log_action(user.telegram_id, "habit_deleted", ref_id=task.id)
 
@@ -765,6 +837,9 @@ class DueReminder:
     language: str
     # Бот может прислать его в Telegram («Уведомления» в Mini App включены).
     telegram: bool = True
+    # Готовый текст вместо «Пора выполнить…» (уведомление «Отметки участников» совместной
+    # привычки, groups.due_group_marks) — без 🔔 и пишется в ленту по-своему.
+    text: str | None = None
 
 
 def _clock_times(moment: datetime) -> set[time]:

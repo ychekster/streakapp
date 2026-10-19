@@ -33,6 +33,9 @@
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд пропадает.
  *
+ * Совместная привычка: название, повтор (с днями и датой) и цель меняет только владелец —
+ * у остальных они бледные и не нажимаются; автоотметки в ней нет.
+ *
  * Открывается кнопкой «+» (новая привычка) или рядом «Редактировать привычку» на экране
  * привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
  * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Создать привычку» или
@@ -61,7 +64,7 @@ import {
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
-import { reminderTimesOf, usesStartDate } from "../data/derive";
+import { isShared, reminderTimesOf, usesStartDate } from "../data/derive";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
@@ -86,6 +89,9 @@ interface HabitFormScreenProps {
 export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
+  // Совместная привычка: общие поля — у владельца.
+  const shared = habit !== null && isShared(habit);
+  const locked = shared && !habit.group?.is_owner;
   const [name, setName] = useState(habit?.name ?? "");
   const [description, setDescription] = useState(habit?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
@@ -245,6 +251,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
                 placeholder={strings.formNamePlaceholder}
                 aria-label={strings.formNamePlaceholder}
                 maxLength={nameMaxLength}
+                disabled={locked}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 // «Готово» на клавиатуре просто её убирает.
@@ -269,46 +276,50 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
         </Section>
 
         <Section variant="form" title={strings.formFrequencyHeading}>
-          <Card>
-            <ListItem label={strings.formRepeat}>
-              <MenuSelect<RepeatMode>
-                options={repeatOptions}
-                value={repeat}
-                onChange={setRepeat}
-                label={strings.formRepeat}
-              />
-            </ListItem>
-            {repeat === "weekly" ? (
-              <ListItem>
-                <DayPicker selected={days} onToggle={toggleDay} />
-              </ListItem>
-            ) : null}
-            {usesStartDate(frequency) ? (
-              <ListItem label={strings.formStartDate}>
-                <DateField
-                  value={startDate}
-                  onChange={setStartDate}
-                  label={strings.formStartDate}
-                  max={localDate(START_DATE_MAX_AHEAD_DAYS)}
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>
+              <ListItem label={strings.formRepeat}>
+                <MenuSelect<RepeatMode>
+                  options={repeatOptions}
+                  value={repeat}
+                  onChange={setRepeat}
+                  label={strings.formRepeat}
                 />
               </ListItem>
-            ) : null}
-          </Card>
+              {repeat === "weekly" ? (
+                <ListItem>
+                  <DayPicker selected={days} onToggle={toggleDay} />
+                </ListItem>
+              ) : null}
+              {usesStartDate(frequency) ? (
+                <ListItem label={strings.formStartDate}>
+                  <DateField
+                    value={startDate}
+                    onChange={setStartDate}
+                    label={strings.formStartDate}
+                    max={localDate(START_DATE_MAX_AHEAD_DAYS)}
+                  />
+                </ListItem>
+              ) : null}
+            </Card>
+          </fieldset>
         </Section>
 
         <Section variant="form" title={strings.formGoalHeading}>
-          <Card>
-            <ListItem label={strings.formTimesPerDay(timesPerDay)}>
-              <Stepper
-                value={timesPerDay}
-                min={1}
-                max={MAX_TIMES_PER_DAY}
-                onChange={setTimesPerDay}
-                decreaseLabel={strings.formTimesLess}
-                increaseLabel={strings.formTimesMore}
-              />
-            </ListItem>
-          </Card>
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>
+              <ListItem label={strings.formTimesPerDay(timesPerDay)}>
+                <Stepper
+                  value={timesPerDay}
+                  min={1}
+                  max={MAX_TIMES_PER_DAY}
+                  onChange={setTimesPerDay}
+                  decreaseLabel={strings.formTimesLess}
+                  increaseLabel={strings.formTimesMore}
+                />
+              </ListItem>
+            </Card>
+          </fieldset>
         </Section>
 
         <Section variant="form" title={strings.formReminderHeading}>
@@ -376,7 +387,7 @@ export function HabitFormScreen({ habit, onSaved }: HabitFormScreenProps) {
           </Card>
         </Section>
 
-        {timesPerDay === 1 ? (
+        {timesPerDay === 1 && !shared ? (
           <Section
             variant="form"
             title={strings.formAutoMarkHeading}

@@ -51,6 +51,9 @@ from backend.models import (
     Event,
     Folder,
     FrequencyType,
+    HabitGroup,
+    HabitGroupMember,
+    HabitGroupPeriod,
     PushSubscription,
     Review,
     Segment,
@@ -58,6 +61,7 @@ from backend.models import (
     TaskFreeze,
     TaskLog,
     TaskReminder,
+    TaskSchedulePeriod,
     TaskStatus,
     User,
     UserActivity,
@@ -334,6 +338,32 @@ class Repository:
                 raise
             return user
 
+    async def update_profile(
+        self, user: User, username: str | None, first_name: str | None
+    ) -> None:
+        """Имя и @username — как сейчас в Telegram (под ними человека видят участники
+        совместных привычек); не изменились — UPDATE не выполняется."""
+        if (user.username, user.first_name) != (username, first_name):
+            user.username = username
+            user.first_name = first_name
+            await self.session.flush()
+
+    async def group_users_seen_before(self, moment: datetime) -> list[int]:
+        """Участники совместных привычек с Telegram, которые не открывали Mini App с
+        `moment` (их имя и @username не обновлялись) — для сверки с Telegram."""
+        result = await self.session.scalars(
+            select(User.telegram_id)
+            .join(HabitGroupMember, HabitGroupMember.user_id == User.telegram_id)
+            .where(
+                HabitGroupMember.active.is_(True),
+                User.telegram_id > 0,
+                User.bot_blocked_at.is_(None),
+                or_(User.telegram_seen_at.is_(None), User.telegram_seen_at < moment),
+            )
+            .distinct()
+        )
+        return list(result)
+
     async def update_settings(
         self,
         user: User,
@@ -461,10 +491,13 @@ class Repository:
     async def delete_user(self, telegram_id: int) -> None:
         """Удалить пользователя со всеми его данными: отметками, привычками, отзывами и
         днями активности. Порядок — от зависимых таблиц к `users` (PostgreSQL проверяет
-        внешние ключи)."""
+        внешние ключи). Из совместных привычек он уходит: его периоды и участие стираются,
+        его группы переходят к вступившему раньше всех (без участников — удаляются)."""
+        await self.forget_group_member(telegram_id)
         for model in (
             TaskLog,
             TaskFreeze,
+            TaskSchedulePeriod,
             TaskReminder,
             Task,
             Folder,
@@ -477,6 +510,35 @@ class Repository:
         ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
         await self.session.execute(delete(User).where(User.telegram_id == telegram_id))
+
+    async def forget_group_member(self, user_id: int) -> None:
+        """Стереть участие пользователя в совместных привычках (удаление аккаунта): его
+        записи участников и периоды; группы, где он владелец, — к вступившему раньше всех
+        активному участнику, без таких — удалить вместе с их записями."""
+        member_ids = select(HabitGroupMember.id).where(HabitGroupMember.user_id == user_id)
+        await self.session.execute(
+            delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(member_ids))
+        )
+        await self.session.execute(
+            delete(HabitGroupMember).where(HabitGroupMember.user_id == user_id)
+        )
+        owned = await self.session.scalars(
+            select(HabitGroup).where(HabitGroup.owner_id == user_id)
+        )
+        for group in list(owned):
+            heir = await self.earliest_active_member(group.id)
+            if heir is not None:
+                group.owner_id = heir.user_id
+                continue
+            rest = select(HabitGroupMember.id).where(HabitGroupMember.group_id == group.id)
+            await self.session.execute(
+                delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(rest))
+            )
+            await self.session.execute(
+                delete(HabitGroupMember).where(HabitGroupMember.group_id == group.id)
+            )
+            await self.session.delete(group)
+        await self.session.flush()
 
     # ------------------------------------------------------------------ #
     #  Folders
@@ -888,6 +950,46 @@ class Repository:
         task.frozen_since = None
         await self.session.flush()
 
+    async def get_schedule_periods(
+        self, task_ids: Collection[int]
+    ) -> dict[int, list[TaskSchedulePeriod]]:
+        """Прежние расписания задач: id задачи → периоды по возрастанию `until`."""
+        periods: dict[int, list[TaskSchedulePeriod]] = {task_id: [] for task_id in task_ids}
+        for batch in _batches(periods):
+            result = await self.session.execute(
+                select(TaskSchedulePeriod)
+                .where(TaskSchedulePeriod.task_id.in_(batch))
+                .order_by(TaskSchedulePeriod.until, TaskSchedulePeriod.id)
+            )
+            for period in result.scalars():
+                periods[period.task_id].append(period)
+        return periods
+
+    async def add_schedule_period(self, task: Task, until: date) -> bool:
+        """Запомнить текущее расписание задачи как действовавшее до дня `until`. Если в
+        этот день расписание уже меняли, запись о нём уже есть (то, что было до этого
+        дня), — вторая не добавляется. True — запись добавлена."""
+        exists_already = await self.session.scalar(
+            select(TaskSchedulePeriod.id).where(
+                TaskSchedulePeriod.task_id == task.id, TaskSchedulePeriod.until >= until
+            ).limit(1)
+        )
+        if exists_already is not None:
+            return False
+        self.session.add(
+            TaskSchedulePeriod(
+                task_id=task.id,
+                user_id=task.user_id,
+                until=until,
+                frequency_type=task.frequency_type,
+                days=task.days,
+                start_date=task.start_date,
+                times_per_day=task.times_per_day,
+            )
+        )
+        await self.session.flush()
+        return True
+
     async def get_done_task_days(
         self, task_days: Collection[tuple[int, date]]
     ) -> set[tuple[int, date]]:
@@ -937,6 +1039,244 @@ class Repository:
                 TaskLog.status != TaskStatus.done,
             )
         )
+
+    # ------------------------------------------------------------------ #
+    #  Совместные привычки (backend/groups.py)
+    # ------------------------------------------------------------------ #
+
+    async def get_group(self, group_id: int) -> HabitGroup | None:
+        return await self.session.get(HabitGroup, group_id)
+
+    async def get_group_by_code(self, code: str) -> HabitGroup | None:
+        """Группа по коду ссылки-приглашения; сброшенный код не найдёт ничего."""
+        return await self.session.scalar(select(HabitGroup).where(HabitGroup.invite_code == code))
+
+    async def invite_code_taken(self, code: str) -> bool:
+        found = await self.session.scalar(
+            select(HabitGroup.id).where(HabitGroup.invite_code == code).limit(1)
+        )
+        return found is not None
+
+    async def create_group(self, owner_id: int, code: str) -> HabitGroup:
+        group = HabitGroup(owner_id=owner_id, invite_code=code)
+        self.session.add(group)
+        await self.session.flush()
+        return group
+
+    async def get_member(self, group_id: int, user_id: int) -> HabitGroupMember | None:
+        return await self.session.scalar(
+            select(HabitGroupMember).where(
+                HabitGroupMember.group_id == group_id, HabitGroupMember.user_id == user_id
+            )
+        )
+
+    async def get_member_by_task(self, task_id: int) -> HabitGroupMember | None:
+        """Участник, чья это привычка (сначала активный, потом вышедший), или None."""
+        return await self.session.scalar(
+            select(HabitGroupMember)
+            .where(HabitGroupMember.task_id == task_id)
+            .order_by(HabitGroupMember.active.desc(), HabitGroupMember.id.desc())
+            .limit(1)
+        )
+
+    async def members_with_task(self, task_id: int) -> list[HabitGroupMember]:
+        """Все участия этой привычки (активное и прежние)."""
+        result = await self.session.scalars(
+            select(HabitGroupMember).where(HabitGroupMember.task_id == task_id)
+        )
+        return list(result)
+
+    async def members_of_tasks(self, task_ids: Collection[int]) -> dict[int, HabitGroupMember]:
+        """Участие привычек в группах: id привычки → активный участник (у остальных нет)."""
+        members: dict[int, HabitGroupMember] = {}
+        for batch in _batches(list(task_ids)):
+            result = await self.session.scalars(
+                select(HabitGroupMember).where(
+                    HabitGroupMember.task_id.in_(batch), HabitGroupMember.active.is_(True)
+                )
+            )
+            for member in result:
+                if member.task_id is not None:
+                    members[member.task_id] = member
+        return members
+
+    async def active_members(self, group_ids: Collection[int]) -> list[HabitGroupMember]:
+        """Активные участники групп по времени вступления."""
+        if not group_ids:
+            return []
+        result = await self.session.scalars(
+            select(HabitGroupMember)
+            .where(
+                HabitGroupMember.group_id.in_(list(group_ids)),
+                HabitGroupMember.active.is_(True),
+            )
+            .order_by(HabitGroupMember.joined_at, HabitGroupMember.id)
+        )
+        return list(result)
+
+    async def count_active_members(self, group_id: int) -> int:
+        count = await self.session.scalar(
+            select(func.count())
+            .select_from(HabitGroupMember)
+            .where(HabitGroupMember.group_id == group_id, HabitGroupMember.active.is_(True))
+        )
+        return count or 0
+
+    async def earliest_active_member(self, group_id: int) -> HabitGroupMember | None:
+        return await self.session.scalar(
+            select(HabitGroupMember)
+            .where(HabitGroupMember.group_id == group_id, HabitGroupMember.active.is_(True))
+            .order_by(HabitGroupMember.joined_at, HabitGroupMember.id)
+            .limit(1)
+        )
+
+    async def add_member(
+        self, group: HabitGroup, user_id: int, task_id: int, start_on: date
+    ) -> HabitGroupMember:
+        """Новый участник с периодом участия с `start_on`."""
+        member = HabitGroupMember(
+            group_id=group.id, user_id=user_id, task_id=task_id, active=True, joined_at=utc_now()
+        )
+        self.session.add(member)
+        await self.session.flush()
+        self.session.add(HabitGroupPeriod(member_id=member.id, start_on=start_on))
+        await self.session.flush()
+        return member
+
+    async def reactivate_member(
+        self, member: HabitGroupMember, task_id: int, start_on: date, keep_periods: bool
+    ) -> None:
+        """Вернуть вышедшего: новый период с `start_on`; прежние периоды остаются, только
+        если его привычка та же (`keep_periods`)."""
+        if not keep_periods:
+            await self.session.execute(
+                delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id == member.id)
+            )
+        member.task_id = task_id
+        member.active = True
+        member.joined_at = utc_now()
+        self.session.add(HabitGroupPeriod(member_id=member.id, start_on=start_on))
+        await self.session.flush()
+
+    async def deactivate_member(self, member: HabitGroupMember, end_on: date) -> None:
+        """Участник вышел: открытый период закрывается днём `end_on` (он уже не в счёт).
+        Период, не покрывший ни дня, удаляется."""
+        member.active = False
+        periods = await self.session.scalars(
+            select(HabitGroupPeriod).where(
+                HabitGroupPeriod.member_id == member.id, HabitGroupPeriod.end_on.is_(None)
+            )
+        )
+        for period in list(periods):
+            if end_on > period.start_on:
+                period.end_on = end_on
+            else:
+                await self.session.delete(period)
+        await self.session.flush()
+
+    async def forget_member_task(self, member: HabitGroupMember) -> None:
+        """Привычку вышедшего удалили: возвращаться не с чем — периоды стираются."""
+        member.task_id = None
+        await self.session.execute(
+            delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id == member.id)
+        )
+        await self.session.flush()
+
+    async def periods_of(
+        self, member_ids: Collection[int]
+    ) -> dict[int, list[tuple[date, date | None]]]:
+        """Периоды участия: id участника → (первый день, день после последнего | None)."""
+        periods: dict[int, list[tuple[date, date | None]]] = {
+            member_id: [] for member_id in member_ids
+        }
+        for batch in _batches(periods):
+            result = await self.session.execute(
+                select(
+                    HabitGroupPeriod.member_id, HabitGroupPeriod.start_on, HabitGroupPeriod.end_on
+                )
+                .where(HabitGroupPeriod.member_id.in_(batch))
+                .order_by(HabitGroupPeriod.start_on)
+            )
+            for member_id, start, end in result.tuples():
+                periods[member_id].append((start, end))
+        return periods
+
+    async def get_users(self, user_ids: Collection[int]) -> dict[int, User]:
+        users: dict[int, User] = {}
+        for batch in _batches(list(user_ids)):
+            for user in await self.session.scalars(
+                select(User).where(User.telegram_id.in_(batch))
+            ):
+                users[user.telegram_id] = user
+        return users
+
+    async def get_tasks(self, task_ids: Collection[int]) -> dict[int, Task]:
+        tasks: dict[int, Task] = {}
+        for batch in _batches(list(task_ids)):
+            for task in await self.session.scalars(select(Task).where(Task.id.in_(batch))):
+                tasks[task.id] = task
+        return tasks
+
+    async def pending_group_marks(
+        self, since: datetime
+    ) -> list[tuple[TaskLog, HabitGroupMember]]:
+        """Отметки совместных привычек, о которых остальным ещё не сообщали: день выполнен
+        после `since`, привычка — активного участника."""
+        result = await self.session.execute(
+            select(TaskLog, HabitGroupMember)
+            .join(HabitGroupMember, HabitGroupMember.task_id == TaskLog.task_id)
+            .where(
+                HabitGroupMember.active.is_(True),
+                TaskLog.status == TaskStatus.done,
+                TaskLog.group_notified_at.is_(None),
+                TaskLog.marked_at >= since,
+            )
+            .order_by(TaskLog.marked_at)
+        )
+        return [(log, member) for log, member in result.tuples()]
+
+    async def set_group_owner(self, group: HabitGroup, owner_id: int) -> None:
+        group.owner_id = owner_id
+        await self.session.flush()
+
+    async def set_invite_code(self, group: HabitGroup, code: str) -> None:
+        group.invite_code = code
+        await self.session.flush()
+
+    async def set_member_notify(self, member: HabitGroupMember, on: bool) -> None:
+        member.notify_marks = on
+        await self.session.flush()
+
+    async def set_task_shared_fields(
+        self,
+        task: Task,
+        name: str,
+        frequency_type: FrequencyType,
+        days: str | None,
+        start_date: date | None,
+        times_per_day: int,
+    ) -> None:
+        """Общие поля совместной привычки (как у владельца); автоотметки в ней нет."""
+        task.name = name
+        task.frequency_type = frequency_type
+        task.days = days
+        task.start_date = start_date
+        task.times_per_day = times_per_day
+        task.auto_mark = False
+        await self.session.flush()
+
+    async def set_auto_mark(self, task: Task, on: bool) -> None:
+        task.auto_mark = on
+        await self.session.flush()
+
+    async def mark_group_notified(self, log_ids: Collection[int], now: datetime) -> None:
+        for batch in _batches(list(log_ids)):
+            await self.session.execute(
+                update(TaskLog)
+                .where(TaskLog.id.in_(batch))
+                .values(group_notified_at=now)
+                .execution_options(synchronize_session=False)
+            )
 
     # ------------------------------------------------------------------ #
     #  Admins
@@ -1599,8 +1939,8 @@ class Repository:
                 .execution_options(synchronize_session=False)
             )
         for model in (
-            Task, TaskLog, TaskFreeze, TaskReminder, Folder, Review, WebSession,
-            PushSubscription, Event, ActivityLog,
+            Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskReminder, Folder, Review,
+            WebSession, PushSubscription, Event, ActivityLog,
         ):
             await self.session.execute(
                 update(model)

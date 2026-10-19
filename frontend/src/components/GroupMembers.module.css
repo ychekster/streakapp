@@ -1,0 +1,32 @@
+/* Буква в круглой плашке ряда (как монограммы «Контактов» iOS). */
+.monogram {
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner {
+  color: var(--color-text-secondary);
+}
+
+.check {
+  width: 22px;
+  height: 22px;
+  color: rgb(var(--habit-rgb));
+}
+
+.frozen {
+  display: flex;
+  color: var(--color-text-secondary);
+}
+
+.frozen svg {
+  width: 20px;
+  height: 20px;
+}

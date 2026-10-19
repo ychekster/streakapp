@@ -236,6 +236,9 @@ export const FOLDER_NAME_MAX_LENGTH = 24;
  *  FOLDER_KINDS on the backend. */
 export const FOLDER_KINDS = ["unfinished", "today"] as const;
 
+/** Most people in one shared habit (MAX_GROUP_MEMBERS on the backend). */
+export const MAX_GROUP_MEMBERS = 12;
+
 /** Most times a day a habit can be done (MAX_TIMES_PER_DAY on the backend): the form's
  *  −/+ stops there. */
 export const MAX_TIMES_PER_DAY = 96;

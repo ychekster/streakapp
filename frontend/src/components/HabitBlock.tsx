@@ -18,6 +18,7 @@
 import { memo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
+import { groupProgress, isShared } from "../data/derive";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
@@ -51,6 +52,7 @@ export const HabitBlock = memo(function HabitBlock({
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
   const fill = fixedGridFill(useGridView(), habit, gridDays);
   const shown = fill ?? gridDays;
+  const shared = isShared(habit);
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -70,12 +72,16 @@ export const HabitBlock = memo(function HabitBlock({
           {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
         </div>
         <CheckButton
-          done={habit.done_today}
+          // Совместная: залитый кружок — день выполнили все; моя часть — галочка цветом.
+          done={shared ? habit.history[habit.history.length - 1] : habit.done_today}
           habitName={habit.name}
           disabled={!interactive}
           frozen={habit.frozen_since !== null}
           total={habit.times_per_day}
           count={habit.today_count}
+          group={
+            shared ? { fraction: groupProgress(habit), mine: habit.done_today } : undefined
+          }
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>

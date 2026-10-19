@@ -4,7 +4,8 @@
 
 Бот отвечает на /start приветствием с кнопкой запуска Mini App, присылает
 напоминания о привычках (bot/reminders.py) и рассылки из админ-панели
-(bot/broadcasts.py). Вся работа с привычками идёт в приложении (см. frontend/): базу
+(bot/broadcasts.py), принимает приглашения в совместные привычки
+(bot/handlers/group_invite.py) и держит имена их участников свежими (bot/profiles.py). Вся работа с привычками идёт в приложении (см. frontend/): базу
 данных ведёт API, а бот читает из неё напоминания и рассылки и отмечает в ней, кто
 запускал бота, кто его заблокировал и как идёт рассылка.
 
@@ -27,8 +28,9 @@ from loguru import logger
 from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
 from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMMAND_DESCRIPTION
-from bot.handlers import membership, start, web_login
+from bot.handlers import group_invite, membership, start, web_login
 from bot.pacing import SEND_RATE, Pacer
+from bot.profiles import ProfileMiddleware, run_profile_refresh
 from bot.reminders import PushConfig, run_reminders
 from backend.config import load_settings as load_web_settings
 from backend.database import Database
@@ -118,9 +120,13 @@ async def main() -> None:
 
     # Типы обновлений для polling aiogram выводит из роутеров: с `membership` бот
     # получает и my_chat_member (блокировку и разблокировку бота).
-    # Before `start`: its /start filter (login deep link) is narrower.
+    # Before `start`: their /start filters (login and invite deep links) are narrower.
     dp.include_router(web_login.router)
+    dp.include_router(group_invite.router)
     dp.include_router(start.router)
+    # Имена участников совместных привычек — свежие из каждого сообщения и нажатия.
+    dp.message.outer_middleware(ProfileMiddleware(database))
+    dp.callback_query.outer_middleware(ProfileMiddleware(database))
     dp.include_router(membership.router)
     register_error_handler(dp)
 
@@ -133,6 +139,7 @@ async def main() -> None:
             run_reminders(bot, database, pacer, config.tma_url, push_config(config))
         ),
         asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
+        asyncio.create_task(run_profile_refresh(bot, database, pacer)),
     ]
     logger.info("Knot is up and polling")
 

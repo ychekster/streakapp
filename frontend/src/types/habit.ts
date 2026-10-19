@@ -86,6 +86,58 @@ export interface Habit {
    *  записи ещё нет — ни отметки, ни снятой: автоотметку за него приложение покажет само,
    *  когда ей пора (data/derive.ts). Нет у привычек, сохранённых до этого поля. */
   auto_mark_ahead?: boolean;
+  /** Прежние расписания по возрастанию `until`: прошлые дни оцениваются по расписанию,
+   *  которое действовало в тот день (data/derive.ts, scheduleOn). Нет у привычек,
+   *  сохранённых на устройстве до истории расписания. */
+  schedule_history?: SchedulePeriod[];
+  /** Совместная привычка (backend/groups.py); null или нет — обычная. В совместной
+   *  `history`, серии и `total_done` — по дням, выполненным всеми, а `done_today` и
+   *  `today_count` — моя часть (её переключает кнопка). Совместной она выглядит, когда
+   *  участников больше одного (isShared). */
+  group?: HabitGroup | null;
+}
+
+/** Совместная привычка глазами участника. */
+export interface HabitGroup {
+  id: number;
+  /** Я — владелец: меняю общие поля (название, повтор, цель), исключаю участников. */
+  is_owner: boolean;
+  /** «Отметки участников» включены. */
+  notify_marks: boolean;
+  /** Активные участники по времени вступления (со мной). */
+  members: GroupMember[];
+  /** За те же дни, что `history`: выполнили ли свою часть все остальные (дни вне моего
+   *  участия — true). День группы = моя отметка и это. */
+  others_history: boolean[];
+  /** То же за день после дня отметки («Отмечать за вчера»). */
+  others_next_day: boolean;
+  /** С этого дня день ещё не закончился у кого-то из участников (пояса): невыполненный,
+   *  он серию не рвёт. */
+  open_from: string | null;
+}
+
+export interface GroupMember {
+  user_id: number;
+  /** @username, если есть, иначе имя из Telegram. */
+  name: string;
+  is_me: boolean;
+  is_owner: boolean;
+  /** Выполнил свою часть в день отметки. */
+  done: boolean;
+  /** Сколько раз выполнил в день отметки (до цели). */
+  count: number;
+  /** Заморожен в день отметки — не в счёт. */
+  frozen: boolean;
+}
+
+/** Прежнее расписание привычки: действовало до дня `until` («ГГГГ-ММ-ДД», не включая его),
+ *  с `until` предыдущего периода (первый — с самого начала). */
+export interface SchedulePeriod {
+  until: string;
+  frequency_type: FrequencyType;
+  days: string[];
+  start_date: string | null;
+  times_per_day: number;
 }
 
 /** Частота выполнения привычки. */

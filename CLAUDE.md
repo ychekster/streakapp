@@ -13,6 +13,7 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   config.py         Settings from the root .env (pydantic-settings)
   models.py         SQLAlchemy models (all tables)      repository.py  ALL DB access
   services.py       habits, streaks, toggle, settings, due reminders
+  groups.py         shared habits: invite/join/leave/kick, the group's day, owner's fields
   schemas.py        API contract (mirrored by frontend/src/types/*)
   dependencies.py   auth (tma initData | Bearer web session), DB session, current user
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
@@ -25,7 +26,8 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   auth.py (initData signature)  database.py (engine, sessions)  sources.py  clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
-  handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py
+  handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py,
+                    group_invite.py (/start join_<code>); profiles.py (members' names)
 frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
   src/App.tsx       app shell: tabs, screen stack, BackButton/MainButton, admin mode (lazy)
@@ -39,7 +41,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0024)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0026)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -117,6 +119,8 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Install page / funnel | frontend/src/landing/, src/web/analytics.ts; backend/funnel.py, scripts/funnel.py |
 | Bot texts / emoji | bot/constants.py, bot/emoji.py |
 | Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx |
+| Shared habits | models.HabitGroup*, backend/groups.py, routers/groups.py, bot/handlers/group_invite.py, bot/profiles.py, reminders (group marks); frontend data/groups.ts, api/groups.ts, derive.ts (isShared, groupProgress), components/GroupMembers.tsx, CheckButton (group), screens/HabitScreen.tsx |
+| Schedule history | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule; frontend derive.ts (scheduleOn, isDueOnDay) |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change
