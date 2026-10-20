@@ -292,16 +292,18 @@ const RU = {
   resetInviteDialogConfirm: "Сбросить",
   leaveGroup: "Выйти из привычки",
   leaveGroupDialogTitle: "Выйти из привычки",
-  leaveGroupDialogMessage: "Привычка останется у вас обычной — со всеми вашими отметками.",
+  leaveGroupDialogMessage:
+    "Привычка пропадёт из вашего списка. Вернуться можно по ссылке-приглашению — с вашими отметками.",
   leaveGroupDialogConfirm: "Выйти",
   kickDialogTitle: (name: string) => `Исключить ${name}`,
-  kickDialogMessage: "Привычка останется у участника обычной — с его отметками.",
+  kickDialogMessage: "Привычка пропадёт у участника. По ссылке он сможет вернуться — с его отметками.",
   kickDialogConfirm: "Исключить",
   groupDialogCancel: "Отменить",
   groupActionFailed: "Не удалось выполнить действие",
   groupLoginTitle: "Войдите через Telegram",
   groupLoginMessage: "Совместные привычки доступны после входа через Telegram.",
   groupLoginConfirm: "Войти",
+
 
   // --- Кнопка отметки (подписи для скринридеров) ---
   checkMark: (name: string) => `Отметить выполнено: ${name}`,
@@ -697,16 +699,18 @@ const EN: Strings = {
   resetInviteDialogConfirm: "Reset",
   leaveGroup: "Leave Habit",
   leaveGroupDialogTitle: "Leave Habit",
-  leaveGroupDialogMessage: "You’ll keep the habit as an ordinary one, with all your check-ins.",
+  leaveGroupDialogMessage:
+    "The habit will disappear from your list. You can come back through the invite link — with your check-ins.",
   leaveGroupDialogConfirm: "Leave",
   kickDialogTitle: (name: string) => `Remove ${name}`,
-  kickDialogMessage: "They’ll keep the habit as an ordinary one, with their check-ins.",
+  kickDialogMessage: "The habit will disappear for them. They can come back through the invite link — with their check-ins.",
   kickDialogConfirm: "Remove",
   groupDialogCancel: "Cancel",
   groupActionFailed: "Couldn’t do that",
   groupLoginTitle: "Log In with Telegram",
   groupLoginMessage: "Shared habits are available after logging in with Telegram.",
   groupLoginConfirm: "Log In",
+
 
   checkMark: (name: string) => `Mark as done: ${name}`,
   checkUnmark: (name: string) => `Unmark: ${name}`,

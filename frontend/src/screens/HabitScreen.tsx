@@ -20,9 +20,10 @@
  * Совместная привычка (data/groups.ts): под календарём — «Участники» (кто уже выполнил
  * свою часть; владелец нажатием исключает), в настройках — вторая карточка: «Пригласить»,
  * «Отметки участников», «Сбросить ссылку» (владелец); вместо «Удалить» — «Выйти из
- * привычки» (привычка остаётся обычной). У обычной привычки вторая карточка — только
- * «Пригласить». Автоотметки в совместной привычке нет. Эти действия идут на сервер сразу;
- * ошибка — системным диалогом, гостю веб-приложения предлагается войти через Telegram.
+ * привычки» (привычка пропадает, по ссылке вернётся). У обычной привычки второй карточки
+ * нет: совместной её не сделать. Автоотметки в совместной привычке нет. Эти действия идут
+ * на сервер сразу; ошибка — системным диалогом, гостю веб-приложения предлагается войти
+ * через Telegram.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -350,6 +351,7 @@ export function HabitScreen({
             </ListItem>
           </Card>
           {/* Совместная привычка — своей карточкой под основными настройками. */}
+          {shared && group ? (
           <div className={styles.nextCard}>
             <Card>
               <ListItem
@@ -361,14 +363,12 @@ export function HabitScreen({
               >
                 <Disclosure />
               </ListItem>
-              {shared && group ? (
-                <ListItem icon={<BellIcon />} iconColor="red" label={strings.groupNotify}>
-                  <span className={styles.autoMarkSwitch}>
-                    <Switch checked={notify} onChange={switchNotify} label={strings.groupNotify} />
-                  </span>
-                </ListItem>
-              ) : null}
-              {shared && group?.is_owner ? (
+              <ListItem icon={<BellIcon />} iconColor="red" label={strings.groupNotify}>
+                <span className={styles.autoMarkSwitch}>
+                  <Switch checked={notify} onChange={switchNotify} label={strings.groupNotify} />
+                </span>
+              </ListItem>
+              {group.is_owner ? (
                 <ListItem
                   icon={<LinkIcon />}
                   iconColor="graphite"
@@ -381,9 +381,9 @@ export function HabitScreen({
               ) : null}
             </Card>
           </div>
+          ) : null}
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
-              «Часах» iOS). У совместной — выход: привычка остаётся обычной, удалить её
-              можно потом. */}
+              «Часах» iOS). У совместной — выход: привычка пропадает, по ссылке вернётся. */}
           {shared ? (
             <DestructiveButton
               label={strings.leaveGroup}

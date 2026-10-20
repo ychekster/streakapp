@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HISTORY_DAYS } from "../constants";
-import type { Habit } from "../types/habit";
+import type { Habit, HabitInput } from "../types/habit";
 import type { Settings } from "../types/settings";
 import { addDays, markingDay, weekdayIndex } from "./dates";
 import {
@@ -605,11 +605,36 @@ describe("shared habit", () => {
     expect(presses[2].history[HISTORY_DAYS - 1]).toBe(false);
   });
 
-  it("is an ordinary habit while alone", () => {
+  it("stays shared while alone, my days are the group's", () => {
     const alone = habit({ group: group(history([]), []) });
-    expect(isShared(alone)).toBe(false);
+    expect(isShared(alone)).toBe(true);
     const marked = view(snapshot([alone]), [{ type: "mark", task: 1, date: TODAY, done: true }]);
     expect(marked.habits[0].history[HISTORY_DAYS - 1]).toBe(true);
+  });
+
+  it("is shared from the moment it is created on the device", () => {
+    const input = (): HabitInput => ({
+      name: "Бег",
+      frequency_type: "daily",
+      days: [],
+      start_date: null,
+      reminder_time: null,
+      color: "green",
+      times_per_day: 1,
+      auto_mark: false,
+    });
+    const created = view(snapshot([]), [
+      {
+        type: "create",
+        ref: "r1",
+        habit: { ...input(), shared: true },
+      },
+    ]);
+    const [mine] = created.habits;
+    expect(isShared(mine)).toBe(true);
+    expect(mine.group?.members.map((member) => member.is_me)).toEqual([true]);
+    const plain = view(snapshot([]), [{ type: "create", ref: "r2", habit: { ...input(), name: "Сон" } }]);
+    expect(isShared(plain.habits[0])).toBe(false);
   });
 });
 

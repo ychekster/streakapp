@@ -93,7 +93,7 @@ export interface Habit {
   /** Совместная привычка (backend/groups.py); null или нет — обычная. В совместной
    *  `history`, серии и `total_done` — по дням, выполненным всеми, а `done_today`,
    *  `today_count` и `history_counts` (при любой цели) — моя часть (её переключает кнопка).
-   *  Совместной она выглядит, когда участников больше одного (isShared). */
+   *  Совместная остаётся совместной, даже когда в ней один человек (isShared). */
   group?: HabitGroup | null;
 }
 
@@ -123,6 +123,7 @@ export interface HabitGroup {
    *  (на устройстве пересчитывается с моими отметками, data/derive.ts). */
   fill_history?: number[];
 }
+
 
 export interface GroupMember {
   user_id: number;
@@ -173,4 +174,6 @@ export interface HabitInput {
   times_per_day: number;
   /** «Автоотметка» (экран привычки); при times_per_day > 1 не действует. */
   auto_mark: boolean;
+  /** Создать совместную привычку (только при создании): обычную совместной не сделать. */
+  shared?: boolean;
 }

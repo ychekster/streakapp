@@ -1,5 +1,5 @@
-"""Совместные привычки (backend/groups.py): приглашение, вступление через бота, день группы,
-общие поля, выход, возврат, исключение, заморозка и уведомления об отметках."""
+"""Совместные привычки (backend/groups.py): создание, приглашение, вступление через бота,
+день группы, общие поля, выход, возврат, исключение, заморозка и уведомления об отметках."""
 
 from __future__ import annotations
 
@@ -51,13 +51,26 @@ def _only(client: TestClient, user: AuthUser, name: str = "Бег") -> dict:
     return next(habit for habit in _sync(client, user)["habits"] if habit["name"] == name)
 
 
-def _invite(client: TestClient, user: AuthUser, task_id: int) -> tuple[int, str]:
-    response = client.post("/groups/invite", json={"task": task_id}, headers=user.headers)
+def _ids(client: TestClient, user: AuthUser) -> set[int]:
+    return {habit["id"] for habit in _sync(client, user)["habits"]}
+
+
+def _link(client: TestClient, user: AuthUser, group_id: int) -> str:
+    response = client.get(f"/groups/{group_id}/invite", headers=user.headers)
     assert response.status_code == 200, response.text
     data = response.json()
     prefix = f"https://t.me/{BOT}?start=join_"
-    assert data["invite_url"].startswith(prefix)
-    return data["group_id"], data["invite_url"][len(prefix):]
+    assert data["group_id"] == group_id and data["invite_url"].startswith(prefix)
+    return data["invite_url"][len(prefix):]
+
+
+def _shared(
+    client: TestClient, user: AuthUser, name: str = "Бег", **fields: object
+) -> tuple[int, int, str]:
+    """Создать совместную привычку: id привычки, id группы и код ссылки."""
+    task_id = _habit(client, user, name, shared=True, **fields)
+    group_id = _only(client, user, name)["group"]["id"]
+    return task_id, group_id, _link(client, user, group_id)
 
 
 async def _with_repo(action):  # type: ignore[no-untyped-def]
@@ -91,14 +104,25 @@ def _today(client: TestClient, user: AuthUser) -> date:
     return date.fromisoformat(_sync(client, user)["today"])
 
 
+def test_plain_habit_cannot_be_shared(client: TestClient, user: AuthUser) -> None:
+    task_id = _habit(client, user)
+    assert _only(client, user)["group"] is None
+    response = client.post("/groups/invite", json={"task": task_id}, headers=user.headers)
+    assert response.status_code in (404, 405)
+    # «shared» при изменении ничего не меняет.
+    _sync(client, user, {"type": "update", "task": task_id,
+                         "habit": {"name": "Бег", "frequency_type": "daily", "shared": True}})
+    assert _only(client, user)["group"] is None
+
+
 def test_invite_join_and_the_shared_day(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user, color="green", times_per_day=1)
-    group_id, code = _invite(client, user, owner_task)
-    # Пока в ней один владелец, это обычная привычка с готовой ссылкой.
+    owner_task, group_id, code = _shared(client, user, color="green", auto_mark=True)
+    # Совместная с самого начала, даже пока в ней один владелец; автоотметки нет.
     alone = _only(client, user)
     assert alone["group"]["id"] == group_id and len(alone["group"]["members"]) == 1
+    assert alone["auto_mark"] is False
     # Ссылка постоянная.
-    assert _invite(client, user, owner_task) == (group_id, code)
+    assert _link(client, user, group_id) == code
 
     friend = new_user()
     assert _join(friend, code, username="petya") == "joined"
@@ -128,8 +152,7 @@ def test_invite_join_and_the_shared_day(client: TestClient, user: AuthUser) -> N
 
 
 def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user, "Чтение")
-    _, code = _invite(client, user, owner_task)
+    owner_task, _, code = _shared(client, user, "Чтение")
     friend = new_user()
     _join(friend, code)
     friend_task = _only(client, friend, "Чтение")["id"]
@@ -165,55 +188,63 @@ def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -
 
 
 def test_name_taken_by_the_member_gets_a_number(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user, "Йога")
-    _, code = _invite(client, user, owner_task)
+    _, _, code = _shared(client, user, "Йога")
     friend = new_user()
     _habit(client, friend, "Йога")
     _join(friend, code)
     assert {habit["name"] for habit in _sync(client, friend)["habits"]} == {"Йога", "Йога (2)"}
 
 
-def test_leave_recounts_and_return_restores(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
-    group_id, code = _invite(client, user, owner_task)
-    friend = new_user()
+def test_leave_hides_and_return_restores(client: TestClient, user: AuthUser) -> None:
+    owner_task, group_id, code = _shared(client, user)
+    friend, other = new_user(), new_user()
     _join(friend, code)
+    _join(other, code)
     friend_task = _only(client, friend)["id"]
     today = _today(client, user)
     _mark(client, user, owner_task, today)
+    _mark(client, other, _only(client, other)["id"], today)
     assert _only(client, user)["history"][-1] is False
 
-    # Друг вышел: у владельца день засчитан, у друга привычка обычная.
+    # Друг вышел: у него привычки больше нет, у остальных день засчитан.
     assert client.post(f"/groups/{group_id}/leave", headers=friend.headers).status_code == 204
+    assert friend_task not in _ids(client, friend)
     assert _only(client, user)["history"][-1] is True
-    left = _only(client, friend)
-    assert left["group"] is None and left["id"] == friend_task
+    assert len(_only(client, user)["group"]["members"]) == 2
 
-    # Вернулся со своей привычкой: прошлое снова с ним.
+    # Вернулся: та же привычка со всеми отметками, прошлое снова с ним.
     assert _join(friend, code) == "rejoined"
-    assert _only(client, friend)["id"] == friend_task
+    back = _only(client, friend)
+    assert back["id"] == friend_task and back["group"]["id"] == group_id
     assert _only(client, user)["history"][-1] is False
+    _mark(client, friend, friend_task, today)
 
-    # Удалил привычку — возвращается с нуля, с новой привычкой.
-    client.post(f"/groups/{group_id}/leave", headers=friend.headers)
+    # Удаление (с другого устройства) — тот же выход, вернуться можно с отметками.
     _sync(client, friend, {"type": "delete", "task": friend_task})
-    assert _join(friend, code) == "joined"
-    again = _only(client, friend)
-    assert again["id"] != friend_task and len(again["group"]["members"]) == 2
+    assert friend_task not in _ids(client, friend)
+    assert _join(friend, code) == "rejoined"
+    assert _only(client, friend)["done_today"] is True
 
 
-def test_delete_leaves_the_group(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
-    _, code = _invite(client, user, owner_task)
+def test_alone_it_stays_shared_and_last_out_ends_it(client: TestClient, user: AuthUser) -> None:
+    owner_task, group_id, code = _shared(client, user)
     friend = new_user()
     _join(friend, code)
-    _sync(client, friend, {"type": "delete", "task": _only(client, friend)["id"]})
-    assert len(_only(client, user)["group"]["members"]) == 1
+    client.post(f"/groups/{group_id}/leave", headers=friend.headers)
+    # Остался один — привычка всё равно совместная.
+    alone = _only(client, user)
+    assert alone["group"]["id"] == group_id and len(alone["group"]["members"]) == 1
+
+    # Вышел последний — группы больше нет, ссылка не действует.
+    client.post(f"/groups/{group_id}/leave", headers=user.headers)
+    assert owner_task not in _ids(client, user)
+    with pytest.raises(ApiError) as refused:
+        _join(friend, code)
+    assert refused.value.code == "group_not_found"
 
 
 def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
-    group_id, code = _invite(client, user, owner_task)
+    _, group_id, code = _shared(client, user)
     first, second = new_user(), new_user()
     _join(first, code)
     _join(second, code)
@@ -233,7 +264,7 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
         ).status_code
         == 204
     )
-    assert _only(client, second)["group"] is None
+    assert _ids(client, second) == set()
 
     # Владелец вышел — владелец тот, кто вступил раньше всех.
     client.post(f"/groups/{group_id}/leave", headers=user.headers)
@@ -247,8 +278,7 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
 
 
 def test_frozen_member_is_not_waited_for(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
-    _, code = _invite(client, user, owner_task)
+    owner_task, _, code = _shared(client, user)
     friend = new_user()
     _join(friend, code)
     today = _today(client, user)
@@ -264,8 +294,7 @@ def test_frozen_member_is_not_waited_for(client: TestClient, user: AuthUser) -> 
 
 
 def test_group_is_limited(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
-    _, code = _invite(client, user, owner_task)
+    _, _, code = _shared(client, user)
     for _ in range(MAX_GROUP_MEMBERS - 1):
         _join(new_user(), code)
     with pytest.raises(ApiError) as refused:
@@ -277,7 +306,7 @@ def test_guest_cannot_share() -> None:
     async def action(repo: Repository) -> None:
         guest = await repo.create_web_user("ru", utc_now())
         task = await repo.create_task(guest.telegram_id, "Бег", FrequencyType.daily)
-        await groups.create_invite(repo, guest, task)
+        await groups.create_group(repo, guest, task)
 
     with pytest.raises(ApiError) as refused:
         asyncio.run(_with_repo(action))
@@ -285,8 +314,7 @@ def test_guest_cannot_share() -> None:
 
 
 def test_marks_are_told_once_to_those_who_asked(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user, "Вода")
-    group_id, code = _invite(client, user, owner_task)
+    owner_task, group_id, code = _shared(client, user, "Вода")
     friend, quiet = new_user(), new_user()
     _join(friend, code, username="petya")
     _join(quiet, code)
@@ -316,10 +344,9 @@ def test_marks_are_told_once_to_those_who_asked(client: TestClient, user: AuthUs
 
 
 def test_member_days_before_joining_are_the_owners(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user)
+    owner_task, _, code = _shared(client, user)
     today = _today(client, user)
     _mark(client, user, owner_task, today - timedelta(days=1))
-    _, code = _invite(client, user, owner_task)
     friend = new_user()
     _join(friend, code)
     owner = _only(client, user)
@@ -330,8 +357,7 @@ def test_member_days_before_joining_are_the_owners(client: TestClient, user: Aut
 
 
 def test_day_is_shaded_by_everyone(client: TestClient, user: AuthUser) -> None:
-    owner_task = _habit(client, user, "Отжимания", times_per_day=3)
-    _, code = _invite(client, user, owner_task)
+    owner_task, _, code = _shared(client, user, "Отжимания", times_per_day=3)
     first, second = new_user(), new_user()
     _join(first, code)
     _join(second, code)
@@ -350,3 +376,4 @@ def test_day_is_shaded_by_everyone(client: TestClient, user: AuthUser) -> None:
     assert group["fill_history"][-1] == pytest.approx(4 / 9, abs=1e-3)
     # Моя часть — в history_counts, день группы не выполнен.
     assert habit["history_counts"][-1] == 3 and habit["history"][-1] is False
+

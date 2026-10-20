@@ -530,14 +530,7 @@ class Repository:
             if heir is not None:
                 group.owner_id = heir.user_id
                 continue
-            rest = select(HabitGroupMember.id).where(HabitGroupMember.group_id == group.id)
-            await self.session.execute(
-                delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(rest))
-            )
-            await self.session.execute(
-                delete(HabitGroupMember).where(HabitGroupMember.group_id == group.id)
-            )
-            await self.session.delete(group)
+            await self.delete_group(group)
         await self.session.flush()
 
     # ------------------------------------------------------------------ #
@@ -717,6 +710,18 @@ class Repository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_user_task(self, task_id: int, user_id: int) -> Task | None:
+        """Задача пользователя по id — и удалённая тоже; нет — None."""
+        return await self.session.scalar(
+            select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        )
+
+    async def restore_task(self, task: Task) -> None:
+        """Вернуть мягко удалённую задачу (участник вернулся в совместную привычку)."""
+        task.is_active = True
+        task.deleted_at = None
+        await self.session.flush()
 
     async def get_task_by_ref(self, user_id: int, client_ref: str) -> Task | None:
         """Задача пользователя, созданная устройством под этим id (/sync), — в том числе
@@ -1174,12 +1179,17 @@ class Repository:
                 await self.session.delete(period)
         await self.session.flush()
 
-    async def forget_member_task(self, member: HabitGroupMember) -> None:
-        """Привычку вышедшего удалили: возвращаться не с чем — периоды стираются."""
-        member.task_id = None
+    async def delete_group(self, group: HabitGroup) -> None:
+        """Удалить группу со всеми участниками и их периодами (из неё вышли все): ссылка
+        больше не действует, вернуться некуда."""
+        rest = select(HabitGroupMember.id).where(HabitGroupMember.group_id == group.id)
         await self.session.execute(
-            delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id == member.id)
+            delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(rest))
         )
+        await self.session.execute(
+            delete(HabitGroupMember).where(HabitGroupMember.group_id == group.id)
+        )
+        await self.session.delete(group)
         await self.session.flush()
 
     async def periods_of(

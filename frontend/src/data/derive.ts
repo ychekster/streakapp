@@ -87,9 +87,24 @@ type ScheduleWithHistory = Schedule & {
   open_from?: string | null;
 };
 
-/** Is the habit shared with someone (a group of more than one). */
+/** Is the habit a shared one — it stays shared even when one person is left in it. */
 export function isShared(habit: { group?: HabitGroup | null }): habit is { group: HabitGroup } {
-  return (habit.group?.members.length ?? 0) > 1;
+  return habit.group != null;
+}
+
+/** A shared habit created on the device, before the server answers: me alone in it. */
+function localGroup(): HabitGroup {
+  return {
+    id: 0,
+    is_owner: true,
+    notify_marks: false,
+    members: [
+      { user_id: 0, name: "", is_me: true, is_owner: true, done: false, count: 0, frozen: false },
+    ],
+    others_history: [],
+    others_next_day: true,
+    open_from: null,
+  };
 }
 
 /** How much of each history day a shared habit's group did (0…1), as the grid and the
@@ -321,6 +336,8 @@ interface Draft {
   /** Calendar day whose unchecked record auto check-off turned on here has forgotten
    *  (services.update_habit) — applyAutoMark may mark it again. */
   autoMarkFresh?: string;
+  /** Created on the device as a shared habit (the server has no group for it yet). */
+  shared?: boolean;
 }
 
 /** Is the habit frozen on a day — the server's freezes as changed on the device. */
@@ -445,9 +462,9 @@ function buildHabit(
     return index >= 0 && index < counts.length ? counts[index] : 0;
   };
   // A shared habit: a day is the group's when I did it and so did the others (the
-  // server's answer). Days after it are unknown — not done by the others yet; a group of
-  // one is an ordinary habit.
-  const group = base?.group ?? null;
+  // server's answer). Days after it are unknown — not done by the others yet; alone in
+  // the group, my days are its days.
+  const group = base?.group ?? (draft.shared ? localGroup() : null);
   const othersDone = (day: string): boolean => {
     if (!group || group.members.length <= 1) {
       return true;
@@ -626,6 +643,7 @@ export function deriveView(
         marks: new Map(),
         counts: new Map(),
         freezes: null,
+        shared: op.habit.shared ?? false,
       });
     } else if (op.type === "update" || op.type === "mark" || op.type === "freeze") {
       const draft = drafts.find((item) => item.key === op.task);

@@ -730,6 +730,8 @@ async def _apply_sync_op(
             return SyncResult(ok=True, id=existing.id)
         first = not await repo.has_any_task(user.telegram_id)
         task = await _create_task(repo, user, op.habit, client_ref=op.ref)
+        if op.habit.shared:
+            await groups.create_group(repo, user, task)
         outcome.first_habit = outcome.first_habit or first
         return SyncResult(ok=True, id=task.id)
     if isinstance(op, SyncUpdate):

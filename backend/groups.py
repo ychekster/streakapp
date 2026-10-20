@@ -5,15 +5,19 @@
 связывает. День группы для участника выполнен, когда его выполнил он сам и все остальные
 **активные сейчас** участники, у которых этот день попадает в период участия и которые в
 этот день не были заморожены. Поэтому выход и исключение пересчитывают прошлое у
-оставшихся, а возврат (если свою привычку не удаляли) его восстанавливает. Дни вне участия
-человека оцениваются по его собственным отметкам: у создателя остаётся сольное прошлое, у
-вступившего история начинается с дня вступления.
+оставшихся, а возврат его восстанавливает. Дни вне участия человека оцениваются по его
+собственным отметкам: история вступившего начинается с дня вступления.
+
+Совместная привычка — отдельный вид, а не обычная привычка со ссылкой: она создаётся
+совместной (`create_group`, /sync с `shared`) и остаётся ею, даже когда в ней один
+человек; обычную совместной не сделать. Вышедший (и исключённый) теряет привычку — она
+удаляется мягко и по ссылке возвращается со всеми отметками; вышел последний — группы
+больше нет. Автоотметки в совместной привычке нет.
 
 Общие поля (название, расписание, цель на день) берутся с привычки владельца, и меняет их
-только он (services.update_habit → `share_owner_changes`). Совместной привычка становится,
-когда в ней двое; пока владелец один, это обычная привычка с готовой ссылкой. Вступают по
-ссылке через бота (bot/handlers/group_invite.py), остальное — API /groups
-(routers/groups.py). Только аккаунты с Telegram: гостю веб-приложения — `group_needs_telegram`.
+только он (services.update_habit → `share_owner_changes`). Вступают по ссылке через бота
+(bot/handlers/group_invite.py), остальное — API /groups (routers/groups.py). Только
+аккаунты с Telegram: гостю веб-приложения — `group_needs_telegram`.
 """
 
 from __future__ import annotations
@@ -298,7 +302,7 @@ async def restrict_update(repo: Repository, user: User, task: Task, payload):  #
     if membership is None:
         return payload
     group, _ = membership
-    updates: dict[str, object] = {}
+    updates: dict[str, object] = {"auto_mark": False}
     if group.owner_id != user.telegram_id:
         updates.update(
             name=task.name,
@@ -307,9 +311,7 @@ async def restrict_update(repo: Repository, user: User, task: Task, payload):  #
             start_date=task.start_date,
             times_per_day=task.times_per_day,
         )
-    if await repo.count_active_members(group.id) >= 2:
-        updates["auto_mark"] = False
-    return payload.model_copy(update=updates) if updates else payload
+    return payload.model_copy(update=updates)
 
 
 async def share_owner_changes(repo: Repository, user: User, task: Task) -> None:
@@ -327,27 +329,17 @@ async def share_owner_changes(repo: Repository, user: User, task: Task) -> None:
             await _apply_shared_fields(repo, other_user, other, task)
 
 
-async def _no_auto_mark(repo: Repository, group: HabitGroup) -> None:
-    """В совместной привычке автоотметки нет — выключить у всех участников."""
-    for member in await repo.active_members([group.id]):
-        if member.task_id is None:
-            continue
-        task = await repo.get_active_task(member.task_id, member.user_id)
-        if task is not None and task.auto_mark:
-            await repo.set_auto_mark(task, False)
-
-
 # --------------------------------------------------------------------------- #
 #  Приглашение, вступление, выход
 # --------------------------------------------------------------------------- #
 
 
-async def create_invite(repo: Repository, user: User, task: Task) -> HabitGroup:
-    """«Пригласить»: группа привычки (нет — создаётся, владелец — пользователь)."""
+async def create_group(repo: Repository, user: User, task: Task) -> HabitGroup:
+    """Только что созданная привычка `task` — совместная: группа, где пользователь —
+    владелец и пока единственный участник."""
     _require_telegram(user)
-    membership = await _active_membership(repo, task)
-    if membership is not None:
-        return membership[0]
+    if task.auto_mark:
+        await repo.set_auto_mark(task, False)
     group = await repo.create_group(user.telegram_id, await _new_code(repo))
     await repo.add_member(group, user.telegram_id, task.id, services.user_today(user))
     await repo.log_action(user.telegram_id, "group_created", ref_id=task.id)
@@ -378,6 +370,7 @@ async def reset_invite(repo: Repository, user: User, group_id: int) -> HabitGrou
 
 
 async def invite_of(repo: Repository, user: User, group_id: int) -> HabitGroup:
+    """Группа участника — за ссылкой-приглашением."""
     group, _ = await _membership(repo, user, group_id)
     return group
 
@@ -385,25 +378,32 @@ async def invite_of(repo: Repository, user: User, group_id: int) -> HabitGroup:
 async def _deactivate(
     repo: Repository, group: HabitGroup, member: HabitGroupMember, user: User | None
 ) -> None:
-    """Участник больше не в группе (с его дня отметки). Ушёл владелец — владелец тот, кто
-    вступил раньше всех."""
+    """Участник больше не в группе (с его дня отметки), и привычки у него больше нет:
+    она удаляется мягко — с отметками и периодами участия, чтобы вернуться по ссылке. Ушёл
+    владелец — владелец тот, кто вступил раньше всех; не осталось никого — группа удаляется."""
     end = services.user_today(user) if user is not None else date.today()
     await repo.deactivate_member(member, end)
-    if group.owner_id == member.user_id:
-        heir = await repo.earliest_active_member(group.id)
-        if heir is not None:
-            await repo.set_group_owner(group, heir.user_id)
+    if member.task_id is not None:
+        task = await repo.get_active_task(member.task_id, member.user_id)
+        if task is not None:
+            await repo.soft_delete_task(task)
+    heir = await repo.earliest_active_member(group.id)
+    if heir is None:
+        await repo.delete_group(group)
+    elif group.owner_id == member.user_id:
+        await repo.set_group_owner(group, heir.user_id)
 
 
 async def leave(repo: Repository, user: User, group_id: int) -> None:
-    """«Выйти из привычки»: привычка остаётся у него обычной, с его отметками."""
+    """«Выйти»: привычка у него пропадает, по ссылке возвращается со всеми отметками."""
     group, member = await _membership(repo, user, group_id)
+    task_id = member.task_id
     await _deactivate(repo, group, member, user)
-    await repo.log_action(user.telegram_id, "group_left", ref_id=member.task_id)
+    await repo.log_action(user.telegram_id, "group_left", ref_id=task_id)
 
 
 async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> None:
-    """Исключить участника (только владелец): у него привычка остаётся обычной."""
+    """Исключить участника (только владелец): у него привычка пропадает, как при выходе."""
     group, _ = await _membership(repo, user, group_id)
     _require_owner(group, user)
     target = await repo.get_member(group_id, user_id)
@@ -420,13 +420,12 @@ async def set_notify(repo: Repository, user: User, group_id: int, on: bool) -> N
 
 
 async def forget_task(repo: Repository, user: User, task: Task) -> None:
-    """Привычку удалили: из группы — выход, вернуться потом можно только с нуля."""
-    for member in await repo.members_with_task(task.id):
-        if member.active:
-            group = await repo.get_group(member.group_id)
-            if group is not None:
-                await _deactivate(repo, group, member, user)
-        await repo.forget_member_task(member)
+    """Совместную привычку удалили (в приложении у неё «Выйти», это — с другого
+    устройства или со старого клиента): то же, что выход."""
+    membership = await _active_membership(repo, task)
+    if membership is not None:
+        group, member = membership
+        await _deactivate(repo, group, member, user)
 
 
 @dataclass
@@ -445,10 +444,11 @@ class InvitePreview:
 async def _reusable_task(
     repo: Repository, user: User, member: HabitGroupMember | None
 ) -> Task | None:
-    """Прежняя привычка вышедшего, с которой он вернётся: жива и не в другой группе."""
+    """Прежняя привычка вышедшего, с которой он вернётся (удалена при выходе), — если она
+    не в другой группе."""
     if member is None or member.task_id is None:
         return None
-    task = await repo.get_active_task(member.task_id, user.telegram_id)
+    task = await repo.get_user_task(member.task_id, user.telegram_id)
     if task is None:
         return None
     current = await repo.get_member_by_task(task.id)
@@ -486,8 +486,8 @@ async def preview_invite(repo: Repository, user: User, code: str) -> InvitePrevi
 
 async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
     """Вступить по ссылке: `joined` — новая привычка с общими полями владельца, `rejoined`
-    — вернулся со своей прежней привычкой (её прошлые периоды снова в счёт), `member` —
-    уже участник."""
+    — вернулась его прежняя привычка со всеми отметками (её прошлые периоды снова в счёт),
+    `member` — уже участник."""
     _require_telegram(user)
     group = await repo.get_group_by_code(code)
     source = await _owner_task(repo, group) if group is not None else None
@@ -502,15 +502,19 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         raise ApiError(409, "group_full", "В привычке уже максимум участников")
     today = services.user_today(user)
     old = await _reusable_task(repo, user, me)
+    if (old is None or not old.is_active) and (
+        await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER
+    ):
+        raise ApiError(
+            409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
+        )
     if old is not None and me is not None:
+        if not old.is_active:
+            await repo.restore_task(old)
         await _apply_shared_fields(repo, user, old, source)
         await repo.reactivate_member(me, old.id, today, keep_periods=True)
         task, outcome = old, "rejoined"
     else:
-        if await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER:
-            raise ApiError(
-                409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
-            )
         task = await repo.create_task(
             user_id=user.telegram_id,
             name=await _free_name(repo, user.telegram_id, source.name),
@@ -526,7 +530,6 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         else:
             await repo.add_member(group, user.telegram_id, task.id, today)
         outcome = "joined"
-    await _no_auto_mark(repo, group)
     await repo.log_action(user.telegram_id, "group_joined", ref_id=task.id)
     return outcome, task
 

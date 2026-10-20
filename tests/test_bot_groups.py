@@ -53,7 +53,7 @@ async def _owner_with_invite(database: Database, **fields: Any) -> tuple[str, Ta
         repo = Repository(session)
         owner = await repo.get_or_create_user(1, "anya", "Аня", language="ru")
         task = await repo.create_task(1, "Бег", fields.pop("frequency", FrequencyType.daily), **fields)
-        group = await groups.create_invite(repo, owner, task)
+        group = await groups.create_group(repo, owner, task)
         await session.commit()
         return group.invite_code, task
 

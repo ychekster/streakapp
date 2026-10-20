@@ -236,6 +236,8 @@ export function HabitFormScreen({
       times_per_day: timesPerDay,
       // У «несколько раз в день» и в совместной автоотметки нет (ряд скрыт).
       auto_mark: autoMark && timesPerDay === 1 && !sharedLayout,
+      // Совместной привычка бывает только с создания.
+      ...(sharedLayout ? { shared: true } : {}),
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:

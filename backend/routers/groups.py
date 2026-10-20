@@ -1,12 +1,13 @@
 """Совместные привычки (backend/groups.py).
 
-    POST /groups/invite             — ссылка-приглашение привычки (создаёт совместную)
+    GET  /groups/{group_id}/invite  — ссылка-приглашение
     POST /groups/{group_id}/reset   — новая ссылка, прежняя больше не действует (владелец)
-    POST /groups/{group_id}/leave   — выйти: привычка остаётся обычной
+    POST /groups/{group_id}/leave   — выйти: привычка пропадает (вернётся по ссылке)
     POST /groups/{group_id}/kick    — исключить участника (владелец)
     POST /groups/{group_id}/notify  — «Отметки участников»
 
-Только с аккаунтом Telegram (Mini App или веб-приложение со входом через Telegram).
+Совместную привычку создают через POST /sync (`create` с `shared`); обычную совместной
+не сделать. Только с аккаунтом Telegram (Mini App или веб-приложение со входом через Telegram).
 Вступают по ссылке через бота (bot/handlers/group_invite.py). Состояние после действия
 приложение берёт из следующего POST /sync.
 """
@@ -18,12 +19,10 @@ from fastapi import APIRouter, Depends, Path, Request, Response
 from backend import groups
 from backend.constants import MAX_DB_INT
 from backend.dependencies import RepositoryDep, get_db_user
-from backend.errors import ApiError
 from backend.models import User
 from backend.repository import Repository
 from backend.routers.auth import bot_username
 from backend.schemas import (
-    GroupInviteRequest,
     GroupInviteResponse,
     GroupKickRequest,
     GroupNotifyRequest,
@@ -40,19 +39,15 @@ async def _invite_response(request: Request, group) -> GroupInviteResponse:  # t
     )
 
 
-@router.post("/invite", response_model=GroupInviteResponse)
+@router.get("/{group_id}/invite", response_model=GroupInviteResponse)
 async def invite(
-    payload: GroupInviteRequest,
     request: Request,
+    group_id: int = _GroupId,
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> GroupInviteResponse:
-    """Ссылка-приглашение привычки; у обычной привычки появляется совместная (владелец —
-    пользователь), пока в ней никого больше нет, привычка выглядит обычной."""
-    task = await repo.get_active_task(payload.task, db_user.telegram_id)
-    if task is None:
-        raise ApiError(404, "task_not_found", "Задача не найдена")
-    group = await groups.create_invite(repo, db_user, task)
+    """Ссылка-приглашение совместной привычки (любой участник)."""
+    group = await groups.invite_of(repo, db_user, group_id)
     await repo.commit()
     return await _invite_response(request, group)
 

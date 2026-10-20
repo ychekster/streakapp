@@ -308,6 +308,13 @@ class HabitCreate(BaseModel):
         False,
         description="«Автоотметка» (экран привычки); при times_per_day > 1 не действует",
     )
+    shared: bool = Field(
+        False,
+        description=(
+            "Создать совместную привычку (только при создании, только с Telegram): владелец "
+            "— пользователь, автоотметки нет. Обычную совместной не сделать"
+        ),
+    )
 
 
 class HabitUpdate(HabitCreate):
@@ -513,12 +520,6 @@ SyncOperation = Annotated[
     | SyncFolderOrder,
     Field(discriminator="type"),
 ]
-
-
-class GroupInviteRequest(BaseModel):
-    """Запрос `POST /groups/invite` — пригласить в привычку (создаёт совместную привычку)."""
-
-    task: int = Field(..., ge=1, le=MAX_DB_INT, description="Id привычки на сервере")
 
 
 class GroupInviteResponse(BaseModel):

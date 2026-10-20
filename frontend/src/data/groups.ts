@@ -10,7 +10,7 @@
 
 import { ApiRequestError } from "../api/client";
 import {
-  inviteToHabit,
+  inviteOf,
   kickMember,
   leaveGroup,
   resetInvite,
@@ -22,17 +22,19 @@ import type { Strings } from "../strings";
 import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
 import { dataStore } from "./store";
 
-/** The habit's id on the server: a habit created offline is sent first. */
-async function serverIdOf(habitId: number): Promise<number> {
-  let task = dataStore.serverId(habitId);
-  if (task === null) {
+/** The habit's group on the server: a habit created offline is sent first. */
+async function groupIdOf(habitId: number): Promise<number> {
+  const find = () =>
+    dataStore.getState().habits.find((habit) => habit.id === habitId)?.group?.id ?? 0;
+  let group = dataStore.serverId(habitId) === null ? 0 : find();
+  if (group <= 0) {
     await dataStore.sendAll();
-    task = dataStore.serverId(habitId);
+    group = find();
   }
-  if (task === null) {
+  if (group <= 0) {
     throw new ApiRequestError(0, "network_error", "");
   }
-  return task;
+  return group;
 }
 
 /** Share the invitation link: Telegram's share window, the system share sheet or a copy. */
@@ -61,14 +63,13 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
   await showAlert({ title: strings.inviteCopiedTitle, message: strings.inviteCopiedMessage });
 }
 
-/** «Пригласить»: the habit's link (an ordinary habit becomes shareable), shared. */
+/** «Пригласить»: the shared habit's link, shared. */
 export async function inviteToShared(
   habitId: number,
   habitName: string,
   strings: Strings,
 ): Promise<void> {
-  const invite = await inviteToHabit(await serverIdOf(habitId));
-  dataStore.refresh();
+  const invite = await inviteOf(await groupIdOf(habitId));
   await share(invite.invite_url, strings.inviteShareText(habitName), strings);
 }
 
@@ -101,7 +102,7 @@ export async function resetSharedLink(groupId: number): Promise<void> {
   await resetInvite(groupId);
 }
 
-/** «Выйти из привычки»: it stays an ordinary habit. */
+/** «Выйти из привычки»: the habit is gone (the link brings it back with every check-in). */
 export async function leaveShared(groupId: number): Promise<void> {
   await dataStore.sendAll();
   await leaveGroup(groupId);

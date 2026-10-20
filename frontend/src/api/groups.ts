@@ -10,13 +10,9 @@ export interface GroupInvite {
   invite_url: string;
 }
 
-/** Ссылка-приглашение привычки (`task` — id на сервере); у обычной привычки появляется
- *  совместная, владелец — я. */
-export function inviteToHabit(task: number): Promise<GroupInvite> {
-  return apiRequest<GroupInvite>("/groups/invite", {
-    method: "POST",
-    body: JSON.stringify({ task }),
-  });
+/** Ссылка-приглашение совместной привычки (любой участник). */
+export function inviteOf(groupId: number): Promise<GroupInvite> {
+  return apiRequest<GroupInvite>(`/groups/${groupId}/invite`);
 }
 
 /** Новая ссылка (владелец): прежняя больше не действует. */
@@ -24,7 +20,7 @@ export function resetInvite(groupId: number): Promise<GroupInvite> {
   return apiRequest<GroupInvite>(`/groups/${groupId}/reset`, { method: "POST" });
 }
 
-/** Выйти: привычка остаётся обычной. */
+/** Выйти: привычка пропадает (по ссылке вернётся со всеми отметками). */
 export async function leaveGroup(groupId: number): Promise<void> {
   await apiRequest<null>(`/groups/${groupId}/leave`, { method: "POST" });
 }
