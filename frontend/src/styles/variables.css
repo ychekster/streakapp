@@ -272,10 +272,10 @@
   /* Шаблоны — ряд рекомендуемой папки (FoldersScreen: по 11 сверху и снизу, название 17,
      подпись 14 — ряд 61.5; название чуть жирнее) с кружком в колонке значков действий: текст
      шаблонов — с той же вертикали, что «Новая привычка» и «Совместная привычка». */
-  --new-habit-avatar-size: 32px;
-  --new-habit-avatar-letter: 15px;
-  --new-habit-avatar-inset: 12px; /* 12 + 32 + 12 = 56: текст с вертикали действий */
-  --new-habit-avatar-gap: 12px;
+  --new-habit-avatar-size: 36px;
+  --new-habit-avatar-letter: 16px;
+  --new-habit-avatar-inset: 10px; /* 10 + 36 + 10 = 56: текст с вертикали действий */
+  --new-habit-avatar-gap: 10px;
   --new-habit-template-pad-y: var(--folders-recommended-pad-y);
   --new-habit-template-line-gap: 1px; /* название ↔ расписание, как у папки */
   --new-habit-template-name: var(--font-size-habit-name);
