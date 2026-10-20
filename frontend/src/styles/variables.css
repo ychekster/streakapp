@@ -269,17 +269,18 @@
   --space-new-habit-search-top: 12px; /* от шапки до поиска */
   --new-habit-action-icon: 26px; /* значок перед «Новая привычка» / «Совместная привычка» */
   --new-habit-action-gap: 14px;
-  /* Шаблоны — пропорции ряда операции в Notch (TransactionRow), только кружок вместо
-     скруглённого квадрата: 38 + по 10 сверху и снизу, текст 17/600 и 14 — ряд ~60. */
-  --new-habit-avatar-size: 38px;
-  --new-habit-avatar-letter: 17px;
-  --new-habit-avatar-inset: 14px; /* от края карточки до кружка */
-  --new-habit-avatar-gap: 14px; /* от кружка до текста */
-  --new-habit-template-pad-y: 10px;
-  --new-habit-template-line-gap: 1px; /* название ↔ расписание */
-  --new-habit-template-name: 17px;
-  --new-habit-template-name-weight: 600;
-  --new-habit-template-subtitle: 14px;
+  /* Шаблоны — ряд рекомендуемой папки (FoldersScreen: по 11 сверху и снизу, название 17,
+     подпись 14 — ряд 61.5; название чуть жирнее) с кружком в колонке значков действий: текст
+     шаблонов — с той же вертикали, что «Новая привычка» и «Совместная привычка». */
+  --new-habit-avatar-size: 32px;
+  --new-habit-avatar-letter: 15px;
+  --new-habit-avatar-inset: 12px; /* 12 + 32 + 12 = 56: текст с вертикали действий */
+  --new-habit-avatar-gap: 12px;
+  --new-habit-template-pad-y: var(--folders-recommended-pad-y);
+  --new-habit-template-line-gap: 1px; /* название ↔ расписание, как у папки */
+  --new-habit-template-name: var(--font-size-habit-name);
+  --new-habit-template-name-weight: 500;
+  --new-habit-template-subtitle: var(--folders-recommended-description-size);
   --folders-intro-icon-size: 64px;
   --folders-intro-icon-radius: 15px;
   --folders-intro-icon-glyph: 42px;

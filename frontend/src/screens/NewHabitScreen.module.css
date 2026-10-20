@@ -15,10 +15,9 @@
   );
 }
 
-/* Шаблоны — как контакты в эталоне («Новое сообщение» Telegram): крупный кружок, ряд
-   плотнее, линия от текста (ListItem считает её от размеров кружка). */
+/* Шаблоны — как рекомендуемые папки (FoldersScreen), с кружком в колонке значков
+   действий; линия от текста (ListItem считает её от размеров кружка). */
 .templates {
-  --list-row-min-height: 0px;
   --list-row-pad-y: var(--new-habit-template-pad-y);
   --list-row-icon-size: var(--new-habit-avatar-size);
   --list-row-icon-inset: var(--new-habit-avatar-inset);
@@ -48,7 +47,7 @@
   line-height: 1.25;
 }
 
-/* Название — жирнее подписи, как заголовок операции в Notch. */
+/* Название и подпись — размеров рекомендуемой папки. */
 .templateName {
   font-size: var(--new-habit-template-name);
   font-weight: var(--new-habit-template-name-weight);
