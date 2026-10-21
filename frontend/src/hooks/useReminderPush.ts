@@ -27,6 +27,7 @@ export function useReminderPush(): () => Promise<NotificationPermission | "unsup
     return enablePushForReminder().then((permission) => {
       if (refusedBefore) {
         void showAlert({
+          okLabel: strings.alertOk,
           title: strings.notificationsDeniedTitle,
           message: strings.notificationsDeniedHint,
         });

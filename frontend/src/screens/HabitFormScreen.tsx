@@ -263,7 +263,7 @@ export function HabitFormScreen({
       submittingRef.current = false;
       setSubmitting(false);
       hapticNotification("error");
-      void showAlert({ title: failed, message: describeError(strings, caught, failed) });
+      void showAlert({ okLabel: strings.alertOk, title: failed, message: describeError(strings, caught, failed) });
     }
   }
 

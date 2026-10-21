@@ -67,12 +67,14 @@ export function usePushToggle(enabled: boolean): PushToggle {
               hapticNotification("success");
             } else if (pushPermission() === "denied") {
               void showAlert({
+                okLabel: strings.alertOk,
                 title: strings.notificationsDeniedTitle,
                 message: strings.notificationsDeniedHint,
               });
             } else if (pushPermission() === "granted") {
               hapticNotification("error");
               void showAlert({
+                okLabel: strings.alertOk,
                 title: strings.notificationsOnFailed,
                 message:
                   (navigator.onLine ? undefined : strings.apiErrors.network_error) ??
@@ -101,6 +103,7 @@ export function usePushToggle(enabled: boolean): PushToggle {
           setOn(true);
           hapticNotification("error");
           void showAlert({
+            okLabel: strings.alertOk,
             title: strings.notificationsOffFailed,
             message: describeError(strings, error, strings.accountActionFailed),
           });

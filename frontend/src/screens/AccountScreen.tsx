@@ -92,6 +92,7 @@ export function AccountScreen({
       hapticNotification("error");
       setBusy(false);
       void showAlert({
+        okLabel: strings.alertOk,
         title: strings.accountLogoutFailed,
         message:
           caught instanceof UnsentChangesError

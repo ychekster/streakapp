@@ -359,16 +359,17 @@ export function onMainButtonClick(handler: () => void): () => void {
 const CONFIRM_BUTTON_ID = "confirm";
 
 /**
- * Сообщить об ошибке системным диалогом: в Telegram — `showPopup` с кнопкой «OK», в
- * браузере — alert. Промис — диалог закрыт.
+ * Сообщить об ошибке системным диалогом: в Telegram — `showPopup` с одной кнопкой
+ * `okLabel` («Понятно»), в браузере — alert (его кнопку браузер подписывает сам, «OK»).
+ * Промис — диалог закрыт.
  */
-export function showAlert(options: { title: string; message: string }): Promise<void> {
+export function showAlert(options: { title: string; message: string; okLabel: string }): Promise<void> {
   // Нажатая кнопка не подсвечивается — ни до диалога, ни после (см. pressFeedback.ts).
   clearPressFeedback();
   return openAlert(options);
 }
 
-function openAlert(options: { title: string; message: string }): Promise<void> {
+function openAlert(options: Parameters<typeof showAlert>[0]): Promise<void> {
   const webApp = getWebApp();
   const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
   const fallback = (): void => window.alert(`${options.title}\n\n${options.message}`);
@@ -379,7 +380,7 @@ function openAlert(options: { title: string; message: string }): Promise<void> {
   return new Promise((resolve) => {
     try {
       showPopup(
-        { title: options.title, message: options.message, buttons: [{ id: "ok", type: "ok" }] },
+        { title: options.title, message: options.message, buttons: [{ id: "ok", type: "default", text: options.okLabel }] },
         () => resolve(),
       );
     } catch {

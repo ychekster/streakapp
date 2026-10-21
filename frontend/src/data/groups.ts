@@ -87,7 +87,7 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
     window.prompt(strings.inviteCopiedTitle, url);
     return;
   }
-  await showAlert({ title: strings.inviteCopiedTitle, message: strings.inviteCopiedMessage });
+  await showAlert({ okLabel: strings.alertOk, title: strings.inviteCopiedTitle, message: strings.inviteCopiedMessage });
 }
 
 /** Invitation links by group id, loaded in advance. */
@@ -138,6 +138,7 @@ export async function reportGroupError(
     }
   } else {
     await showAlert({
+      okLabel: strings.alertOk,
       title: strings.groupActionFailed,
       message: describeError(strings, error, strings.groupActionFailed),
     });

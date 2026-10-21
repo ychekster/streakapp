@@ -322,6 +322,8 @@ const RU = {
   // Страница участника (владелец, не себя).
   kickMember: "Исключить участника",
   groupDialogCancel: "Отменить",
+  // Кнопка окна-сообщения в Telegram (в браузере её подписывает сам браузер — «OK»).
+  alertOk: "Понятно",
   groupActionFailed: "Не удалось выполнить действие",
   groupLoginTitle: "Войдите через Telegram",
   groupLoginMessage: "Групповые привычки доступны после входа через Telegram.",
@@ -734,6 +736,7 @@ const EN: Strings = {
   kickDialogConfirm: "Remove",
   kickMember: "Remove Member",
   groupDialogCancel: "Cancel",
+  alertOk: "Got it",
   groupActionFailed: "Couldn’t do that",
   groupLoginTitle: "Log In with Telegram",
   groupLoginMessage: "Group habits are available after logging in with Telegram.",

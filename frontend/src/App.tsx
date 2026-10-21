@@ -555,6 +555,7 @@ export function App() {
     } catch (error) {
       hapticNotification("error");
       void showAlert({
+        okLabel: strings.alertOk,
         title: strings.folderSaveFailed,
         message: describeError(strings, error, strings.folderSaveFailed),
       });
@@ -690,6 +691,7 @@ export function App() {
     beginTelegramBotLogin().catch((error: unknown) => {
       hapticNotification("error");
       void showAlert({
+        okLabel: strings.alertOk,
         title: strings.accountLinkFailed,
         message: describeError(strings, error, strings.accountActionFailed),
       });
@@ -700,6 +702,7 @@ export function App() {
     if (notice?.kind === "error" && !startLinkErrorShown) {
       startLinkErrorShown = true;
       void showAlert({
+        okLabel: strings.alertOk,
         title: strings.accountLinkFailed,
         message: describeError(
           strings,
@@ -717,6 +720,7 @@ export function App() {
     if (rejected) {
       hapticNotification("error");
       void showAlert({
+        okLabel: strings.alertOk,
         title: rejected.kind === "create" ? strings.formCreateFailed : strings.formEditFailed,
         message: describeError(strings, rejected.error, strings.accountActionFailed),
       });
@@ -728,6 +732,7 @@ export function App() {
   useEffect(() => {
     if (saveError && !adminMode) {
       void showAlert({
+        okLabel: strings.alertOk,
         title: strings.settingsSaveFailed,
         message: describeError(strings, saveError, strings.accountActionFailed),
       });
@@ -881,6 +886,7 @@ export function App() {
           habit={openHabit}
           group={openHabit.group}
           member={openMember}
+          onToggle={toggle}
           onRemoved={hideMember}
           onLinkTelegram={linkTelegram}
         />
