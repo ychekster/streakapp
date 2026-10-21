@@ -249,6 +249,9 @@
   --color-switch-on: #34c759; /* зелёный iOS */
   --color-switch-off: rgba(120, 120, 128, 0.32);
   --color-row-press: rgba(0, 0, 0, 0.05);
+  /* Затемнение приложения под окном «Поделиться» (web/dimScreen.ts), как в Telegram. */
+  --color-sheet-dim: rgba(0, 0, 0, 0.2);
+  --sheet-dim-anim: 300ms ease;
   --color-list-row-icon: #ffffff; /* иконка в цветной плашке ряда */
   --color-danger-soft: rgba(255, 59, 48, 0.12);
   --list-row-min-height: 44px;
@@ -473,6 +476,7 @@
   --color-switch-on: #30d158;
   --color-switch-off: rgba(120, 120, 128, 0.36);
   --color-row-press: rgba(255, 255, 255, 0.08);
+  --color-sheet-dim: rgba(0, 0, 0, 0.4); /* тоже темнее, а не светлее */
   --color-danger-soft: rgba(255, 69, 58, 0.16);
   --color-placeholder: rgba(235, 235, 245, 0.3);
   --color-fill: rgba(118, 118, 128, 0.24);

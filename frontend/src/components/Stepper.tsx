@@ -8,6 +8,9 @@
  * к тому времени под пальцем. Если от шага страница сдвинулась (в форме привычки с целью
  * больше 1 пропадает «Автоотметка»), клик открыл бы чужой ряд, например «Повтор». Поэтому
  * клик после нажатия степпера гасится (swallowClick).
+ *
+ * Недоступный степпер (в недоступном <fieldset>) касания не меняют: они приходят и к
+ * недоступным кнопкам.
  */
 
 import { useEffect, useRef } from "react";
@@ -119,6 +122,11 @@ export function Stepper({ value, min, max, onChange, decreaseLabel, increaseLabe
         aria-label={label}
         disabled={disabled}
         onPointerDown={(event) => {
+          // Касание приходит и к недоступной кнопке (степпер в недоступном <fieldset> —
+          // цель совместной привычки у участника): ничего не менять.
+          if (event.currentTarget.matches(":disabled")) {
+            return;
+          }
           event.preventDefault();
           swallowClick();
           start(delta);

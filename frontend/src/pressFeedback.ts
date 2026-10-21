@@ -10,16 +10,13 @@
  *  - палец сдвинулся дальше MOVE_TOLERANCE_PX, началась прокрутка (любого контейнера)
  *    или касание перехватил браузер (pointercancel) — подсветка снимается;
  *  - быстрое касание (отпустили раньше задержки) — это нажатие: подсветка мелькает на
- *    PRESS_FLASH_MS, чтобы отклик был виден (кроме кнопок с `data-no-tap-flash`). Мелькает
- *    только по click — когда нажатие дошло до кнопки: касание, которым закрывают
- *    системное окно «Поделиться», доходит до страницы без click и не подсвечивается;
+ *    PRESS_FLASH_MS, чтобы отклик был виден (кроме кнопок с `data-no-tap-flash`);
  *  - мышь подсвечивает сразу: прокрутки перетаскиванием у неё нет.
  *
- * Системный диалог (подтверждение, ошибка) открывается после того, как подсветка нажатой
- * кнопки успела нарисоваться, и она снимается прямо перед ним (`settlePressFeedback`):
- * диалог замораживает страницу, и без этого подсветка дорисовалась бы уже после его
- * закрытия. Пока открыто окно «Поделиться», касания не подсвечиваются вовсе
- * (`pausePressFeedback`) — касание, которым его закрывают, не зажигает ряд под ним.
+ * Кнопка, открывающая системное окно (подтверждение, «Поделиться»), не подсвечивается
+ * после касания: подсветка снимается сразу, ещё до отрисовки (`clearPressFeedback`), — иначе
+ * окно заморозило бы страницу, и подсветка дорисовалась бы после его закрытия. Касание,
+ * которым закрывают окно «Поделиться», ничего под собой не подсвечивает (`onNextTap`).
  *
  * Обработчики — одни на весь документ (делегирование), поэтому работают для любой
  * кнопки без изменений в компонентах.
@@ -28,11 +25,6 @@
 const PRESS_DELAY_MS = 90;
 const PRESS_FLASH_MS = 120;
 const MOVE_TOLERANCE_PX = 10;
-// После закрытия системного окна касания ещё столько не подсвечиваются: касание, которым
-// его закрыли, может дойти до страницы чуть позже.
-const RESUME_DELAY_MS = 400;
-// Подсветка перед диалогом рисуется не дольше этого (если кадры не идут).
-const SETTLE_MAX_MS = 100;
 
 const PRESSABLE = "button:not(:disabled), a[href], [role='button']";
 
@@ -43,10 +35,10 @@ let delayTimer: number | undefined;
 let flashTimer: number | undefined;
 // Кнопка, подсветка которой сейчас мелькает после быстрого касания.
 let flashed: HTMLElement | null = null;
-// Быстро коснулись — мелькнёт, если следом придёт click по ней.
-let tapped: HTMLElement | null = null;
-// Сколько системных окон сейчас открыто (pausePressFeedback).
-let paused = 0;
+// Открыто окно «Поделиться»: первое касание вызывает это и ничего не подсвечивает.
+let nextTap: (() => void) | null = null;
+// Только что отпущенная после удержания кнопка: её подсветка ещё гаснет (clearPressFeedback).
+let released: HTMLElement | null = null;
 
 function mark(element: HTMLElement): void {
   element.setAttribute("data-pressed", "");
@@ -71,9 +63,14 @@ function onPointerDown(event: PointerEvent): void {
     return;
   }
   cancel();
-  tapped = null;
+  if (nextTap) {
+    const callback = nextTap;
+    nextTap = null;
+    callback();
+    return;
+  }
   const element = (event.target as Element | null)?.closest<HTMLElement>(PRESSABLE);
-  if (!element || paused > 0) {
+  if (!element) {
     return;
   }
   target = element;
@@ -113,21 +110,15 @@ function onPointerUp(event: PointerEvent): void {
   // (например, ставится галочка выбора); подсветка остаётся только при удержании.
   if (!quickTap || element.hasAttribute("data-no-tap-flash")) {
     unmark(element);
+    released = element;
+    window.setTimeout(() => {
+      released = null;
+    }, 0);
     return;
   }
-  // Быстрое касание: подсветка ещё не показана — она мелькнёт, если нажатие дойдёт до
-  // кнопки (onClick).
-  tapped = element;
-}
-
-function onClick(event: MouseEvent): void {
-  const element = tapped;
-  tapped = null;
-  if (!element || (event.target as Element | null)?.closest(PRESSABLE) !== element) {
-    return;
-  }
-  // Мелькание предыдущей кнопки (быстрые нажатия подряд) обрывается сразу — иначе её
-  // таймер пропадал бы, и подсветка на ней оставалась навсегда.
+  // Быстрое касание: подсветка ещё не показана — показать её коротко. Мелькание
+  // предыдущей кнопки (быстрые нажатия подряд) обрывается сразу — иначе её таймер
+  // пропадал бы, и подсветка на ней оставалась навсегда.
   window.clearTimeout(flashTimer);
   if (flashed && flashed !== element) {
     unmark(flashed);
@@ -140,51 +131,37 @@ function onClick(event: MouseEvent): void {
   }, PRESS_FLASH_MS);
 }
 
-/** Снять подсветку сразу. */
-function clearPressFeedback(): void {
-  cancel();
-  tapped = null;
+/** Перед системным окном: снять подсветку сразу, без затухания (стиль пересчитывается
+ *  с выключенным переходом — иначе затухание шло бы уже после закрытия окна). */
+export function clearPressFeedback(): void {
+  const elements = [target, flashed, released].filter(
+    (item): item is HTMLElement => item !== null,
+  );
+  released = null;
+  window.clearTimeout(delayTimer);
   window.clearTimeout(flashTimer);
-  if (flashed) {
-    unmark(flashed);
-    flashed = null;
+  delayTimer = undefined;
+  target = null;
+  flashed = null;
+  for (const element of elements) {
+    const transition = element.style.transition;
+    element.style.transition = "none";
+    unmark(element);
+    void getComputedStyle(element).backgroundColor;
+    element.style.transition = transition;
   }
 }
 
-/** Не подсвечивать касания, пока открыто системное окно; вызвать возвращённую функцию,
- *  когда окно закрылось. */
-export function pausePressFeedback(): () => void {
-  paused += 1;
-  let resumed = false;
+/** Открыто окно «Поделиться»: первое касание вызывает `callback` и ничего не
+ *  подсвечивает (на iPhone закрытие окна приложение узнаёт не всегда). Возвращённая
+ *  функция — окно закрылось само: касания снова обычные. */
+export function onNextTap(callback: () => void): () => void {
+  nextTap = callback;
   return () => {
-    if (resumed) {
-      return;
+    if (nextTap === callback) {
+      nextTap = null;
     }
-    resumed = true;
-    window.setTimeout(() => {
-      paused -= 1;
-    }, RESUME_DELAY_MS);
   };
-}
-
-/** Перед системным диалогом: дать подсветке нажатой кнопки нарисоваться (два кадра) и
- *  снять её — диалог откроется поверх подсвеченной кнопки, а после него подсветки нет. */
-export function settlePressFeedback(): Promise<void> {
-  if (!flashed && !target) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (): void => {
-      if (!done) {
-        done = true;
-        clearPressFeedback();
-        resolve();
-      }
-    };
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-    window.setTimeout(finish, SETTLE_MAX_MS);
-  });
 }
 
 let installed = false;
@@ -200,9 +177,6 @@ export function installPressFeedback(): void {
   document.addEventListener("pointermove", onPointerMove, passive);
   document.addEventListener("pointerup", onPointerUp, passive);
   document.addEventListener("pointercancel", cancel, passive);
-  // На погружении — раньше обработчика кнопки: подсветка уже стоит, когда он откроет
-  // диалог (settlePressFeedback).
-  document.addEventListener("click", onClick, { capture: true, passive: true });
   // Прокрутка любого контейнера (страницы, горизонтальных графиков): scroll не
   // всплывает, поэтому ловится на погружении.
   document.addEventListener("scroll", cancel, { capture: true, passive: true });

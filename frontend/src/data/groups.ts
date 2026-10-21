@@ -23,8 +23,9 @@ import {
   setGroupNotify,
 } from "../api/groups";
 import { describeError } from "../errors";
-import { appPlatform } from "../platform";
-import { pausePressFeedback } from "../pressFeedback";
+import { appPlatform, devicePlatform } from "../platform";
+import { clearPressFeedback, onNextTap } from "../pressFeedback";
+import { dimScreen } from "../web/dimScreen";
 import type { Strings } from "../strings";
 import type { Habit } from "../types/habit";
 import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
@@ -47,13 +48,22 @@ async function groupIdOf(habitId: number): Promise<number> {
 
 /** Share the invitation link: Telegram's share window, the system share sheet or a copy. */
 async function share(url: string, text: string, strings: Strings): Promise<void> {
+  // The tapped row does not light up behind the share window (pressFeedback.ts).
+  clearPressFeedback();
   if (appPlatform() === "telegram") {
     shareToTelegram(url, text);
     return;
   }
   if (typeof navigator.share === "function") {
-    // While the share sheet is open, a tap that closes it must not light up a row under it.
-    const resume = pausePressFeedback();
+    // As in Telegram, the app dims behind the share sheet (iPhone; Android's sheet dims it
+    // itself). The tap that closes it lights nothing and takes the dimming away — the
+    // iPhone does not always say the sheet is closed.
+    const undim = devicePlatform() === "ios" ? dimScreen() : () => undefined;
+    const forgetTap = onNextTap(undim);
+    const release = (): void => {
+      forgetTap();
+      undim();
+    };
     try {
       await navigator.share({ text, url });
       return;
@@ -63,7 +73,7 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
         return;
       }
     } finally {
-      resume();
+      release();
     }
   }
   try {
