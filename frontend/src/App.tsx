@@ -11,8 +11,9 @@
  *
  * Вложенные экраны открываются поверх вкладки; нижняя навигация на это время скрыта, а
  * «Закрыть» Telegram заменена на «Назад»:
- *  - экран привычки — нажатием на привычку в списке;
- *  - «Добавить привычку» — кнопкой «+» (NewHabitScreen: новая, совместная или из
+ *  - экран привычки — нажатием на привычку в списке; поверх него у групповой — страница
+ *    участника (GroupMemberScreen), нажатием на участника;
+ *  - «Добавить привычку» — кнопкой «+» (NewHabitScreen: новая, групповая или из
  *    шаблона); поверх неё — форма новой привычки, «Назад» из формы возвращает на неё;
  *  - форма привычки — оттуда или «Редактировать привычку» на экране привычки; «Назад»
  *    закрывает её без сохранения. Созданная совместная открывает свой экран и сразу
@@ -88,6 +89,7 @@ import { HabitFormScreen } from "./screens/HabitFormScreen";
 import { NewHabitScreen } from "./screens/NewHabitScreen";
 import { InstallFromTelegramScreen } from "./screens/InstallFromTelegramScreen";
 import { HabitScreen } from "./screens/HabitScreen";
+import { GroupMemberScreen } from "./screens/GroupMemberScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
@@ -112,7 +114,7 @@ import {
   setTelegramColors,
 } from "./telegram/webapp";
 import type { Folder, FolderKind } from "./types/folder";
-import type { Habit, HabitInput } from "./types/habit";
+import type { GroupMember, Habit, HabitInput } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
 import { keepAccount, keptAccount } from "./web/account";
@@ -216,6 +218,8 @@ export function App() {
   const startsInSettings = start === "review" || start === "install";
   const [tab, setTab] = useState<TabKey>(startsInSettings ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
+  // Страница участника групповой привычки поверх экрана привычки: его Telegram id.
+  const [openMemberId, setOpenMemberId] = useState<number | null>(null);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(
@@ -244,6 +248,7 @@ export function App() {
   const [adminMode, setAdminMode] = useState(false);
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);
+  const scrollUnderMember = useRef(0);
   const scrollUnderEditor = useRef(0);
   const scrollUnderNewHabit = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
@@ -280,6 +285,9 @@ export function App() {
   );
 
   const openHabit = habits.find((habit) => habit.id === openHabitId);
+  // Участника больше нет в привычке (вышел, исключён) — его страница закрывается.
+  const openMember =
+    openHabit?.group?.members.find((member) => member.user_id === openMemberId) ?? null;
 
   // Таблетка папок над списком: папки и «Все привычки» на своём месте. Выбранной папки
   // больше нет — первая вкладка.
@@ -359,14 +367,34 @@ export function App() {
     scrollUnderHabit.current = window.scrollY;
     pendingScroll.current = 0;
     setHabitEntering(true);
+    setOpenMemberId(null);
     setOpenHabitId(taskId);
   }, []);
 
   const hideHabit = useCallback(() => {
     pendingScroll.current = scrollUnderHabit.current;
     pendingBack.current = true;
+    setOpenMemberId(null);
     setOpenHabitId(null);
   }, []);
+
+  const showMember = useCallback((member: GroupMember) => {
+    scrollUnderMember.current = window.scrollY;
+    pendingScroll.current = 0;
+    setOpenMemberId(member.user_id);
+  }, []);
+
+  const hideMember = useCallback(() => {
+    pendingScroll.current = scrollUnderMember.current;
+    pendingBack.current = true;
+    setHabitEntering(false);
+    setOpenMemberId(null);
+  }, []);
+  useEffect(() => {
+    if (openMemberId !== null && openMember === null) {
+      hideMember();
+    }
+  }, [openMemberId, openMember, hideMember]);
 
   const showEditor = useCallback((habit: Habit | null, options?: Omit<Editor, "habit">) => {
     scrollUnderEditor.current = window.scrollY;
@@ -580,6 +608,8 @@ export function App() {
         ? hideEditor
         : newHabitOpen
           ? hideNewHabit
+          : openMember
+          ? hideMember
           : openHabit
           ? hideHabit
           : folderPicker
@@ -858,6 +888,18 @@ export function App() {
         />
       );
     }
+    if (openHabit?.group && openMember) {
+      return (
+        <GroupMemberScreen
+          key={openMember.user_id}
+          habit={openHabit}
+          group={openHabit.group}
+          member={openMember}
+          onRemoved={hideMember}
+          onLinkTelegram={linkTelegram}
+        />
+      );
+    }
     if (openHabit) {
       return (
         <HabitScreen
@@ -869,6 +911,7 @@ export function App() {
           onAutoMark={setAutoMark}
           onDelete={deleteOpenHabit}
           onLinkTelegram={linkTelegram}
+          onOpenMember={showMember}
         />
       );
     }

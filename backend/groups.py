@@ -41,7 +41,7 @@ from backend.errors import ApiError
 from backend.models import HabitGroup, HabitGroupMember, Task, User
 from backend.repository import Repository
 from backend.schedule import task_days
-from backend.schemas import GroupMember, HabitGroupView
+from backend.schemas import GroupMember, GroupMemberHabitResponse, HabitGroupView
 
 # Параметр /start ссылки-приглашения: `join_<код>`.
 INVITE_PREFIX = "join_"
@@ -65,7 +65,7 @@ def invite_url(bot_username: str, group: HabitGroup) -> str:
 def _require_telegram(user: User) -> None:
     if user.telegram_id <= 0:
         raise ApiError(
-            403, "group_needs_telegram", "Совместные привычки — только со входом через Telegram"
+            403, "group_needs_telegram", "Групповые привычки — только со входом через Telegram"
         )
 
 
@@ -364,7 +364,7 @@ async def _membership(
     group = await repo.get_group(group_id)
     member = await repo.get_member(group_id, user.telegram_id) if group is not None else None
     if group is None or member is None or not member.active:
-        raise ApiError(404, "group_not_found", "Совместная привычка не найдена")
+        raise ApiError(404, "group_not_found", "Групповая привычка не найдена")
     return group, member
 
 
@@ -433,6 +433,26 @@ async def photo_owner(repo: Repository, user: User, group_id: int, user_id: int)
     if owner is None:
         raise ApiError(404, "group_member_not_found", "Участник не найден")
     return owner
+
+
+async def member_habit(
+    repo: Repository, user: User, group_id: int, user_id: int
+) -> GroupMemberHabitResponse:
+    """Страница участника (любой участник смотрит любого, себя тоже): его привычка по его
+    отметкам — сетка, серии, счёт — как обычная, в его днях. Его напоминания не видны."""
+    await _membership(repo, user, group_id)
+    target = await repo.get_member(group_id, user_id)
+    owner = await repo.get_user(user_id) if target is not None and target.active else None
+    task = (
+        await repo.get_active_task(target.task_id, user_id)
+        if owner is not None and target is not None and target.task_id is not None
+        else None
+    )
+    if owner is None or task is None:
+        raise ApiError(404, "group_member_not_found", "Участник не найден")
+    habit = await services.own_habit(repo, owner, task)
+    habit = habit.model_copy(update={"reminder_time": None, "reminder_times": []})
+    return GroupMemberHabitResponse(habit=habit, day=services.user_today(owner))
 
 
 async def set_notify(repo: Repository, user: User, group_id: int, on: bool) -> None:

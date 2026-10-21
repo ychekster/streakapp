@@ -234,6 +234,10 @@ const RU = {
   goalMonthly: "Каждый месяц",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
+  // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
+  groupHistoryHeading: "Последние 364 дня группы",
+  groupMainHeading: "Основное группы",
+  groupCalendarHeading: "Календарь группы",
   calendarPrevMonth: "Предыдущий месяц",
   calendarNextMonth: "Следующий месяц",
   monthNames: [
@@ -273,7 +277,7 @@ const RU = {
   deleteDialogConfirm: "Удалить",
   deleteFailed: "Не удалось удалить привычку. Попробуйте ещё раз.",
 
-  // --- Совместная привычка (экран привычки) ---
+  // --- Групповая привычка (экран привычки, страница участника) ---
   groupMembersHeading: "Участники",
   groupMe: "Вы",
   groupOwner: "владелец",
@@ -298,10 +302,13 @@ const RU = {
   kickDialogTitle: (name: string) => `Исключить ${name}`,
   kickDialogMessage: "Привычка пропадёт у участника. По ссылке он сможет вернуться — с его отметками.",
   kickDialogConfirm: "Исключить",
+  // Страница участника (владелец, не себя).
+  kickMember: "Исключить участника",
+  memberLoadFailed: "Не удалось загрузить участника",
   groupDialogCancel: "Отменить",
   groupActionFailed: "Не удалось выполнить действие",
   groupLoginTitle: "Войдите через Telegram",
-  groupLoginMessage: "Совместные привычки доступны после входа через Telegram.",
+  groupLoginMessage: "Групповые привычки доступны после входа через Telegram.",
   groupLoginConfirm: "Войти",
 
 
@@ -315,16 +322,16 @@ const RU = {
   checkCount: (name: string, count: number, total: number) =>
     `Отметить ещё раз: ${name} (${count} из ${total})`,
 
-  // --- «Добавить привычку» (кнопка «+»): обычная, совместная или из шаблона ---
+  // --- «Добавить привычку» (кнопка «+»): обычная, групповая или из шаблона ---
   newHabitPlain: "Новая привычка",
-  newHabitShared: "Совместная привычка",
+  newHabitShared: "Групповая привычка",
   templatesHeading: "Популярные",
   templatesSearch: "Поиск",
   // Поиск не нашёл шаблона — создать привычку с таким названием.
   templateCreate: (name: string) => `Создать «${name}»`,
 
-  // --- Форма совместной привычки ---
-  sharedFormTitle: "Совместная привычка",
+  // --- Форма групповой привычки ---
+  sharedFormTitle: "Групповая привычка",
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
@@ -433,8 +440,8 @@ const RU = {
     invalid_telegram_login: "Telegram не подтвердил вход. Попробуйте ещё раз.",
     push_unavailable: "Уведомления пока не настроены на сервере",
     push_not_delivered: "Не удалось доставить уведомление. Разрешите уведомления для Knot.",
-    group_needs_telegram: "Совместные привычки доступны после входа через Telegram",
-    group_not_found: "Совместная привычка не найдена — возможно, вас уже исключили",
+    group_needs_telegram: "Групповые привычки доступны после входа через Telegram",
+    group_not_found: "Групповая привычка не найдена — возможно, вас уже исключили",
     group_full: "В привычке уже максимум участников",
     group_not_owner: "Это может только владелец привычки",
     group_member_not_found: "Участник уже вышел из привычки",
@@ -638,6 +645,9 @@ const EN: Strings = {
   goalEveryOtherDay: "Every Other Day",
   goalMonthly: "Every Month",
   calendarHeading: "Calendar",
+  groupHistoryHeading: "Group’s last 364 days",
+  groupMainHeading: "Group overview",
+  groupCalendarHeading: "Group calendar",
   calendarPrevMonth: "Previous month",
   calendarNextMonth: "Next month",
   monthNames: [
@@ -697,10 +707,12 @@ const EN: Strings = {
   kickDialogTitle: (name: string) => `Remove ${name}`,
   kickDialogMessage: "The habit will disappear for them. They can come back through the invite link — with their check-ins.",
   kickDialogConfirm: "Remove",
+  kickMember: "Remove Member",
+  memberLoadFailed: "Couldn’t load this member",
   groupDialogCancel: "Cancel",
   groupActionFailed: "Couldn’t do that",
   groupLoginTitle: "Log In with Telegram",
-  groupLoginMessage: "Shared habits are available after logging in with Telegram.",
+  groupLoginMessage: "Group habits are available after logging in with Telegram.",
   groupLoginConfirm: "Log In",
 
 
@@ -713,12 +725,12 @@ const EN: Strings = {
     `Mark once more: ${name} (${count} of ${total})`,
 
   newHabitPlain: "New Habit",
-  newHabitShared: "Shared Habit",
+  newHabitShared: "Group Habit",
   templatesHeading: "Popular",
   templatesSearch: "Search",
   templateCreate: (name: string) => `Create “${name}”`,
 
-  sharedFormTitle: "Shared Habit",
+  sharedFormTitle: "Group Habit",
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
@@ -811,8 +823,8 @@ const EN: Strings = {
     invalid_telegram_login: "Telegram didn’t confirm the login. Please try again.",
     push_unavailable: "Notifications aren’t set up on the server yet",
     push_not_delivered: "Couldn’t deliver the notification. Allow notifications for Knot.",
-    group_needs_telegram: "Shared habits are available after logging in with Telegram",
-    group_not_found: "Shared habit not found — you may have been removed",
+    group_needs_telegram: "Group habits are available after logging in with Telegram",
+    group_not_found: "Group habit not found — you may have been removed",
     group_full: "This habit already has the most people it can",
     group_not_owner: "Only the habit’s owner can do this",
     group_member_not_found: "This person has already left the habit",

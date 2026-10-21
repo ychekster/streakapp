@@ -312,9 +312,19 @@ async def list_habits(repo: Repository, user: User) -> list[Habit]:
     return await _build_habits(repo, user, await repo.get_active_tasks(user.telegram_id))
 
 
-async def _build_habits(repo: Repository, user: User, tasks: list[Task]) -> list[Habit]:
+async def own_habit(repo: Repository, user: User, task: Task) -> Habit:
+    """Привычка по отметкам одного пользователя, даже если она совместная: его сетка,
+    серии и счёт (страница участника, groups.member_habit)."""
+    [habit] = await _build_habits(repo, user, [task], with_groups=False)
+    return habit
+
+
+async def _build_habits(
+    repo: Repository, user: User, tasks: list[Task], with_groups: bool = True
+) -> list[Habit]:
     """Привычки пользователя с историей и статистикой. Отметки всех привычек читаются
-    одним запросом, а не по запросу на привычку; совместные — вместе с участниками."""
+    одним запросом, а не по запросу на привычку; совместные — вместе с участниками
+    (`with_groups` False — как обычные, только по его отметкам)."""
     today, calendar = user_today(user), _calendar_day(user)
     task_ids = [task.id for task in tasks]
     # По календарный день: в режиме «Отмечать за вчера» приложение знает и следующий день
@@ -327,8 +337,8 @@ async def _build_habits(repo: Repository, user: User, tasks: list[Task]) -> list
     )
     ahead = await _auto_mark_ahead(repo, user, task_ids)
     periods = await repo.get_schedule_periods(task_ids)
-    members = await repo.members_of_tasks(task_ids)
-    states = await groups.load_groups(repo, {member.group_id for member in members.values()})
+    members = await repo.members_of_tasks(task_ids) if with_groups else {}
+    states =await groups.load_groups(repo, {member.group_id for member in members.values()})
 
     def group_of(task: Task) -> groups.ViewerGroup | None:
         member = members.get(task.id)

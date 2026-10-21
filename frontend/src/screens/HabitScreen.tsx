@@ -1,8 +1,6 @@
 /**
- * Экран привычки: карточка с сеткой выполнения за последние 364 дня, основные
- * показатели (текущая и лучшая серии, всего выполнено — «18/25»: из скольких дней с первого
- * дня привычки, цель серии), календарь по месяцам (HabitCalendar) и настройки
- * привычки (редактировать, заморозить / разморозить, удалить). Весь экран окрашен в цвет
+ * Экран привычки: сводка (HabitSummary — сетка за последние 364 дня, «Основное»,
+ * календарь) и настройки привычки (редактировать, заморозить / разморозить, удалить). Весь экран окрашен в цвет
  * привычки.
  *
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
@@ -17,8 +15,10 @@
  * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
  * карточкой.
  *
- * Совместная привычка (data/groups.ts): первым блоком, над историей, — «Участники» (кто
- * как выполнил свою часть; владелец нажатием исключает) с рядом «Добавить участника» —
+ * Групповая привычка (data/groups.ts): разделы — про всю группу («Последние 364 дня
+ * группы», «Основное группы», «Календарь группы»). Первым блоком, над историей, —
+ * «Участники» (кто как выполнил свою часть; нажатие открывает страницу участника —
+ * GroupMemberScreen, там владелец и исключает) с рядом «Добавить участника» —
  * отправить ссылку-приглашение (она загружается заранее, при открытии экрана, чтобы окно
  * «Поделиться» открывалось сразу). В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
  * (владелец); вместо «Удалить» — «Выйти из привычки» (привычка пропадает, по ссылке
@@ -32,10 +32,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Disclosure } from "../components/Disclosure";
 import { GroupMembers } from "../components/GroupMembers";
-import { useGridView } from "../components/gridLayout";
-import { HabitBlock } from "../components/HabitBlock";
-import { HabitCalendar } from "../components/HabitCalendar";
-import { trackedDays } from "../components/calendarDays";
+import { HabitSummary } from "../components/HabitSummary";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
@@ -46,49 +43,24 @@ import {
   PencilIcon,
   SnowflakeIcon,
 } from "../components/SettingsIcons";
-import { StatCard } from "../components/StatCard";
 import { Switch } from "../components/Switch";
 import { DestructiveButton } from "../components/DestructiveButton";
-import {
-  CompletedIcon,
-  FlameIcon,
-  TargetIcon,
-  TrophyIcon,
-} from "../components/StatIcons";
-import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
 import { isShared } from "../data/derive";
 import {
   inviteToShared,
   leaveShared,
   notifyShared,
   prefetchInvite,
-  removeFromShared,
+  prefetchMemberHabits,
   reportGroupError,
   resetSharedLink,
 } from "../data/groups";
 import { describeError } from "../errors";
 import { useStrings } from "../preferences";
-import type { Strings } from "../strings";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { GroupMember, Habit } from "../types/habit";
-import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitScreen.module.css";
-
-/** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будние дни»,
- *  «Выходные» или дни («Пн, Ср и Пт») — как «Повтор» в форме привычки. */
-function formatStreakGoal(habit: Habit, strings: Strings): string {
-  if (habit.frequency_type === "every_other_day") {
-    return strings.goalEveryOtherDay;
-  }
-  if (habit.frequency_type === "monthly") {
-    return strings.goalMonthly;
-  }
-  if (habit.frequency_type === "daily") {
-    return strings.goalDaily;
-  }
-  return weekdayLabel(habit.days, strings, strings.goalDaily);
-}
 
 interface HabitScreenProps {
   habit: Habit;
@@ -104,8 +76,10 @@ interface HabitScreenProps {
   onAutoMark: (taskId: number, on: boolean) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
   onDelete: (taskId: number) => Promise<void>;
-  /** Войти через Telegram (веб-приложение): совместные привычки — только с ним. */
+  /** Войти через Telegram (веб-приложение): групповые привычки — только с ним. */
   onLinkTelegram: () => void;
+  /** Открыть страницу участника групповой привычки. */
+  onOpenMember: (member: GroupMember) => void;
 }
 
 export function HabitScreen({
@@ -117,6 +91,7 @@ export function HabitScreen({
   onAutoMark,
   onDelete,
   onLinkTelegram,
+  onOpenMember,
 }: HabitScreenProps) {
   const strings = useStrings();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
@@ -131,19 +106,23 @@ export function HabitScreen({
   // «Отметки участников» переключаются сразу; ответ сервера их подтверждает.
   const [notify, setNotify] = useState(group?.notify_marks ?? false);
   useEffect(() => setNotify(group?.notify_marks ?? false), [group?.notify_marks]);
-  // Ссылка-приглашение — заранее: «Добавить участника» открывает окно сразу.
+  // Ссылка-приглашение и страницы участников — заранее: «Добавить участника» открывает
+  // окно сразу, участник открывается с данными.
   const groupId = group?.id;
   useEffect(() => {
     if (groupId !== undefined) {
       prefetchInvite(groupId);
     }
   }, [groupId]);
+  useEffect(() => {
+    if (group) {
+      prefetchMemberHabits(group);
+    }
+    // Один раз при открытии, а не с каждым ответом сервера: страница участника всё равно
+    // спрашивает свежие данные, когда открывается.
+  }, [groupId]);
 
   const frozen = habit.frozen_since !== null;
-  // День отметки — последний день истории; неизвестен (ещё нет настроек) — без календаря
-  // и без «из скольких дней».
-  const markDay = useGridView().day;
-  const days = markDay ? trackedDays(habit, markDay) : 0;
 
   async function toggleFreeze(): Promise<void> {
     if (frozen) {
@@ -240,22 +219,6 @@ export function HabitScreen({
     }
   }
 
-  async function askToRemove(member: GroupMember): Promise<void> {
-    if (!group) {
-      return;
-    }
-    const confirmed = await confirmAction({
-      title: strings.kickDialogTitle(member.name),
-      message: strings.kickDialogMessage,
-      confirmLabel: strings.kickDialogConfirm,
-      cancelLabel: strings.groupDialogCancel,
-      destructive: true,
-    });
-    if (confirmed) {
-      void groupAction(() => removeFromShared(group.id, member.user_id));
-    }
-  }
-
   function switchNotify(on: boolean): void {
     if (!group) {
       return;
@@ -280,59 +243,32 @@ export function HabitScreen({
             total={habit.times_per_day}
             mineDone={habit.done_today}
             mineCount={habit.today_count}
-            onPressMember={(member) => void askToRemove(member)}
+            // Участник группы, созданной без связи, ещё не на сервере — открывать нечего.
+            onPressMember={group.id > 0 ? onOpenMember : undefined}
             onAddMember={invite}
             headingRef={headingRef}
           />
         ) : null}
 
-        <Section
-          title={strings.habitHistoryHeading}
+        <HabitSummary
+          habit={habit}
+          headings={
+            shared
+              ? {
+                  history: strings.groupHistoryHeading,
+                  main: strings.groupMainHeading,
+                  calendar: strings.groupCalendarHeading,
+                }
+              : {
+                  history: strings.habitHistoryHeading,
+                  main: strings.habitMainHeading,
+                  calendar: strings.calendarHeading,
+                }
+          }
+          interactive={habit.scheduled_today && !frozen}
+          onToggle={onToggle}
           headingRef={shared && group ? undefined : headingRef}
-        >
-          <Card padded>
-            <HabitBlock
-              habit={habit}
-              interactive={habit.scheduled_today && !frozen}
-              gridDays={HISTORY_DAYS}
-              gridColumns={HISTORY_COLUMNS}
-              onToggle={onToggle}
-            />
-          </Card>
-        </Section>
-
-        <Section title={strings.habitMainHeading}>
-          <div className={styles.stats}>
-            <StatCard
-              icon={<FlameIcon />}
-              value={habit.current_streak}
-              label={strings.statCurrentStreak}
-            />
-            <StatCard
-              icon={<TrophyIcon />}
-              value={habit.best_streak}
-              label={strings.statBestStreak}
-            />
-            <StatCard
-              icon={<CompletedIcon />}
-              value={days > 0 ? `${habit.total_done} / ${days}` : habit.total_done}
-              label={strings.statTotalDone}
-            />
-            <StatCard
-              icon={<TargetIcon />}
-              value={formatStreakGoal(habit, strings)}
-              label={strings.statStreakGoal}
-            />
-          </div>
-        </Section>
-
-        {markDay ? (
-          <Section title={strings.calendarHeading}>
-            <Card padded>
-              <HabitCalendar habit={habit} day={markDay} />
-            </Card>
-          </Section>
-        ) : null}
+        />
 
         <Section title={strings.habitSettingsHeading}>
           <Card>
@@ -346,7 +282,7 @@ export function HabitScreen({
               <Disclosure />
             </ListItem>
             {/* Только у привычек «раз в день»: у «несколько раз в день» автоотметки нет;
-                в совместной — тоже. */}
+                в групповой — тоже. */}
             {habit.times_per_day === 1 && !shared ? (
               <ListItem icon={<AutoCheckIcon />} iconColor="green" label={strings.autoMarkHabit}>
                 <span className={styles.autoMarkSwitch}>
@@ -366,7 +302,7 @@ export function HabitScreen({
             >
               <Disclosure />
             </ListItem>
-            {/* Совместная привычка — в той же карточке. */}
+            {/* Групповая привычка — в той же карточке. */}
             {shared && group ? (
               <ListItem icon={<BellIcon />} iconColor="red" label={strings.groupNotify}>
                 <span className={styles.autoMarkSwitch}>
@@ -386,7 +322,7 @@ export function HabitScreen({
             ) : null}
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
-              «Часах» iOS). У совместной — выход: привычка пропадает, по ссылке вернётся. */}
+              «Часах» iOS). У групповой — выход: привычка пропадает, по ссылке вернётся. */}
           {shared ? (
             <DestructiveButton
               label={strings.leaveGroup}

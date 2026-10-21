@@ -5,6 +5,8 @@
     POST /groups/{group_id}/leave   — выйти: привычка пропадает (вернётся по ссылке)
     POST /groups/{group_id}/kick    — исключить участника (владелец)
     POST /groups/{group_id}/notify  — «Отметки участников»
+    GET  /groups/{group_id}/members/{user_id} — страница участника: его привычка по его
+         отметкам (сетка, серии, счёт), как обычная
     GET  /groups/{group_id}/members/{user_id}/photo?v=<версия> — фото участника из Telegram
          (JPEG; нет — 404)
 
@@ -28,6 +30,7 @@ from backend.routers.auth import bot_username
 from backend.schemas import (
     GroupInviteResponse,
     GroupKickRequest,
+    GroupMemberHabitResponse,
     GroupNotifyRequest,
 )
 
@@ -106,6 +109,19 @@ async def notify(
     """Включить или выключить «Отметки участников»."""
     await groups.set_notify(repo, db_user, group_id, payload.on)
     return Response(status_code=204)
+
+
+@router.get("/{group_id}/members/{user_id}", response_model=GroupMemberHabitResponse)
+async def member_habit(
+    group_id: int = _GroupId,
+    user_id: int = _UserId,
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> GroupMemberHabitResponse:
+    """Страница участника: его привычка по его отметкам (любой участник той же привычки)."""
+    response = await groups.member_habit(repo, db_user, group_id, user_id)
+    await repo.commit()
+    return response
 
 
 @router.get("/{group_id}/members/{user_id}/photo")

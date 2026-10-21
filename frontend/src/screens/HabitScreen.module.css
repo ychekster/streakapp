@@ -17,12 +17,6 @@
   }
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-stat-gap);
-}
-
 /* Не удалось удалить привычку — под карточкой настроек. */
 .error {
   margin-top: var(--space-list-footer-top);

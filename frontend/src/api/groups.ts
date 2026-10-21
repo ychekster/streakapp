@@ -1,6 +1,7 @@
 /** Совместные привычки (backend/routers/groups.py). Состояние после действия приложение
  *  берёт из следующего POST /sync (data/groups.ts просит его сразу). */
 
+import type { Habit } from "../types/habit";
 import { API_BASE_URL, apiRequest, authorizationHeader } from "./client";
 
 /** Ссылка-приглашение совместной привычки. */
@@ -31,6 +32,19 @@ export async function kickMember(groupId: number, userId: number): Promise<void>
     method: "POST",
     body: JSON.stringify({ user_id: userId }),
   });
+}
+
+/** Страница участника: его привычка по его отметкам, как обычная (без группы и его
+ *  напоминаний). */
+export interface MemberHabit {
+  habit: Habit;
+  /** День отметки участника («ГГГГ-ММ-ДД») — последний день `history`. */
+  day: string;
+}
+
+/** Привычка участника для его страницы (любой участник, себя тоже). */
+export function memberHabitOf(groupId: number, userId: number): Promise<MemberHabit> {
+  return apiRequest<MemberHabit>(`/groups/${groupId}/members/${userId}`);
 }
 
 /** «Отметки участников». */

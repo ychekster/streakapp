@@ -1,13 +1,13 @@
 /**
- * Участники совместной привычки (экран привычки) — как блок аккаунтов в настройках
+ * Участники групповой привычки (экран привычки) — как блок аккаунтов в настройках
  * Telegram: круглое фото из Telegram (нет — первая буква имени цветом привычки), @username
  * или имя («Вы» — я), «(владелец)». Справа — как идут дела в день отметки: галочка — свою
  * часть выполнил, у привычки «несколько раз в день» — сколько раз из скольких («3/10»),
  * снежинка — заморожен (тогда его не ждут).
  *
  * Последний ряд — «+ Добавить участника» (как «Add Account»): отправить ссылку-приглашение;
- * он есть у всех участников. Владелец может нажать на участника — App спросит, исключить
- * ли его.
+ * он есть у всех участников. Нажатие на участника (любого, себя тоже) открывает его
+ * страницу (GroupMemberScreen).
  */
 
 import { type Ref, useEffect, useState } from "react";
@@ -27,7 +27,7 @@ interface GroupMembersProps {
   /** Моя часть — моё состояние на устройстве свежее ответа сервера. */
   mineDone: boolean;
   mineCount: number;
-  /** Нажатие на участника (только у владельца, не на себя). */
+  /** Нажатие на участника — открыть его страницу; нет — ряды не нажимаются. */
   onPressMember?: (member: GroupMember) => void;
   /** «Добавить участника»: отправить ссылку-приглашение. */
   onAddMember: () => void;
@@ -78,7 +78,6 @@ export function GroupMembers({
           {group.members.map((member) => {
             const done = member.is_me ? mineDone : member.done;
             const count = Math.min(member.is_me ? mineCount : member.count, total);
-            const pressable = onPressMember && group.is_owner && !member.is_me;
             return (
               <ListItem
                 key={member.user_id}
@@ -92,7 +91,7 @@ export function GroupMembers({
                     ) : null}
                   </span>
                 }
-                onPress={pressable ? () => onPressMember(member) : undefined}
+                onPress={onPressMember ? () => onPressMember(member) : undefined}
               >
                 {member.frozen ? (
                   <span className={styles.frozen} aria-label={strings.groupMemberFrozen}>

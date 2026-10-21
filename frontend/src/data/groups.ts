@@ -10,7 +10,8 @@
  * opens right on the tap — without waiting for the server (and Safari still counts it as
  * the user's tap).
  *
- * Members' Telegram photos are kept on the device and loaded ahead (preloadMemberPhotos).
+ * Members' Telegram photos are kept on the device and loaded ahead (preloadMemberPhotos);
+ * members' pages (their habit by their own marks) — in memory, loaded ahead too.
  */
 
 import { ApiRequestError } from "../api/client";
@@ -18,7 +19,9 @@ import {
   inviteOf,
   kickMember,
   leaveGroup,
+  memberHabitOf,
   memberPhoto,
+  type MemberHabit,
   resetInvite,
   setGroupNotify,
 } from "../api/groups";
@@ -27,7 +30,7 @@ import { appPlatform, devicePlatform } from "../platform";
 import { clearPressFeedback, onNextTap } from "../pressFeedback";
 import { dimScreen } from "../web/dimScreen";
 import type { Strings } from "../strings";
-import type { Habit } from "../types/habit";
+import type { Habit, HabitGroup } from "../types/habit";
 import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
 import { dataStore } from "./store";
 
@@ -162,6 +165,53 @@ export async function removeFromShared(groupId: number, userId: number): Promise
 export async function notifyShared(groupId: number, on: boolean): Promise<void> {
   await setGroupNotify(groupId, on);
   dataStore.refresh();
+}
+
+/*
+ * Member pages: each member's habit by their own marks (GET /groups/{id}/members/{user}).
+ * Loaded ahead when the habit screen opens (prefetchMemberHabits), so a member's page
+ * opens filled; on opening it is asked for again. Kept in memory only.
+ */
+
+/** Member habits by "<group>:<user>". */
+const memberHabits = new Map<string, MemberHabit>();
+
+function memberKey(groupId: number, userId: number): string {
+  return `${groupId}:${userId}`;
+}
+
+/** A member's habit if it is already loaded (shown at once); null — not yet. */
+export function knownMemberHabit(groupId: number, userId: number): MemberHabit | null {
+  return memberHabits.get(memberKey(groupId, userId)) ?? null;
+}
+
+/** A member's habit, fresh from the server. My own — after my changes reach it. */
+export async function loadMemberHabit(
+  groupId: number,
+  userId: number,
+  isMe: boolean,
+): Promise<MemberHabit> {
+  if (isMe) {
+    await dataStore.sendAll();
+  }
+  const loaded = await memberHabitOf(groupId, userId);
+  memberHabits.set(memberKey(groupId, userId), loaded);
+  return loaded;
+}
+
+/** Load every member's page ahead (the habit screen opened). No connection — on the tap. */
+export function prefetchMemberHabits(group: HabitGroup): void {
+  if (group.id <= 0) {
+    return;
+  }
+  for (const member of group.members) {
+    if (!member.is_me) {
+      void memberHabitOf(group.id, member.user_id).then(
+        (loaded) => memberHabits.set(memberKey(group.id, member.user_id), loaded),
+        () => undefined,
+      );
+    }
+  }
 }
 
 /*

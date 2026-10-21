@@ -432,3 +432,38 @@ def test_member_photos_come_from_telegram(client: TestClient, user: AuthUser) ->
     assert photo_of(user, friend) not in (None, version)
     stale = client.get(url, params={"v": version}, headers=user.headers)
     assert stale.content == b"new-jpeg" and "immutable" not in stale.headers["cache-control"]
+
+
+def test_member_page_shows_their_own_marks(client: TestClient, user: AuthUser) -> None:
+    owner_task, group_id, code = _shared(client, user, reminder_times=["08:00"])
+    friend, stranger = new_user(), new_user()
+    _join(friend, code)
+    today = _today(client, user)
+    _mark(client, user, owner_task, today - timedelta(days=1))
+    _mark(client, user, owner_task, today)
+
+    def page(viewer: AuthUser, member: AuthUser):  # type: ignore[no-untyped-def]
+        return client.get(f"/groups/{group_id}/members/{member.id}", headers=viewer.headers)
+
+    # Мои отметки — моя серия, хотя день группы без друга не выполнен.
+    response = page(friend, user)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    habit = data["habit"]
+    assert data["day"] == today.isoformat()
+    assert habit["history"][-2:] == [True, True] and habit["done_today"] is True
+    assert (habit["current_streak"], habit["total_done"]) == (2, 2)
+    # Как обычная привычка, без чужих напоминаний.
+    assert habit["group"] is None and habit["reminder_times"] == []
+    # У группы сегодня не выполнен (вчера — до вступления друга, по моим отметкам).
+    assert _only(client, user)["total_done"] == 1
+
+    # Себя тоже можно открыть; у друга пока ничего.
+    assert page(user, user).json()["habit"]["total_done"] == 2
+    assert page(user, friend).json()["habit"]["total_done"] == 0
+    # Чужим и про чужих — нет.
+    assert page(stranger, user).json()["error"]["code"] == "group_not_found"
+    assert page(user, stranger).json()["error"]["code"] == "group_member_not_found"
+    # Исключённого больше не открыть.
+    client.post(f"/groups/{group_id}/kick", json={"user_id": friend.id}, headers=user.headers)
+    assert page(user, friend).status_code == 404

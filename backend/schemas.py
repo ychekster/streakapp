@@ -536,6 +536,14 @@ class GroupInviteResponse(BaseModel):
     invite_url: str = Field(..., description="t.me/<бот>?start=join_<код>")
 
 
+class GroupMemberHabitResponse(BaseModel):
+    """Ответ `GET /groups/{id}/members/{user_id}` — страница участника: его привычка по
+    его отметкам, как обычная (без группы и без его напоминаний)."""
+
+    habit: Habit
+    day: date = Field(..., description="День отметки участника — последний день `history`")
+
+
 class GroupKickRequest(BaseModel):
     """Запрос `POST /groups/{id}/kick` — исключить участника (только владелец)."""
 
