@@ -106,6 +106,9 @@ export interface HabitGroup {
   notify_marks: boolean;
   /** Активные участники по времени вступления (со мной). */
   members: GroupMember[];
+  /** Чёрный список — только у владельца (у остальных пустой): исключённые, по ссылке не
+   *  вступят. Нет у групп, сохранённых на устройстве до этого поля. */
+  banned?: BannedMember[];
   /** За те же дни, что `history`: выполнили ли свою часть все остальные (дни вне моего
    *  участия — true). День группы = моя отметка и это. */
   others_history: boolean[];
@@ -139,6 +142,15 @@ export interface GroupMember {
   frozen: boolean;
   /** Версия фото профиля в Telegram (меняется вместе с фото); null — фото нет, буква.
    *  Нет у групп, сохранённых на устройстве до этого поля. */
+  photo?: string | null;
+}
+
+/** Исключённый участник в чёрном списке. */
+export interface BannedMember {
+  user_id: number;
+  /** @username, если есть, иначе имя из Telegram. */
+  name: string;
+  /** Версия фото профиля, как у GroupMember; null — буква. */
   photo?: string | null;
 }
 

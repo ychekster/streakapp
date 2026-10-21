@@ -305,6 +305,37 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
     kept = _sync(client, second)["habits"]
     assert len(kept) == 1 and kept[0]["group"] is None
 
+    # Чёрный список: по ссылке не вступить; его видит только владелец.
+    with pytest.raises(ApiError) as refused:
+        _join(second, code)
+    assert refused.value.code == "group_banned"
+
+    async def preview(repo: Repository) -> str:
+        db_user = await repo.get_user(second.id)
+        found = await groups.preview_invite(repo, db_user, code)
+        return found.state
+
+    assert asyncio.run(_with_repo(preview)) == "banned"
+    banned = _only(client, user)["group"]["banned"]
+    assert [item["user_id"] for item in banned] == [second.id]
+    assert banned[0]["name"] == f"@user{second.id}"
+    assert _only(client, first)["group"]["banned"] == []
+    response = client.post(
+        f"/groups/{group_id}/unban", json={"user_id": second.id}, headers=first.headers
+    )
+    assert response.json()["error"]["code"] == "group_not_owner"
+
+    # Убрали из чёрного списка — вернулся по ссылке со своей привычкой.
+    unban = client.post(f"/groups/{group_id}/unban", json={"user_id": second.id}, headers=user.headers)
+    assert unban.status_code == 204
+    assert _only(client, user)["group"]["banned"] == []
+    response = client.post(
+        f"/groups/{group_id}/unban", json={"user_id": second.id}, headers=user.headers
+    )
+    assert response.json()["error"]["code"] == "group_member_not_found"
+    assert _join(second, code) == "rejoined"
+    assert _sync(client, second)["habits"][0]["id"] == kept[0]["id"]
+
     # Владелец вышел — владелец тот, кто вступил раньше всех.
     client.post(f"/groups/{group_id}/leave", headers=user.headers)
     assert _only(client, first)["group"]["is_owner"] is True

@@ -290,6 +290,14 @@ const RU = {
   inviteCopiedTitle: "Ссылка скопирована",
   inviteCopiedMessage: "Отправьте её тому, с кем хотите вести привычку.",
   groupNotify: "Отметки участников",
+  // «Чёрный список» (владелец): исключённые по ссылке не вступят.
+  blockedTitle: "Чёрный список",
+  blockedEmpty: "Здесь появятся исключённые участники",
+  blockedFooter:
+    "Исключённые не могут вступить по ссылке-приглашению. Нажмите на участника, чтобы убрать его из списка.",
+  unbanDialogTitle: "Убрать из чёрного списка",
+  unbanDialogMessage: (name: string) => `${name} снова сможет вступить по ссылке-приглашению.`,
+  unbanDialogConfirm: "Убрать",
   resetInvite: "Сбросить ссылку",
   resetInviteDialogTitle: "Сбросить ссылку",
   resetInviteDialogMessage: "Прежняя ссылка-приглашение перестанет работать.",
@@ -301,7 +309,7 @@ const RU = {
   leaveGroupDialogConfirm: "Выйти",
   kickDialogTitle: (name: string) => `Исключить ${name}`,
   kickDialogMessage:
-    "Привычка останется у участника обычной — со всеми его отметками. По ссылке он сможет вернуться.",
+    "Привычка останется у участника обычной — со всеми его отметками. Он попадёт в чёрный список: по ссылке не вступит, пока вы его оттуда не уберёте.",
   kickDialogConfirm: "Исключить",
   // Страница участника (владелец, не себя).
   kickMember: "Исключить участника",
@@ -694,6 +702,13 @@ const EN: Strings = {
   inviteCopiedTitle: "Link Copied",
   inviteCopiedMessage: "Send it to the person you want to keep up the habit with.",
   groupNotify: "Members’ Check-Ins",
+  blockedTitle: "Blocked",
+  blockedEmpty: "Removed members will appear here",
+  blockedFooter:
+    "Blocked people can’t join through the invite link. Tap someone to unblock them.",
+  unbanDialogTitle: "Unblock",
+  unbanDialogMessage: (name: string) => `${name} will be able to join through the invite link again.`,
+  unbanDialogConfirm: "Unblock",
   resetInvite: "Reset Link",
   resetInviteDialogTitle: "Reset Link",
   resetInviteDialogMessage: "The previous invitation link will stop working.",
@@ -705,7 +720,7 @@ const EN: Strings = {
   leaveGroupDialogConfirm: "Leave",
   kickDialogTitle: (name: string) => `Remove ${name}`,
   kickDialogMessage:
-    "The habit stays with them as an ordinary one — with all their check-ins. They can come back through the invite link.",
+    "The habit stays with them as an ordinary one — with all their check-ins. They’ll be blocked from joining through the link until you unblock them.",
   kickDialogConfirm: "Remove",
   kickMember: "Remove Member",
   groupDialogCancel: "Cancel",

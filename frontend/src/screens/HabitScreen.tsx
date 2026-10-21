@@ -20,9 +20,11 @@
  * «Участники» (кто как выполнил свою часть; нажатие открывает страницу участника —
  * GroupMemberScreen, там владелец и исключает; открывается уже с данными) с рядом «Добавить участника» —
  * отправить ссылку-приглашение (она загружается заранее, при открытии экрана, чтобы окно
- * «Поделиться» открывалось сразу). В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
- * (владелец); вместо «Удалить» — «Выйти из привычки» (привычка пропадает, по ссылке
- * вернётся). Обычную привычку совместной не сделать. Автоотметки в совместной привычке нет.
+ * «Поделиться» открывалось сразу). В той же карточке настроек — у владельца «Чёрный
+ * список» (исключённые, GroupBlockedScreen), «Отметки участников» и у владельца «Сбросить
+ * ссылку». Пока в привычке кто-то кроме меня, вместо «Удалить» — «Выйти из привычки»
+ * (привычка остаётся обычной, по ссылке вернётся в группу); один — «Удалить», а обычной
+ * её снова делает форма. Автоотметки в групповой привычке нет.
  * «Редактировать» у участника открывает ту же форму, где менять можно только напоминания.
  * Эти действия идут на сервер сразу; ошибка — системным диалогом, гостю веб-приложения
  * предлагается войти через Telegram.
@@ -39,6 +41,7 @@ import { Card, Section } from "../components/Section";
 import {
   AutoCheckIcon,
   BellIcon,
+  HandIcon,
   LinkIcon,
   PencilIcon,
   SnowflakeIcon,
@@ -80,6 +83,8 @@ interface HabitScreenProps {
   onLinkTelegram: () => void;
   /** Открыть страницу участника групповой привычки. */
   onOpenMember: (member: GroupMember) => void;
+  /** «Чёрный список» (владелец). */
+  onOpenBlocked: () => void;
 }
 
 export function HabitScreen({
@@ -92,6 +97,7 @@ export function HabitScreen({
   onDelete,
   onLinkTelegram,
   onOpenMember,
+  onOpenBlocked,
 }: HabitScreenProps) {
   const strings = useStrings();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
@@ -307,6 +313,16 @@ export function HabitScreen({
               <Disclosure />
             </ListItem>
             {/* Групповая привычка — в той же карточке. */}
+            {shared && group?.is_owner ? (
+              <ListItem
+                icon={<HandIcon />}
+                iconColor="graphite"
+                label={strings.blockedTitle}
+                onPress={onOpenBlocked}
+              >
+                <Disclosure />
+              </ListItem>
+            ) : null}
             {shared && group ? (
               <ListItem icon={<BellIcon />} iconColor="red" label={strings.groupNotify}>
                 <span className={styles.autoMarkSwitch}>
@@ -326,20 +342,21 @@ export function HabitScreen({
             ) : null}
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
-              «Часах» iOS). В групповой, где есть другие, над ним — выход: привычка
-              остаётся обычной, по ссылке вернётся в группу. Одному выходить не из чего —
-              «Вести с друзьями» выключается в форме. */}
+              «Часах» iOS). В групповой, где есть кто-то кроме меня, вместо него — выход:
+              привычка остаётся обычной (удалить её можно уже потом), по ссылке вернётся в
+              группу. Одному выходить не из чего — «Вести с друзьями» выключается в форме. */}
           {group && group.members.length > 1 ? (
             <DestructiveButton
               label={strings.leaveGroup}
               onPress={() => void askToLeave()}
             />
-          ) : null}
-          <DestructiveButton
-            label={strings.deleteHabit}
-            disabled={deleting}
-            onPress={() => void askToDelete()}
-          />
+          ) : (
+            <DestructiveButton
+              label={strings.deleteHabit}
+              disabled={deleting}
+              onPress={() => void askToDelete()}
+            />
+          )}
           {deleteError ? (
             <p className={styles.error} role="alert">
               {deleteError}

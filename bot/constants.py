@@ -141,6 +141,10 @@ INVITE_FULL: dict[str, str] = {
     "ru": "В привычке уже максимум участников.",
     "en": "This habit already has the most people it can.",
 }
+INVITE_BANNED: dict[str, str] = {
+    "ru": "Владелец привычки исключил вас — вступить по ссылке нельзя.",
+    "en": "The habit's owner removed you — you can't join through the link.",
+}
 INVITE_HABIT_LIMIT: dict[str, str] = {
     "ru": "У вас уже максимум привычек.",
     "en": "You already have the most habits you can.",

@@ -425,6 +425,9 @@ class HabitGroupMember(Base):
     # Когда вступил (в последний раз): ушёл владелец — владельцем становится вступивший
     # раньше всех.
     joined_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # Чёрный список: когда владелец его исключил. Пока не None, по ссылке не вступить;
+    # владелец может убрать его оттуда.
+    banned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class HabitGroupPeriod(Base):
@@ -554,7 +557,8 @@ class ActivityLog(Base):
     broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent;
     групповые привычки: group_created (сделал привычку групповой), group_joined, group_left,
     group_unshared (снова обычная)
-    (`ref_id` — его привычка), group_kicked (`ref_id` — исключённый), group_mark_sent /
+    (`ref_id` — его привычка), group_kicked / group_unbanned (`ref_id` — исключённый /
+    убранный из чёрного списка), group_mark_sent /
     group_mark_failed («Отметки участников», `ref_id` — привычка получателя).
 
     `user_id` без внешнего ключа — как у events: запись пишется и тогда, когда строки

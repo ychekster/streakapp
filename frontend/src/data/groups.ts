@@ -1,6 +1,6 @@
 /**
- * Shared habits from the habit screen: invite, reset the link, leave, remove someone,
- * «Отметки участников». Unlike habit changes these need the server right away (the API,
+ * Shared habits from the habit screen: invite, reset the link, leave, remove someone (into
+ * the blacklist) and take them off it, «Отметки участников». Unlike habit changes these need the server right away (the API,
  * api/groups.ts); after each, the state is asked for at once (POST /sync), so the screen
  * shows the result.
  *
@@ -25,6 +25,7 @@ import {
   type MemberHabit,
   resetInvite,
   setGroupNotify,
+  unbanMember,
 } from "../api/groups";
 import { describeError } from "../errors";
 import { appPlatform, devicePlatform } from "../platform";
@@ -157,9 +158,15 @@ export async function leaveShared(groupId: number): Promise<void> {
   dataStore.refresh();
 }
 
-/** Remove someone (owner). */
+/** Remove someone (owner): they go into the blacklist. */
 export async function removeFromShared(groupId: number, userId: number): Promise<void> {
   await kickMember(groupId, userId);
+  dataStore.refresh();
+}
+
+/** Take someone off the blacklist (owner): the link works for them again. */
+export async function unbanFromShared(groupId: number, userId: number): Promise<void> {
+  await unbanMember(groupId, userId);
   dataStore.refresh();
 }
 
@@ -397,6 +404,9 @@ export function memberPhotoUrl(
 export function preloadMemberPhotos(habits: readonly Habit[]): void {
   for (const habit of habits) {
     for (const member of habit.group?.members ?? []) {
+      void memberPhotoUrl(habit.group?.id ?? 0, member.user_id, member.photo);
+    }
+    for (const member of habit.group?.banned ?? []) {
       void memberPhotoUrl(habit.group?.id ?? 0, member.user_id, member.photo);
     }
   }

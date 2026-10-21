@@ -21,14 +21,22 @@ export function resetInvite(groupId: number): Promise<GroupInvite> {
   return apiRequest<GroupInvite>(`/groups/${groupId}/reset`, { method: "POST" });
 }
 
-/** Выйти: привычка пропадает (по ссылке вернётся со всеми отметками). */
+/** Выйти: привычка остаётся обычной (по ссылке вернётся в группу со всеми отметками). */
 export async function leaveGroup(groupId: number): Promise<void> {
   await apiRequest<null>(`/groups/${groupId}/leave`, { method: "POST" });
 }
 
-/** Исключить участника (владелец). */
+/** Исключить участника (владелец): он попадает в чёрный список. */
 export async function kickMember(groupId: number, userId: number): Promise<void> {
   await apiRequest<null>(`/groups/${groupId}/kick`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+/** Убрать из чёрного списка (владелец): по ссылке снова можно вступить. */
+export async function unbanMember(groupId: number, userId: number): Promise<void> {
+  await apiRequest<null>(`/groups/${groupId}/unban`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId }),
   });

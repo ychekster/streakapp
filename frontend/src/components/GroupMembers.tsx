@@ -10,7 +10,7 @@
  * страницу (GroupMemberScreen).
  */
 
-import { type Ref, useEffect, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useState } from "react";
 
 import { memberPhotoUrl, readyMemberPhoto } from "../data/groups";
 import { useStrings } from "../preferences";
@@ -41,8 +41,14 @@ function initial(name: string): string {
 }
 
 /** Фото участника из Telegram (обычно уже загружено заранее — data/groups.ts), пока не
- *  загрузилось или его нет — буква. */
-function MemberAvatar({ groupId, member }: { groupId: number; member: GroupMember }) {
+ *  загрузилось или его нет — буква. Им же — исключённые в «Чёрном списке». */
+export function MemberAvatar({
+  groupId,
+  member,
+}: {
+  groupId: number;
+  member: Pick<GroupMember, "user_id" | "name" | "photo">;
+}) {
   const [photo, setPhoto] = useState(() => readyMemberPhoto(member.user_id, member.photo));
   useEffect(() => {
     let current = true;
@@ -59,6 +65,11 @@ function MemberAvatar({ groupId, member }: { groupId: number; member: GroupMembe
     return <img className={styles.photo} src={photo} alt="" draggable={false} />;
   }
   return <span className={styles.monogram}>{initial(member.name)}</span>;
+}
+
+/** Ряды с фото участников — размерами блока «Участники» (и «Чёрного списка»). */
+export function MemberRows({ children }: { children: ReactNode }) {
+  return <div className={styles.members}>{children}</div>;
 }
 
 export function GroupMembers({

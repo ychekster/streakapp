@@ -3,6 +3,7 @@
 - `/start join_<код>` — ссылка-приглашение: бот показывает привычку (название, расписание,
   участники) и спрашивает «Принять» / «Отклонить». Вышедшему, который свою привычку не
   удалял, — «Вернуться»: его прежняя история снова в счёт.
+- Исключённому владельцем (чёрный список) — «вступить нельзя», без кнопок.
 - «Принять» перепроверяет код (ссылку могли сбросить) и добавляет привычку; сообщение
   меняется на «Готово! «Бег» уже в ваших привычках.» — без кнопок: приложение человек
   откроет там, где ему удобно (Mini App или веб-приложение — аккаунт один). Следом бот
@@ -22,6 +23,7 @@ from loguru import logger
 
 from bot.constants import (
     INVITE_ACCEPT,
+    INVITE_BANNED,
     INVITE_DECLINE,
     INVITE_DECLINED,
     INVITE_DETAILS,
@@ -100,6 +102,9 @@ async def start_invite(message: Message, command: CommandObject, database: Datab
     if preview.state == "member":
         await message.answer(_text(INVITE_MEMBER, language))
         return
+    if preview.state == "banned":
+        await message.answer(_text(INVITE_BANNED, language))
+        return
     if preview.state == "full":
         await message.answer(_text(INVITE_FULL, language))
         return
@@ -130,6 +135,7 @@ async def start_invite(message: Message, command: CommandObject, database: Datab
 _REFUSALS = {
     "group_not_found": INVITE_EXPIRED,
     "group_full": INVITE_FULL,
+    "group_banned": INVITE_BANNED,
     "habit_limit": INVITE_HABIT_LIMIT,
 }
 

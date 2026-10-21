@@ -41,7 +41,7 @@ from backend.errors import ApiError
 from backend.models import HabitGroup, HabitGroupMember, Task, User
 from backend.repository import Repository
 from backend.schedule import task_days
-from backend.schemas import GroupMember, GroupMemberHabitResponse, HabitGroupView
+from backend.schemas import BannedMember, GroupMember, GroupMemberHabitResponse, HabitGroupView
 
 # Параметр /start ссылки-приглашения: `join_<код>`.
 INVITE_PREFIX = "join_"
@@ -108,10 +108,11 @@ class _Member:
 
 @dataclass
 class GroupState:
-    """Группа и её активные участники по времени вступления."""
+    """Группа, её активные участники по времени вступления и чёрный список."""
 
     group: HabitGroup
     members: list[_Member]
+    banned: list[User]
 
 
 @dataclass
@@ -150,12 +151,22 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
     freezes = await repo.get_freezes(task_ids)
     counts = await repo.get_history_counts(task_ids, since, horizon)
     periods = await repo.periods_of([member.id for member in members])
+    banned = await repo.banned_members(group_ids)
+    banned_users = await repo.get_users({member.user_id for member in banned})
 
     states: dict[int, GroupState] = {}
     for group_id in group_ids:
         group = await repo.get_group(group_id)
         if group is not None:
-            states[group_id] = GroupState(group=group, members=[])
+            states[group_id] = GroupState(
+                group=group,
+                members=[],
+                banned=[
+                    banned_users[member.user_id]
+                    for member in banned
+                    if member.group_id == group_id and member.user_id in banned_users
+                ],
+            )
     for member in members:
         state = states.get(member.group_id)
         if state is None or member.task_id is None:
@@ -213,9 +224,10 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
         mine.append(own)
         fill.append(round(min((units + own) / ((len(needed) + 1) * target), 1.0), 4))
     owner_id = state.group.owner_id
+    is_owner = owner_id == me.user.telegram_id
     view = HabitGroupView(
         id=state.group.id,
-        is_owner=owner_id == me.user.telegram_id,
+        is_owner=is_owner,
         notify_marks=me.member.notify_marks,
         members=[
             GroupMember(
@@ -230,6 +242,12 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
             )
             for item in state.members
         ],
+        banned=[
+            BannedMember(user_id=user.telegram_id, name=member_name(user), photo=user.photo_id)
+            for user in state.banned
+        ]
+        if is_owner
+        else [],
         others_history=[others_done(day) for day in history_days],
         others_next_day=others_done(today + timedelta(days=1)),
         open_from=min(item.today for item in state.members),
@@ -417,21 +435,38 @@ async def leave(repo: Repository, user: User, group_id: int) -> None:
 
 async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> None:
     """Исключить участника (только владелец): привычка остаётся у него обычной, как при
-    выходе."""
+    выходе, а сам он — в чёрном списке: по ссылке не вступит, пока владелец его оттуда не
+    уберёт."""
     group, _ = await _membership(repo, user, group_id)
     _require_owner(group, user)
     target = await repo.get_member(group_id, user_id)
     if target is None or not target.active or user_id == user.telegram_id:
         raise ApiError(404, "group_member_not_found", "Участник не найден")
     await _deactivate(repo, group, target, await repo.get_user(user_id))
+    await repo.set_member_banned(target, True)
     await repo.log_action(user.telegram_id, "group_kicked", ref_id=user_id)
 
 
-async def photo_owner(repo: Repository, user: User, group_id: int, user_id: int) -> User:
-    """Участник, чьё фото просят: его видят только участники той же привычки."""
-    await _membership(repo, user, group_id)
+async def unban(repo: Repository, user: User, group_id: int, user_id: int) -> None:
+    """Убрать из чёрного списка (только владелец): по ссылке снова можно вступить."""
+    group, _ = await _membership(repo, user, group_id)
+    _require_owner(group, user)
     target = await repo.get_member(group_id, user_id)
-    owner = await repo.get_user(user_id) if target is not None and target.active else None
+    if target is None or target.banned_at is None:
+        raise ApiError(404, "group_member_not_found", "Участник не найден")
+    await repo.set_member_banned(target, False)
+    await repo.log_action(user.telegram_id, "group_unbanned", ref_id=user_id)
+
+
+async def photo_owner(repo: Repository, user: User, group_id: int, user_id: int) -> User:
+    """Участник, чьё фото просят: его видят только участники той же привычки, а
+    исключённого из чёрного списка — владелец."""
+    group, _ = await _membership(repo, user, group_id)
+    target = await repo.get_member(group_id, user_id)
+    visible = target is not None and (
+        target.active or (target.banned_at is not None and group.owner_id == user.telegram_id)
+    )
+    owner = await repo.get_user(user_id) if visible else None
     if owner is None:
         raise ApiError(404, "group_member_not_found", "Участник не найден")
     return owner
@@ -495,7 +530,7 @@ class InvitePreview:
     task: Task
     member_names: list[str]
     # join — можно вступить, rejoin — вернуться со своей историей, member — уже участник,
-    # full — мест нет.
+    # banned — в чёрном списке, full — мест нет.
     state: str
 
 
@@ -528,6 +563,8 @@ async def preview_invite(repo: Repository, user: User, code: str) -> InvitePrevi
     me = await repo.get_member(group.id, user.telegram_id)
     if me is not None and me.active:
         state = "member"
+    elif me is not None and me.banned_at is not None:
+        state = "banned"
     elif len(members) >= MAX_GROUP_MEMBERS:
         state = "full"
     elif await _reusable_task(repo, user, me) is not None:
@@ -556,6 +593,8 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         task = await repo.get_active_task(me.task_id, user.telegram_id)
         if task is not None:
             return "member", task
+    if me is not None and me.banned_at is not None:
+        raise ApiError(403, "group_banned", "Владелец исключил вас из этой привычки")
     if await repo.count_active_members(group.id) >= MAX_GROUP_MEMBERS:
         raise ApiError(409, "group_full", "В привычке уже максимум участников")
     today = services.user_today(user)

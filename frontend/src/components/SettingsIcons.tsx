@@ -167,6 +167,18 @@ export function LinkIcon() {
   );
 }
 
+/** «Чёрный список» групповой привычки — поднятая ладонь, как «Заблокированные» в Telegram. */
+export function HandIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        {...STROKE}
+        d="M8.5 12.5V6.75a1.25 1.25 0 0 1 2.5 0V11m0-5.75V5a1.25 1.25 0 0 1 2.5 0v6m0-5.25a1.25 1.25 0 0 1 2.5 0V11.5m0-3a1.25 1.25 0 0 1 2.5 0v5a6.5 6.5 0 0 1-6.5 6.5h-.4a5.6 5.6 0 0 1-4.5-2.3L5.6 15a1.3 1.3 0 0 1 2-1.6l.9 1"
+      />
+    </svg>
+  );
+}
+
 /** Установить на рабочий стол. */
 export function InstallIcon() {
   return (

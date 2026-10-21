@@ -101,6 +101,7 @@ function localGroup(): HabitGroup {
     members: [
       { user_id: 0, name: "", is_me: true, is_owner: true, done: false, count: 0, frozen: false },
     ],
+    banned: [],
     others_history: [],
     others_next_day: true,
     open_from: null,

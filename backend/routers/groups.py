@@ -3,7 +3,8 @@
     GET  /groups/{group_id}/invite  — ссылка-приглашение
     POST /groups/{group_id}/reset   — новая ссылка, прежняя больше не действует (владелец)
     POST /groups/{group_id}/leave   — выйти: привычка остаётся обычной (по ссылке вернётся)
-    POST /groups/{group_id}/kick    — исключить участника (владелец)
+    POST /groups/{group_id}/kick    — исключить участника (владелец): он в чёрном списке
+    POST /groups/{group_id}/unban   — убрать из чёрного списка (владелец)
     POST /groups/{group_id}/notify  — «Отметки участников»
     GET  /groups/{group_id}/members/{user_id} — страница участника: его привычка по его
          отметкам (сетка, серии, счёт), как обычная
@@ -32,6 +33,7 @@ from backend.schemas import (
     GroupKickRequest,
     GroupMemberHabitResponse,
     GroupNotifyRequest,
+    GroupUnbanRequest,
 )
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -94,8 +96,20 @@ async def kick(
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> Response:
-    """Исключить участника (только владелец)."""
+    """Исключить участника (только владелец): он попадает в чёрный список."""
     await groups.kick(repo, db_user, group_id, payload.user_id)
+    return Response(status_code=204)
+
+
+@router.post("/{group_id}/unban", status_code=204)
+async def unban(
+    payload: GroupUnbanRequest,
+    group_id: int = _GroupId,
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> Response:
+    """Убрать из чёрного списка (только владелец)."""
+    await groups.unban(repo, db_user, group_id, payload.user_id)
     return Response(status_code=204)
 
 

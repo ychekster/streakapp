@@ -12,7 +12,8 @@
  * Вложенные экраны открываются поверх вкладки; нижняя навигация на это время скрыта, а
  * «Закрыть» Telegram заменена на «Назад»:
  *  - экран привычки — нажатием на привычку в списке; поверх него у групповой — страница
- *    участника (GroupMemberScreen), нажатием на участника;
+ *    участника (GroupMemberScreen), нажатием на участника, и у владельца «Чёрный список»
+ *    (GroupBlockedScreen);
  *  - форма привычки — кнопкой «+» (новая) или «Редактировать привычку» на экране
  *    привычки; «Назад» закрывает её без сохранения. Созданная групповая («Вести с
  *    друзьями» в форме) открывает свой экран — там «Добавить участника»;
@@ -87,6 +88,7 @@ import { AccountScreen } from "./screens/AccountScreen";
 import { HabitFormScreen } from "./screens/HabitFormScreen";
 import { InstallFromTelegramScreen } from "./screens/InstallFromTelegramScreen";
 import { HabitScreen } from "./screens/HabitScreen";
+import { GroupBlockedScreen } from "./screens/GroupBlockedScreen";
 import { GroupMemberScreen } from "./screens/GroupMemberScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
 import { LegalScreen } from "./screens/LegalScreen";
@@ -216,6 +218,8 @@ export function App() {
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Страница участника групповой привычки поверх экрана привычки: его Telegram id.
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);
+  // «Чёрный список» групповой привычки поверх экрана привычки (владелец).
+  const [blockedOpen, setBlockedOpen] = useState(false);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(
@@ -243,6 +247,7 @@ export function App() {
   // Позиции прокрутки экранов, поверх которых открыт вложенный: при возврате — там же.
   const scrollUnderHabit = useRef(0);
   const scrollUnderMember = useRef(0);
+  const scrollUnderBlocked = useRef(0);
   const scrollUnderEditor = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
   const scrollUnderFolderForm = useRef(0);
@@ -361,6 +366,7 @@ export function App() {
     pendingScroll.current = 0;
     setHabitEntering(true);
     setOpenMemberId(null);
+    setBlockedOpen(false);
     setOpenHabitId(taskId);
   }, []);
 
@@ -368,6 +374,7 @@ export function App() {
     pendingScroll.current = scrollUnderHabit.current;
     pendingBack.current = true;
     setOpenMemberId(null);
+    setBlockedOpen(false);
     setOpenHabitId(null);
   }, []);
 
@@ -388,6 +395,27 @@ export function App() {
       hideMember();
     }
   }, [openMemberId, openMember, hideMember]);
+
+  const showBlocked = useCallback(() => {
+    scrollUnderBlocked.current = window.scrollY;
+    pendingScroll.current = 0;
+    setBlockedOpen(true);
+  }, []);
+
+  const hideBlocked = useCallback(() => {
+    pendingScroll.current = scrollUnderBlocked.current;
+    pendingBack.current = true;
+    setHabitEntering(false);
+    setBlockedOpen(false);
+  }, []);
+  // Привычка перестала быть моей групповой (вышел, владельцем стал другой) — список
+  // закрывается сам.
+  const blockedGroup = openHabit?.group?.is_owner ? openHabit.group : null;
+  useEffect(() => {
+    if (blockedOpen && blockedGroup === null) {
+      hideBlocked();
+    }
+  }, [blockedOpen, blockedGroup, hideBlocked]);
 
   const showEditor = useCallback((habit: Habit | null) => {
     scrollUnderEditor.current = window.scrollY;
@@ -569,7 +597,9 @@ export function App() {
       ? null
       : editor
         ? hideEditor
-        : openMember
+        : blockedOpen
+          ? hideBlocked
+          : openMember
           ? hideMember
           : openHabit
           ? hideHabit
@@ -841,6 +871,11 @@ export function App() {
         />
       );
     }
+    if (openHabit && blockedGroup && blockedOpen) {
+      return (
+        <GroupBlockedScreen habit={openHabit} group={blockedGroup} onLinkTelegram={linkTelegram} />
+      );
+    }
     if (openHabit?.group && openMember) {
       return (
         <GroupMemberScreen
@@ -865,6 +900,7 @@ export function App() {
           onDelete={deleteOpenHabit}
           onLinkTelegram={linkTelegram}
           onOpenMember={showMember}
+          onOpenBlocked={showBlocked}
         />
       );
     }

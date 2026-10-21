@@ -65,6 +65,16 @@ class GroupMember(BaseModel):
     )
 
 
+class BannedMember(BaseModel):
+    """Исключённый участник в чёрном списке групповой привычки."""
+
+    user_id: int
+    name: str = Field(..., description="@username, если есть, иначе имя из Telegram")
+    photo: str | None = Field(
+        None, description="Версия фото профиля, как у GroupMember; null — рисуется буква"
+    )
+
+
 class HabitGroupView(BaseModel):
     """Совместная привычка с точки зрения участника (backend/groups.py)."""
 
@@ -73,6 +83,13 @@ class HabitGroupView(BaseModel):
     notify_marks: bool = Field(False, description="«Отметки участников» включены")
     members: list[GroupMember] = Field(
         default_factory=list, description="Активные участники по времени вступления"
+    )
+    banned: list[BannedMember] = Field(
+        default_factory=list,
+        description=(
+            "Чёрный список (только владельцу, остальным пустой): исключённые — по ссылке "
+            "не вступят, пока владелец их оттуда не уберёт"
+        ),
     )
     others_history: list[bool] = Field(
         default_factory=list,
@@ -547,6 +564,12 @@ class GroupMemberHabitResponse(BaseModel):
 
 class GroupKickRequest(BaseModel):
     """Запрос `POST /groups/{id}/kick` — исключить участника (только владелец)."""
+
+    user_id: int = Field(..., ge=1, le=MAX_DB_INT)
+
+
+class GroupUnbanRequest(BaseModel):
+    """Запрос `POST /groups/{id}/unban` — убрать из чёрного списка (только владелец)."""
 
     user_id: int = Field(..., ge=1, le=MAX_DB_INT)
 

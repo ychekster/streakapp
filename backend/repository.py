@@ -1162,6 +1162,24 @@ class Repository:
         )
         return list(result)
 
+    async def banned_members(self, group_ids: Collection[int]) -> list[HabitGroupMember]:
+        """Чёрный список групп — по времени исключения."""
+        if not group_ids:
+            return []
+        result = await self.session.scalars(
+            select(HabitGroupMember)
+            .where(
+                HabitGroupMember.group_id.in_(list(group_ids)),
+                HabitGroupMember.banned_at.is_not(None),
+            )
+            .order_by(HabitGroupMember.banned_at, HabitGroupMember.id)
+        )
+        return list(result)
+
+    async def set_member_banned(self, member: HabitGroupMember, banned: bool) -> None:
+        member.banned_at = utc_now() if banned else None
+        await self.session.flush()
+
     async def count_active_members(self, group_id: int) -> int:
         count = await self.session.scalar(
             select(func.count())
