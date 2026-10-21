@@ -433,9 +433,6 @@ async def _validate_habit_fields(
     color = validation.validate_color(payload.color)
     times_per_day = validation.validate_times_per_day(payload.times_per_day)
 
-    if await repo.task_name_exists(user.telegram_id, name, exclude_task_id=task_id):
-        raise ApiError(409, "duplicate_name", "Привычка с таким названием уже есть")
-
     return HabitFields(
         name=name,
         description=description,
@@ -571,7 +568,7 @@ async def remember_schedule(
 
 async def delete_habit(repo: Repository, user: User, task: Task) -> None:
     """Удалить привычку (мягко) и записать это в ленту. Групповая — сначала выход из
-    группы (по ссылке вернётся со всеми отметками)."""
+    группы (её дни в группе остаются в счёте)."""
     await groups.forget_task(repo, user, task)
     await repo.soft_delete_task(task)
     await repo.log_action(user.telegram_id, "habit_deleted", ref_id=task.id)

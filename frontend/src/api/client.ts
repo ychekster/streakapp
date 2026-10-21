@@ -36,7 +36,6 @@ export type ApiErrorCode =
   | "invalid_init_data"
   | "missing_init_data"
   | "task_not_found"
-  | "duplicate_name"
   | "habit_limit"
   | "folder_limit"
   | "folder_not_found"

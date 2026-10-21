@@ -1,8 +1,8 @@
 """Приглашение в совместную привычку (backend/groups.py).
 
 - `/start join_<код>` — ссылка-приглашение: бот показывает привычку столбиком (название,
-  повтор, цель, сколько участников и кто) и спрашивает «Принять» / «Отклонить». Вышедшему, который свою привычку не
-  удалял, — «Вернуться»: его прежняя история снова в счёт.
+  повтор, цель, сколько участников и кто) и спрашивает «Принять» / «Отклонить». Вышедший
+  вступает так же, как новичок, — с новой привычкой.
 - Исключённому владельцем (чёрный список) — «вступить нельзя», без кнопок.
 - «Принять» перепроверяет код (ссылку могли сбросить) и добавляет привычку; сообщение
   меняется на «Готово! «Бег» уже в ваших привычках.» — без кнопок: приложение человек
@@ -37,8 +37,6 @@ from bot.constants import (
     INVITE_MEMBER,
     INVITE_MEMBERS,
     INVITE_NAME,
-    INVITE_REJOIN,
-    INVITE_REJOIN_HINT,
     INVITE_REPEAT,
     INVITE_TITLE,
     SCHEDULE_AND,
@@ -131,18 +129,16 @@ async def start_invite(message: Message, command: CommandObject, database: Datab
         (INVITE_COUNT, count),
         (INVITE_MEMBERS, ", ".join(preview.member_names)),
     ]
-    hint = INVITE_REJOIN_HINT if preview.state == "rejoin" else INVITE_HINT
     parts: list[object] = [_text(INVITE_TITLE, language), "\n"]
     for label, value in rows:
         parts += ["\n", Bold(_text(label, language)), " ", value]
-    parts += ["\n\n", _text(hint, language)]
+    parts += ["\n\n", _text(INVITE_HINT, language)]
     content = Text(*parts)
-    accept = INVITE_REJOIN if preview.state == "rejoin" else INVITE_ACCEPT
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=_text(accept, language), callback_data=f"{_ACCEPT}{code}"
+                    text=_text(INVITE_ACCEPT, language), callback_data=f"{_ACCEPT}{code}"
                 )
             ],
             [InlineKeyboardButton(text=_text(INVITE_DECLINE, language), callback_data=_DECLINE)],

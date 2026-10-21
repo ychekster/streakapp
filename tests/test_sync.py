@@ -213,13 +213,13 @@ def test_a_refused_operation_does_not_stop_the_others(
         client,
         user,
         {"type": "create", "ref": "a", "habit": _habit("Вода")},
-        {"type": "create", "ref": "b", "habit": _habit("вода")},
+        {"type": "create", "ref": "b", "habit": _habit("")},
         {"type": "mark", "task": "b", "date": _today(client, user).isoformat(), "done": True},
         {"type": "update", "task": 999_999_999, "habit": _habit("Сон")},
         {"type": "settings", "patch": {"theme": "dark"}},
     )
     codes = [result["error"] and result["error"]["code"] for result in data["results"]]
-    assert codes == [None, "duplicate_name", "task_not_found", "task_not_found", None]
+    assert codes == [None, "invalid_name", "task_not_found", "task_not_found", None]
     assert [habit["name"] for habit in data["habits"]] == ["Вода"]
     assert data["settings"]["theme"] == "dark"
 

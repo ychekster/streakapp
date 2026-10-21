@@ -550,16 +550,12 @@ function onPageHide(): void {
 // --------------------------------------------------------------------------- //
 
 function validateHabit(input: HabitInput, exceptId: number | null): void {
-  const name = cleanHabitName(input.name).toLowerCase();
-  if (name === "") {
+  if (cleanHabitName(input.name) === "") {
     throw new ApiRequestError(422, "invalid_name", "");
   }
   const others = state.habits.filter((habit) => habit.id !== exceptId);
   if (exceptId === null && others.length >= MAX_HABITS_PER_USER) {
     throw new ApiRequestError(409, "habit_limit", "");
-  }
-  if (others.some((habit) => habit.name.toLowerCase() === name)) {
-    throw new ApiRequestError(409, "duplicate_name", "");
   }
 }
 

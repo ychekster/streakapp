@@ -49,14 +49,6 @@
   opacity: var(--list-row-disabled-opacity);
 }
 
-.error {
-  margin-top: 14px;
-  padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-secondary);
-  color: var(--color-danger);
-  line-height: 1.35;
-}
-
 /* Under the reminder card in the web app: notifications are off and how to turn them on. */
 /* New shared habit: how it works, under the title — like a section footer. */
 

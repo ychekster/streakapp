@@ -398,10 +398,12 @@ def test_guest_with_habits_merges_into_the_existing_account(
 
     result = _bot_login(client, guest, user)
     session = _bearer(result["session"]["token"])
-    # Nothing is lost: the clashing name gets a suffix, check-ins move along.
-    assert _names(client, session) == ["Бег", "Бег (2)", "Вода"]
+    # Nothing is lost: names may repeat, check-ins move along.
+    assert _names(client, session) == ["Бег", "Бег", "Вода"]
     habits = client.get("/tasks", headers=session).json()["habits"]
-    assert {h["name"]: h["done_today"] for h in habits} == {"Бег": True, "Бег (2)": True, "Вода": False}
+    assert [(h["name"], h["done_today"]) for h in habits] == [
+        ("Бег", True), ("Бег", True), ("Вода", False)
+    ]
 
 
 def test_telegram_web_login_checks_the_hash(client: TestClient) -> None:

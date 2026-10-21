@@ -2,17 +2,19 @@
 выглядит день группы.
 
 У каждого участника своя привычка (Task) со своими отметками; группа (HabitGroup) их
-связывает. День группы для участника выполнен, когда его выполнил он сам и все остальные
-**активные сейчас** участники, у которых этот день попадает в период участия и которые в
-этот день не были заморожены. Поэтому выход и исключение пересчитывают прошлое у
-оставшихся, а возврат его восстанавливает. Дни вне участия человека оцениваются по его
-собственным отметкам: история вступившего начинается с дня вступления.
+связывает. День группы выполнен, когда его выполнили все, кто в этот день был в группе
+(у кого день попадает в период участия) и не был заморожен, — и те, кто потом ушёл:
+прошлое не пересчитывается. Дни ушедшего группа помнит по снимку, сделанному при выходе
+(`HabitGroupMark`), а дни тех, кто в группе сейчас, — по их привычкам. Дни вне участия
+человека оцениваются по его собственным отметкам: история вступившего начинается с дня
+вступления.
 
 Групповой можно сделать и новую, и уже существующую привычку (/sync с `shared`), пока
 человек в ней один, — и так же обратно сделать обычной (`unshare`). Вышедший и
-исключённый привычку не теряют: она остаётся у него обычной, со всеми отметками, а по
-ссылке возвращается в группу с ними же; вышел последний — группы больше нет. Автоотметки
-в групповой привычке нет.
+исключённый привычку не теряют: она остаётся у него обычной, со всеми отметками, и с
+группой больше не связана. Вернувшийся по ссылке вступает как новичок — с новой
+привычкой; его прежние дни в группе остаются в счёте. Вышел последний — группы больше
+нет. Автоотметки в групповой привычке нет.
 
 Общие поля (название, описание, расписание, цель на день, цвет — всё, кроме напоминаний)
 берутся с привычки владельца, и меняет их только он (services.update_habit →
@@ -26,12 +28,11 @@ from __future__ import annotations
 import secrets
 import string
 from collections.abc import Callable, Collection
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from backend import services
 from backend.constants import (
-    HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
     INVITE_CODE_LENGTH,
     MAX_GROUP_MEMBERS,
@@ -81,8 +82,45 @@ async def _new_code(repo: Repository) -> str:
 # --------------------------------------------------------------------------- #
 
 
-@dataclass
-class _Member:
+@dataclass(kw_only=True)
+class _Part:
+    """Участие в группе по дням: периоды и что сделано в эти дни. Закрытые периоды — по
+    снимку, сделанному при выходе, идущий (с `live_from`) — по живой привычке."""
+
+    periods: list[tuple[date, date | None]]
+    # Снимок закрытых периодов.
+    past_done: set[date]
+    past_units: dict[date, int]
+    past_frozen: set[date]
+    # Первый день идущего периода (None — вышел) и его привычка по дням.
+    live_from: date | None = None
+    live_done: set[date] = field(default_factory=set)
+    live_counts: dict[date, int] = field(default_factory=dict)
+    live_frozen: Callable[[date], bool] = lambda day: False
+
+    def covers(self, day: date) -> bool:
+        """Был ли он в группе в этот день."""
+        return any(start <= day and (end is None or day < end) for start, end in self.periods)
+
+    def _live(self, day: date) -> bool:
+        return self.live_from is not None and day >= self.live_from
+
+    def is_done(self, day: date) -> bool:
+        return day in (self.live_done if self._live(day) else self.past_done)
+
+    def count_on(self, day: date, target: int) -> int:
+        """Сколько раз выполнил в день (до цели `target`); выполненный день — цель."""
+        if self.is_done(day):
+            return target
+        counts = self.live_counts if self._live(day) else self.past_units
+        return min(counts.get(day, 0), target)
+
+    def is_frozen(self, day: date) -> bool:
+        return self.live_frozen(day) if self._live(day) else day in self.past_frozen
+
+
+@dataclass(kw_only=True)
+class _Member(_Part):
     """Активный участник со всем, что нужно для дней группы."""
 
     member: HabitGroupMember
@@ -90,28 +128,16 @@ class _Member:
     task: Task
     # День отметки участника (его пояс и «Отмечать за вчера»).
     today: date
-    periods: list[tuple[date, date | None]]
-    done: set[date]
-    counts: dict[date, int]
-    is_frozen: Callable[[date], bool]
-
-    def covers(self, day: date) -> bool:
-        """Был ли он в группе в этот день."""
-        return any(start <= day and (end is None or day < end) for start, end in self.periods)
-
-    def count_on(self, day: date) -> int:
-        """Сколько раз выполнил в день (до цели); выполненный день — цель."""
-        if day in self.done:
-            return self.task.times_per_day
-        return min(self.counts.get(day, 0), self.task.times_per_day)
 
 
 @dataclass
 class GroupState:
-    """Группа, её активные участники по времени вступления и чёрный список."""
+    """Группа: активные участники по времени вступления, все участия по дням (и вышедших
+    — их дни остаются в счёте) и чёрный список."""
 
     group: HabitGroup
     members: list[_Member]
+    parts: list[_Part]
     banned: list[User]
 
 
@@ -128,9 +154,26 @@ class ViewerGroup:
     my_units: list[int]
 
 
+@dataclass
+class _Past:
+    """Снимок участника: выполненные дни, неполные (сколько раз) и замороженные."""
+
+    done: set[date]
+    units: dict[date, int]
+    frozen: set[date]
+
+    @classmethod
+    def of(cls, marks: list[tuple[date, bool, int, bool]]) -> _Past:
+        return cls(
+            done={day for day, done, _, _ in marks if done},
+            units={day: units for day, done, units, _ in marks if not done and units},
+            frozen={day for day, _, _, frozen in marks if frozen},
+        )
+
+
 async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int, GroupState]:
-    """Группы с активными участниками, их отметками, заморозками и периодами — одним
-    набором запросов на все группы."""
+    """Группы с участниками (и вышедшими), их отметками, заморозками, периодами и
+    снимками — одним набором запросов на все группы."""
     if not group_ids:
         return {}
     members = await repo.active_members(group_ids)
@@ -143,6 +186,7 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
         for member in members
         if member.task_id in tasks and tasks[member.task_id].is_active and member.user_id in users
     ]
+    former = await repo.former_members(group_ids)
     task_ids = [member.task_id for member in members if member.task_id is not None]
     todays = {user_id: services.user_today(user) for user_id, user in users.items()}
     horizon = max(todays.values(), default=date.today()) + timedelta(days=1)
@@ -150,7 +194,9 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
     done = await repo.get_done_dates(task_ids, horizon)
     freezes = await repo.get_freezes(task_ids)
     counts = await repo.get_history_counts(task_ids, since, horizon)
-    periods = await repo.periods_of([member.id for member in members])
+    member_ids = [member.id for member in [*members, *former]]
+    periods = await repo.periods_of(member_ids)
+    marks = await repo.group_marks_of(member_ids)
     banned = await repo.banned_members(group_ids)
     banned_users = await repo.get_users({member.user_id for member in banned})
 
@@ -161,6 +207,7 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
             states[group_id] = GroupState(
                 group=group,
                 members=[],
+                parts=[],
                 banned=[
                     banned_users[member.user_id]
                     for member in banned
@@ -173,16 +220,34 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
             continue
         task = tasks[member.task_id]
         today = todays[member.user_id]
-        state.members.append(
-            _Member(
-                member=member,
-                user=users[member.user_id],
-                task=task,
-                today=today,
+        past = _Past.of(marks[member.id])
+        item = _Member(
+            member=member,
+            user=users[member.user_id],
+            task=task,
+            today=today,
+            periods=periods[member.id],
+            past_done=past.done,
+            past_units=past.units,
+            past_frozen=past.frozen,
+            live_from=next((start for start, end in periods[member.id] if end is None), today),
+            live_done=done[task.id],
+            live_counts=counts[task.id],
+            live_frozen=services.frozen_check(task, freezes[task.id], today),
+        )
+        state.members.append(item)
+        state.parts.append(item)
+    for member in former:
+        state = states.get(member.group_id)
+        if state is None or not periods[member.id]:
+            continue
+        past = _Past.of(marks[member.id])
+        state.parts.append(
+            _Part(
                 periods=periods[member.id],
-                done=done[task.id],
-                counts=counts[task.id],
-                is_frozen=services.frozen_check(task, freezes[task.id], today),
+                past_done=past.done,
+                past_units=past.units,
+                past_frozen=past.frozen,
             )
         )
     return states
@@ -190,26 +255,25 @@ async def load_groups(repo: Repository, group_ids: Collection[int]) -> dict[int,
 
 def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | None:
     """Совместная привычка глазами владельца привычки `task_id`; `today` — его день
-    отметки (все даты групп — его). None — его нет среди активных участников."""
+    отметки (все даты групп — его). None — его нет среди активных участников.
+
+    Его дни в группе — с вступления этой привычки (`live_from`): прежние периоды
+    вернувшегося были с другой привычкой — на его календаре их нет, у остальных они в
+    счёте."""
     me = next((item for item in state.members if item.task.id == task_id), None)
     if me is None:
         return None
-    others = [item for item in state.members if item is not me]
+    others = [item for item in state.parts if item is not me]
+    joined = me.live_from or today
 
-    def others_done(day: date) -> bool:
-        if not me.covers(day):
-            return True
-        return all(
-            day in item.done
-            for item in others
-            if item.covers(day) and not item.is_frozen(day)
-        )
-
-    def required(day: date) -> list[_Member]:
+    def required(day: date) -> list[_Part]:
         """Остальные, чья часть нужна в этот день (вне моего участия — никто)."""
-        if not me.covers(day):
+        if day < joined:
             return []
         return [item for item in others if item.covers(day) and not item.is_frozen(day)]
+
+    def others_done(day: date) -> bool:
+        return all(item.is_done(day) for item in required(day))
 
     history_start = today - timedelta(days=HISTORY_DAYS - 1)
     history_days = [history_start + timedelta(days=offset) for offset in range(HISTORY_DAYS)]
@@ -217,8 +281,8 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
     others_units, people, fill, mine = [], [], [], []
     for day in history_days:
         needed = required(day)
-        units = sum(min(item.count_on(day), target) for item in needed)
-        own = min(me.count_on(day), target)
+        units = sum(item.count_on(day, target) for item in needed)
+        own = me.count_on(day, target)
         others_units.append(units)
         people.append(len(needed) + 1)
         mine.append(own)
@@ -235,8 +299,8 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
                 name=member_name(item.user),
                 is_me=item is me,
                 is_owner=item.user.telegram_id == owner_id,
-                done=today in item.done,
-                count=item.count_on(today),
+                done=item.is_done(today),
+                count=item.count_on(today, item.task.times_per_day),
                 frozen=item.is_frozen(today),
                 photo=item.user.photo_id,
             )
@@ -265,18 +329,6 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
 # --------------------------------------------------------------------------- #
 
 
-async def _free_name(
-    repo: Repository, user_id: int, name: str, exclude_task_id: int | None = None
-) -> str:
-    """Название, не занятое другой привычкой пользователя: занято — с номером («Бег (2)»)."""
-    candidate, number = name, 2
-    while await repo.task_name_exists(user_id, candidate, exclude_task_id=exclude_task_id):
-        suffix = f" ({number})"
-        candidate = name[: HABIT_NAME_MAX_LENGTH - len(suffix)] + suffix
-        number += 1
-    return candidate
-
-
 async def _apply_shared_fields(repo: Repository, user: User, task: Task, source: Task) -> None:
     """Общие поля привычки владельца `source` (всё, кроме напоминаний) — на привычку
     участника `task`. Прежнее расписание запоминается, как при изменении в форме;
@@ -285,14 +337,9 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
         repo, user, task, source.frequency_type, source.days, source.start_date,
         source.times_per_day,
     )
-    name = (
-        task.name
-        if task.name == source.name
-        else await _free_name(repo, task.user_id, source.name, exclude_task_id=task.id)
-    )
     await repo.set_task_shared_fields(
         task,
-        name,
+        source.name,
         source.description,
         source.frequency_type,
         source.days,
@@ -413,10 +460,13 @@ async def _deactivate(
     repo: Repository, group: HabitGroup, member: HabitGroupMember, user: User | None
 ) -> None:
     """Участник больше не в группе (с его дня отметки); привычка остаётся у него обычной,
-    со всеми отметками (периоды участия хранятся, чтобы вернуться по ссылке). Ушёл
-    владелец — владелец тот, кто вступил раньше всех; не осталось никого — группа удаляется."""
+    со всеми отметками, а группа запоминает, что он сделал за период участия (снимок):
+    её прошлое не меняется ни от выхода, ни от его правок потом. Ушёл владелец — владелец
+    тот, кто вступил раньше всех; не осталось никого — группа удаляется."""
     end = services.user_today(user) if user is not None else date.today()
-    await repo.deactivate_member(member, end)
+    closed = await repo.deactivate_member(member, end)
+    if closed is not None and member.task_id is not None:
+        await _remember_days(repo, member, member.task_id, closed[0], end)
     heir = await repo.earliest_active_member(group.id)
     if heir is None:
         await repo.delete_group(group)
@@ -424,9 +474,31 @@ async def _deactivate(
         await repo.set_group_owner(group, heir.user_id)
 
 
+async def _remember_days(
+    repo: Repository, member: HabitGroupMember, task_id: int, start: date, end: date
+) -> None:
+    """Снимок участника за дни с `start` по `end` (не включая) — по его привычке."""
+    task = await repo.get_user_task(task_id, member.user_id)
+    if task is None:
+        return
+    last = end - timedelta(days=1)
+    done = (await repo.get_done_dates([task.id], last))[task.id]
+    counts = (await repo.get_history_counts([task.id], start, last))[task.id]
+    is_frozen = services.frozen_check(task, (await repo.get_freezes([task.id]))[task.id], end)
+    marks = []
+    day = start
+    while day < end:
+        units = counts.get(day, 0)
+        frozen = is_frozen(day)
+        if day in done or units or frozen:
+            marks.append((day, day in done, units, frozen))
+        day += timedelta(days=1)
+    await repo.save_group_marks(member.id, start, end, marks)
+
+
 async def leave(repo: Repository, user: User, group_id: int) -> None:
-    """«Выйти»: привычка остаётся у него обычной, по ссылке возвращается в группу со
-    всеми отметками."""
+    """«Выйти»: привычка остаётся у него обычной; вернуться можно по ссылке — с новой
+    привычкой, его дни в группе остаются в счёте."""
     group, member = await _membership(repo, user, group_id)
     task_id = member.task_id
     await _deactivate(repo, group, member, user)
@@ -434,8 +506,8 @@ async def leave(repo: Repository, user: User, group_id: int) -> None:
 
 
 async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> None:
-    """Исключить участника (только владелец): привычка остаётся у него обычной, как при
-    выходе, а сам он — в чёрном списке: по ссылке не вступит, пока владелец его оттуда не
+    """Исключить участника (только владелец): как выход — привычка остаётся у него
+    обычной, прошлое группы не меняется, — а сам он в чёрном списке: по ссылке не вступит, пока владелец его оттуда не
     уберёт."""
     group, _ = await _membership(repo, user, group_id)
     _require_owner(group, user)
@@ -514,7 +586,8 @@ async def unshare(repo: Repository, user: User, task: Task) -> None:
 
 
 async def forget_task(repo: Repository, user: User, task: Task) -> None:
-    """Групповую привычку удалили: сначала выход из группы."""
+    """Групповую привычку удалили: сначала выход из группы (её дни в группе остаются в
+    счёте)."""
     membership = await _active_membership(repo, task)
     if membership is not None:
         group, member = membership
@@ -529,25 +602,9 @@ class InvitePreview:
     # Привычка владельца: название, расписание, цель.
     task: Task
     member_names: list[str]
-    # join — можно вступить, rejoin — вернуться со своей историей, member — уже участник,
-    # banned — в чёрном списке, full — мест нет.
+    # join — можно вступить, member — уже участник, banned — в чёрном списке, full — мест
+    # нет.
     state: str
-
-
-async def _reusable_task(
-    repo: Repository, user: User, member: HabitGroupMember | None
-) -> Task | None:
-    """Прежняя привычка вышедшего, с которой он вернётся (осталась у него обычной или
-    удалена), — если она не в другой группе."""
-    if member is None or member.task_id is None:
-        return None
-    task = await repo.get_user_task(member.task_id, user.telegram_id)
-    if task is None:
-        return None
-    current = await repo.get_member_by_task(task.id)
-    if current is not None and current.active and current.id != member.id:
-        return None
-    return task
 
 
 async def preview_invite(repo: Repository, user: User, code: str) -> InvitePreview | None:
@@ -567,8 +624,6 @@ async def preview_invite(repo: Repository, user: User, code: str) -> InvitePrevi
         state = "banned"
     elif len(members) >= MAX_GROUP_MEMBERS:
         state = "full"
-    elif await _reusable_task(repo, user, me) is not None:
-        state = "rejoin"
     else:
         state = "join"
     return InvitePreview(
@@ -580,8 +635,8 @@ async def preview_invite(repo: Repository, user: User, code: str) -> InvitePrevi
 
 
 async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
-    """Вступить по ссылке: `joined` — новая привычка с общими полями владельца, `rejoined`
-    — вернулась его прежняя привычка со всеми отметками (её прошлые периоды снова в счёт),
+    """Вступить по ссылке: `joined` — новая привычка с общими полями владельца (и у
+    вернувшегося: его прежняя осталась обычной, а прошлые дни в группе — в счёте),
     `member` — уже участник."""
     _require_telegram(user)
     group = await repo.get_group_by_code(code)
@@ -597,39 +652,28 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         raise ApiError(403, "group_banned", "Владелец исключил вас из этой привычки")
     if await repo.count_active_members(group.id) >= MAX_GROUP_MEMBERS:
         raise ApiError(409, "group_full", "В привычке уже максимум участников")
-    today = services.user_today(user)
-    old = await _reusable_task(repo, user, me)
-    if (old is None or not old.is_active) and (
-        await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER
-    ):
+    if await repo.count_active_tasks(user.telegram_id) >= MAX_HABITS_PER_USER:
         raise ApiError(
             409, "habit_limit", f"Можно завести не больше {MAX_HABITS_PER_USER} привычек"
         )
-    if old is not None and me is not None:
-        if not old.is_active:
-            await repo.restore_task(old)
-        await _apply_shared_fields(repo, user, old, source)
-        await repo.reactivate_member(me, old.id, today, keep_periods=True)
-        task, outcome = old, "rejoined"
+    today = services.user_today(user)
+    task = await repo.create_task(
+        user_id=user.telegram_id,
+        name=source.name,
+        description=source.description,
+        frequency_type=source.frequency_type,
+        days=source.days,
+        start_date=source.start_date,
+        color=source.color,
+        times_per_day=source.times_per_day,
+    )
+    await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
+    if me is not None:
+        await repo.reactivate_member(me, task.id, today)
     else:
-        task = await repo.create_task(
-            user_id=user.telegram_id,
-            name=await _free_name(repo, user.telegram_id, source.name),
-            description=source.description,
-            frequency_type=source.frequency_type,
-            days=source.days,
-            start_date=source.start_date,
-            color=source.color,
-            times_per_day=source.times_per_day,
-        )
-        await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
-        if me is not None:
-            await repo.reactivate_member(me, task.id, today, keep_periods=False)
-        else:
-            await repo.add_member(group, user.telegram_id, task.id, today)
-        outcome = "joined"
+        await repo.add_member(group, user.telegram_id, task.id, today)
     await repo.log_action(user.telegram_id, "group_joined", ref_id=task.id)
-    return outcome, task
+    return "joined", task
 
 
 # --------------------------------------------------------------------------- #

@@ -1,5 +1,6 @@
 """Совместные привычки (backend/groups.py): создание, приглашение, вступление через бота,
-день группы, общие поля, выход, возврат, исключение, заморозка и уведомления об отметках."""
+день группы, общие поля, выход (прошлое не меняется), возврат, исключение, заморозка и
+уведомления об отметках."""
 
 from __future__ import annotations
 
@@ -16,7 +17,9 @@ from backend import groups, photos
 from backend.constants import MAX_GROUP_MEMBERS
 from backend.database import Database
 from backend.errors import ApiError
-from backend.models import FrequencyType
+from sqlalchemy import select
+
+from backend.models import FrequencyType, HabitGroupPeriod
 from backend.repository import Repository, utc_now
 from bot.profiles import refresh_photos
 
@@ -95,6 +98,21 @@ def _join(user: AuthUser, code: str, name: str = "Петя", username: str | Non
         return outcome
 
     return asyncio.run(_with_repo(action))
+
+
+def _joined_days_ago(user: AuthUser, group_id: int, days: int) -> None:
+    """Сдвинуть начало участия назад: будто вступил `days` дней назад."""
+
+    async def action(repo: Repository) -> None:
+        member = await repo.get_member(group_id, user.id)
+        period = await repo.session.scalar(
+            select(HabitGroupPeriod).where(
+                HabitGroupPeriod.member_id == member.id, HabitGroupPeriod.end_on.is_(None)
+            )
+        )
+        period.start_on -= timedelta(days=days)
+
+    asyncio.run(_with_repo(action))
 
 
 def _mark(client: TestClient, user: AuthUser, task_id: int, day: date, done: bool = True) -> None:
@@ -220,47 +238,79 @@ def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -
     assert mine["description"] == "по 20 страниц" and mine["reminder_time"] == "08:00"
 
 
-def test_name_taken_by_the_member_gets_a_number(client: TestClient, user: AuthUser) -> None:
+def test_name_taken_by_the_member_stays_as_is(client: TestClient, user: AuthUser) -> None:
     _, _, code = _shared(client, user, "Йога")
     friend = new_user()
     _habit(client, friend, "Йога")
     _join(friend, code)
-    assert {habit["name"] for habit in _sync(client, friend)["habits"]} == {"Йога", "Йога (2)"}
+    assert [habit["name"] for habit in _sync(client, friend)["habits"]] == ["Йога", "Йога"]
 
 
-def test_leave_keeps_the_habit_and_return_restores(client: TestClient, user: AuthUser) -> None:
+def test_leaving_keeps_the_past_and_return_is_a_new_habit(
+    client: TestClient, user: AuthUser
+) -> None:
     owner_task, group_id, code = _shared(client, user)
     friend, other = new_user(), new_user()
     _join(friend, code)
     _join(other, code)
-    friend_task = _only(client, friend)["id"]
+    for person in (user, friend, other):
+        _joined_days_ago(person, group_id, 2)
+    friend_task, other_task = _only(client, friend)["id"], _only(client, other)["id"]
     today = _today(client, user)
-    _mark(client, user, owner_task, today)
-    _mark(client, other, _only(client, other)["id"], today)
-    assert _only(client, user)["history"][-1] is False
+    before, yesterday = today - timedelta(days=2), today - timedelta(days=1)
+    for person, task_id in ((user, owner_task), (other, other_task)):
+        _mark(client, person, task_id, before)
+        _mark(client, person, task_id, yesterday)
+    _mark(client, friend, friend_task, before)
+    assert _only(client, user)["history"][-3:-1] == [True, False]
 
-    # Друг вышел: привычка осталась у него обычной, у остальных день засчитан.
-    yesterday = today - timedelta(days=1)
-    _mark(client, friend, friend_task, yesterday)
+    # Друг вышел: привычка осталась у него обычной, прошлое группы — как было.
     assert client.post(f"/groups/{group_id}/leave", headers=friend.headers).status_code == 204
     alone = _only(client, friend)
     assert alone["id"] == friend_task and alone["group"] is None
-    assert alone["history"][-2] is True
-    assert _only(client, user)["history"][-1] is True
+    assert alone["history"][-3:-1] == [True, False]
+    assert _only(client, user)["history"][-3:-1] == [True, False]
     assert len(_only(client, user)["group"]["members"]) == 2
+    # Его правки в своей привычке группу больше не трогают.
+    _mark(client, friend, friend_task, yesterday)
+    assert _only(client, user)["history"][-3:-1] == [True, False]
+    # Сегодня его нет — его и не ждут.
+    _mark(client, user, owner_task, today)
+    _mark(client, other, other_task, today)
+    assert _only(client, user)["history"][-1] is True
 
-    # Вернулся: та же привычка со всеми отметками, прошлое снова с ним.
-    assert _join(friend, code) == "rejoined"
-    back = _only(client, friend)
-    assert back["id"] == friend_task and back["group"]["id"] == group_id
-    assert _only(client, user)["history"][-1] is False
-    _mark(client, friend, friend_task, today)
+    # Вернулся — как новичок: новая привычка без истории, прежняя осталась обычной.
+    assert _join(friend, code) == "joined"
+    habits = _sync(client, friend)["habits"]
+    assert [habit["name"] for habit in habits] == ["Бег", "Бег"]
+    back = next(habit for habit in habits if habit["group"] is not None)
+    assert back["id"] != friend_task and back["group"]["id"] == group_id
+    assert back["total_done"] == 0 and back["history"][-3:-1] == [False, False]
+    # Сегодня его снова ждут; прошлое — без перемен.
+    assert _only(client, user)["history"][-3:] == [True, False, False]
+    _mark(client, friend, back["id"], today)
+    assert _only(client, user)["history"][-1] is True
 
-    # Удаление (с другого устройства) — тот же выход, вернуться можно с отметками.
-    _sync(client, friend, {"type": "delete", "task": friend_task})
-    assert friend_task not in _ids(client, friend)
-    assert _join(friend, code) == "rejoined"
-    assert _only(client, friend)["done_today"] is True
+    # Удаление (с другого устройства) — тот же выход; вернуться можно с новой привычкой.
+    _sync(client, friend, {"type": "delete", "task": back["id"]})
+    assert back["id"] not in _ids(client, friend)
+    assert _only(client, user)["history"][-3:] == [True, False, True]
+    assert _join(friend, code) == "joined"
+    assert len(_sync(client, friend)["habits"]) == 2
+
+
+def test_kicking_does_not_rewrite_the_past(client: TestClient, user: AuthUser) -> None:
+    owner_task, group_id, code = _shared(client, user)
+    lazy = new_user()
+    _join(lazy, code)
+    for person in (user, lazy):
+        _joined_days_ago(person, group_id, 1)
+    yesterday = _today(client, user) - timedelta(days=1)
+    _mark(client, user, owner_task, yesterday)
+    assert _only(client, user)["history"][-2] is False
+    client.post(f"/groups/{group_id}/kick", json={"user_id": lazy.id}, headers=user.headers)
+    owner = _only(client, user)
+    assert owner["history"][-2] is False and owner["best_streak"] == 0
 
 
 def test_alone_it_stays_shared_and_last_out_ends_it(client: TestClient, user: AuthUser) -> None:
@@ -325,7 +375,7 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
     )
     assert response.json()["error"]["code"] == "group_not_owner"
 
-    # Убрали из чёрного списка — вернулся по ссылке со своей привычкой.
+    # Убрали из чёрного списка — вернулся по ссылке с новой привычкой, прежняя — у него.
     unban = client.post(f"/groups/{group_id}/unban", json={"user_id": second.id}, headers=user.headers)
     assert unban.status_code == 204
     assert _only(client, user)["group"]["banned"] == []
@@ -333,8 +383,10 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
         f"/groups/{group_id}/unban", json={"user_id": second.id}, headers=user.headers
     )
     assert response.json()["error"]["code"] == "group_member_not_found"
-    assert _join(second, code) == "rejoined"
-    assert _sync(client, second)["habits"][0]["id"] == kept[0]["id"]
+    assert _join(second, code) == "joined"
+    habits = _sync(client, second)["habits"]
+    assert len(habits) == 2
+    assert [habit["id"] for habit in habits if habit["group"] is None] == [kept[0]["id"]]
 
     # Владелец вышел — владелец тот, кто вступил раньше всех.
     client.post(f"/groups/{group_id}/leave", headers=user.headers)

@@ -119,7 +119,7 @@ def test_invite_is_shown_and_accepted(db_url: str) -> None:
     asyncio.run(run())
 
 
-def test_left_member_is_offered_to_return(db_url: str) -> None:
+def test_left_member_joins_like_anyone(db_url: str) -> None:
     async def run() -> None:
         database = Database(db_url)
         await database.create_tables()
@@ -137,11 +137,9 @@ def test_left_member_is_offered_to_return(db_url: str) -> None:
                 message, SimpleNamespace(args=f"join_{code}"), database  # type: ignore[arg-type]
             )
             buttons = [row[0].text for row in message.answers[0]["reply_markup"].inline_keyboard]
-            assert buttons == ["Вернуться", "Отклонить"]
+            assert buttons == ["Принять", "Отклонить"]
             assert "@anya, " not in message.answers[0]["text"]
-            assert message.answers[0]["text"].endswith(
-                "Нажмите «Вернуться», чтобы снова вести её вместе. Ваши прежние отметки сохранятся."
-            )
+            assert message.answers[0]["text"].endswith("Нажмите «Принять», чтобы присоединиться.")
         finally:
             await database.dispose()
 

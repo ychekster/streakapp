@@ -398,9 +398,10 @@ class HabitGroup(Base):
 
 
 class HabitGroupMember(Base):
-    """Участник групповой привычки. Вышедший (`active` = False) остаётся записью, а его
-    привычка — у него обычной: пока она не в другой группе, он может вернуться с ней, и его
-    прошлые периоды участия снова считаются."""
+    """Участник групповой привычки. Вышедший (`active` = False) остаётся записью: его
+    привычка остаётся у него обычной и с группой больше не связана, а дни его участия
+    группа помнит по снимку (`HabitGroupMark`). Вернувшийся по ссылке получает новую
+    привычку (`task_id` — она) и новый период; прежние периоды остаются в счёте."""
 
     __tablename__ = "habit_group_members"
     __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_member"),)
@@ -440,6 +441,28 @@ class HabitGroupPeriod(Base):
     )
     start_on: Mapped[date] = mapped_column(Date, nullable=False)
     end_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class HabitGroupMark(Base):
+    """Снимок участника за день закрытого периода: что он сделал, пока был в группе.
+    Пишется при выходе (исключении, удалении привычки) — прошлое группы считается по нему и
+    не меняется от правок в привычке, оставшейся у него обычной. Дни периода без записи —
+    не выполнены. Даты — в поясе участника."""
+
+    __tablename__ = "habit_group_marks"
+    __table_args__ = (UniqueConstraint("member_id", "day", name="uq_group_mark_day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    member_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("habit_group_members.id"), nullable=False, index=True
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    # День выполнен (набрана цель того дня).
+    done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Сколько раз выполнил («несколько раз в день»), если день не выполнен.
+    units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Привычка в этот день была заморожена — день его отметки не требовал.
+    frozen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class Folder(Base):

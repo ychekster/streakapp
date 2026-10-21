@@ -204,13 +204,15 @@ def test_other_users_habit_is_not_accessible(
     assert client.get("/tasks", headers=user.headers).json()["habits"][0]["name"] == "Зарядка"
 
 
-def test_duplicate_name_is_case_insensitive_for_cyrillic(
-    client: TestClient, user: AuthUser
-) -> None:
-    _create(client, user, "Чтение")
-    response = client.post("/tasks", json=_habit("  чТЕНИЕ "), headers=user.headers)
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "duplicate_name"
+def test_habits_may_share_a_name(client: TestClient, user: AuthUser) -> None:
+    first = _create(client, user, "Чтение")
+    response = client.post("/tasks", json=_habit("Чтение"), headers=user.headers)
+    assert response.status_code == 201
+    assert response.json()["habit"]["id"] != first["id"]
+    renamed = client.put(f"/tasks/{first['id']}", json=_habit("чтение"), headers=user.headers)
+    assert renamed.status_code == 200
+    names = [habit["name"] for habit in client.get("/tasks", headers=user.headers).json()["habits"]]
+    assert names == ["чтение", "Чтение"]
 
 
 def test_control_characters_are_removed_from_name(client: TestClient, user: AuthUser) -> None:

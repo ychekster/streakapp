@@ -128,13 +128,7 @@ INVITE_HINT: dict[str, str] = {
     "ru": "Нажмите «Принять», чтобы присоединиться.",
     "en": "Tap Accept to join.",
 }
-# Вышедшему, который свою привычку не удалял: вернётся с прежними отметками.
-INVITE_REJOIN_HINT: dict[str, str] = {
-    "ru": "Нажмите «Вернуться», чтобы снова вести её вместе. Ваши прежние отметки сохранятся.",
-    "en": "Tap Rejoin to keep it up together again. Your earlier check-ins stay.",
-}
 INVITE_ACCEPT: dict[str, str] = {"ru": "Принять", "en": "Accept"}
-INVITE_REJOIN: dict[str, str] = {"ru": "Вернуться", "en": "Rejoin"}
 INVITE_DECLINE: dict[str, str] = {"ru": "Отклонить", "en": "Decline"}
 INVITE_DONE: dict[str, str] = {
     "ru": "Готово! «{name}» уже в ваших привычках.",

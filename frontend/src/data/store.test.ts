@@ -204,8 +204,10 @@ describe("dataStore", () => {
     store.start();
     await settle();
     const input = { name: "  зарядка ", frequency_type: "daily" as const, days: [], start_date: null, reminder_time: null, color: "blue" as const, times_per_day: 1, auto_mark: false };
-    expect(() => store.createHabit(input)).toThrow(expect.objectContaining({ code: "duplicate_name" }));
+    // Names may repeat; an empty one may not.
+    expect(() => store.createHabit(input)).not.toThrow();
     expect(() => store.updateHabit(1, input)).not.toThrow();
+    expect(() => store.createHabit({ ...input, name: "  " })).toThrow(expect.objectContaining({ code: "invalid_name" }));
   });
 
   it("does not send a habit created and deleted before sending", async () => {

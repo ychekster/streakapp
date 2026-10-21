@@ -33,7 +33,6 @@ from sqlalchemy.orm import selectinload
 from backend.clock import day_start, local_day
 from backend.constants import (
     DEFAULT_HABIT_COLOR,
-    HABIT_NAME_MAX_LENGTH,
     LAST_SEEN_RESOLUTION_SECONDS,
     MAX_PUSH_SUBSCRIPTIONS_PER_USER,
     SEGMENT_FILTER,
@@ -53,6 +52,7 @@ from backend.models import (
     FrequencyType,
     HabitGroup,
     HabitGroupMember,
+    HabitGroupMark,
     HabitGroupPeriod,
     PushSubscription,
     Review,
@@ -560,6 +560,9 @@ class Repository:
         активному участнику, без таких — удалить вместе с их записями."""
         member_ids = select(HabitGroupMember.id).where(HabitGroupMember.user_id == user_id)
         await self.session.execute(
+            delete(HabitGroupMark).where(HabitGroupMark.member_id.in_(member_ids))
+        )
+        await self.session.execute(
             delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(member_ids))
         )
         await self.session.execute(
@@ -718,22 +721,6 @@ class Repository:
         task.color = color
         await self.session.flush()
 
-    async def task_name_exists(
-        self, user_id: int, name: str, exclude_task_id: int | None = None
-    ) -> bool:
-        """Есть ли у пользователя активная задача с таким именем (без учёта регистра).
-
-        `exclude_task_id` — задача, которую не учитывать (при переименовании сама себе
-        не дубликат). Сравнение делается в Python: так оно не зависит от того, как СУБД
-        понимает регистр (встроенная `lower()` SQLite знает только латиницу).
-        """
-        target = name.strip().lower()
-        query = select(Task.name).where(Task.user_id == user_id, Task.is_active.is_(True))
-        if exclude_task_id is not None:
-            query = query.where(Task.id != exclude_task_id)
-        result = await self.session.execute(query)
-        return any((task_name or "").strip().lower() == target for task_name in result.scalars())
-
     async def count_active_tasks(self, user_id: int) -> int:
         """Сколько активных задач у пользователя."""
         result = await self.session.execute(
@@ -759,12 +746,6 @@ class Repository:
         return await self.session.scalar(
             select(Task).where(Task.id == task_id, Task.user_id == user_id)
         )
-
-    async def restore_task(self, task: Task) -> None:
-        """Вернуть мягко удалённую задачу (участник вернулся в совместную привычку)."""
-        task.is_active = True
-        task.deleted_at = None
-        await self.session.flush()
 
     async def get_task_by_ref(self, user_id: int, client_ref: str) -> Task | None:
         """Задача пользователя, созданная устройством под этим id (/sync), — в том числе
@@ -1162,6 +1143,18 @@ class Repository:
         )
         return list(result)
 
+    async def former_members(self, group_ids: Collection[int]) -> list[HabitGroupMember]:
+        """Вышедшие участники групп: их прошлые дни остаются в счёте группы."""
+        if not group_ids:
+            return []
+        result = await self.session.scalars(
+            select(HabitGroupMember).where(
+                HabitGroupMember.group_id.in_(list(group_ids)),
+                HabitGroupMember.active.is_(False),
+            )
+        )
+        return list(result)
+
     async def banned_members(self, group_ids: Collection[int]) -> list[HabitGroupMember]:
         """Чёрный список групп — по времени исключения."""
         if not group_ids:
@@ -1210,24 +1203,24 @@ class Repository:
         return member
 
     async def reactivate_member(
-        self, member: HabitGroupMember, task_id: int, start_on: date, keep_periods: bool
+        self, member: HabitGroupMember, task_id: int, start_on: date
     ) -> None:
-        """Вернуть вышедшего: новый период с `start_on`; прежние периоды остаются, только
-        если его привычка та же (`keep_periods`)."""
-        if not keep_periods:
-            await self.session.execute(
-                delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id == member.id)
-            )
+        """Вернуть вышедшего с новой привычкой `task_id`: новый период с `start_on`; прежние
+        периоды и их снимок остаются в счёте группы."""
         member.task_id = task_id
         member.active = True
         member.joined_at = utc_now()
         self.session.add(HabitGroupPeriod(member_id=member.id, start_on=start_on))
         await self.session.flush()
 
-    async def deactivate_member(self, member: HabitGroupMember, end_on: date) -> None:
+    async def deactivate_member(
+        self, member: HabitGroupMember, end_on: date
+    ) -> tuple[date, date] | None:
         """Участник вышел: открытый период закрывается днём `end_on` (он уже не в счёт).
-        Период, не покрывший ни дня, удаляется."""
+        Период, не покрывший ни дня, удаляется. Закрытый период (первый день, `end_on`) —
+        чтобы запомнить его дни; ни одного — None."""
         member.active = False
+        closed: tuple[date, date] | None = None
         periods = await self.session.scalars(
             select(HabitGroupPeriod).where(
                 HabitGroupPeriod.member_id == member.id, HabitGroupPeriod.end_on.is_(None)
@@ -1236,14 +1229,60 @@ class Repository:
         for period in list(periods):
             if end_on > period.start_on:
                 period.end_on = end_on
+                closed = (period.start_on, end_on)
             else:
                 await self.session.delete(period)
         await self.session.flush()
+        return closed
+
+    async def save_group_marks(
+        self,
+        member_id: int,
+        start: date,
+        end: date,
+        marks: Collection[tuple[date, bool, int, bool]],
+    ) -> None:
+        """Снимок участника за дни с `start` по `end` (не включая): (день, выполнен, сколько
+        раз, заморожен). Прежние записи за эти дни заменяются."""
+        await self.session.execute(
+            delete(HabitGroupMark).where(
+                HabitGroupMark.member_id == member_id,
+                HabitGroupMark.day >= start,
+                HabitGroupMark.day < end,
+            )
+        )
+        self.session.add_all(
+            HabitGroupMark(member_id=member_id, day=day, done=done, units=units, frozen=frozen)
+            for day, done, units, frozen in marks
+        )
+        await self.session.flush()
+
+    async def group_marks_of(
+        self, member_ids: Collection[int]
+    ) -> dict[int, list[tuple[date, bool, int, bool]]]:
+        """Снимки участников: id участника → (день, выполнен, сколько раз, заморожен)."""
+        marks: dict[int, list[tuple[date, bool, int, bool]]] = {
+            member_id: [] for member_id in member_ids
+        }
+        for batch in _batches(marks):
+            result = await self.session.execute(
+                select(
+                    HabitGroupMark.member_id,
+                    HabitGroupMark.day,
+                    HabitGroupMark.done,
+                    HabitGroupMark.units,
+                    HabitGroupMark.frozen,
+                ).where(HabitGroupMark.member_id.in_(batch))
+            )
+            for member_id, day, done, units, frozen in result.tuples():
+                marks[member_id].append((day, done, units, frozen))
+        return marks
 
     async def delete_group(self, group: HabitGroup) -> None:
-        """Удалить группу со всеми участниками и их периодами (из неё вышли все): ссылка
+        """Удалить группу со всеми участниками, их периодами и снимками (из неё вышли все): ссылка
         больше не действует, вернуться некуда."""
         rest = select(HabitGroupMember.id).where(HabitGroupMember.group_id == group.id)
+        await self.session.execute(delete(HabitGroupMark).where(HabitGroupMark.member_id.in_(rest)))
         await self.session.execute(
             delete(HabitGroupPeriod).where(HabitGroupPeriod.member_id.in_(rest))
         )
@@ -1955,29 +1994,11 @@ class Repository:
         target re-read from the database.
 
         Nothing is lost: habits, check-ins, folders (after the target's), reviews, activity
-        days, logins, web sessions, push subscriptions and funnel events all move. An active habit whose name the
-        target already uses gets a suffix («Бег (2)») instead of being dropped. Settings
-        stay the target's; what the target lacks (time zone, first check-in) is taken
+        days, logins, web sessions, push subscriptions and funnel events all move (habit
+        names may repeat, so they move as they are). Settings stay the target's; what the target lacks (time zone, first check-in) is taken
         from the source.
         """
         source_id, target_id = source.telegram_id, target.telegram_id
-        taken = {
-            name.strip().lower()
-            for name in (
-                await self.session.scalars(
-                    select(Task.name).where(Task.user_id == target_id, Task.is_active.is_(True))
-                )
-            )
-        }
-        for task in await self.get_active_tasks(source_id):
-            name, number = task.name, 2
-            while name.strip().lower() in taken:
-                suffix = f" ({number})"
-                name = task.name[: HABIT_NAME_MAX_LENGTH - len(suffix)] + suffix
-                number += 1
-            task.name = name
-            taken.add(name.strip().lower())
-
         if target.timezone is None and source.timezone is not None:
             target.timezone, target.timezone_city = source.timezone, source.timezone_city
         for field in ("first_checkin_at", "app_opened_at"):

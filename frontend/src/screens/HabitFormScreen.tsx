@@ -83,7 +83,7 @@ import { useMeta } from "../hooks/useMeta";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
-import { hapticNotification } from "../telegram/webapp";
+import { hapticNotification, showAlert } from "../telegram/webapp";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
@@ -150,8 +150,6 @@ export function HabitFormScreen({
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
   const enableReminderPush = useReminderPush();
-  const [error, setError] = useState<string | null>(null);
-  const errorRef = useRef<HTMLParagraphElement>(null);
   // Отправка уже идёт: состояние `submitting` обновится только со следующим рендером, а
   // второе быстрое нажатие нижней кнопки создало бы привычку дважды.
   const submittingRef = useRef(false);
@@ -239,7 +237,6 @@ export function HabitFormScreen({
         void subscribePush();
       }
     }
-    setError(null);
     const input: HabitInput = {
       name: name.trim(),
       description: description.trim(),
@@ -259,23 +256,14 @@ export function HabitFormScreen({
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
-      // a duplicate name or the habit limit is shown under the form right away.
+      // the habit limit is shown in a system dialog right away.
       onSaved(habit ? dataStore.updateHabit(habit.id, input) : dataStore.createHabit(input));
     } catch (caught) {
-      setError(
-        describeError(
-          strings,
-          caught,
-          habit ? strings.formEditFailed : strings.formCreateFailed,
-        ),
-      );
+      const failed = habit ? strings.formEditFailed : strings.formCreateFailed;
       submittingRef.current = false;
       setSubmitting(false);
       hapticNotification("error");
-      // Ошибка — под формой: прокрутить к ней, если форма длиннее экрана.
-      requestAnimationFrame(() =>
-        errorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
-      );
+      void showAlert({ title: failed, message: describeError(strings, caught, failed) });
     }
   }
 
@@ -487,12 +475,6 @@ export function HabitFormScreen({
               </ListItem>
             </Card>
           </Section>
-        ) : null}
-
-        {error ? (
-          <p ref={errorRef} className={styles.error} role="alert">
-            {error}
-          </p>
         ) : null}
       </div>
     </Screen>
