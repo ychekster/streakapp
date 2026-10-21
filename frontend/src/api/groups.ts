@@ -1,7 +1,7 @@
 /** Совместные привычки (backend/routers/groups.py). Состояние после действия приложение
  *  берёт из следующего POST /sync (data/groups.ts просит его сразу). */
 
-import { apiRequest } from "./client";
+import { API_BASE_URL, apiRequest, authorizationHeader } from "./client";
 
 /** Ссылка-приглашение совместной привычки. */
 export interface GroupInvite {
@@ -39,4 +39,18 @@ export async function setGroupNotify(groupId: number, on: boolean): Promise<void
     method: "POST",
     body: JSON.stringify({ on }),
   });
+}
+
+/** Фото участника из Telegram (JPEG); null — фото нет или не удалось получить. Не через
+ *  apiRequest: ответ — картинка, а не JSON. */
+export async function memberPhoto(groupId: number, userId: number): Promise<Blob | null> {
+  const authorization = authorizationHeader();
+  try {
+    const response = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}/photo`, {
+      headers: authorization ? { Authorization: authorization } : {},
+    });
+    return response.ok ? await response.blob() : null;
+  } catch {
+    return null;
+  }
 }

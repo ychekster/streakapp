@@ -18,12 +18,11 @@
 import { memo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
-import { groupFill, isShared } from "../data/derive";
+import { groupFill } from "../data/derive";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
-import { GroupFaces } from "./GroupFaces";
 import { fixedGridFill, useGridView } from "./gridLayout";
 import { YearGrid } from "./YearGrid";
 import styles from "./HabitBlock.module.css";
@@ -53,7 +52,6 @@ export const HabitBlock = memo(function HabitBlock({
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
   const fill = fixedGridFill(useGridView(), habit, gridDays);
   const shown = fill ?? gridDays;
-  const shared = isShared(habit);
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -72,9 +70,6 @@ export const HabitBlock = memo(function HabitBlock({
           <h3 className={styles.name}>{habit.name}</h3>
           {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
         </div>
-        {/* Совместная: слева от кнопки — кто из остальных уже выполнил свою часть; кнопка —
-            моя часть, как у обычной привычки. */}
-        {shared ? <GroupFaces members={habit.group.members} /> : null}
         <CheckButton
           done={habit.done_today}
           habitName={habit.name}

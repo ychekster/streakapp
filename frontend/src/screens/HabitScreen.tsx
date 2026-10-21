@@ -17,13 +17,14 @@
  * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
  * карточкой.
  *
- * Совместная привычка (data/groups.ts): под календарём — «Участники» (кто уже выполнил
- * свою часть; владелец нажатием исключает), в настройках — вторая карточка: «Пригласить»,
- * «Отметки участников», «Сбросить ссылку» (владелец); вместо «Удалить» — «Выйти из
- * привычки» (привычка пропадает, по ссылке вернётся). У обычной привычки второй карточки
- * нет: совместной её не сделать. Автоотметки в совместной привычке нет. Эти действия идут
- * на сервер сразу; ошибка — системным диалогом, гостю веб-приложения предлагается войти
- * через Telegram.
+ * Совместная привычка (data/groups.ts): под календарём — «Участники» (кто как выполнил
+ * свою часть; владелец нажатием исключает) с рядом «Добавить участника» — отправить
+ * ссылку-приглашение. В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
+ * (владелец); вместо «Удалить» — «Выйти из привычки» (привычка пропадает, по ссылке
+ * вернётся). Обычную привычку совместной не сделать. Автоотметки в совместной привычке нет.
+ * «Редактировать» у участника открывает ту же форму, где менять можно только напоминания.
+ * Эти действия идут на сервер сразу; ошибка — системным диалогом, гостю веб-приложения
+ * предлагается войти через Telegram.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -42,7 +43,6 @@ import {
   BellIcon,
   LinkIcon,
   PencilIcon,
-  PersonPlusIcon,
   SnowflakeIcon,
 } from "../components/SettingsIcons";
 import { StatCard } from "../components/StatCard";
@@ -312,8 +312,12 @@ export function HabitScreen({
         {shared && group ? (
           <GroupMembers
             group={group}
+            total={habit.times_per_day}
             mineDone={habit.done_today}
+            mineCount={habit.today_count}
             onPressMember={(member) => void askToRemove(member)}
+            onAddMember={invite}
+            addDisabled={groupBusy}
           />
         ) : null}
 
@@ -349,39 +353,26 @@ export function HabitScreen({
             >
               <Disclosure />
             </ListItem>
-          </Card>
-          {/* Совместная привычка — своей карточкой под основными настройками. */}
-          {shared && group ? (
-          <div className={styles.nextCard}>
-            <Card>
-              <ListItem
-                icon={<PersonPlusIcon />}
-                iconColor="indigo"
-                label={strings.inviteHabit}
-                disabled={groupBusy}
-                onPress={invite}
-              >
-                <Disclosure />
-              </ListItem>
+            {/* Совместная привычка — в той же карточке. */}
+            {shared && group ? (
               <ListItem icon={<BellIcon />} iconColor="red" label={strings.groupNotify}>
                 <span className={styles.autoMarkSwitch}>
                   <Switch checked={notify} onChange={switchNotify} label={strings.groupNotify} />
                 </span>
               </ListItem>
-              {group.is_owner ? (
-                <ListItem
-                  icon={<LinkIcon />}
-                  iconColor="graphite"
-                  label={strings.resetInvite}
-                  disabled={groupBusy}
-                  onPress={() => void askToResetLink()}
-                >
-                  <Disclosure />
-                </ListItem>
-              ) : null}
-            </Card>
-          </div>
-          ) : null}
+            ) : null}
+            {shared && group?.is_owner ? (
+              <ListItem
+                icon={<LinkIcon />}
+                iconColor="graphite"
+                label={strings.resetInvite}
+                disabled={groupBusy}
+                onPress={() => void askToResetLink()}
+              >
+                <Disclosure />
+              </ListItem>
+            ) : null}
+          </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
               «Часах» iOS). У совместной — выход: привычка пропадает, по ссылке вернётся. */}
           {shared ? (

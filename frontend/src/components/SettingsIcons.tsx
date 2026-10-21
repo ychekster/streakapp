@@ -157,17 +157,6 @@ export function PersonIcon() {
   );
 }
 
-/** Пригласить в привычку: человек с плюсом. */
-export function PersonPlusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle {...STROKE} cx="10" cy="8.5" r="3.5" />
-      <path {...STROKE} d="M3.5 19.5c1.1-3.2 3.5-4.8 6.5-4.8s5.4 1.6 6.5 4.8" />
-      <path {...STROKE} d="M18.5 7.5v5M16 10h5" />
-    </svg>
-  );
-}
-
 /** Сбросить ссылку-приглашение: звенья цепи. */
 export function LinkIcon() {
   return (

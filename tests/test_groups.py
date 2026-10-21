@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import AuthUser, new_user
 from tests.fake_telegram import FakeTelegram
-from backend import groups
+from backend import groups, photos
 from backend.constants import MAX_GROUP_MEMBERS
 from backend.database import Database
 from backend.errors import ApiError
@@ -157,34 +157,37 @@ def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -
     _join(friend, code)
     friend_task = _only(client, friend, "Чтение")["id"]
 
-    # Участник: название и расписание не меняются, цвет — его.
+    # Участник: всё, кроме напоминаний, — как было; напоминания — его.
     _sync(
         client,
         friend,
         {
             "type": "update",
             "task": friend_task,
-            "habit": {"name": "Другое", "frequency_type": "specific_days", "days": ["mon"],
-                      "color": "red", "times_per_day": 3, "auto_mark": True},
+            "habit": {"name": "Другое", "description": "моё", "frequency_type": "specific_days",
+                      "days": ["mon"], "color": "red", "times_per_day": 3, "auto_mark": True,
+                      "reminder_time": "08:00", "reminder_times": ["08:00"]},
         },
     )
     mine = _only(client, friend, "Чтение")
-    assert (mine["frequency_type"], mine["times_per_day"], mine["color"]) == ("daily", 1, "red")
-    assert mine["auto_mark"] is False
+    assert (mine["frequency_type"], mine["times_per_day"], mine["color"]) == ("daily", 1, "blue")
+    assert mine["description"] is None and mine["auto_mark"] is False
+    assert mine["reminder_time"] == "08:00"
 
-    # Владелец: меняется у всех.
+    # Владелец: меняется у всех, напоминания участника остаются.
     _sync(
         client,
         user,
         {
             "type": "update",
             "task": owner_task,
-            "habit": {"name": "Книги", "frequency_type": "daily", "times_per_day": 2,
-                      "color": "blue", "auto_mark": False},
+            "habit": {"name": "Книги", "description": "по 20 страниц", "frequency_type": "daily",
+                      "times_per_day": 2, "color": "green", "auto_mark": False},
         },
     )
     mine = _only(client, friend, "Книги")
-    assert (mine["times_per_day"], mine["color"]) == (2, "red")
+    assert (mine["times_per_day"], mine["color"]) == (2, "green")
+    assert mine["description"] == "по 20 страниц" and mine["reminder_time"] == "08:00"
 
 
 def test_name_taken_by_the_member_gets_a_number(client: TestClient, user: AuthUser) -> None:
@@ -377,3 +380,26 @@ def test_day_is_shaded_by_everyone(client: TestClient, user: AuthUser) -> None:
     # Моя часть — в history_counts, день группы не выполнен.
     assert habit["history_counts"][-1] == 3 and habit["history"][-1] is False
 
+
+def test_member_photos_come_from_telegram(client: TestClient, user: AuthUser) -> None:
+    photos.clear_cache()
+    fake: FakeTelegram = client.app.state.bot
+    _, group_id, code = _shared(client, user)
+    friend, stranger = new_user(), new_user()
+    _join(friend, code)
+    fake.profile_photos[friend.id] = b"jpeg-bytes"
+
+    url = f"/groups/{group_id}/members/{friend.id}/photo"
+    response = client.get(url, headers=user.headers)
+    assert response.status_code == 200
+    assert response.content == b"jpeg-bytes" and response.headers["content-type"] == "image/jpeg"
+    # Второй раз — из памяти, без Telegram.
+    assert client.get(url, headers=user.headers).status_code == 200
+    assert fake.photo_requests == 1
+    # Нет фото — 404 (приложение рисует букву).
+    assert client.get(f"/groups/{group_id}/members/{user.id}/photo",
+                      headers=friend.headers).status_code == 404
+    # Чужим — нет.
+    assert client.get(url, headers=stranger.headers).status_code == 404
+    assert client.get(f"/groups/{group_id}/members/{stranger.id}/photo",
+                      headers=user.headers).status_code == 404

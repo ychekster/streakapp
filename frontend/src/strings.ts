@@ -279,9 +279,9 @@ const RU = {
   groupOwner: "владелец",
   groupMemberDone: "выполнено",
   groupMemberFrozen: "заморожено",
-  // Кружки участников у кнопки отметки (для скринридеров).
-  groupFacesLabel: (done: number, total: number) => `Участники: выполнили ${done} из ${total}`,
-  inviteHabit: "Пригласить",
+  // Сколько раз участник выполнил привычку «несколько раз в день» (для скринридеров).
+  groupMemberCount: (count: number, total: number) => `выполнено ${count} из ${total}`,
+  groupAddMember: "Добавить участника",
   inviteShareText: (name: string) => `Присоединяйся к привычке «${name}» в Knot`,
   inviteCopiedTitle: "Ссылка скопирована",
   inviteCopiedMessage: "Отправьте её тому, с кем хотите вести привычку.",
@@ -325,19 +325,11 @@ const RU = {
 
   // --- Форма совместной привычки ---
   sharedFormTitle: "Совместная привычка",
-  sharedFormIntro:
-    "Ведите привычку вместе с друзьями: день засчитывается, когда свою часть выполнили все. До 12 участников.",
-  sharedCommonHeading: "Общее для всех",
-  sharedCommonFooter:
-    "Название, повтор и цель одинаковы у всех участников. Менять их можете только вы.",
-  sharedOwnHeading: "Только для вас",
-  sharedOwnFooter: "Описание и напоминания у каждого участника свои, как и цвет.",
-  sharedSubmit: "Создать и пригласить",
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
   formEditTitle: "Редактирование",
-  formCreateSubmit: "Создать привычку",
+  formCreateSubmit: "Добавить привычку",
   formEditSubmit: "Сохранить",
   formCreateFailed: "Не удалось создать привычку",
   formEditFailed: "Не удалось сохранить привычку",
@@ -687,8 +679,8 @@ const EN: Strings = {
   groupOwner: "owner",
   groupMemberDone: "done",
   groupMemberFrozen: "frozen",
-  groupFacesLabel: (done: number, total: number) => `Members: ${done} of ${total} done`,
-  inviteHabit: "Invite",
+  groupMemberCount: (count: number, total: number) => `${count} of ${total} done`,
+  groupAddMember: "Add Member",
   inviteShareText: (name: string) => `Join me in the habit “${name}” on Knot`,
   inviteCopiedTitle: "Link Copied",
   inviteCopiedMessage: "Send it to the person you want to keep up the habit with.",
@@ -727,18 +719,10 @@ const EN: Strings = {
   templateCreate: (name: string) => `Create “${name}”`,
 
   sharedFormTitle: "Shared Habit",
-  sharedFormIntro:
-    "Keep up a habit together with friends: a day counts when everyone has done their part. Up to 12 members.",
-  sharedCommonHeading: "Same for Everyone",
-  sharedCommonFooter:
-    "The name, repeat and goal are the same for all members. Only you can change them.",
-  sharedOwnHeading: "Just for You",
-  sharedOwnFooter: "Each member has their own description and reminders, and their own color.",
-  sharedSubmit: "Create and Invite",
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
-  formCreateSubmit: "Create Habit",
+  formCreateSubmit: "Add Habit",
   formEditSubmit: "Save",
   formCreateFailed: "Couldn’t create the habit",
   formEditFailed: "Couldn’t save the habit",

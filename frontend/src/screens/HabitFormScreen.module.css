@@ -3,6 +3,12 @@
   --list-row-min-height: var(--form-row-min-height);
 }
 
+/* Форма привычки: заголовок экрана — маленький в шапке (pinnedTitle), первая секция — с
+   отступом под ней. */
+.pinned {
+  padding-top: var(--space-form-top);
+}
+
 /* Поля названия и описания занимают весь ряд по высоте: нажатие в любом месте ряда
    ставит курсор. Отрицательные поля «съедают» вертикальный отступ ряда, собственные — возвращают его. */
 .textInput {
@@ -23,14 +29,15 @@
   color: var(--color-placeholder);
 }
 
-/* Совместная привычка у участника: название бледное — его меняет владелец. */
+/* Совместная привычка у участника: Safari красит текст недоступного поля серым — пусть
+   бледнеет, как остальное (.fieldset), а не меняет цвет. */
 .textInput:disabled {
-  opacity: var(--list-row-disabled-opacity);
   -webkit-text-fill-color: var(--color-text-primary);
 }
 
-/* Обёртка общих полей совместной привычки: у участника (disabled) всё внутри не
-   нажимается и бледнеет, как недоступный ряд списка (содержимое рядов, а не карточка). */
+/* Обёртка полей совместной привычки, которые задаёт владелец: у участника (disabled) всё
+   внутри не нажимается и бледнеет, как недоступный ряд списка (содержимое рядов, а не
+   карточка). */
 .fieldset {
   min-width: 0;
   margin: 0;
@@ -52,12 +59,7 @@
 
 /* Under the reminder card in the web app: notifications are off and how to turn them on. */
 /* New shared habit: how it works, under the title — like a section footer. */
-.intro {
-  padding: 0 var(--space-card-padding);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-list-footer);
-  color: var(--color-text-secondary);
-}
+
 
 .note {
   margin-top: var(--space-list-footer-top);

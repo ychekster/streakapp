@@ -112,16 +112,18 @@
   --check-box: 28px;
   --check-hit-slop: 6px; /* невидимая зона нажатия вокруг кружка */
   --delete-button-height: 52px; /* «Удалить привычку», «Выйти из аккаунта» — капсула под последней карточкой */
-  /* Привычка «несколько раз в день»: плюс внутри кружка, выполненные разы — дугой по обводке. */
-  --check-faded-opacity: 0.35; /* бледная обводка и плюс — как у неактивной кнопки */
-  /* Совместная привычка: кружки участников слева от кнопки отметки (GroupFaces). */
-  --group-face-size: 22px;
-  --group-face-overlap: 7px; /* насколько следующий наезжает на предыдущий */
-  --group-face-ring: 2px; /* ободок цвета карточки между кружками */
-  --group-face-font-size: 11px;
-  --group-face-more-font-size: 10px;
-  --group-face-pending-opacity: 0.18; /* фон кружка того, кто ещё не выполнил */
-  --group-faces-gap: 10px; /* от кружков до кнопки отметки */
+  /* Привычка «несколько раз в день»: внутри кружка — сколько раз осталось, выполненные
+     разы — дугой по обводке. */
+  --check-faded-opacity: 0.35; /* бледная обводка — как у неактивной кнопки */
+  --check-count-font-size: 13px; /* число внутри кружка (до двух цифр) */
+  /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
+     Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
+     имя в 14 от фото; «+» у «Добавить участника» — 16, по центру колонки фото. */
+  --group-member-avatar-size: 31px;
+  --group-member-avatar-inset: 14px;
+  --group-member-avatar-gap: 14px;
+  --group-member-letter: 14px;
+  --group-member-add-icon: 16px;
 
   /* --- Степпер (−/+): капсула --- */
   --stepper-width: 93px;
@@ -267,15 +269,18 @@
   --space-folders-intro-top: 23px;
   /* «Добавить привычку» (NewHabitScreen), как «Новое сообщение» Telegram. */
   --space-new-habit-search-top: 12px; /* от шапки до поиска */
+  --space-form-top: 16px; /* форма привычки: от шапки до заголовка первой секции */
   --new-habit-action-icon: 26px; /* значок перед «Новая привычка» / «Совместная привычка» */
   --new-habit-action-gap: 14px;
   /* Шаблоны — ряд рекомендуемой папки (FoldersScreen: по 11 сверху и снизу, название 17,
      подпись 14 — ряд 61.5; название чуть жирнее) с кружком в колонке значков действий: текст
      шаблонов — с той же вертикали, что «Новая привычка» и «Совместная привычка». */
-  --new-habit-avatar-size: 36px;
-  --new-habit-avatar-letter: 16px;
-  --new-habit-avatar-inset: 10px; /* 10 + 36 + 10 = 56: текст с вертикали действий */
-  --new-habit-avatar-gap: 10px;
+  /* Кружок шаблона — размера значков действий и на их месте: от края карточки столько
+     же, сколько у текста рядов (16), 16 + 26 + 14 = 56 — текст с вертикали действий. */
+  --new-habit-avatar-size: var(--new-habit-action-icon);
+  --new-habit-avatar-letter: 13px;
+  --new-habit-avatar-inset: var(--space-card-padding);
+  --new-habit-avatar-gap: var(--new-habit-action-gap);
   --new-habit-template-pad-y: var(--folders-recommended-pad-y);
   --new-habit-template-line-gap: 1px; /* название ↔ расписание, как у папки */
   --new-habit-template-name: var(--font-size-habit-name);

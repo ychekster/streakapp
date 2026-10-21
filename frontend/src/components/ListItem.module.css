@@ -66,6 +66,12 @@
   border-radius: var(--radius-pill);
 }
 
+/* Без плашки: только значок, цветом подписи («+ Добавить участника»). */
+.plainIcon {
+  background-color: transparent;
+  color: inherit;
+}
+
 .icon svg {
   width: var(--list-row-icon-glyph);
   height: var(--list-row-icon-glyph);

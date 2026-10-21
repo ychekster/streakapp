@@ -14,8 +14,9 @@
 удаляется мягко и по ссылке возвращается со всеми отметками; вышел последний — группы
 больше нет. Автоотметки в совместной привычке нет.
 
-Общие поля (название, расписание, цель на день) берутся с привычки владельца, и меняет их
-только он (services.update_habit → `share_owner_changes`). Вступают по ссылке через бота
+Общие поля (название, описание, расписание, цель на день, цвет — всё, кроме напоминаний)
+берутся с привычки владельца, и меняет их только он (services.update_habit →
+`share_owner_changes`). Вступают по ссылке через бота
 (bot/handlers/group_invite.py), остальное — API /groups (routers/groups.py). Только
 аккаунты с Telegram: гостю веб-приложения — `group_needs_telegram`.
 """
@@ -258,8 +259,9 @@ async def _free_name(
 
 
 async def _apply_shared_fields(repo: Repository, user: User, task: Task, source: Task) -> None:
-    """Общие поля привычки владельца `source` — на привычку участника `task`. Прежнее
-    расписание запоминается, как при изменении в форме; автоотметка выключается."""
+    """Общие поля привычки владельца `source` (всё, кроме напоминаний) — на привычку
+    участника `task`. Прежнее расписание запоминается, как при изменении в форме;
+    автоотметка выключается."""
     await services.remember_schedule(
         repo, user, task, source.frequency_type, source.days, source.start_date,
         source.times_per_day,
@@ -270,7 +272,14 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
         else await _free_name(repo, task.user_id, source.name, exclude_task_id=task.id)
     )
     await repo.set_task_shared_fields(
-        task, name, source.frequency_type, source.days, source.start_date, source.times_per_day
+        task,
+        name,
+        source.description,
+        source.frequency_type,
+        source.days,
+        source.start_date,
+        source.times_per_day,
+        source.color,
     )
 
 
@@ -296,8 +305,8 @@ async def _active_membership(
 
 
 async def restrict_update(repo: Repository, user: User, task: Task, payload):  # type: ignore[no-untyped-def]
-    """Форма участника совместной привычки: общие поля меняет только владелец (у остальных
-    остаются как есть), автоотметки в совместной привычке нет."""
+    """Форма участника совместной привычки: всё, кроме напоминаний, меняет только владелец
+    (у остальных остаётся как есть), автоотметки в совместной привычке нет."""
     membership = await _active_membership(repo, task)
     if membership is None:
         return payload
@@ -306,6 +315,8 @@ async def restrict_update(repo: Repository, user: User, task: Task, payload):  #
     if group.owner_id != user.telegram_id:
         updates.update(
             name=task.name,
+            description=task.description,
+            color=task.color,
             frequency_type=task.frequency_type.value,
             days=task_days(task),
             start_date=task.start_date,
@@ -413,6 +424,14 @@ async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> Non
     await repo.log_action(user.telegram_id, "group_kicked", ref_id=user_id)
 
 
+async def check_photo_access(repo: Repository, user: User, group_id: int, user_id: int) -> None:
+    """Фото участника видят только участники той же привычки."""
+    await _membership(repo, user, group_id)
+    target = await repo.get_member(group_id, user_id)
+    if target is None or not target.active:
+        raise ApiError(404, "group_member_not_found", "Участник не найден")
+
+
 async def set_notify(repo: Repository, user: User, group_id: int, on: bool) -> None:
     """«Отметки участников» включить или выключить."""
     _, member = await _membership(repo, user, group_id)
@@ -518,6 +537,7 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         task = await repo.create_task(
             user_id=user.telegram_id,
             name=await _free_name(repo, user.telegram_id, source.name),
+            description=source.description,
             frequency_type=source.frequency_type,
             days=source.days,
             start_date=source.start_date,

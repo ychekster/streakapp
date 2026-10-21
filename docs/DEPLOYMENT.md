@@ -301,7 +301,8 @@ add_header Content-Security-Policy "default-src 'self'; script-src 'self' https:
 >
 > Что разрешает CSP и зачем: `https://telegram.org` в `script-src` — официальный SDK
 > Telegram Web Apps, в `connect-src` — его же загружает в кеш service worker веб-приложения;
-> `blob:` в `img-src`/`media-src` — предпросмотр фото и видео рассылки в админ-панели;
+> `blob:` в `img-src`/`media-src` — предпросмотр фото и видео рассылки в админ-панели и фото
+> участников совместной привычки;
 > `data:` — QR-код на странице установки.
 
 ## 8. Подключение к Telegram

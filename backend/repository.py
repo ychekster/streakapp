@@ -1261,13 +1261,17 @@ class Repository:
         self,
         task: Task,
         name: str,
+        description: str | None,
         frequency_type: FrequencyType,
         days: str | None,
         start_date: date | None,
         times_per_day: int,
+        color: str,
     ) -> None:
         """Общие поля совместной привычки (как у владельца); автоотметки в ней нет."""
         task.name = name
+        task.description = description
+        task.color = color
         task.frequency_type = frequency_type
         task.days = days
         task.start_date = start_date

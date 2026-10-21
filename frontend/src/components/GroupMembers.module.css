@@ -1,6 +1,22 @@
-/* Буква в круглой плашке ряда (как монограммы «Контактов» iOS). */
+/* Размеры — блока аккаунтов в настройках Telegram (iOS): ряд как ряды настроек, фото
+   31pt в 14pt от края карточки, имя — в 14pt от фото. */
+.members {
+  --list-row-icon-size: var(--group-member-avatar-size);
+  --list-row-icon-inset: var(--group-member-avatar-inset);
+  --list-row-icon-gap: var(--group-member-avatar-gap);
+}
+
+/* Фото из Telegram — на весь кружок. */
+.photo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+/* Буква в кружке цвета привычки — пока фото нет (как аватарка без фото в Telegram). */
 .monogram {
-  font-size: var(--font-size-secondary);
+  font-size: var(--group-member-letter);
   font-weight: 600;
   line-height: 1;
 }
@@ -21,6 +37,11 @@
   color: rgb(var(--habit-rgb));
 }
 
+/* «3/10» — серым, цифры одной ширины. */
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
 .frozen {
   display: flex;
   color: var(--color-text-secondary);
@@ -29,4 +50,10 @@
 .frozen svg {
   width: 20px;
   height: 20px;
+}
+
+/* «+» — посередине колонки фото (специфичнее размера иконок рядов). */
+.members .addIcon {
+  width: var(--group-member-add-icon);
+  height: var(--group-member-add-icon);
 }

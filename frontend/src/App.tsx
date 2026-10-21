@@ -66,7 +66,7 @@ import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
-import { inviteToShared, reportGroupError } from "./data/groups";
+import { reportGroupError } from "./data/groups";
 import { dataStore } from "./data/store";
 import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
@@ -180,7 +180,7 @@ interface Editor {
   habit: Habit | null;
   /** Новая: начальные значения (шаблон, название из поиска). */
   initial?: Partial<HabitInput> | null;
-  /** Новая совместная: после создания — приглашение. */
+  /** Новая совместная: после создания открывается её экран. */
   newShared?: boolean;
 }
 
@@ -483,8 +483,8 @@ export function App() {
   // Привычка уже сохранена (на устройстве, сервер — следом): изменённая — возвращаемся на
   // её экран, новая (она в конце списка) — открывается список привычек. Новая, пока
   // выбрана папка, попадает в неё — иначе её не было бы видно в открывшемся списке.
-  // Новая закрывает и «Добавить привычку» под формой. Новая совместная открывает свой экран
-  // (там видно, кто присоединился) и сразу отправляет приглашение.
+  // Новая закрывает и «Добавить привычку» под формой. Новая совместная открывает свой экран:
+  // там «Добавить участника» и видно, кто присоединился.
   function saveHabit(habit: Habit): void {
     hapticNotification("success");
     if (editor?.habit == null && activeFolder) {
@@ -509,7 +509,6 @@ export function App() {
       setEditor(null);
       setHabitEntering(true);
       setOpenHabitId(habit.id);
-      void inviteToNewShared(habit);
       return;
     }
     hideEditor();
@@ -527,15 +526,6 @@ export function App() {
       return;
     }
     showEditor(null, { newShared: true });
-  }
-
-  async function inviteToNewShared(habit: Habit): Promise<void> {
-    try {
-      await inviteToShared(habit.id, habit.name, strings);
-    } catch (error) {
-      hapticNotification("error");
-      await reportGroupError(error, strings, linkTelegram);
-    }
   }
 
   // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.

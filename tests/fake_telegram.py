@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
@@ -32,6 +33,9 @@ class FakeTelegram:
         # Не принимать анимированные иконки на кнопках — как Telegram, когда у владельца
         # бота кончился Premium.
         self.reject_icons = False
+        # Фото профиля: user_id → байты (нет — фото нет); сколько раз их спрашивали.
+        self.profile_photos: dict[int, bytes] = {}
+        self.photo_requests = 0
 
     def _check(self, chat_id: int, extra: dict[str, Any]) -> None:
         if chat_id in self.blocked:
@@ -72,3 +76,21 @@ class FakeTelegram:
         self._check(chat_id, extra)
         self.sent.append(Sent("video", chat_id, caption, await self._content(video), extra))
         return SimpleNamespace(photo=None, video=SimpleNamespace(file_id="video-id"))
+
+    async def get_user_profile_photos(self, user_id: int, limit: int = 100) -> SimpleNamespace:
+        self.photo_requests += 1
+        if user_id not in self.profile_photos:
+            return SimpleNamespace(total_count=0, photos=[])
+        sizes = [
+            SimpleNamespace(file_id=f"p{user_id}-{side}", width=side, height=side)
+            for side in (160, 320, 640)
+        ]
+        return SimpleNamespace(total_count=1, photos=[sizes])
+
+    async def get_file(self, file_id: str) -> SimpleNamespace:
+        return SimpleNamespace(file_id=file_id, file_path=f"photos/{file_id}.jpg")
+
+    async def download_file(self, file_path: str) -> io.BytesIO:
+        user_id = int(file_path.split("/p")[1].split("-")[0])
+        assert file_path.endswith("-160.jpg"), "берётся наименьший подходящий размер"
+        return io.BytesIO(self.profile_photos[user_id])

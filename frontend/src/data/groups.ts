@@ -6,6 +6,8 @@
  *
  * Inviting shares the link the way the platform does it: in Telegram — its share window
  * (pick a chat); in the web app — the system share sheet, or the link is copied.
+ *
+ * Members' Telegram photos are loaded once per app run (memberPhotoUrl).
  */
 
 import { ApiRequestError } from "../api/client";
@@ -13,6 +15,7 @@ import {
   inviteOf,
   kickMember,
   leaveGroup,
+  memberPhoto,
   resetInvite,
   setGroupNotify,
 } from "../api/groups";
@@ -63,7 +66,7 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
   await showAlert({ title: strings.inviteCopiedTitle, message: strings.inviteCopiedMessage });
 }
 
-/** «Пригласить»: the shared habit's link, shared. */
+/** «Добавить участника»: the shared habit's link, shared. */
 export async function inviteToShared(
   habitId: number,
   habitName: string,
@@ -119,4 +122,24 @@ export async function removeFromShared(groupId: number, userId: number): Promise
 export async function notifyShared(groupId: number, on: boolean): Promise<void> {
   await setGroupNotify(groupId, on);
   dataStore.refresh();
+}
+
+/** Photos by user id: an object URL, or null — no photo (the letter is drawn instead). */
+const photos = new Map<number, Promise<string | null>>();
+
+/** A member's Telegram photo as an image URL; asked for once per app run. A group not yet
+ *  on the server (created offline) has no photos to ask for. */
+export function memberPhotoUrl(groupId: number, userId: number): Promise<string | null> {
+  const known = photos.get(userId);
+  if (known) {
+    return known;
+  }
+  if (groupId <= 0) {
+    return Promise.resolve(null);
+  }
+  const loading = memberPhoto(groupId, userId).then((blob) =>
+    blob ? URL.createObjectURL(blob) : null,
+  );
+  photos.set(userId, loading);
+  return loading;
 }

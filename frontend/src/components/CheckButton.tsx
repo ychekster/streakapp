@@ -2,9 +2,10 @@
  *  галочкой).
  *
  *  Привычка «несколько раз в день» (`total` > 1): пока день не выполнен, обводка бледная,
- *  а посередине — плюс цветом привычки. Каждое нажатие плавно закрашивает следующую долю обводки
- *  — дугой от 12 часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у
- *  обычной привычки; следующее обнуляет день.
+ *  а посередине — сколько раз осталось (обратный отсчёт: 10, 9, … 1) цветом привычки.
+ *  Каждое нажатие уменьшает число и плавно закрашивает следующую долю обводки — дугой от 12
+ *  часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у обычной
+ *  привычки; следующее обнуляет день.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -21,12 +22,6 @@ const VIEW = 30;
 const CENTER = VIEW / 2;
 const RADIUS = (VIEW - 8 / 3) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-/** Половина длины луча плюса (без скругления концов, px): плюс ≈10.7px, обводки не
- *  касается. */
-const PLUS_ARM = 4.37;
-/** Толщина линий плюса (px). */
-const PLUS_STROKE = 1.92;
-const PLUS_PATH = `M${CENTER} ${CENTER - PLUS_ARM}V${CENTER + PLUS_ARM}M${CENTER - PLUS_ARM} ${CENTER}H${CENTER + PLUS_ARM}`;
 
 /** Быстрый старт и плавное торможение к концу дуги (ease-out cubic). */
 function easeOut(t: number): number {
@@ -73,7 +68,7 @@ interface CheckButtonProps {
   disabled?: boolean;
   /** Привычка заморожена (подпись неактивной кнопки). */
   frozen?: boolean;
-  /** Сколько раз в день нужно выполнить привычку (больше 1 — кружок с плюсом). */
+  /** Сколько раз в день нужно выполнить привычку (больше 1 — кружок с числом). */
   total?: number;
   /** Сколько раз выполнена за день отметки. */
   count?: number;
@@ -90,8 +85,9 @@ export function CheckButton({
 }: CheckButtonProps) {
   const strings = useStrings();
   const multi = total > 1;
+  const made = Math.min(count, total);
   // Выполненный день — галочка без дуги: дуга обнуляется, а не докрашивается.
-  const fraction = useAnimatedFraction(multi && !done ? Math.min(count, total) / total : 0);
+  const fraction = useAnimatedFraction(multi && !done ? made / total : 0);
   return (
     <button
       type="button"
@@ -116,13 +112,12 @@ export function CheckButton({
           : done
             ? strings.checkUnmark(habitName)
             : multi
-              ? strings.checkCount(habitName, Math.min(count, total), total)
+              ? strings.checkCount(habitName, made, total)
               : strings.checkMark(habitName)
       }
     >
       {multi ? (
         <svg className={styles.progress} viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
-          <path className={styles.plus} d={PLUS_PATH} strokeWidth={PLUS_STROKE} />
           {fraction > 0.001 ? (
             <circle
               className={styles.arc}
@@ -135,6 +130,12 @@ export function CheckButton({
             />
           ) : null}
         </svg>
+      ) : null}
+      {/* Сколько раз осталось; у выполненного дня вместо числа — галочка. */}
+      {multi ? (
+        <span className={styles.count} aria-hidden="true">
+          {total - made}
+        </span>
       ) : null}
       {/* Галочка появляется только в выполненном состоянии. */}
       <svg

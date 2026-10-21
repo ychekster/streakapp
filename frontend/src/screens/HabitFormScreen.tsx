@@ -2,9 +2,10 @@
  * Экран создания и редактирования привычки — один и тот же, отличаются заголовок, кнопка
  * и начальные значения.
  *
- * Крупный заголовок «Новая привычка» («Редактирование») стоит так же, как «Привычки» и
- * «Настройки»; под ним — секции в стиле экрана привычки, но с заголовками как в эталоне:
- * с заглавной буквы (не капсом) и со сдвигом до конца скругления карточки:
+ * Заголовок «Новая привычка» («Совместная привычка», «Редактирование») — сразу маленький,
+ * по центру шапки, как на «Добавить привычку» и в «Папках» (Screen `pinnedTitle`); под ним
+ * — секции в стиле экрана привычки, но с заголовками как в эталоне: с заглавной буквы (не
+ * капсом) и со сдвигом до конца скругления карточки:
  *  - Информация — название и под ним описание (необязательно; в списке — серым под
  *    названием);
  *  - Частота — «Повтор»: по дням недели, через день или каждый месяц. По дням недели —
@@ -15,15 +16,15 @@
  *    привычка идёт каждый второй день или то же число каждого месяца (в коротком месяце
  *    — его последний день);
  *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
- *    одного раза — кружок отметки бледный с плюсом, каждое нажатие закрашивает его часть
- *    (CheckButton);
+ *    одного раза — кружок отметки бледный, внутри — сколько раз осталось, каждое нажатие
+ *    закрашивает его часть (CheckButton);
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py). «Добавить напоминание»
  *    добавляет ещё одну строку со временем (до MAX_REMINDERS_PER_HABIT; новое — на час
  *    позже последнего), у добавленных слева красный «−» — убрать. Первое время убирается
  *    только переключателем;
  *    В веб-приложении вместо бота — уведомление. Включённое напоминание (у новой
- *    привычки или впервые у старой) при «Создать привычку» / «Сохранить» включает
+ *    привычки или впервые у старой) при «Добавить привычку» / «Сохранить» включает
  *    уведомления: спрашивает разрешение, а если его уже не дали — окошко, как включить в
  *    настройках телефона; выключенные в настройках приложения — включает обратно
  *    (useReminderPush). Первая привычка и без напоминания спрашивает разрешение, если
@@ -33,17 +34,15 @@
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд пропадает.
  *
- * Совместная привычка: название, повтор (с днями и датой) и цель меняет только владелец —
- * у остальных они бледные и не нажимаются; автоотметки в ней нет.
- *
- * Новая совместная привычка («Совместная привычка» на экране «Добавить привычку»): под
- * заголовком — как она работает, поля в двух секциях: «Общее для всех» (название, повтор,
- * цель) и «Только для вас» (описание, напоминания), ниже тема; автоотметки нет. Нижняя
- * кнопка — «Создать и пригласить»: App создаёт привычку и сразу отправляет ссылку.
+ * Совместная привычка — та же форма, только без автоотметки. Всё, кроме напоминаний
+ * (название, описание, повтор, цель, тема), задаёт владелец — у остальных эти поля бледные
+ * и не нажимаются; напоминания у каждого свои. Новая совместная («Совместная привычка» на
+ * экране «Добавить привычку») создаётся той же кнопкой «Добавить привычку»; App открывает
+ * её экран, звать друзей — «Добавить участника» там.
  *
  * Открывается с экрана «Добавить привычку» (кнопка «+»: пустая, из шаблона или с названием
  * из поиска — `initial`) или рядом «Редактировать привычку» на экране привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
- * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Создать привычку» или
+ * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Добавить привычку» или
  * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
  */
 
@@ -89,8 +88,7 @@ interface HabitFormScreenProps {
   habit: Habit | null;
   /** Новая привычка: начальные значения (шаблон, название из поиска) вместо пустых. */
   initial?: Partial<HabitInput> | null;
-  /** Новая совместная привычка: поля «Общее для всех» / «Только для вас», кнопка
-   *  «Создать и пригласить» (пригласить — App). */
+  /** Новая привычка — совместная (без автоотметки). */
   newShared?: boolean;
   /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
@@ -104,10 +102,9 @@ export function HabitFormScreen({
 }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
-  // Совместная привычка: общие поля — у владельца.
-  const shared = habit !== null && isShared(habit);
-  const locked = shared && !habit.group?.is_owner;
-  const sharedLayout = habit === null && newShared;
+  // Совместная привычка: всё, кроме напоминаний, — у владельца.
+  const shared = habit ? isShared(habit) : newShared;
+  const locked = habit !== null && shared && !habit.group?.is_owner;
   // Начальные значения: редактируемая привычка, иначе шаблон (или пусто).
   const seed = habit ?? initial;
   const [name, setName] = useState(seed?.name ?? "");
@@ -162,11 +159,7 @@ export function HabitFormScreen({
 
   useMainButton(
     {
-      text: habit
-        ? strings.formEditSubmit
-        : sharedLayout
-          ? strings.sharedSubmit
-          : strings.formCreateSubmit,
+      text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
       ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
       active: valid,
       progress: submitting,
@@ -235,9 +228,9 @@ export function HabitFormScreen({
       color,
       times_per_day: timesPerDay,
       // У «несколько раз в день» и в совместной автоотметки нет (ряд скрыт).
-      auto_mark: autoMark && timesPerDay === 1 && !sharedLayout,
+      auto_mark: autoMark && timesPerDay === 1 && !shared,
       // Совместной привычка бывает только с создания.
-      ...(sharedLayout ? { shared: true } : {}),
+      ...(habit === null && newShared ? { shared: true } : {}),
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
@@ -269,7 +262,6 @@ export function HabitFormScreen({
         placeholder={strings.formNamePlaceholder}
         aria-label={strings.formNamePlaceholder}
         maxLength={nameMaxLength}
-        disabled={locked}
         value={name}
         onChange={(event) => setName(event.target.value)}
         // «Готово» на клавиатуре просто её убирает.
@@ -393,101 +385,68 @@ export function HabitFormScreen({
       <p className={styles.note}>{strings.notificationsDenied}</p>
     ) : null;
 
-  const themeSection = (
-    <Section variant="form" title={strings.formThemeHeading}>
-      <Card>
-        <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
-      </Card>
-    </Section>
-  );
-
   return (
     <Screen
       title={
-        habit
-          ? strings.formEditTitle
-          : sharedLayout
-            ? strings.sharedFormTitle
-            : strings.formCreateTitle
+        habit ? strings.formEditTitle : newShared ? strings.sharedFormTitle : strings.formCreateTitle
       }
       withTabBar={false}
       enterAnimation
+      pinnedTitle
     >
-      <div className={styles.form} style={habitColorStyle(color)}>
-        {sharedLayout ? (
-          <>
-            <p className={styles.intro}>{strings.sharedFormIntro}</p>
-            <Section
-              variant="form"
-              title={strings.sharedCommonHeading}
-              footer={strings.sharedCommonFooter}
-            >
-              <Card>
-                {nameRow}
-                {frequencyRows}
-                {goalRow}
-              </Card>
-            </Section>
-            <Section
-              variant="form"
-              title={strings.sharedOwnHeading}
-              footer={strings.sharedOwnFooter}
-            >
-              <Card>
-                {descriptionRow}
-                {reminderRows}
-              </Card>
-              {deniedNote}
-            </Section>
-            {themeSection}
-          </>
-        ) : (
-          <>
-            <Section variant="form" title={strings.formInfoHeading}>
-              <Card>
-                {nameRow}
-                {descriptionRow}
-              </Card>
-            </Section>
+      <div className={`${styles.form} ${styles.pinned}`} style={habitColorStyle(color)}>
+        {/* Совместная привычка у участника: всё, кроме напоминаний, задаёт владелец. */}
+        <Section variant="form" title={strings.formInfoHeading}>
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>
+              {nameRow}
+              {descriptionRow}
+            </Card>
+          </fieldset>
+        </Section>
 
-            <Section variant="form" title={strings.formFrequencyHeading}>
-              <fieldset className={styles.fieldset} disabled={locked}>
-                <Card>{frequencyRows}</Card>
-              </fieldset>
-            </Section>
+        <Section variant="form" title={strings.formFrequencyHeading}>
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>{frequencyRows}</Card>
+          </fieldset>
+        </Section>
 
-            <Section variant="form" title={strings.formGoalHeading}>
-              <fieldset className={styles.fieldset} disabled={locked}>
-                <Card>{goalRow}</Card>
-              </fieldset>
-            </Section>
+        <Section variant="form" title={strings.formGoalHeading}>
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>{goalRow}</Card>
+          </fieldset>
+        </Section>
 
-            <Section variant="form" title={strings.formReminderHeading}>
-              <Card>{reminderRows}</Card>
-              {deniedNote}
-            </Section>
+        <Section variant="form" title={strings.formReminderHeading}>
+          <Card>{reminderRows}</Card>
+          {deniedNote}
+        </Section>
 
-            {themeSection}
+        <Section variant="form" title={strings.formThemeHeading}>
+          <fieldset className={styles.fieldset} disabled={locked}>
+            <Card>
+              <ColorPicker value={color} onChange={setColor} label={strings.formThemeHeading} />
+            </Card>
+          </fieldset>
+        </Section>
 
-            {timesPerDay === 1 && !shared ? (
-              <Section
-                variant="form"
-                title={strings.formAutoMarkHeading}
-                footer={strings.formAutoMarkFooter}
-              >
-                <Card>
-                  <ListItem label={strings.formAutoMarkToggle}>
-                    <Switch
-                      checked={autoMark}
-                      onChange={setAutoMark}
-                      label={strings.formAutoMarkToggle}
-                    />
-                  </ListItem>
-                </Card>
-              </Section>
-            ) : null}
-          </>
-        )}
+        {timesPerDay === 1 && !shared ? (
+          <Section
+            variant="form"
+            title={strings.formAutoMarkHeading}
+            footer={strings.formAutoMarkFooter}
+          >
+            <Card>
+              <ListItem label={strings.formAutoMarkToggle}>
+                <Switch
+                  checked={autoMark}
+                  onChange={setAutoMark}
+                  label={strings.formAutoMarkToggle}
+                />
+              </ListItem>
+            </Card>
+          </Section>
+        ) : null}
 
         {error ? (
           <p ref={errorRef} className={styles.error} role="alert">

@@ -24,6 +24,8 @@ interface ListItemProps {
   iconColor?: HabitColor;
   /** Круглая плашка (монограмма участника), а не скруглённый квадрат. */
   roundIcon?: boolean;
+  /** Иконка без плашки, цветом подписи (как «+» у «Add Account» в Telegram). */
+  plainIcon?: boolean;
   /** Деструктивное действие (удаление): подпись и плашка иконки — красные. */
   destructive?: boolean;
   /** Действие (отправить, добавить): подпись — цветом акцента. */
@@ -43,6 +45,7 @@ export function ListItem({
   icon,
   iconColor,
   roundIcon = false,
+  plainIcon = false,
   destructive = false,
   accent = false,
   disabled = false,
@@ -67,7 +70,9 @@ export function ListItem({
     <>
       {icon ? (
         <span
-          className={`${styles.icon} ${roundIcon ? styles.roundIcon : ""}`}
+          className={[styles.icon, roundIcon ? styles.roundIcon : "", plainIcon ? styles.plainIcon : ""]
+            .filter(Boolean)
+            .join(" ")}
           style={iconColor ? habitColorStyle(iconColor) : undefined}
           aria-hidden="true"
         >
