@@ -59,7 +59,7 @@
   stroke-width: var(--web-back-stroke);
 }
 
-.back:active {
+.back[data-pressed] {
   transform: scale(0.94);
 }
 
@@ -175,7 +175,7 @@
   cursor: default;
 }
 
-.main:not(:disabled):active {
+.main:not(:disabled)[data-pressed] {
   opacity: 0.85;
 }
 

@@ -11,9 +11,11 @@
   height: var(--reminder-badge-size);
 }
 
+/* Название — medium, как имена участников групповой привычки (GroupMembers). */
 .habitName {
   display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-weight: 500;
 }

@@ -494,10 +494,16 @@ class FolderInput(BaseModel):
         max_length=MAX_HABITS_PER_USER,
         description="Привычки в папке (id или id устройства); удалённые пропускаются",
     )
+    types: list[Literal["group", "personal", "frozen", "unscheduled"]] = Field(
+        default_factory=list,
+        max_length=8,
+        description="Типы привычек (constants.FOLDER_HABIT_TYPES): все привычки типа — "
+        "в папке, и новые тоже",
+    )
     kind: Literal["unfinished", "today"] | None = Field(
         None,
         description="Рекомендуемая папка (constants.FOLDER_KINDS): наполняется сама, "
-        "`habits` не читаются; при изменении папки вид не меняется",
+        "`habits` и `types` не читаются; при изменении папки вид не меняется",
     )
 
 
@@ -609,6 +615,11 @@ class Folder(BaseModel):
     habits: list[int] = Field(
         ...,
         description="Id привычек в папке — в порядке списка привычек; у рекомендуемой пуст",
+    )
+    types: list[str] = Field(
+        default_factory=list,
+        description="Типы привычек в папке (group, personal, frozen, unscheduled); их "
+        "привычки считает устройство",
     )
     kind: str | None = Field(None, description="Рекомендуемая папка (unfinished, today) или null")
 

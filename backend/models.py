@@ -468,7 +468,7 @@ class HabitGroupMark(Base):
 class Folder(Base):
     """Папка привычек (настройки → «Папки»): название и привычки, которые в ней видны.
 
-    Привычки — список id задач (`task_ids`); удалённые с экрана пропадают сами
+    Привычки — список id задач (`task_ids`) и типы привычек (`habit_types`); удалённые с экрана пропадают сами
     (services.list_folders берёт только активные). У рекомендуемой папки (`kind`) привычек
     не выбирают: её наполняет устройство. Порядок папок — `position`; папка «Все
     привычки» не хранится, её место — `User.all_habits_position`.
@@ -486,6 +486,11 @@ class Folder(Base):
     # Рекомендуемая папка (constants.FOLDER_KINDS) наполняется сама — `task_ids` у неё
     # пуст; None — привычки выбраны пользователем.
     kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Типы привычек (constants.FOLDER_HABIT_TYPES): все привычки этого типа — в папке
+    # вместе с выбранными в `task_ids`, и новые тоже.
+    habit_types: Mapped[list[str]] = mapped_column(
+        JSON, default=list, server_default="[]", nullable=False
+    )
     # Id, который дало папке устройство (/sync, folder_create): повтор создания — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True

@@ -20,6 +20,7 @@ from backend.constants import (
     DEFAULT_LANGUAGE,
     HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
+    FOLDER_HABIT_TYPES,
     MAX_FOLDERS_PER_USER,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
@@ -616,6 +617,7 @@ async def list_folders(repo: Repository, user: User) -> list[FolderView]:
                 id=folder.id,
                 name=folder.name,
                 habits=[task_id for task_id in active if task_id in inside],
+                types=list(folder.habit_types or []),
                 kind=folder.kind,
             )
         )
@@ -636,6 +638,11 @@ async def _folder_task_ids(repo: Repository, user: User, payload: FolderInput) -
         if task is not None and task.id not in task_ids:
             task_ids.append(task.id)
     return task_ids
+
+
+def _folder_types(payload: FolderInput) -> list[str]:
+    """Типы привычек папки — без повторов, в порядке FOLDER_HABIT_TYPES."""
+    return [kind for kind in FOLDER_HABIT_TYPES if kind in payload.types]
 
 
 async def _folder_by_ref(repo: Repository, user: User, ref: int | str) -> Folder | None:
@@ -661,8 +668,9 @@ async def _apply_folder_op(
             )
         name = validation.validate_folder_name(op.folder.name)
         task_ids = [] if op.folder.kind else await _folder_task_ids(repo, user, op.folder)
+        types = [] if op.folder.kind else _folder_types(op.folder)
         folder = await repo.create_folder(
-            user.telegram_id, name, task_ids, op.ref, kind=op.folder.kind
+            user.telegram_id, name, task_ids, types, op.ref, kind=op.folder.kind
         )
         return SyncResult(ok=True, id=folder.id)
     if isinstance(op, SyncFolderUpdate):
@@ -672,7 +680,8 @@ async def _apply_folder_op(
         name = validation.validate_folder_name(op.folder.name)
         # Вид папки не меняется: у рекомендуемой меняется только название.
         task_ids = [] if folder.kind else await _folder_task_ids(repo, user, op.folder)
-        await repo.update_folder(folder, name, task_ids)
+        types = [] if folder.kind else _folder_types(op.folder)
+        await repo.update_folder(folder, name, task_ids, types)
         return SyncResult(ok=True)
     if isinstance(op, SyncFolderDelete):
         # Уже удалённая (или так и не созданная) папка — цель достигнута.

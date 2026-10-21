@@ -54,8 +54,6 @@ export function GridLayoutScreen({ value, onChange }: GridLayoutScreenProps) {
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                // Быстрое нажатие видно по галочке — без подсветки; при удержании она есть.
-                data-no-tap-flash=""
                 className={`${listStyles.card} ${styles.option}`}
                 style={habitColorStyle("green")}
                 onClick={() => onChange(layout)}

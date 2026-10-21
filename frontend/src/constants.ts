@@ -236,6 +236,12 @@ export const FOLDER_NAME_MAX_LENGTH = 24;
  *  FOLDER_KINDS on the backend. */
 export const FOLDER_KINDS = ["unfinished", "today"] as const;
 
+/** Habit types a folder can take in (folder form → «Типы привычек»): all habits of the
+ *  type are in it, new ones too — «group» group habits, «personal» the rest, «frozen»
+ *  frozen ones, «unscheduled» those not due today (not frozen) (data/derive.ts). The
+ *  same as FOLDER_HABIT_TYPES on the backend. */
+export const FOLDER_HABIT_TYPES = ["group", "personal", "frozen", "unscheduled"] as const;
+
 /** Most people in one shared habit (MAX_GROUP_MEMBERS on the backend). */
 export const MAX_GROUP_MEMBERS = 12;
 

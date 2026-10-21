@@ -612,6 +612,7 @@ class Repository:
         user_id: int,
         name: str,
         task_ids: list[int],
+        habit_types: list[str],
         client_ref: str | None,
         kind: str | None = None,
     ) -> Folder:
@@ -623,6 +624,7 @@ class Repository:
             user_id=user_id,
             name=name,
             task_ids=task_ids,
+            habit_types=habit_types,
             position=0 if last is None else last + 1,
             client_ref=client_ref,
             kind=kind,
@@ -631,9 +633,12 @@ class Repository:
         await self.session.flush()
         return folder
 
-    async def update_folder(self, folder: Folder, name: str, task_ids: list[int]) -> None:
+    async def update_folder(
+        self, folder: Folder, name: str, task_ids: list[int], habit_types: list[str]
+    ) -> None:
         folder.name = name
         folder.task_ids = task_ids
+        folder.habit_types = habit_types
         await self.session.flush()
 
     async def delete_folder(self, folder: Folder) -> None:

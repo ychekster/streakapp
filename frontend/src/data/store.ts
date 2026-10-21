@@ -35,7 +35,7 @@ import {
 } from "../constants";
 import { isTelegram } from "../platform";
 import { getTelegramUserId } from "../telegram/webapp";
-import type { Folder, FolderInput, FolderKind } from "../types/folder";
+import type { Folder, FolderHabitType, FolderInput, FolderKind } from "../types/folder";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
@@ -301,7 +301,7 @@ function enqueue(op: Operation): void {
       unsent[created] = {
         ...create,
         folder: create.folder.kind
-          ? { ...op.folder, habits: [], kind: create.folder.kind }
+          ? { name: op.folder.name, habits: [], kind: create.folder.kind }
           : op.folder,
       };
     } else {
@@ -693,10 +693,15 @@ export const dataStore = {
     enqueue({ type: "delete", task: keyOf(id) });
   },
 
-  /** Create a folder of these habits (ids on screen) or a recommended one (`kind`, no
-   *  habits); throws ApiRequestError (as the server would) if it can't be. Returns its id
-   *  on screen. */
-  createFolder(name: string, habitIds: number[], kind?: FolderKind): number {
+  /** Create a folder of these habits (ids on screen) and habit types, or a recommended one
+   *  (`kind`, no habits); throws ApiRequestError (as the server would) if it can't be.
+   *  Returns its id on screen. */
+  createFolder(
+    name: string,
+    habitIds: number[],
+    kind?: FolderKind,
+    types: FolderHabitType[] = [],
+  ): number {
     validateFolderName(name);
     if (state.folders.length >= MAX_FOLDERS_PER_USER) {
       throw new ApiRequestError(409, "folder_limit", "");
@@ -704,26 +709,27 @@ export const dataStore = {
     const ref = newRef();
     const folder: FolderInput = kind
       ? { name, habits: [], kind }
-      : { name, habits: habitIds.map(keyOf) };
+      : { name, habits: habitIds.map(keyOf), types };
     enqueue({ type: "folder_create", ref, folder });
     return tempIdOf(ref);
   },
 
-  /** Change a folder's name and habits (ids on screen). */
-  updateFolder(id: number, name: string, habitIds: number[]): void {
+  /** Change a folder's name, habits (ids on screen) and habit types. */
+  updateFolder(id: number, name: string, habitIds: number[], types: FolderHabitType[] = []): void {
     validateFolderName(name);
     enqueue({
       type: "folder_update",
       key: keyOf(id),
-      folder: { name, habits: habitIds.map(keyOf) },
+      folder: { name, habits: habitIds.map(keyOf), types },
     });
   },
 
   /** Put a habit into a folder (a habit just created while the folder was open). */
   addToFolder(id: number, habitId: number): void {
     const folder = state.folders.find((item) => item.id === id);
-    if (folder && !folder.kind && !folder.habits.includes(habitId)) {
-      dataStore.updateFolder(id, folder.name, [...folder.habits, habitId]);
+    const picked = folder?.picked ?? folder?.habits ?? [];
+    if (folder && !folder.kind && !picked.includes(habitId)) {
+      dataStore.updateFolder(id, folder.name, [...picked, habitId], folder.types);
     }
   },
 

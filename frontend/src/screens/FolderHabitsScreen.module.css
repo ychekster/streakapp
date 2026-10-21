@@ -1,19 +1,27 @@
+/* Заголовок экрана — маленький в шапке (pinnedTitle): поиск — с тем же отступом под ней,
+   что первая секция формы привычки. */
+.pinned {
+  padding-top: var(--space-form-top);
+}
+
 /* Ряды привычек — высоты рядов настроек. */
 .list {
   --list-row-min-height: var(--form-row-min-height);
 }
 
-/* Название занимает всё место до кружка и обрезается многоточием. */
+/* Название занимает всё место до кружка и обрезается многоточием; medium — как имена
+   участников групповой привычки (GroupMembers). */
 .name {
   display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-weight: 500;
 }
 
-/* Первая буква названия в плашке цвета привычки. */
+/* Первая буква названия в кружке цвета привычки — как буква участника без фото. */
 .letter {
-  font-size: var(--font-size-body);
+  font-size: var(--group-member-letter);
   font-weight: 600;
   line-height: 1;
 }

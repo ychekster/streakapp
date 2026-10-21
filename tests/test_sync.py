@@ -357,7 +357,9 @@ def test_folder_with_offline_habits_is_created_once(client: TestClient, user: Au
     ids = [habit["id"] for habit in first["habits"]]
     folder_id = first["results"][2]["id"]
     # Привычки в папке — в порядке списка привычек.
-    assert first["folders"] == [{"id": folder_id, "name": "Утро", "habits": ids, "kind": None}]
+    assert first["folders"] == [
+        {"id": folder_id, "name": "Утро", "habits": ids, "types": [], "kind": None}
+    ]
 
     # Ответ не дошёл — устройство шлёт то же ещё раз: та же папка, не вторая.
     again = _sync(client, user, *ops)
@@ -384,6 +386,23 @@ def test_folder_update_drops_deleted_habits(client: TestClient, user: AuthUser) 
     data = _sync(client, user, {"type": "delete", "task": second_id})
     assert data["folders"][0]["habits"] == []
     assert first_id
+
+
+def test_folder_keeps_habit_types(client: TestClient, user: AuthUser) -> None:
+    folder = {"name": "Вместе", "habits": [], "types": ["unscheduled", "personal", "group", "group"]}
+    data = _sync(client, user, {"type": "folder_create", "ref": "f-1", "folder": folder})
+    # Без повторов, в порядке FOLDER_HABIT_TYPES.
+    assert data["folders"][0]["types"] == ["group", "personal", "unscheduled"]
+    data = _sync(
+        client,
+        user,
+        {"type": "folder_update", "key": "f-1", "folder": {"name": "Вместе", "habits": []}},
+    )
+    assert data["folders"][0]["types"] == []
+    folder = {"name": "Сегодня", "habits": [], "types": ["group"], "kind": "today"}
+    data = _sync(client, user, {"type": "folder_create", "ref": "f-2", "folder": folder})
+    # У рекомендуемой типов нет.
+    assert data["folders"][1]["types"] == []
 
 
 def test_folder_name_and_limit_are_checked(

@@ -93,6 +93,17 @@ export function PaletteIcon() {
   );
 }
 
+/** «Не на сегодня» в папке: календарь с чертой — день без привычки. */
+export function CalendarOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect {...STROKE} x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path {...STROKE} d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+      <path {...STROKE} d="M9.5 15h5" />
+    </svg>
+  );
+}
+
 /** «Отмечать за вчера»: календарь со стрелкой на день назад. */
 export function CalendarBackIcon() {
   return (
@@ -153,6 +164,18 @@ export function PersonIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle {...STROKE} cx="12" cy="8.5" r="3.5" />
       <path {...STROKE} d="M5 19.5c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5" />
+    </svg>
+  );
+}
+
+/** «Групповые привычки» в папке: двое — один впереди, второй за ним. */
+export function PeopleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle {...STROKE} cx="9" cy="8.5" r="3.2" />
+      <path {...STROKE} d="M3 19c.9-3 3.2-4.6 6-4.6s5.1 1.6 6 4.6" />
+      <path {...STROKE} d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8" />
+      <path {...STROKE} d="M17.6 14.8c1.6.6 2.7 2 3.4 4.2" />
     </svg>
   );
 }

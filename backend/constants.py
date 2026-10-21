@@ -47,6 +47,12 @@ FOLDER_NAME_MAX_LENGTH = 24
 # все запланированные на сегодня. Совпадают с FOLDER_KINDS во фронтенде (и с Literal в
 # schemas.FolderInput); какие в ней привычки, считает устройство (data/derive.ts).
 FOLDER_KINDS: tuple[str, ...] = ("unfinished", "today")
+# Типы привычек в папке (форма папки → «Типы привычек»): в папку сами попадают все
+# привычки выбранного типа, и новые тоже. group — групповые, personal — личные, frozen —
+# замороженные, unscheduled — не запланированные на сегодня (кроме замороженных).
+# Совпадают с FOLDER_HABIT_TYPES во фронтенде (и с Literal в schemas.FolderInput); какие
+# привычки подходят, считает устройство (data/derive.ts).
+FOLDER_HABIT_TYPES: tuple[str, ...] = ("group", "personal", "frozen", "unscheduled")
 
 # Совместные привычки (backend/groups.py): сколько участников может быть в одной (совпадает
 # с MAX_GROUP_MEMBERS во фронтенде) и длина кода ссылки-приглашения

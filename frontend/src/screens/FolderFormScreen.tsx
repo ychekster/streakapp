@@ -4,7 +4,8 @@
  * исключений, цвета и «Поделиться»:
  *  - «Название папки» — поле; оно же — название вкладки над списком привычек;
  *  - «Привычки в папке» — «Добавить привычки» открывает выбор привычек
- *    (FolderHabitsScreen), под ним — выбранные привычки;
+ *    (FolderHabitsScreen), под ним — выбранные типы привычек и привычки (кружками, как
+ *    участники групповой привычки);
  *  - у существующей папки внизу — «Удалить папку» (с подтверждением).
  * У рекомендуемой папки (`kind`) привычек не выбирают — она наполняется сама: вместо
  * «Привычки в папке» под названием пояснение, какие привычки в неё попадают.
@@ -17,6 +18,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 
 import { DestructiveButton } from "../components/DestructiveButton";
+import { MemberRows } from "../components/GroupMembers";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
@@ -27,9 +29,9 @@ import { useMainButton } from "../hooks/useMainButton";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { MAIN_BUTTON_ACCENT, MAIN_BUTTON_DISABLED } from "../theme";
-import type { Folder } from "../types/folder";
+import type { Folder, FolderHabitType } from "../types/folder";
 import type { Habit } from "../types/habit";
-import { HabitAvatar } from "./FolderHabitsScreen";
+import { HABIT_TYPE_COLORS, HabitAvatar, HabitTypeIcon } from "./FolderHabitsScreen";
 import formStyles from "./HabitFormScreen.module.css";
 import styles from "./FolderFormScreen.module.css";
 
@@ -40,6 +42,8 @@ export interface FolderDraft {
   name: string;
   /** Выбранные привычки (id на экране). */
   habits: number[];
+  /** Выбранные типы привычек: все привычки типа — в папке. */
+  types: FolderHabitType[];
 }
 
 interface FolderFormScreenProps {
@@ -65,6 +69,7 @@ export function FolderFormScreen({
   const valid = draft.name.trim().length > 0;
   const kind = draft.folder?.kind ?? null;
   const selected = kind ? [] : habits.filter((habit) => draft.habits.includes(habit.id));
+  const types = kind ? [] : draft.types;
 
   useMainButton(
     {
@@ -84,9 +89,9 @@ export function FolderFormScreen({
     const ids = selected.map((habit) => habit.id);
     try {
       if (draft.folder) {
-        dataStore.updateFolder(draft.folder.id, draft.name.trim(), ids);
+        dataStore.updateFolder(draft.folder.id, draft.name.trim(), ids, types);
       } else {
-        dataStore.createFolder(draft.name.trim(), ids);
+        dataStore.createFolder(draft.name.trim(), ids, undefined, types);
       }
       hapticNotification("success");
       onDone();
@@ -119,8 +124,9 @@ export function FolderFormScreen({
       title={draft.folder ? strings.folderEditTitle : strings.folderCreateTitle}
       withTabBar={false}
       enterAnimation
+      pinnedTitle
     >
-      <div className={formStyles.form}>
+      <div className={`${formStyles.form} ${formStyles.pinned}`}>
         <Section
           variant="form"
           title={strings.folderNameHeading}
@@ -149,26 +155,40 @@ export function FolderFormScreen({
             title={strings.folderHabitsHeading}
             footer={strings.folderHabitsFooter}
           >
-            <Card>
-              <ListItem
-                accent
-                onPress={onPickHabits}
-                label={
-                  <span className={styles.addLabel}>
-                    <PlusIcon />
-                    {strings.folderAddHabits}
-                  </span>
-                }
-              />
-              {selected.map((habit) => (
+            <MemberRows>
+              <Card>
                 <ListItem
-                  key={habit.id}
-                  icon={<HabitAvatar habit={habit} />}
-                  iconColor={habit.color}
-                  label={<span className={styles.habitName}>{habit.name}</span>}
+                  accent
+                  onPress={onPickHabits}
+                  label={
+                    <span className={styles.addLabel}>
+                      <PlusIcon />
+                      {strings.folderAddHabits}
+                    </span>
+                  }
                 />
-              ))}
-            </Card>
+                {types.map((type) => (
+                  <ListItem
+                    key={type}
+                    icon={<HabitTypeIcon type={type} />}
+                    iconColor={HABIT_TYPE_COLORS[type]}
+                    roundIcon
+                    label={
+                      <span className={styles.habitName}>{strings.folderHabitTypeNames[type]}</span>
+                    }
+                  />
+                ))}
+                {selected.map((habit) => (
+                  <ListItem
+                    key={habit.id}
+                    icon={<HabitAvatar habit={habit} />}
+                    iconColor={habit.color}
+                    roundIcon
+                    label={<span className={styles.habitName}>{habit.name}</span>}
+                  />
+                ))}
+              </Card>
+            </MemberRows>
           </Section>
         )}
 

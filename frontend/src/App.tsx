@@ -443,7 +443,12 @@ export function App() {
   const showFolderForm = useCallback((folder: Folder | null) => {
     scrollUnderFolderForm.current = window.scrollY;
     pendingScroll.current = 0;
-    setFolderDraft({ folder, name: folder?.name ?? "", habits: folder?.habits ?? [] });
+    setFolderDraft({
+      folder,
+      name: folder?.name ?? "",
+      habits: folder?.picked ?? folder?.habits ?? [],
+      types: folder?.types ?? [],
+    });
   }, []);
 
   const hideFolderForm = useCallback(() => {
@@ -944,8 +949,9 @@ export function App() {
           <FolderHabitsScreen
             habits={habits}
             selected={folderDraft.habits}
-            onDone={(selected) => {
-              setFolderDraft({ ...folderDraft, habits: selected });
+            selectedTypes={folderDraft.types}
+            onDone={(selected, types) => {
+              setFolderDraft({ ...folderDraft, habits: selected, types });
               hideFolderPicker();
             }}
           />
