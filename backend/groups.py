@@ -226,6 +226,7 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
                 done=today in item.done,
                 count=item.count_on(today),
                 frozen=item.is_frozen(today),
+                photo=item.user.photo_id,
             )
             for item in state.members
         ],
@@ -424,12 +425,14 @@ async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> Non
     await repo.log_action(user.telegram_id, "group_kicked", ref_id=user_id)
 
 
-async def check_photo_access(repo: Repository, user: User, group_id: int, user_id: int) -> None:
-    """Фото участника видят только участники той же привычки."""
+async def photo_owner(repo: Repository, user: User, group_id: int, user_id: int) -> User:
+    """Участник, чьё фото просят: его видят только участники той же привычки."""
     await _membership(repo, user, group_id)
     target = await repo.get_member(group_id, user_id)
-    if target is None or not target.active:
+    owner = await repo.get_user(user_id) if target is not None and target.active else None
+    if owner is None:
         raise ApiError(404, "group_member_not_found", "Участник не найден")
+    return owner
 
 
 async def set_notify(repo: Repository, user: User, group_id: int, on: bool) -> None:

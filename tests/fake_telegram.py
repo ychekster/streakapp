@@ -81,8 +81,15 @@ class FakeTelegram:
         self.photo_requests += 1
         if user_id not in self.profile_photos:
             return SimpleNamespace(total_count=0, photos=[])
+        # Версия фото меняется вместе с картинкой, как file_unique_id у Telegram.
+        version = self.profile_photos[user_id].hex()[:16]
         sizes = [
-            SimpleNamespace(file_id=f"p{user_id}-{side}", width=side, height=side)
+            SimpleNamespace(
+                file_id=f"p{user_id}-{side}",
+                file_unique_id=f"u{user_id}-{version}-{side}",
+                width=side,
+                height=side,
+            )
             for side in (160, 320, 640)
         ]
         return SimpleNamespace(total_count=1, photos=[sizes])

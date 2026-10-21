@@ -118,12 +118,13 @@
   --check-count-font-size: 13px; /* число внутри кружка (до двух цифр) */
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
-     имя в 14 от фото; «+» у «Добавить участника» — 16, по центру колонки фото. */
+     имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру
+     колонки фото. */
   --group-member-avatar-size: 31px;
   --group-member-avatar-inset: 14px;
   --group-member-avatar-gap: 14px;
   --group-member-letter: 14px;
-  --group-member-add-icon: 16px;
+  --group-member-add-icon: var(--new-habit-action-icon);
 
   /* --- Степпер (−/+): капсула --- */
   --stepper-width: 93px;

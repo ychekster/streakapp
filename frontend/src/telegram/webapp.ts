@@ -17,6 +17,7 @@
  * button is the app's own on both (MainButtonBar), so the Mini App's matches the web app's.
  */
 
+import { settlePressFeedback } from "../pressFeedback";
 import { webChrome } from "../web/chrome";
 
 type HapticStyle = "light" | "medium" | "heavy" | "rigid" | "soft";
@@ -362,6 +363,11 @@ const CONFIRM_BUTTON_ID = "confirm";
  * браузере — alert. Промис — диалог закрыт.
  */
 export function showAlert(options: { title: string; message: string }): Promise<void> {
+  // Подсветка нажатой кнопки — до диалога, не после (см. pressFeedback.ts).
+  return settlePressFeedback().then(() => openAlert(options));
+}
+
+function openAlert(options: { title: string; message: string }): Promise<void> {
   const webApp = getWebApp();
   const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
   const fallback = (): void => window.alert(`${options.title}\n\n${options.message}`);
@@ -398,6 +404,11 @@ export function confirmAction(options: {
   cancelLabel: string;
   destructive?: boolean;
 }): Promise<boolean> {
+  // Подсветка нажатой кнопки — до диалога, не после (см. pressFeedback.ts).
+  return settlePressFeedback().then(() => openConfirm(options));
+}
+
+function openConfirm(options: Parameters<typeof confirmAction>[0]): Promise<boolean> {
   const webApp = getWebApp();
   // Outside Telegram the SDK is loaded but its dialog goes nowhere — ask the browser.
   const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;

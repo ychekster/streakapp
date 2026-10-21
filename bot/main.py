@@ -30,7 +30,7 @@ from bot.config import Config, load_config
 from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMMAND_DESCRIPTION
 from bot.handlers import group_invite, membership, start, web_login
 from bot.pacing import SEND_RATE, Pacer
-from bot.profiles import ProfileMiddleware, run_profile_refresh
+from bot.profiles import ProfileMiddleware, run_photo_refresh, run_profile_refresh
 from bot.reminders import PushConfig, run_reminders
 from backend.config import load_settings as load_web_settings
 from backend.database import Database
@@ -140,6 +140,7 @@ async def main() -> None:
         ),
         asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
         asyncio.create_task(run_profile_refresh(bot, database, pacer)),
+        asyncio.create_task(run_photo_refresh(bot, database, pacer)),
     ]
     logger.info("Knot is up and polling")
 

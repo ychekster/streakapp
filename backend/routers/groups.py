@@ -5,7 +5,8 @@
     POST /groups/{group_id}/leave   — выйти: привычка пропадает (вернётся по ссылке)
     POST /groups/{group_id}/kick    — исключить участника (владелец)
     POST /groups/{group_id}/notify  — «Отметки участников»
-    GET  /groups/{group_id}/members/{user_id}/photo — фото участника из Telegram (JPEG; нет — 404)
+    GET  /groups/{group_id}/members/{user_id}/photo?v=<версия> — фото участника из Telegram
+         (JPEG; нет — 404)
 
 Совместную привычку создают через POST /sync (`create` с `shared`); обычную совместной
 не сделать. Только с аккаунтом Telegram (Mini App или веб-приложение со входом через Telegram).
@@ -15,7 +16,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Path, Request, Response
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 
 from backend import groups, photos
 from backend.constants import MAX_DB_INT
@@ -34,8 +35,10 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 
 _GroupId = Path(..., ge=1, le=MAX_DB_INT, description="Идентификатор совместной привычки")
 _UserId = Path(..., ge=1, le=MAX_DB_INT, description="Telegram id участника")
-# Фото меняют редко: приложение может не спрашивать его снова час.
-_PHOTO_CACHE_CONTROL = "private, max-age=3600"
+# Картинка по версии фото (`v`, GroupMember.photo) не меняется — хранить сколько угодно;
+# без версии или с прежней — час.
+_PHOTO_CACHE_FOREVER = "private, max-age=31536000, immutable"
+_PHOTO_CACHE_HOUR = "private, max-age=3600"
 
 
 async def _invite_response(request: Request, group) -> GroupInviteResponse:  # type: ignore[no-untyped-def]
@@ -110,18 +113,22 @@ async def member_photo(
     request: Request,
     group_id: int = _GroupId,
     user_id: int = _UserId,
+    v: str | None = Query(None, max_length=64, description="Версия фото (GroupMember.photo)"),
     db_user: User = Depends(get_db_user),
     repo: Repository = RepositoryDep,
 ) -> Response:
-    """Фото участника из Telegram (только участникам той же привычки); нет фото — 404."""
-    await groups.check_photo_access(repo, db_user, group_id, user_id)
+    """Текущее фото участника из Telegram (только участникам той же привычки); нет фото —
+    404."""
+    owner = await groups.photo_owner(repo, db_user, group_id, user_id)
+    current = owner.photo_id
     # Сессия закрывается до запроса в Telegram.
     await repo.commit()
-    content = await photos.profile_photo(request.app.state.bot, user_id)
+    content = await photos.photo_bytes(request.app.state.bot, owner)
     if content is None:
         raise ApiError(404, "photo_not_found", "Фото нет")
+    forever = v is not None and v == current
     return Response(
         content=content,
         media_type="image/jpeg",
-        headers={"Cache-Control": _PHOTO_CACHE_CONTROL},
+        headers={"Cache-Control": _PHOTO_CACHE_FOREVER if forever else _PHOTO_CACHE_HOUR},
     )

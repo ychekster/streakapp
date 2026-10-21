@@ -10,7 +10,7 @@
  * opens right on the tap — without waiting for the server (and Safari still counts it as
  * the user's tap).
  *
- * Members' Telegram photos are loaded once per app run (memberPhotoUrl).
+ * Members' Telegram photos are kept on the device and loaded ahead (preloadMemberPhotos).
  */
 
 import { ApiRequestError } from "../api/client";
@@ -24,7 +24,9 @@ import {
 } from "../api/groups";
 import { describeError } from "../errors";
 import { appPlatform } from "../platform";
+import { pausePressFeedback } from "../pressFeedback";
 import type { Strings } from "../strings";
+import type { Habit } from "../types/habit";
 import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
 import { dataStore } from "./store";
 
@@ -50,6 +52,8 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
     return;
   }
   if (typeof navigator.share === "function") {
+    // While the share sheet is open, a tap that closes it must not light up a row under it.
+    const resume = pausePressFeedback();
     try {
       await navigator.share({ text, url });
       return;
@@ -58,6 +62,8 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
+    } finally {
+      resume();
     }
   }
   try {
@@ -148,22 +154,127 @@ export async function notifyShared(groupId: number, on: boolean): Promise<void> 
   dataStore.refresh();
 }
 
-/** Photos by user id: an object URL, or null — no photo (the letter is drawn instead). */
-const photos = new Map<number, Promise<string | null>>();
+/*
+ * Members' Telegram photos. The server tells each member's photo version (GroupMember.photo,
+ * it changes with the photo; the bot checks Telegram every few hours). A photo is kept on
+ * the device by that version (Cache Storage — survives restarts), so it is downloaded only
+ * when it is new. They are loaded as soon as the habits arrive (preloadMemberPhotos), not
+ * when the habit screen opens, so the screen shows them at once.
+ */
 
-/** A member's Telegram photo as an image URL; asked for once per app run. A group not yet
- *  on the server (created offline) has no photos to ask for. */
-export function memberPhotoUrl(groupId: number, userId: number): Promise<string | null> {
-  const known = photos.get(userId);
+const PHOTO_CACHE = "member-photos-v1";
+
+/** Ready photos: "<user>:<version>" → an object URL of a decoded image. */
+const readyPhotos = new Map<string, string>();
+/** Photos being loaded (or found missing — null). */
+const loadingPhotos = new Map<string, Promise<string | null>>();
+
+function photoKey(userId: number, version: string): string {
+  return `${userId}:${version}`;
+}
+
+/** The Cache Storage key of a photo (never fetched — only a name for the device copy). */
+function photoCacheUrl(userId: number, version: string): string {
+  return `${location.origin}/member-photos/${userId}/${encodeURIComponent(version)}`;
+}
+
+async function openPhotoCache(): Promise<Cache | null> {
+  try {
+    return typeof caches === "undefined" ? null : await caches.open(PHOTO_CACHE);
+  } catch {
+    return null;
+  }
+}
+
+/** Keep the photo on the device; the user's older versions go. */
+async function storePhoto(userId: number, version: string, blob: Blob): Promise<void> {
+  const cache = await openPhotoCache();
+  if (!cache) {
+    return;
+  }
+  try {
+    const prefix = `${location.origin}/member-photos/${userId}/`;
+    const current = photoCacheUrl(userId, version);
+    for (const request of await cache.keys()) {
+      if (request.url.startsWith(prefix) && request.url !== current) {
+        await cache.delete(request);
+      }
+    }
+    await cache.put(current, new Response(blob, { headers: { "Content-Type": blob.type } }));
+  } catch {
+    // No room or no storage — it is downloaded again next time.
+  }
+}
+
+async function loadPhoto(groupId: number, userId: number, version: string): Promise<string | null> {
+  const cache = await openPhotoCache();
+  let blob: Blob | null = null;
+  try {
+    blob = (await (await cache?.match(photoCacheUrl(userId, version)))?.blob()) ?? null;
+  } catch {
+    blob = null;
+  }
+  if (!blob && groupId > 0) {
+    blob = await memberPhoto(groupId, userId, version);
+    if (blob) {
+      void storePhoto(userId, version, blob);
+    }
+  }
+  if (!blob) {
+    return null;
+  }
+  const url = URL.createObjectURL(blob);
+  // Decoded before it is shown: the avatar appears whole, without a blank frame.
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+  } catch {
+    // Shown as is.
+  }
+  return url;
+}
+
+/** A member's photo if it is ready (shown at once); null — not yet or none. */
+export function readyMemberPhoto(userId: number, version: string | null | undefined): string | null {
+  return version ? (readyPhotos.get(photoKey(userId, version)) ?? null) : null;
+}
+
+/** A member's photo as an image URL; null — no photo or it could not be loaded (the letter
+ *  is drawn). A failed download is tried again next time. */
+export function memberPhotoUrl(
+  groupId: number,
+  userId: number,
+  version: string | null | undefined,
+): Promise<string | null> {
+  if (!version) {
+    return Promise.resolve(null);
+  }
+  const key = photoKey(userId, version);
+  const ready = readyPhotos.get(key);
+  if (ready) {
+    return Promise.resolve(ready);
+  }
+  const known = loadingPhotos.get(key);
   if (known) {
     return known;
   }
-  if (groupId <= 0) {
-    return Promise.resolve(null);
-  }
-  const loading = memberPhoto(groupId, userId).then((blob) =>
-    blob ? URL.createObjectURL(blob) : null,
-  );
-  photos.set(userId, loading);
+  const loading = loadPhoto(groupId, userId, version).then((url) => {
+    loadingPhotos.delete(key);
+    if (url) {
+      readyPhotos.set(key, url);
+    }
+    return url;
+  });
+  loadingPhotos.set(key, loading);
   return loading;
+}
+
+/** Load every shared habit's member photos ahead of the habit screen. */
+export function preloadMemberPhotos(habits: readonly Habit[]): void {
+  for (const habit of habits) {
+    for (const member of habit.group?.members ?? []) {
+      void memberPhotoUrl(habit.group?.id ?? 0, member.user_id, member.photo);
+    }
+  }
 }

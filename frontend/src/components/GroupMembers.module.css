@@ -52,8 +52,10 @@
   height: 20px;
 }
 
-/* «+» — посередине колонки фото (специфичнее размера иконок рядов). */
+/* «+» — как у «Новая привычка» (размер и цвет акцента), посередине колонки фото
+   (специфичнее размера иконок рядов). */
 .members .addIcon {
+  color: var(--color-accent);
   width: var(--group-member-add-icon);
   height: var(--group-member-add-icon);
 }

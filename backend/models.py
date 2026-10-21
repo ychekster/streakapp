@@ -138,6 +138,12 @@ class User(Base):
     folder_swipe: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Фото профиля в Telegram (backend/photos.py) — для участников совместных привычек:
+    # версия (file_unique_id, меняется вместе с фото), file_id, чтобы скачать, и когда его
+    # сверяли с Telegram. photo_id NULL — фото нет или ещё не проверяли.
+    photo_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    photo_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    photo_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Первый запрос к API — пользователь открыл приложение. None — только запустил бота
     # (/start записывает пользователя, см. bot/handlers/start.py).

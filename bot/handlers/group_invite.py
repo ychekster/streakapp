@@ -5,7 +5,8 @@
   удалял, — «Вернуться»: его прежняя история снова в счёт.
 - «Принять» перепроверяет код (ссылку могли сбросить) и добавляет привычку; сообщение
   меняется на «Готово! «Бег» уже в ваших привычках.» — без кнопок: приложение человек
-  откроет там, где ему удобно (Mini App или веб-приложение — аккаунт один).
+  откроет там, где ему удобно (Mini App или веб-приложение — аккаунт один). Следом бот
+  сверяет фото профиля вступившего (bot/profiles.py) — остальные сразу видят его фото.
 
 Пишет на языке пользователя. Подключается до `start`: его фильтр /start уже.
 """
@@ -39,6 +40,7 @@ from bot.constants import (
     SCHEDULE_WEEKDAYS,
 )
 from bot.handlers.start import record_start
+from bot.profiles import refresh_new_mates_photos
 from backend import groups
 from backend.constants import DEFAULT_LANGUAGE, MAX_GROUP_MEMBERS, WEEKDAYS
 from backend.database import Database
@@ -156,6 +158,8 @@ async def accept_invite(callback: CallbackQuery, database: Database) -> None:
         await session.commit()
     text = INVITE_MEMBER if outcome == "member" else INVITE_DONE
     await _replace(callback, _text(text, language).format(name=name))
+    if outcome != "member" and callback.bot is not None:
+        await refresh_new_mates_photos(callback.bot, database, sender.id)
 
 
 @router.callback_query(F.data == _DECLINE)

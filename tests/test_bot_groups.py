@@ -37,6 +37,7 @@ class _Callback:
         self.from_user = user
         self.data = data
         self.message = _Message(user)
+        self.bot: Any = None
 
     async def answer(self, *args: Any, **kwargs: Any) -> None:
         return None
@@ -189,3 +190,31 @@ def test_profile_follows_telegram(db_url: str) -> None:
     # @username удалили — у остальных участников он подписан именем.
     assert asyncio.run(run()) == (None, "Новое")
     assert groups.member_name(SimpleNamespace(username=None, first_name="Новое")) == "Новое"  # type: ignore[arg-type]
+
+
+def test_joining_checks_members_photos(db_url: str) -> None:
+    """Вступил — фото его и владельца (ещё не сверённое) сверяются сразу."""
+
+    async def run() -> None:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            code, _ = await _owner_with_invite(database)
+            async with database.session_factory() as session:
+                await Repository(session).get_or_create_user(2, "petya", "Петя", language="ru")
+                await session.commit()
+            fake = FakeTelegram()
+            fake.profile_photos[1] = b"anya"
+            callback = _Callback(_tg(2, "petya"), f"join:ok:{code}")
+            callback.bot = fake
+            await group_invite.accept_invite(callback, database)  # type: ignore[arg-type]
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                owner, friend = await repo.get_user(1), await repo.get_user(2)
+            assert owner.photo_id and owner.photo_file_id == "p1-160"
+            assert friend.photo_id is None and friend.photo_checked_at is not None
+            assert fake.photo_requests == 2
+        finally:
+            await database.dispose()
+
+    asyncio.run(run())

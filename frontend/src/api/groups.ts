@@ -41,14 +41,20 @@ export async function setGroupNotify(groupId: number, on: boolean): Promise<void
   });
 }
 
-/** Фото участника из Telegram (JPEG); null — фото нет или не удалось получить. Не через
- *  apiRequest: ответ — картинка, а не JSON. */
-export async function memberPhoto(groupId: number, userId: number): Promise<Blob | null> {
+/** Фото участника из Telegram (JPEG) версии `version` (GroupMember.photo); null — фото
+ *  нет или не удалось получить. Не через apiRequest: ответ — картинка, а не JSON. */
+export async function memberPhoto(
+  groupId: number,
+  userId: number,
+  version: string,
+): Promise<Blob | null> {
   const authorization = authorizationHeader();
+  const query = new URLSearchParams({ v: version });
   try {
-    const response = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}/photo`, {
-      headers: authorization ? { Authorization: authorization } : {},
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${groupId}/members/${userId}/photo?${query}`,
+      { headers: authorization ? { Authorization: authorization } : {} },
+    );
     return response.ok ? await response.blob() : null;
   } catch {
     return null;

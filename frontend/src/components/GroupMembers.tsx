@@ -1,7 +1,7 @@
 /**
  * Участники совместной привычки (экран привычки) — как блок аккаунтов в настройках
  * Telegram: круглое фото из Telegram (нет — первая буква имени цветом привычки), @username
- * или имя («Вы» — я), «владелец». Справа — как идут дела в день отметки: галочка — свою
+ * или имя («Вы» — я), «(владелец)». Справа — как идут дела в день отметки: галочка — свою
  * часть выполнил, у привычки «несколько раз в день» — сколько раз из скольких («3/10»),
  * снежинка — заморожен (тогда его не ждут).
  *
@@ -12,7 +12,7 @@
 
 import { type Ref, useEffect, useState } from "react";
 
-import { memberPhotoUrl } from "../data/groups";
+import { memberPhotoUrl, readyMemberPhoto } from "../data/groups";
 import { useStrings } from "../preferences";
 import type { GroupMember, HabitGroup } from "../types/habit";
 import { ListItem } from "./ListItem";
@@ -40,12 +40,13 @@ function initial(name: string): string {
   return (Array.from(name.replace(/^@/, "").trim())[0] ?? "?").toUpperCase();
 }
 
-/** Фото участника из Telegram, пока не загрузилось или его нет — буква. */
+/** Фото участника из Telegram (обычно уже загружено заранее — data/groups.ts), пока не
+ *  загрузилось или его нет — буква. */
 function MemberAvatar({ groupId, member }: { groupId: number; member: GroupMember }) {
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photo, setPhoto] = useState(() => readyMemberPhoto(member.user_id, member.photo));
   useEffect(() => {
     let current = true;
-    void memberPhotoUrl(groupId, member.user_id).then((url) => {
+    void memberPhotoUrl(groupId, member.user_id, member.photo).then((url) => {
       if (current) {
         setPhoto(url);
       }
@@ -53,7 +54,7 @@ function MemberAvatar({ groupId, member }: { groupId: number; member: GroupMembe
     return () => {
       current = false;
     };
-  }, [groupId, member.user_id]);
+  }, [groupId, member.user_id, member.photo]);
   if (photo) {
     return <img className={styles.photo} src={photo} alt="" draggable={false} />;
   }
@@ -87,7 +88,7 @@ export function GroupMembers({
                   <span className={styles.name}>
                     {member.is_me ? strings.groupMe : member.name}
                     {member.is_owner ? (
-                      <span className={styles.owner}> · {strings.groupOwner}</span>
+                      <span className={styles.owner}> ({strings.groupOwner})</span>
                     ) : null}
                   </span>
                 }
@@ -134,11 +135,12 @@ export function GroupMembers({
   );
 }
 
-/** Тонкий «+» без плашки — как у «Add Account» в Telegram. */
+/** «+» без плашки (как у «Add Account» в Telegram) — тот же, что у «Новая привычка» на
+ *  экране «Добавить привычку». */
 function PlusIcon() {
   return (
-    <svg className={styles.addIcon} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <svg className={styles.addIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

@@ -364,6 +364,49 @@ class Repository:
         )
         return list(result)
 
+    async def group_users_photo_checked_before(self, moment: datetime) -> list[int]:
+        """Участники совместных привычек с Telegram, чьё фото не сверяли с `moment` (или ни
+        разу) — для сверки с Telegram (bot/profiles.py)."""
+        result = await self.session.scalars(
+            select(User.telegram_id)
+            .join(HabitGroupMember, HabitGroupMember.user_id == User.telegram_id)
+            .where(
+                HabitGroupMember.active.is_(True),
+                User.telegram_id > 0,
+                or_(User.photo_checked_at.is_(None), User.photo_checked_at < moment),
+            )
+            .distinct()
+        )
+        return list(result)
+
+    async def group_mates_photo_unchecked(self, user_id: int) -> list[int]:
+        """Участники совместных привычек пользователя (и он сам), чьё фото ещё ни разу не
+        сверяли, — после вступления их сверяют сразу."""
+        groups_of_user = select(HabitGroupMember.group_id).where(
+            HabitGroupMember.user_id == user_id, HabitGroupMember.active.is_(True)
+        )
+        result = await self.session.scalars(
+            select(User.telegram_id)
+            .join(HabitGroupMember, HabitGroupMember.user_id == User.telegram_id)
+            .where(
+                HabitGroupMember.group_id.in_(groups_of_user),
+                HabitGroupMember.active.is_(True),
+                User.telegram_id > 0,
+                User.photo_checked_at.is_(None),
+            )
+            .distinct()
+        )
+        return list(result)
+
+    async def set_photo(
+        self, user: User, photo_id: str | None, file_id: str | None, checked_at: datetime
+    ) -> None:
+        """Фото профиля — как сейчас в Telegram (None — фото нет)."""
+        user.photo_id = photo_id
+        user.photo_file_id = file_id
+        user.photo_checked_at = checked_at
+        await self.session.flush()
+
     async def update_settings(
         self,
         user: User,

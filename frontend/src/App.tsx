@@ -66,7 +66,7 @@ import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
-import { reportGroupError } from "./data/groups";
+import { preloadMemberPhotos, reportGroupError } from "./data/groups";
 import { dataStore } from "./data/store";
 import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
@@ -207,6 +207,8 @@ export function App() {
   const web = platform === "web";
   // «Открыл приложение» и откуда — для аналитики админ-панели (на экране ничего не меняет).
   useEffect(trackAppOpen, []);
+  // Фото участников совместных привычек — заранее, чтобы экран привычки открывался с ними.
+  useEffect(() => preloadMemberPhotos(habits), [habits]);
   // Открыто кнопкой под рассылкой: «Написать отзыв» — сразу экран отзыва (над
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).

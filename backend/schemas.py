@@ -56,6 +56,13 @@ class GroupMember(BaseModel):
     done: bool = Field(..., description="Выполнил ли свою часть в день отметки")
     count: int = Field(0, description="Сколько раз выполнил в день отметки (до цели)")
     frozen: bool = Field(False, description="Заморожен в день отметки — не в счёт")
+    photo: str | None = Field(
+        None,
+        description=(
+            "Версия фото профиля в Telegram (меняется вместе с фото; картинка — "
+            "GET /groups/{id}/members/{user_id}/photo); null — фото нет, рисуется буква"
+        ),
+    )
 
 
 class HabitGroupView(BaseModel):

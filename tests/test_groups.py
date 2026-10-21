@@ -18,6 +18,7 @@ from backend.database import Database
 from backend.errors import ApiError
 from backend.models import FrequencyType
 from backend.repository import Repository, utc_now
+from bot.profiles import refresh_photos
 
 BOT = "knot_test_bot"
 
@@ -389,13 +390,34 @@ def test_member_photos_come_from_telegram(client: TestClient, user: AuthUser) ->
     _join(friend, code)
     fake.profile_photos[friend.id] = b"jpeg-bytes"
 
+    async def database() -> Database:
+        return Database(os.environ["DATABASE_URL"])
+
+    def refresh() -> int:
+        async def run() -> int:
+            db = await database()
+            try:
+                return await refresh_photos(fake, db, [user.id, friend.id])  # type: ignore[arg-type]
+            finally:
+                await db.dispose()
+
+        return asyncio.run(run())
+
+    def photo_of(person: AuthUser, member: AuthUser) -> str | None:
+        members = _only(client, person)["group"]["members"]
+        return next(item["photo"] for item in members if item["user_id"] == member.id)
+
+    # Пока не сверяли — фото нет (буква); после сверки — версия.
+    assert photo_of(user, friend) is None
+    assert refresh() == 1
+    version = photo_of(user, friend)
+    assert version and photo_of(friend, user) is None
+
     url = f"/groups/{group_id}/members/{friend.id}/photo"
-    response = client.get(url, headers=user.headers)
+    response = client.get(url, params={"v": version}, headers=user.headers)
     assert response.status_code == 200
     assert response.content == b"jpeg-bytes" and response.headers["content-type"] == "image/jpeg"
-    # Второй раз — из памяти, без Telegram.
-    assert client.get(url, headers=user.headers).status_code == 200
-    assert fake.photo_requests == 1
+    assert "immutable" in response.headers["cache-control"]
     # Нет фото — 404 (приложение рисует букву).
     assert client.get(f"/groups/{group_id}/members/{user.id}/photo",
                       headers=friend.headers).status_code == 404
@@ -403,3 +425,10 @@ def test_member_photos_come_from_telegram(client: TestClient, user: AuthUser) ->
     assert client.get(url, headers=stranger.headers).status_code == 404
     assert client.get(f"/groups/{group_id}/members/{stranger.id}/photo",
                       headers=user.headers).status_code == 404
+
+    # Сменил фото — новая версия после следующей сверки; прежняя ссылка — ненадолго.
+    fake.profile_photos[friend.id] = b"new-jpeg"
+    assert refresh() == 1
+    assert photo_of(user, friend) not in (None, version)
+    stale = client.get(url, params={"v": version}, headers=user.headers)
+    assert stale.content == b"new-jpeg" and "immutable" not in stale.headers["cache-control"]
