@@ -35,9 +35,9 @@
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд
  *    пропадает; в групповой его нет;
  *  - Групповая привычка — переключатель «Вести с друзьями» с пояснением, пока в привычке
- *    никого, кроме пользователя (новая, обычная или групповая без других). При включении
- *    ползунок сразу переезжает, а когда доедет, появляется окошко, что это такое; «Отменить»
- *    возвращает его назад. Гостю веб-приложения — предложение войти через Telegram.
+ *    никого, кроме пользователя (новая, обычная или групповая без других): что это и как
+ *    пригласить, сказано в подписи под ним. Гостю веб-приложения — предложение войти через
+ *    Telegram.
  *    Когда в привычке есть другие, ряда нет: из неё можно только выйти (экран привычки).
  *
  * Групповая привычка — та же форма, только без автоотметки. Всё, кроме напоминаний
@@ -83,15 +83,12 @@ import { useMeta } from "../hooks/useMeta";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
-import { confirmAction, hapticNotification } from "../telegram/webapp";
+import { hapticNotification } from "../telegram/webapp";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitFormScreen.module.css";
-
-// Сколько едет ползунок переключателя (--switch-anim в variables.css).
-const SWITCH_ANIMATION_MS = 240;
 
 interface HabitFormScreenProps {
   /** Редактируемая привычка; null — создание новой. */
@@ -209,18 +206,7 @@ export function HabitFormScreen({
       );
       return;
     }
-    // Ползунок переезжает сразу, окошко — когда он доедет; «Отменить» возвращает его.
     setShared(true);
-    await new Promise((resolve) => window.setTimeout(resolve, SWITCH_ANIMATION_MS));
-    const confirmed = await confirmAction({
-      title: strings.sharedDialogTitle,
-      message: strings.sharedDialogMessage,
-      confirmLabel: strings.sharedDialogConfirm,
-      cancelLabel: strings.groupDialogCancel,
-    });
-    if (!confirmed) {
-      setShared(false);
-    }
   }
 
   function toggleDay(code: string): void {

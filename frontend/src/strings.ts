@@ -288,36 +288,36 @@ const RU = {
   groupAddMember: "Добавить участника",
   inviteShareText: (name: string) => `Присоединяйся к привычке «${name}» в Knot`,
   inviteCopiedTitle: "Ссылка скопирована",
-  inviteCopiedMessage: "Отправьте её друзьям, с которыми хотите выполнять привычку вместе.",
+  inviteCopiedMessage: "Отправьте её друзьям, с которыми хотите выполнять привычку.",
   groupNotify: "Отметки участников",
   // «Чёрный список» (владелец): исключённые по ссылке не вступят.
   blockedTitle: "Чёрный список",
   blockedEmptyTitle: "Список пуст",
-  blockedEmptyDescription: "Здесь будут участники, которых вы исключили",
+  blockedEmptyDescription: "Здесь будут исключённые участники",
   blockedFooter:
-    "Эти люди не могут вступить по ссылке-приглашению. Нажмите на человека, чтобы убрать его из списка.",
+    "Они не могут вступить по ссылке. Нажмите на человека, чтобы убрать его из списка.",
   unbanDialogTitle: "Убрать из чёрного списка",
   unbanDialogMessage: (name: string) => `${name} снова сможет вступить по ссылке-приглашению.`,
   unbanDialogConfirm: "Убрать",
   resetInvite: "Сбросить ссылку",
   resetInviteDialogTitle: "Сбросить ссылку",
   resetInviteDialogMessage:
-    "Старая ссылка-приглашение перестанет работать. Участники останутся в привычке, а тем, кто ещё не вступил, нужно будет отправить новую ссылку.",
+    "Старая ссылка перестанет работать. Участники останутся в привычке.",
   resetInviteDialogConfirm: "Сбросить",
   leaveGroup: "Выйти из привычки",
   leaveGroupDialogTitle: "Выйти из привычки",
   leaveGroupDialogMessage:
-    "Привычка останется у вас обычной, все ваши отметки сохранятся. Чтобы вернуться в группу, откройте ссылку-приглашение ещё раз.",
+    "Привычка останется у вас обычной со всеми отметками. Вернуться можно по ссылке-приглашению.",
   // Выходит владелец: владельцем станет тот, кто вступил раньше всех.
   leaveGroupOwnerDialogMessage:
-    "Привычка останется у вас обычной, все ваши отметки сохранятся. Владельцем группы станет участник, который вступил раньше всех.",
+    "Привычка останется у вас обычной со всеми отметками. Владельцем станет участник, который вступил раньше всех.",
   // В привычке больше никого: после выхода группы не будет.
   leaveGroupAloneDialogMessage:
-    "Кроме вас, в привычке никого нет, поэтому она станет обычной. Отметки сохранятся, а ссылка-приглашение перестанет работать.",
+    "Привычка станет обычной, отметки сохранятся. Ссылка-приглашение перестанет работать.",
   leaveGroupDialogConfirm: "Выйти",
   kickDialogTitle: (name: string) => `Исключить ${name}`,
   kickDialogMessage:
-    "Привычка останется у этого человека обычной, со всеми его отметками. Он попадёт в чёрный список и не сможет вернуться по ссылке, пока вы его оттуда не уберёте.",
+    "Привычка останется у участника обычной. Вернуться по ссылке он не сможет, пока вы не уберёте его из чёрного списка.",
   kickDialogConfirm: "Исключить",
   // Страница участника (владелец, не себя).
   kickMember: "Исключить участника",
@@ -379,15 +379,12 @@ const RU = {
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
-  // «Групповая привычка» — пока в привычке никого, кроме вас; включение — с пояснением.
+  // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
+  // пригласить.
   formSharedHeading: "Групповая привычка",
   formSharedToggle: "Вести с друзьями",
   formSharedFooter:
-    "Выполняйте привычку вместе с друзьями. Каждый отмечает её у себя, а день засчитывается, когда отметились все.",
-  sharedDialogTitle: "Групповая привычка",
-  sharedDialogMessage:
-    "Сохраните привычку, и на её экране появится кнопка «Добавить участника». Название, повтор и цель для всех задаёте вы, а напоминания каждый настраивает себе сам. Автоотметки в групповой привычке нет.",
-  sharedDialogConfirm: "Включить",
+    "Выполняйте привычку вместе с друзьями. После сохранения пригласите их кнопкой «Добавить участника» на экране привычки. День засчитывается, только когда его выполнили все.",
 
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
   // («Пн, Ср, Пт») и для скринридеров.
@@ -712,29 +709,29 @@ const EN: Strings = {
   groupNotify: "Members’ Check-Ins",
   blockedTitle: "Blocked",
   blockedEmptyTitle: "No One Here",
-  blockedEmptyDescription: "People you remove will appear here",
+  blockedEmptyDescription: "Removed members will appear here",
   blockedFooter:
-    "These people can’t join through the invite link. Tap someone to remove them from the list.",
+    "They can’t join through the link. Tap someone to remove them from the list.",
   unbanDialogTitle: "Unblock",
   unbanDialogMessage: (name: string) => `${name} will be able to join through the invite link again.`,
   unbanDialogConfirm: "Unblock",
   resetInvite: "Reset Link",
   resetInviteDialogTitle: "Reset Link",
   resetInviteDialogMessage:
-    "The old invite link will stop working. Members stay in the habit, and anyone who hasn’t joined yet will need the new link.",
+    "The old link will stop working. Members stay in the habit.",
   resetInviteDialogConfirm: "Reset",
   leaveGroup: "Leave Habit",
   leaveGroupDialogTitle: "Leave Habit",
   leaveGroupDialogMessage:
-    "The habit stays with you as an ordinary one, and all your check-ins are kept. To rejoin the group, open the invite link again.",
+    "The habit stays with you as an ordinary one, with all your check-ins. You can come back through the invite link.",
   leaveGroupOwnerDialogMessage:
-    "The habit stays with you as an ordinary one, and all your check-ins are kept. The member who joined first will become the group’s owner.",
+    "The habit stays with you as an ordinary one, with all your check-ins. The member who joined first becomes the owner.",
   leaveGroupAloneDialogMessage:
-    "No one else is in this habit, so it becomes an ordinary one. Your check-ins are kept, and the invite link will stop working.",
+    "The habit becomes an ordinary one and keeps its check-ins. The invite link will stop working.",
   leaveGroupDialogConfirm: "Leave",
   kickDialogTitle: (name: string) => `Remove ${name}`,
   kickDialogMessage:
-    "The habit stays with them as an ordinary one, with all their check-ins. They’ll be blocked and can’t come back through the link until you unblock them.",
+    "The habit stays with them as an ordinary one. They can’t come back through the link until you unblock them.",
   kickDialogConfirm: "Remove",
   kickMember: "Remove Member",
   groupDialogCancel: "Cancel",
@@ -787,11 +784,7 @@ const EN: Strings = {
   formSharedHeading: "Group Habit",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:
-    "Do the habit together with friends. Everyone checks it off on their own, and a day counts once everyone has.",
-  sharedDialogTitle: "Group Habit",
-  sharedDialogMessage:
-    "Save the habit, and an Add Member button will appear on its screen. You set the name, repeat and goal for everyone, and each person sets their own reminders. Group habits have no auto check-off.",
-  sharedDialogConfirm: "Turn On",
+    "Do the habit together with friends. Once it’s saved, invite them with the Add Member button on the habit’s screen. A day counts only when everyone has done it.",
 
   daysWorkdays: "Weekdays",
   daysWeekends: "Weekends",
