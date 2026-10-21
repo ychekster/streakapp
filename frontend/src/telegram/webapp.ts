@@ -18,7 +18,6 @@
  */
 
 import { clearPressFeedback } from "../pressFeedback";
-import { dimStatusBar } from "../web/dimScreen";
 import { webChrome } from "../web/chrome";
 
 type HapticStyle = "light" | "medium" | "heavy" | "rigid" | "soft";
@@ -369,40 +368,13 @@ export function showAlert(options: { title: string; message: string }): Promise<
   return openAlert(options);
 }
 
-/** Как долго ждать кадров перед браузерным диалогом, если их нет (страница скрыта). */
-const BROWSER_DIALOG_WAIT_MS = 100;
-
-/**
- * Браузерный диалог (alert / confirm): он затемняет страницу, но не полосу под часами —
- * она на это время затемняется так же (web/dimScreen.ts). Сначала полоса перекрашивается
- * (два кадра), потом диалог замораживает страницу; после него цвет возвращается.
- */
-function inBrowserDialog<T>(ask: () => T): Promise<T> {
-  const restore = dimStatusBar();
-  return new Promise((resolve) => {
-    let asked = false;
-    const open = (): void => {
-      if (asked) {
-        return;
-      }
-      asked = true;
-      try {
-        resolve(ask());
-      } finally {
-        restore();
-      }
-    };
-    requestAnimationFrame(() => requestAnimationFrame(open));
-    window.setTimeout(open, BROWSER_DIALOG_WAIT_MS);
-  });
-}
-
 function openAlert(options: { title: string; message: string }): Promise<void> {
   const webApp = getWebApp();
   const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
   const fallback = (): void => window.alert(`${options.title}\n\n${options.message}`);
   if (!showPopup) {
-    return inBrowserDialog(fallback);
+    fallback();
+    return Promise.resolve();
   }
   return new Promise((resolve) => {
     try {
@@ -444,7 +416,7 @@ function openConfirm(options: Parameters<typeof confirmAction>[0]): Promise<bool
   const showPopup = isTelegramAvailable() ? webApp?.showPopup?.bind(webApp) : undefined;
   const ask = (): boolean => window.confirm(`${options.title}\n\n${options.message}`);
   if (!showPopup) {
-    return inBrowserDialog(ask);
+    return Promise.resolve(ask());
   }
   return new Promise((resolve) => {
     try {
