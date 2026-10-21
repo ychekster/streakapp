@@ -24,13 +24,13 @@ const PRIVACY_RU: LegalDocument = {
   title: "Политика конфиденциальности",
   updated: "Обновлено 5 октября 2026 г.",
   intro:
-    "Knot — мини-приложение в Telegram для отслеживания привычек. Здесь описано, какие данные приложение получает, зачем они нужны и как с ними обращаются.",
+    "Knot является мини-приложением в Telegram для отслеживания привычек. Здесь описано, какие данные приложение получает, зачем они нужны и как с ними обращаются.",
   sections: [
     {
       heading: "Какие данные мы получаем",
       paragraphs: [
         "Данные Telegram: ваш идентификатор, имя пользователя (@username), имя и язык Telegram. Telegram передаёт их приложению при каждом открытии. Номер телефона, контакты и переписка приложению недоступны.",
-        "Данные, которые вы вводите сами: привычки (название, расписание, время напоминания, цвет), отметки о выполнении и настройки — часовой пояс, язык, тему оформления и режим «Отмечать за вчера».",
+        "Данные, которые вы вводите сами: привычки (название, расписание, время напоминания, цвет), отметки о выполнении и настройки: часовой пояс, язык, тему оформления и режим «Отмечать за вчера».",
       ],
     },
     {
@@ -50,7 +50,7 @@ const PRIVACY_RU: LegalDocument = {
     {
       heading: "Удаление данных",
       paragraphs: [
-        "Удалённая привычка сразу пропадает из приложения, но история её отметок остаётся на сервере. Чтобы удалить все свои данные, напишите разработчику — контакт указан в описании бота.",
+        "Удалённая привычка сразу пропадает из приложения, но история её отметок остаётся на сервере. Чтобы удалить все свои данные, напишите разработчику. Контакт указан в описании бота.",
       ],
     },
     {
@@ -76,14 +76,14 @@ const TERMS_RU: LegalDocument = {
     {
       heading: "Ваш аккаунт",
       paragraphs: [
-        "Вход — через ваш аккаунт Telegram, отдельной регистрации нет. Вы отвечаете за то, что добавляете в приложение. Не используйте его для противоправных целей и не пытайтесь нарушить его работу.",
+        "Вход выполняется через ваш аккаунт Telegram, отдельной регистрации нет. Вы отвечаете за то, что добавляете в приложение. Не используйте его для противоправных целей и не пытайтесь нарушить его работу.",
       ],
     },
     {
       heading: "Без гарантий",
       paragraphs: [
         "Приложение предоставляется «как есть». Мы стараемся, чтобы оно работало стабильно, но не гарантируем бесперебойную работу, своевременную доставку напоминаний и сохранность данных.",
-        "Не полагайтесь на Knot там, где сбой может причинить вред, — например, для приёма лекарств.",
+        "Не полагайтесь на Knot там, где сбой может причинить вред, например для приёма лекарств.",
       ],
     },
     {
@@ -95,13 +95,13 @@ const TERMS_RU: LegalDocument = {
     {
       heading: "Telegram",
       paragraphs: [
-        "Knot — независимое приложение и не связано с Telegram. Пользование самим Telegram регулируется его собственными условиями.",
+        "Knot является независимым приложением и не связан с Telegram. Пользование самим Telegram регулируется его собственными условиями.",
       ],
     },
     {
       heading: "Контакты",
       paragraphs: [
-        "Вопросы о приложении задавайте разработчику — контакт указан в описании бота.",
+        "Вопросы о приложении задавайте разработчику. Контакт указан в описании бота.",
       ],
     },
   ],
@@ -117,7 +117,7 @@ const PRIVACY_EN: LegalDocument = {
       heading: "What we receive",
       paragraphs: [
         "Telegram data: your user ID, username, first name and Telegram language. Telegram passes them to the app every time you open it. The app has no access to your phone number, contacts or messages.",
-        "Data you enter: habits (name, schedule, reminder time, color), completion marks and settings — time zone, language, theme and Mark as Yesterday.",
+        "Data you enter: habits (name, schedule, reminder time, color), completion marks and settings: time zone, language, theme and Mark as Yesterday.",
       ],
     },
     {
@@ -137,7 +137,7 @@ const PRIVACY_EN: LegalDocument = {
     {
       heading: "Deleting your data",
       paragraphs: [
-        "A deleted habit disappears from the app immediately, but its completion history stays on the server. To delete all of your data, contact the developer — the contact is in the bot’s description.",
+        "A deleted habit disappears from the app immediately, but its completion history stays on the server. To delete all of your data, contact the developer. The contact is in the bot’s description.",
       ],
     },
     {
@@ -163,14 +163,14 @@ const TERMS_EN: LegalDocument = {
     {
       heading: "Your account",
       paragraphs: [
-        "You sign in with your Telegram account — there is no separate registration. You are responsible for what you add to the app. Don’t use it for anything unlawful and don’t try to disrupt it.",
+        "You sign in with your Telegram account, there is no separate registration. You are responsible for what you add to the app. Don’t use it for anything unlawful and don’t try to disrupt it.",
       ],
     },
     {
       heading: "No warranty",
       paragraphs: [
         "The app is provided “as is”. We work to keep it running smoothly but don’t guarantee uninterrupted service, on-time reminders or that your data will be preserved.",
-        "Don’t rely on Knot where a failure could cause harm — for example, for taking medication.",
+        "Don’t rely on Knot where a failure could cause harm, for example for taking medication.",
       ],
     },
     {
@@ -188,7 +188,7 @@ const TERMS_EN: LegalDocument = {
     {
       heading: "Contact",
       paragraphs: [
-        "Questions about the app go to the developer — the contact is in the bot’s description.",
+        "Questions about the app go to the developer. The contact is in the bot’s description.",
       ],
     },
   ],

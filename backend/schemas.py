@@ -1146,7 +1146,7 @@ class BroadcastStats(BaseModel):
 
 
 class AnalyticsMessagingResponse(BaseModel):
-    """`GET /admin/analytics/messaging` — напоминания, рассылки, предложение установки."""
+    """`GET /admin/analytics/messaging` — напоминания, рассылки, окно установки браузера."""
 
     meta: AnalyticsMeta
     reminders_telegram: int
@@ -1163,9 +1163,6 @@ class AnalyticsMessagingResponse(BaseModel):
     d7_with: float | None
     d7_without: float | None
     broadcasts: list[BroadcastStats]
-    offer_shown: int
-    offer_clicked: int
-    offer_installed: int
     prompt_shown: int
     prompt_accepted: int
     prompt_installed: int

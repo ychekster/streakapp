@@ -1606,7 +1606,6 @@ class Repository:
                 User.theme,
                 User.mark_yesterday,
                 User.checkin_reminder_time,
-                User.install_offer_sent_at,
                 User.is_test,
                 is_admin.label("is_admin"),
             )
@@ -1708,15 +1707,6 @@ class Repository:
         """Пользователи хотя бы с одной подпиской на уведомления."""
         result = await self.session.scalars(select(PushSubscription.user_id).distinct())
         return set(result.all())
-
-    async def first_web_sessions(self) -> dict[int, datetime]:
-        """Когда аккаунт впервые вошёл в веб-приложение (по живым сессиям): id → момент."""
-        result = await self.session.execute(
-            select(WebSession.user_id, func.min(WebSession.created_at)).group_by(
-                WebSession.user_id
-            )
-        )
-        return {user_id: moment for user_id, moment in result.tuples()}
 
     async def funnel_events(
         self, names: Collection[str], since: datetime | None, until: datetime
@@ -1996,8 +1986,6 @@ class Repository:
         for field in ("telegram_seen_at", "web_seen_at"):
             values = [value for value in (getattr(source, field), getattr(target, field)) if value]
             setattr(target, field, max(values) if values else None)
-        if target.install_offer_sent_at is None:
-            target.install_offer_sent_at = source.install_offer_sent_at
         if target.source is None and source.source is not None:
             target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
@@ -2067,16 +2055,6 @@ class Repository:
             .execution_options(synchronize_session=False)
         )
         user.first_checkin_at = now
-        return result.rowcount > 0
-
-    async def mark_install_offer_sent(self, user_id: int, now: datetime) -> bool:
-        """Claim the one-time install offer for the user. True — not sent before."""
-        result = await self.session.execute(
-            update(User)
-            .where(User.telegram_id == user_id, User.install_offer_sent_at.is_(None))
-            .values(install_offer_sent_at=now)
-            .execution_options(synchronize_session=False)
-        )
         return result.rowcount > 0
 
     # ------------------------------------------------------------------ #

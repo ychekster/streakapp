@@ -311,11 +311,11 @@ FUNNEL_EVENTS: tuple[str, ...] = (
 # Steps only the server records: a client sending them would skew the funnel.
 SERVER_FUNNEL_EVENTS: tuple[str, ...] = ("first_habit_created", "first_checkin", "account_linked")
 # «Открыл приложение» (POST /events, событие app_open) — откуда: кнопка меню бота,
-# приветствие, напоминание, рассылка, push-уведомление, предложение установить, прямая
-# ссылка на Mini App, иконка веб-приложения. Пишется в ленту действий, не в воронку.
+# приветствие, напоминание, рассылка, push-уведомление, прямая ссылка на
+# Mini App, иконка веб-приложения. Пишется в ленту действий, не в воронку.
 APP_OPEN_EVENT = "app_open"
 APP_OPEN_SOURCES: tuple[str, ...] = (
-    "menu", "welcome", "reminder", "broadcast", "push", "install_offer", "link", "icon",
+    "menu", "welcome", "reminder", "broadcast", "push", "link", "icon",
 )
 # Accepted values of the event context fields (anything else is stored as null).
 EVENT_PLATFORMS: tuple[str, ...] = ("ios", "android", "desktop")

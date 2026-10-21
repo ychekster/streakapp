@@ -1,7 +1,7 @@
 """Приглашение в совместную привычку (backend/groups.py).
 
-- `/start join_<код>` — ссылка-приглашение: бот показывает привычку (название, расписание,
-  участники) и спрашивает «Принять» / «Отклонить». Вышедшему, который свою привычку не
+- `/start join_<код>` — ссылка-приглашение: бот показывает привычку столбиком (название,
+  повтор, цель, сколько участников и кто) и спрашивает «Принять» / «Отклонить». Вышедшему, который свою привычку не
   удалял, — «Вернуться»: его прежняя история снова в счёт.
 - Исключённому владельцем (чёрный список) — «вступить нельзя», без кнопок.
 - «Принять» перепроверяет код (ссылку могли сбросить) и добавляет привычку; сообщение
@@ -24,21 +24,27 @@ from loguru import logger
 from bot.constants import (
     INVITE_ACCEPT,
     INVITE_BANNED,
+    INVITE_COUNT,
+    INVITE_COUNT_VALUE,
     INVITE_DECLINE,
     INVITE_DECLINED,
-    INVITE_DETAILS,
     INVITE_DONE,
     INVITE_EXPIRED,
     INVITE_FULL,
+    INVITE_GOAL,
     INVITE_HABIT_LIMIT,
+    INVITE_HINT,
     INVITE_MEMBER,
+    INVITE_MEMBERS,
+    INVITE_NAME,
     INVITE_REJOIN,
+    INVITE_REJOIN_HINT,
+    INVITE_REPEAT,
     INVITE_TITLE,
     SCHEDULE_AND,
     SCHEDULE_DAILY,
     SCHEDULE_EVERY_OTHER_DAY,
     SCHEDULE_MONTHLY,
-    SCHEDULE_TIMES,
     SCHEDULE_WEEKDAYS,
 )
 from bot.handlers.start import record_start
@@ -62,7 +68,7 @@ def _text(texts: dict[str, str], language: str) -> str:
 
 
 def schedule_label(task: Task, language: str) -> str:
-    """Расписание привычки — как «Повтор» в приложении; цель больше раза — через «·»."""
+    """Расписание привычки — как «Повтор» в приложении."""
     if task.frequency_type == FrequencyType.every_other_day:
         label = _text(SCHEDULE_EVERY_OTHER_DAY, language)
     elif task.frequency_type == FrequencyType.monthly:
@@ -77,9 +83,16 @@ def schedule_label(task: Task, language: str) -> str:
             if len(days) > 1
             else "".join(days)
         )
-    if task.times_per_day > 1:
-        label += " · " + _text(SCHEDULE_TIMES, language).format(count=task.times_per_day)
     return label
+
+
+def goal_label(count: int, language: str) -> str:
+    """Цель — как в приложении: «1 раз в день», «3 раза в день»; «Once a day»…"""
+    if language == "en":
+        return "Once a day" if count == 1 else "Twice a day" if count == 2 else f"{count} times a day"
+    tens, ones = count % 100, count % 10
+    word = "раза" if 2 <= ones <= 4 and not 12 <= tens <= 14 else "раз"
+    return f"{count} {word} в день"
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(groups.INVITE_PREFIX)))
@@ -108,16 +121,22 @@ async def start_invite(message: Message, command: CommandObject, database: Datab
     if preview.state == "full":
         await message.answer(_text(INVITE_FULL, language))
         return
-    content = Text(
-        Bold(_text(INVITE_TITLE, language).format(name=preview.task.name)),
-        "\n",
-        _text(INVITE_DETAILS, language).format(
-            schedule=schedule_label(preview.task, language),
-            members=", ".join(preview.member_names),
-            count=len(preview.member_names),
-            limit=MAX_GROUP_MEMBERS,
-        ),
+    count = _text(INVITE_COUNT_VALUE, language).format(
+        count=len(preview.member_names), limit=MAX_GROUP_MEMBERS
     )
+    rows = [
+        (INVITE_NAME, preview.task.name),
+        (INVITE_REPEAT, schedule_label(preview.task, language)),
+        (INVITE_GOAL, goal_label(preview.task.times_per_day, language)),
+        (INVITE_COUNT, count),
+        (INVITE_MEMBERS, ", ".join(preview.member_names)),
+    ]
+    hint = INVITE_REJOIN_HINT if preview.state == "rejoin" else INVITE_HINT
+    parts: list[object] = [_text(INVITE_TITLE, language), "\n"]
+    for label, value in rows:
+        parts += ["\n", Bold(_text(label, language)), " ", value]
+    parts += ["\n\n", _text(hint, language)]
+    content = Text(*parts)
     accept = INVITE_REJOIN if preview.state == "rejoin" else INVITE_ACCEPT
     markup = InlineKeyboardMarkup(
         inline_keyboard=[

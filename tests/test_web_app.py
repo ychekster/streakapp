@@ -1,6 +1,6 @@
 """Web app (PWA): guest accounts, web sessions, Telegram → web handoff, Telegram logins
-(bot, Telegram web login), linking and merging rules, funnel events, the one-time install
-offer and push reminders. Bot API is faked."""
+(bot, Telegram web login), linking and merging rules, funnel events (no install
+offer from the bot) and push reminders. Bot API is faked."""
 
 from __future__ import annotations
 
@@ -550,28 +550,15 @@ def test_first_habit_and_first_checkin_are_recorded_once(client: TestClient) -> 
 
 
 # --------------------------------------------------------------------------- #
-#  One-time install offer (spec §8)
+#  No install offer
 # --------------------------------------------------------------------------- #
 
 
-def test_bot_offers_the_app_once_after_the_first_checkin(
+def test_bot_does_not_offer_the_app_after_the_first_checkin(
     client: TestClient, telegram: FakeTelegram, user: AuthUser
 ) -> None:
     habit = _habit(client, user.headers, "Зарядка")
-    for _ in range(3):
-        client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
-    offers = [sent for sent in telegram.sent if sent.chat_id == user.id]
-    assert len(offers) == 1
-    assert offers[0].text.startswith("Отличное начало!")
-    buttons = offers[0].extra["reply_markup"].inline_keyboard[0]
-    assert buttons[0].web_app.url.endswith("?open=install&from=install_offer")
-    assert buttons[1].callback_data == "install_offer:dismiss"
-
-
-def test_no_offer_for_web_check_ins(client: TestClient, telegram: FakeTelegram) -> None:
-    guest = _guest(client)
-    habit = _habit(client, guest, "Вода")
-    client.post(f"/tasks/{habit['id']}/toggle", headers=guest)
+    client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
     assert telegram.sent == []
 
 

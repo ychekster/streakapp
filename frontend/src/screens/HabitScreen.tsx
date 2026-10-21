@@ -219,11 +219,14 @@ export function HabitScreen({
     }
     const confirmed = await confirmAction({
       title: strings.leaveGroupDialogTitle,
-      // Один — группы после выхода не останется, возвращаться некуда.
+      // Один — группы после выхода не останется, возвращаться некуда; владелец — его
+      // место займёт тот, кто вступил раньше всех.
       message:
-        group.members.length > 1
-          ? strings.leaveGroupDialogMessage
-          : strings.leaveGroupAloneDialogMessage,
+        group.members.length <= 1
+          ? strings.leaveGroupAloneDialogMessage
+          : group.is_owner
+            ? strings.leaveGroupOwnerDialogMessage
+            : strings.leaveGroupDialogMessage,
       confirmLabel: strings.leaveGroupDialogConfirm,
       cancelLabel: strings.groupDialogCancel,
       destructive: true,

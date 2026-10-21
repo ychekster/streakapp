@@ -324,21 +324,6 @@ def add_person(rng: random.Random, batch: Batch, number: int, now: datetime) -> 
         batch.checkins.add((user_id, day))
         if user.first_checkin_at is None:
             user.first_checkin_at = marked
-            if platform == "telegram" and rng.random() < 0.9:
-                # Бот предлагает установить веб-приложение после первой отметки.
-                offered = marked + timedelta(minutes=1)
-                user.install_offer_sent_at = offered
-                batch.log(user_id, "install_offer_sent", offered)
-                if rng.random() < 0.3:
-                    batch.log(user_id, "app_open", offered + timedelta(minutes=2), detail="install_offer")
-                    if rng.random() < 0.45:
-                        batch.rows.append(
-                            WebSession(
-                                token_hash=f"seed-install{user_id}", user_id=user_id, user_agent=device,
-                                created_at=offered + timedelta(minutes=6), last_used_at=offered + timedelta(minutes=6),
-                                expires_at=now + timedelta(days=90),
-                            )
-                        )
         for task in tasks:
             alive = task.created_at <= marked and (task.deleted_at is None or marked < task.deleted_at)
             if alive and rng.random() < 0.85 and (id(task), day) not in batch.marks:

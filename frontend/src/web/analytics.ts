@@ -104,7 +104,6 @@ const APP_OPEN_ORIGINS = [
   "reminder",
   "broadcast",
   "push",
-  "install_offer",
   "link",
   "icon",
 ];

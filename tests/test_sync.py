@@ -316,7 +316,7 @@ def test_too_many_operations_are_refused(client: TestClient, user: AuthUser) -> 
     assert response.status_code == 422
 
 
-def test_first_checkin_through_sync_offers_the_app_once(
+def test_first_checkin_through_sync_sends_no_bot_message(
     client: TestClient, telegram: FakeTelegram, user: AuthUser
 ) -> None:
     today = _today(client, user).isoformat()
@@ -328,8 +328,7 @@ def test_first_checkin_through_sync_offers_the_app_once(
     )
     _sync(client, user, {"type": "mark", "task": "a", "date": today, "done": False})
     _sync(client, user, {"type": "mark", "task": "a", "date": today, "done": True})
-    offers = [sent for sent in telegram.sent if sent.chat_id == user.id]
-    assert len(offers) == 1
+    assert telegram.sent == []
 
 
 # --------------------------------------------------------------------------- #

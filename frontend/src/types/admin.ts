@@ -422,9 +422,6 @@ export interface AnalyticsMessaging {
   d7_with: number | null;
   d7_without: number | null;
   broadcasts: BroadcastStats[];
-  offer_shown: number;
-  offer_clicked: number;
-  offer_installed: number;
   prompt_shown: number;
   prompt_accepted: number;
   prompt_installed: number;

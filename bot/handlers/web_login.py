@@ -1,12 +1,10 @@
-"""Bot side of the web app: "log in via Telegram" and the install offer's «Не сейчас».
+"""Bot side of the web app: "log in via Telegram".
 
 - `/start login_<code>` — the web app opened the bot to log in with Telegram. The bot
   asks to confirm; «Подтвердить вход» works once and only for a few minutes after the
   app asked. It marks the code as confirmed by this Telegram user, and the app that started the login
   picks it up (`/auth/telegram/poll`, see backend/accounts.py). The user is recorded
   like on a plain /start.
-- «Не сейчас» under the one-time install offer (backend/messaging.py) removes its
-  buttons.
 
 This router is included before `start`: its /start filter is narrower.
 """
@@ -31,7 +29,6 @@ from bot.handlers.start import record_start
 from backend.accounts import confirm_telegram_login, telegram_login_request
 from backend.config import Settings
 from backend.database import Database
-from backend.messaging import INSTALL_OFFER_DISMISS
 from backend.repository import Repository
 
 router = Router(name="web_login")
@@ -82,17 +79,6 @@ async def confirm_login(
 @router.callback_query(F.data == _CANCEL)
 async def cancel_login(callback: CallbackQuery) -> None:
     await _replace(callback, LOGIN_CANCELLED_TEXT)
-
-
-@router.callback_query(F.data == INSTALL_OFFER_DISMISS)
-async def dismiss_install_offer(callback: CallbackQuery) -> None:
-    """«Не сейчас»: keep the text, remove the buttons."""
-    await callback.answer()
-    if callback.message is not None:
-        try:
-            await callback.message.edit_reply_markup(reply_markup=None)  # type: ignore[union-attr]
-        except TelegramBadRequest as exc:
-            logger.debug("Install offer buttons already removed: {}", exc)
 
 
 async def _replace(callback: CallbackQuery, text: str) -> None:

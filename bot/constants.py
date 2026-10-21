@@ -102,7 +102,7 @@ REMINDER_BUTTONS: dict[str, str] = {
 LOGIN_CONFIRM_TEXT = "Войти в приложение Knot с этим аккаунтом Telegram?"
 LOGIN_CONFIRM_BUTTON = "Подтвердить вход"
 LOGIN_CANCEL_BUTTON = "Отмена"
-LOGIN_DONE_TEXT = "Готово! Вернитесь в приложение Knot — вход выполнен."
+LOGIN_DONE_TEXT = "Готово! Вход выполнен, вернитесь в приложение Knot."
 LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
 LOGIN_CANCELLED_TEXT = "Вход отменён."
 
@@ -111,15 +111,27 @@ LOGIN_CANCELLED_TEXT = "Вход отменён."
 # --------------------------------------------------------------------------- #
 
 # Ссылка-приглашение открывает бота с /start join_<код>. Ключ — язык интерфейса
-# пользователя. Заголовок жирный; под ним — расписание и участники.
+# пользователя. Заголовок обычным текстом, под ним столбиком пункты с жирными подписями
+# («Название:», «Повтор:»…), внизу подсказка, какую кнопку нажать.
 INVITE_TITLE: dict[str, str] = {
-    "ru": "Вас приглашают в привычку «{name}»",
-    "en": "You're invited to the habit “{name}”",
+    "ru": "Вас приглашают в групповую привычку",
+    "en": "You're invited to a group habit",
 }
-# «{schedule} · {members} ({count} из {limit})».
-INVITE_DETAILS: dict[str, str] = {
-    "ru": "{schedule} · {members} ({count} из {limit})",
-    "en": "{schedule} · {members} ({count} of {limit})",
+INVITE_NAME: dict[str, str] = {"ru": "Название:", "en": "Name:"}
+INVITE_REPEAT: dict[str, str] = {"ru": "Повтор:", "en": "Repeat:"}
+INVITE_GOAL: dict[str, str] = {"ru": "Цель:", "en": "Goal:"}
+INVITE_COUNT: dict[str, str] = {"ru": "Участников:", "en": "Members:"}
+# Значение «Участников:» — «2 из 12».
+INVITE_COUNT_VALUE: dict[str, str] = {"ru": "{count} из {limit}", "en": "{count} of {limit}"}
+INVITE_MEMBERS: dict[str, str] = {"ru": "Состоят:", "en": "In the habit:"}
+INVITE_HINT: dict[str, str] = {
+    "ru": "Нажмите «Принять», чтобы присоединиться.",
+    "en": "Tap Accept to join.",
+}
+# Вышедшему, который свою привычку не удалял: вернётся с прежними отметками.
+INVITE_REJOIN_HINT: dict[str, str] = {
+    "ru": "Нажмите «Вернуться», чтобы снова вести её вместе. Ваши прежние отметки сохранятся.",
+    "en": "Tap Rejoin to keep it up together again. Your earlier check-ins stay.",
 }
 INVITE_ACCEPT: dict[str, str] = {"ru": "Принять", "en": "Accept"}
 INVITE_REJOIN: dict[str, str] = {"ru": "Вернуться", "en": "Rejoin"}
@@ -142,8 +154,8 @@ INVITE_FULL: dict[str, str] = {
     "en": "This habit already has the most people it can.",
 }
 INVITE_BANNED: dict[str, str] = {
-    "ru": "Владелец привычки исключил вас — вступить по ссылке нельзя.",
-    "en": "The habit's owner removed you — you can't join through the link.",
+    "ru": "Владелец исключил вас из этой привычки, поэтому вступить по ссылке нельзя.",
+    "en": "The habit's owner removed you, so you can't join through the link.",
 }
 INVITE_HABIT_LIMIT: dict[str, str] = {
     "ru": "У вас уже максимум привычек.",
@@ -160,12 +172,10 @@ SCHEDULE_WEEKDAYS: dict[str, tuple[str, ...]] = {
 }
 # «Пн, Ср и Пт».
 SCHEDULE_AND: dict[str, str] = {"ru": " и ", "en": " and "}
-# Цель больше одного раза: « · 3 раза в день».
-SCHEDULE_TIMES: dict[str, str] = {"ru": "{count} р. в день", "en": "{count}× a day"}
 
 # «Отметки участников» (включаются в совместной привычке): другой участник выполнил день.
 # {name} — название привычки у получателя, {actor} — @username или имя.
 GROUP_MARK_TEXTS: dict[str, str] = {
-    "ru": "«{name}» — отметка от {actor}",
-    "en": "“{name}” — {actor} checked in",
+    "ru": "«{name}»: отметка от {actor}",
+    "en": "“{name}”: {actor} checked in",
 }

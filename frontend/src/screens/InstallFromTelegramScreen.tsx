@@ -1,11 +1,10 @@
 /**
- * «Приложение на телефоне» inside the Mini App — where the bot's «Установить» button
- * (the one-time offer after the first check-in) leads, address parameter `open=install`.
+ * «Приложение на телефоне» inside the Mini App — Settings → «Добавить на рабочий стол».
  *
  * The bottom button opens the install page in the phone's real browser with a
  * single-use handoff link, so the installed app opens the same account. The browser is
- * opened from here rather than by a plain link in the bot message: that would open
- * Telegram's built-in browser, where an app cannot be installed.
+ * opened from here rather than by a plain link: that would open Telegram's built-in
+ * browser, where an app cannot be installed.
  *
  * Looks like the landing it leads to: the app icon and one line, centred.
  */

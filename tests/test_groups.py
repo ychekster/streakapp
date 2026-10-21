@@ -25,7 +25,7 @@ BOT = "knot_test_bot"
 
 @pytest.fixture(autouse=True)
 def bot(client: TestClient):
-    """Имя бота для ссылок и бот-заглушка (первая отметка шлёт предложение установить)."""
+    """Имя бота для ссылок и бот-заглушка."""
     original = client.app.state.bot
     client.app.state.bot_username = BOT
     client.app.state.bot = FakeTelegram()

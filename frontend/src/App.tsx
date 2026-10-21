@@ -36,8 +36,7 @@
  * its habit (`habit=<id>`). A guest (Telegram not linked yet) sees a red «!» on the
  * Settings tab; Settings → «Аккаунт» links Telegram through the bot, and the result is
  * picked up wherever the user is (useTelegramLoginWatcher). «Добавить на рабочий стол»
- * is only in Telegram, and the bot's «Установить» button opens the Mini App on it
- * (`open=install`).
+ * is only in Telegram.
  *
  * Администратор может переключить приложение в режим админ-панели (ряд «Админ-панель» в
  * настройках): тогда вместо экранов и нижней навигации приложения — AdminApp, а
@@ -143,7 +142,7 @@ function deviceTimezone(): string | null {
 }
 
 /** Экран, на котором приложение открывается сразу (см. startScreen). */
-type StartScreen = "review" | "new_habit" | "install";
+type StartScreen = "review" | "new_habit";
 
 /**
  * Экран, на котором открыть приложение, — параметр `open` его адреса. Его ставят кнопки
@@ -154,7 +153,7 @@ type StartScreen = "review" | "new_habit" | "install";
 function startScreen(): StartScreen | null {
   try {
     const screen = new URLSearchParams(window.location.search).get("open");
-    return screen === "review" || screen === "new_habit" || screen === "install" ? screen : null;
+    return screen === "review" || screen === "new_habit" ? screen : null;
   } catch {
     return null;
   }
@@ -213,8 +212,7 @@ export function App() {
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).
   const [start] = useState(startScreen);
-  const startsInSettings = start === "review" || start === "install";
-  const [tab, setTab] = useState<TabKey>(startsInSettings ? "settings" : "habits");
+  const [tab, setTab] = useState<TabKey>(start === "review" ? "settings" : "habits");
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Страница участника групповой привычки поверх экрана привычки: его Telegram id.
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);
@@ -226,7 +224,7 @@ export function App() {
     start === "new_habit" ? { habit: null } : null,
   );
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
-    start === "review" ? "review" : start === "install" ? "install" : null,
+    start === "review" ? "review" : null,
   );
   // Форма папки (Настройки → «Папки») и выбор привычек в неё поверх формы.
   const [folderDraft, setFolderDraft] = useState<FolderDraft | null>(null);
@@ -998,7 +996,7 @@ export function App() {
         );
       }
       if (settingsPage === "install") {
-        return <InstallFromTelegramScreen src={start === "install" ? "bot" : "settings"} />;
+        return <InstallFromTelegramScreen src="settings" />;
       }
       return (
         <SettingsScreen

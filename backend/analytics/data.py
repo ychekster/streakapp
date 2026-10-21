@@ -119,7 +119,6 @@ class UserRow:
     theme: str
     mark_yesterday: bool
     checkin_reminder: bool
-    install_offer_sent: datetime | None
     is_test: bool
     is_admin: bool
     # Последний запрос из Mini App и из веб-приложения (None — там не заходил).
@@ -467,7 +466,6 @@ async def load_dataset(
             theme=row.theme,
             mark_yesterday=bool(row.mark_yesterday),
             checkin_reminder=row.checkin_reminder_time is not None,
-            install_offer_sent=row.install_offer_sent_at,
             is_test=bool(row.is_test),
             is_admin=bool(row.is_admin),
             telegram_seen=row.telegram_seen_at,

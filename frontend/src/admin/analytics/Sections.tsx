@@ -1137,24 +1137,6 @@ function Messaging({ data, onOpenPeople }: { data: AnalyticsSections["messaging"
         </TableCard>
       </Block>
 
-      <Block title={an.offerHeading} info={an.offerInfo}>
-        <div className={styles.grid}>
-          <MetricCard
-            label={an.offerShown}
-            value={format.count(data.offer_shown)}
-            onPress={() => onOpenPeople({ metric: "offer_shown", title: `${an.offerHeading}: ${an.offerShown.toLowerCase()}` })}
-          />
-          <MetricCard label={an.offerClicked} value={format.count(data.offer_clicked)} note={tracking ?? undefined} />
-          <MetricCard
-            wide
-            label={an.offerInstalled}
-            value={format.count(data.offer_installed)}
-            note={data.offer_shown ? format.percent(data.offer_installed / data.offer_shown) : undefined}
-            onPress={() => onOpenPeople({ metric: "offer_installed", title: `${an.offerHeading}: ${an.offerInstalled.toLowerCase()}` })}
-          />
-        </div>
-      </Block>
-
       <Block title={an.promptHeading}>
         <div className={styles.grid}>
           <MetricCard label={an.promptShown} value={format.count(data.prompt_shown)} />

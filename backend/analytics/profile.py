@@ -48,7 +48,6 @@ def user_row(user: User, is_admin: bool) -> UserRow:
         theme=user.theme,
         mark_yesterday=user.mark_yesterday,
         checkin_reminder=user.checkin_reminder_time is not None,
-        install_offer_sent=user.install_offer_sent_at,
         is_test=user.is_test,
         is_admin=is_admin,
         telegram_seen=user.telegram_seen_at,

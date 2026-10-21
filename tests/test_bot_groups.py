@@ -74,8 +74,15 @@ def test_invite_is_shown_and_accepted(db_url: str) -> None:
             )
             [shown] = message.answers
             assert shown["text"] == (
-                "Вас приглашают в привычку «Бег»\nПн, Ср и Пт · 2 р. в день · @anya (1 из 12)"
+                "Вас приглашают в групповую привычку\n\n"
+                "Название: Бег\n"
+                "Повтор: Пн, Ср и Пт\n"
+                "Цель: 2 раза в день\n"
+                "Участников: 1 из 12\n"
+                "Состоят: @anya\n\n"
+                "Нажмите «Принять», чтобы присоединиться."
             )
+            assert [entity.type for entity in shown["entities"]] == ["bold"] * 5
             buttons = [row[0] for row in shown["reply_markup"].inline_keyboard]
             assert [button.text for button in buttons] == ["Принять", "Отклонить"]
 
@@ -132,6 +139,9 @@ def test_left_member_is_offered_to_return(db_url: str) -> None:
             buttons = [row[0].text for row in message.answers[0]["reply_markup"].inline_keyboard]
             assert buttons == ["Вернуться", "Отклонить"]
             assert "@anya, " not in message.answers[0]["text"]
+            assert message.answers[0]["text"].endswith(
+                "Нажмите «Вернуться», чтобы снова вести её вместе. Ваши прежние отметки сохранятся."
+            )
         finally:
             await database.dispose()
 
@@ -164,7 +174,7 @@ def test_marks_are_sent_once(db_url: str) -> None:
             await database.dispose()
 
     sent = asyncio.run(run())
-    assert [(item.chat_id, item.text) for item in sent] == [(1, "«Бег» — отметка от Петя")]
+    assert [(item.chat_id, item.text) for item in sent] == [(1, "«Бег»: отметка от Петя")]
 
 
 def test_profile_follows_telegram(db_url: str) -> None:

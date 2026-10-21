@@ -156,11 +156,9 @@ class User(Base):
     bot_blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Заблокирован администратором: API отвечает 403, напоминания и рассылки не приходят.
     blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    # First time the user ever marked a habit as done (drives the one-time install offer
-    # from the bot, see services.toggle_today). Backfilled by migration 0010.
+    # First time the user ever marked a habit as done (a funnel step). Backfilled by
+    # migration 0010.
     first_checkin_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    # When the bot sent the "install the app" offer; None — not sent yet.
-    install_offer_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # --- Аналитика админ-панели (backend/analytics/) ---
     # Откуда пришёл (threads, instagram…) и подпись ссылки (номер поста) — запоминаются при
@@ -547,14 +545,14 @@ class ActivityLog(Base):
     """Действие пользователя — для ленты в профиле и аналитики панели.
 
     `kind` — что случилось: start (запустил бота), app_open (открыл приложение; `detail` —
-    откуда: menu, welcome, reminder, broadcast, push, install_offer, link, icon),
+    откуда: menu, welcome, reminder, broadcast, push, link, icon),
     habit_created / habit_updated / habit_deleted / habit_frozen / habit_unfrozen,
     checkin / uncheck (`ref_id` — привычка), auto_checkin (привычку «Отмечать
     автоматически» отметил бот),
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
     вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),
-    broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent;
+    broadcast_sent / broadcast_failed (`ref_id` — рассылка);
     групповые привычки: group_created (сделал привычку групповой), group_joined, group_left,
     group_unshared (снова обычная)
     (`ref_id` — его привычка), group_kicked / group_unbanned (`ref_id` — исключённый /

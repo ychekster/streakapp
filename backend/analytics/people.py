@@ -288,20 +288,6 @@ async def people(
             and user_id in received
             and received[user_id] <= moment <= received[user_id] + timedelta(hours=hours)
         }
-    if metric in ("offer_shown", "offer_installed"):
-        offered = [
-            user
-            for user in users
-            if user.install_offer_sent and period.contains(local_day(user.install_offer_sent))
-        ]
-        if metric == "offer_shown":
-            return {user.id for user in offered}
-        sessions = await repo.first_web_sessions()
-        return {
-            user.id
-            for user in offered
-            if user.id in sessions and sessions[user.id] >= user.install_offer_sent  # type: ignore[operator]
-        }
     raise _bad(metric)
 
 

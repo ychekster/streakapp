@@ -827,7 +827,7 @@ async def messaging(repo: Repository, ds: Dataset, period: Period) -> AnalyticsM
     end = day_end(period.end)
     kinds = [
         "reminder_sent", "reminder_failed", "checkin", "app_open", "broadcast_sent",
-        "bot_blocked", "install_offer_sent",
+        "bot_blocked",
     ]
     actions = [row for row in await repo.actions(kinds) if row[0] in ds.users]
     in_period = [row for row in actions if (start is None or row[4] >= start) and row[4] < end]
@@ -918,8 +918,6 @@ async def messaging(repo: Repository, ds: Dataset, period: Period) -> AnalyticsM
             )
         )
 
-    offered = [user for user in ds.users.values() if user.install_offer_sent and period.contains(local_day(user.install_offer_sent))]
-    sessions = await repo.first_web_sessions()
     prompt = await repo.funnel_events(
         ["install_prompt_shown", "install_prompt_accepted", "app_installed"], start, end
     )
@@ -943,15 +941,6 @@ async def messaging(repo: Repository, ds: Dataset, period: Period) -> AnalyticsM
         d7_with=d7_of(with_reminder, True),
         d7_without=d7_of(with_reminder, False),
         broadcasts=broadcasts,
-        offer_shown=len(offered),
-        offer_clicked=len(
-            {row[0] for row in in_period if row[1] == "app_open" and row[3] == "install_offer"}
-        ),
-        offer_installed=sum(
-            1
-            for user in offered
-            if user.id in sessions and user.install_offer_sent and sessions[user.id] >= user.install_offer_sent
-        ),
         prompt_shown=devices("install_prompt_shown"),
         prompt_accepted=devices("install_prompt_accepted"),
         prompt_installed=devices("app_installed"),

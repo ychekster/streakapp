@@ -11,7 +11,7 @@ frontend/src/data/). Пустая пачка — просто загрузка �
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, Depends, Request
 
 from backend.dependencies import Principal, RepositoryDep, get_db_user, get_principal
 from backend.models import User
@@ -34,7 +34,6 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 async def sync(
     payload: SyncRequest,
     request: Request,
-    background: BackgroundTasks,
     db_user: User = Depends(get_db_user),
     principal: Principal = Depends(get_principal),
     repo: Repository = RepositoryDep,
@@ -44,7 +43,7 @@ async def sync(
     if outcome.first_habit:
         await record_first_habit(request, repo, db_user, principal)
     if outcome.checked_in:
-        await record_checkin(request, background, repo, db_user, principal)
+        await record_checkin(request, repo, db_user, principal)
     return SyncResponse(
         results=outcome.results,
         habits=await list_habits(repo, db_user),
