@@ -383,7 +383,7 @@ const RU = {
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
   // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
   // пригласить.
-  formSharedHeading: "Групповая привычка",
+  formSharedHeading: "Групповая привычка (Beta)",
   formSharedToggle: "Вести с друзьями",
   formSharedFooter:
     "Выполняйте привычку вместе с друзьями. После сохранения пригласите их кнопкой «Добавить участника» на экране привычки. День засчитывается, только когда его выполнили все.",
@@ -783,7 +783,7 @@ const EN: Strings = {
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
-  formSharedHeading: "Group Habit",
+  formSharedHeading: "Group Habit (Beta)",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:
     "Do the habit together with friends. Once it’s saved, invite them with the Add Member button on the habit’s screen. A day counts only when everyone has done it.",
