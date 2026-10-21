@@ -5,7 +5,10 @@
  * shows the result.
  *
  * Inviting shares the link the way the platform does it: in Telegram — its share window
- * (pick a chat); in the web app — the system share sheet, or the link is copied.
+ * (pick a chat); in the web app — the system share sheet, or the link is copied. The link
+ * is loaded in advance when the habit screen opens (prefetchInvite), so the share window
+ * opens right on the tap — without waiting for the server (and Safari still counts it as
+ * the user's tap).
  *
  * Members' Telegram photos are loaded once per app run (memberPhotoUrl).
  */
@@ -66,14 +69,34 @@ async function share(url: string, text: string, strings: Strings): Promise<void>
   await showAlert({ title: strings.inviteCopiedTitle, message: strings.inviteCopiedMessage });
 }
 
+/** Invitation links by group id, loaded in advance. */
+const inviteLinks = new Map<number, string>();
+
+/** Load the group's invitation link ahead of «Добавить участника». A group not yet on the
+ *  server (created offline) or no connection — it is loaded on the tap instead. */
+export function prefetchInvite(groupId: number): void {
+  if (groupId <= 0 || inviteLinks.has(groupId)) {
+    return;
+  }
+  inviteOf(groupId).then(
+    (invite) => inviteLinks.set(groupId, invite.invite_url),
+    () => undefined,
+  );
+}
+
 /** «Добавить участника»: the shared habit's link, shared. */
 export async function inviteToShared(
   habitId: number,
   habitName: string,
   strings: Strings,
 ): Promise<void> {
-  const invite = await inviteOf(await groupIdOf(habitId));
-  await share(invite.invite_url, strings.inviteShareText(habitName), strings);
+  const groupId = await groupIdOf(habitId);
+  let url = inviteLinks.get(groupId);
+  if (url === undefined) {
+    url = (await inviteOf(groupId)).invite_url;
+    inviteLinks.set(groupId, url);
+  }
+  await share(url, strings.inviteShareText(habitName), strings);
 }
 
 /** A shared-habit action failed: a dialog; without a Telegram login — the offer to log in. */
@@ -102,7 +125,8 @@ export async function reportGroupError(
 
 /** «Сбросить ссылку» (owner): the old link stops working. */
 export async function resetSharedLink(groupId: number): Promise<void> {
-  await resetInvite(groupId);
+  const invite = await resetInvite(groupId);
+  inviteLinks.set(groupId, invite.invite_url);
 }
 
 /** «Выйти из привычки»: the habit is gone (the link brings it back with every check-in). */

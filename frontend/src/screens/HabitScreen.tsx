@@ -17,9 +17,10 @@
  * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
  * карточкой.
  *
- * Совместная привычка (data/groups.ts): под календарём — «Участники» (кто как выполнил
- * свою часть; владелец нажатием исключает) с рядом «Добавить участника» — отправить
- * ссылку-приглашение. В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
+ * Совместная привычка (data/groups.ts): первым блоком, над историей, — «Участники» (кто
+ * как выполнил свою часть; владелец нажатием исключает) с рядом «Добавить участника» —
+ * отправить ссылку-приглашение (она загружается заранее, при открытии экрана, чтобы окно
+ * «Поделиться» открывалось сразу). В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
  * (владелец); вместо «Удалить» — «Выйти из привычки» (привычка пропадает, по ссылке
  * вернётся). Обычную привычку совместной не сделать. Автоотметки в совместной привычке нет.
  * «Редактировать» у участника открывает ту же форму, где менять можно только напоминания.
@@ -60,6 +61,7 @@ import {
   inviteToShared,
   leaveShared,
   notifyShared,
+  prefetchInvite,
   removeFromShared,
   reportGroupError,
   resetSharedLink,
@@ -121,13 +123,21 @@ export function HabitScreen({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  // Действие с совместной привычкой идёт на сервер — повторное нажатие ждёт.
-  const [groupBusy, setGroupBusy] = useState(false);
+  // Действие с совместной привычкой идёт на сервер — повторное нажатие ничего не делает
+  // (ряды при этом не бледнеют).
+  const groupBusy = useRef(false);
   const shared = isShared(habit);
   const group = habit.group ?? null;
   // «Отметки участников» переключаются сразу; ответ сервера их подтверждает.
   const [notify, setNotify] = useState(group?.notify_marks ?? false);
   useEffect(() => setNotify(group?.notify_marks ?? false), [group?.notify_marks]);
+  // Ссылка-приглашение — заранее: «Добавить участника» открывает окно сразу.
+  const groupId = group?.id;
+  useEffect(() => {
+    if (groupId !== undefined) {
+      prefetchInvite(groupId);
+    }
+  }, [groupId]);
 
   const frozen = habit.frozen_since !== null;
   // День отметки — последний день истории; неизвестен (ещё нет настроек) — без календаря
@@ -177,10 +187,10 @@ export function HabitScreen({
   /** Действие с совместной привычкой: ошибка — диалогом; без входа через Telegram —
    *  предложение войти. */
   async function groupAction(action: () => Promise<void>, success = true): Promise<void> {
-    if (groupBusy) {
+    if (groupBusy.current) {
       return;
     }
-    setGroupBusy(true);
+    groupBusy.current = true;
     try {
       await action();
       if (success) {
@@ -190,7 +200,7 @@ export function HabitScreen({
       hapticNotification("error");
       await reportGroupError(error, strings, onLinkTelegram);
     } finally {
-      setGroupBusy(false);
+      groupBusy.current = false;
     }
   }
 
@@ -264,7 +274,22 @@ export function HabitScreen({
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
       <div className={animateEnter ? styles.enter : undefined} style={habitColorStyle(habit.color)}>
-        <Section title={strings.habitHistoryHeading} headingRef={headingRef}>
+        {shared && group ? (
+          <GroupMembers
+            group={group}
+            total={habit.times_per_day}
+            mineDone={habit.done_today}
+            mineCount={habit.today_count}
+            onPressMember={(member) => void askToRemove(member)}
+            onAddMember={invite}
+            headingRef={headingRef}
+          />
+        ) : null}
+
+        <Section
+          title={strings.habitHistoryHeading}
+          headingRef={shared && group ? undefined : headingRef}
+        >
           <Card padded>
             <HabitBlock
               habit={habit}
@@ -307,18 +332,6 @@ export function HabitScreen({
               <HabitCalendar habit={habit} day={markDay} />
             </Card>
           </Section>
-        ) : null}
-
-        {shared && group ? (
-          <GroupMembers
-            group={group}
-            total={habit.times_per_day}
-            mineDone={habit.done_today}
-            mineCount={habit.today_count}
-            onPressMember={(member) => void askToRemove(member)}
-            onAddMember={invite}
-            addDisabled={groupBusy}
-          />
         ) : null}
 
         <Section title={strings.habitSettingsHeading}>
@@ -366,7 +379,6 @@ export function HabitScreen({
                 icon={<LinkIcon />}
                 iconColor="graphite"
                 label={strings.resetInvite}
-                disabled={groupBusy}
                 onPress={() => void askToResetLink()}
               >
                 <Disclosure />
@@ -378,7 +390,6 @@ export function HabitScreen({
           {shared ? (
             <DestructiveButton
               label={strings.leaveGroup}
-              disabled={groupBusy}
               onPress={() => void askToLeave()}
             />
           ) : (

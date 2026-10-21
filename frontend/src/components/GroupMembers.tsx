@@ -10,7 +10,7 @@
  * ли его.
  */
 
-import { useEffect, useState } from "react";
+import { type Ref, useEffect, useState } from "react";
 
 import { memberPhotoUrl } from "../data/groups";
 import { useStrings } from "../preferences";
@@ -31,8 +31,8 @@ interface GroupMembersProps {
   onPressMember?: (member: GroupMember) => void;
   /** «Добавить участника»: отправить ссылку-приглашение. */
   onAddMember: () => void;
-  /** Приглашение уже готовится — ряд не нажимается. */
-  addDisabled?: boolean;
+  /** Подзаголовок «Участники» — якорь заголовка в шапке (блок первый на экране). */
+  headingRef?: Ref<HTMLHeadingElement>;
 }
 
 /** Первая буква имени (без «@»). */
@@ -67,11 +67,11 @@ export function GroupMembers({
   mineCount,
   onPressMember,
   onAddMember,
-  addDisabled = false,
+  headingRef,
 }: GroupMembersProps) {
   const strings = useStrings();
   return (
-    <Section title={strings.groupMembersHeading}>
+    <Section title={strings.groupMembersHeading} headingRef={headingRef}>
       <div className={styles.members}>
         <Card>
           {group.members.map((member) => {
@@ -126,7 +126,6 @@ export function GroupMembers({
             plainIcon
             accent
             label={strings.groupAddMember}
-            disabled={addDisabled}
             onPress={onAddMember}
           />
         </Card>
