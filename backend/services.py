@@ -339,7 +339,7 @@ async def _build_habits(
     ahead = await _auto_mark_ahead(repo, user, task_ids)
     periods = await repo.get_schedule_periods(task_ids)
     members = await repo.members_of_tasks(task_ids) if with_groups else {}
-    states =await groups.load_groups(repo, {member.group_id for member in members.values()})
+    states = await groups.load_groups(repo, {member.group_id for member in members.values()})
 
     def group_of(task: Task) -> groups.ViewerGroup | None:
         member = members.get(task.id)

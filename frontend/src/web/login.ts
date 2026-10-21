@@ -19,6 +19,7 @@ import {
   startTelegramLogin,
   type LinkResult,
 } from "../api/web";
+import { forgetGroupData } from "../data/groups";
 import { dataStore, forgetKeptData } from "../data/store";
 import { forgetAccount } from "./account";
 import { setSessionToken } from "./session";
@@ -125,6 +126,7 @@ export async function logOut(): Promise<void> {
   await logout(await pushEndpoint());
   writePending(null);
   forgetKeptData();
+  forgetGroupData();
   forgetAccount();
   setSessionToken(guest.token);
   void subscribePush();

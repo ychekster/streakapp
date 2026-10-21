@@ -401,6 +401,19 @@ export function memberPhotoUrl(
   return loading;
 }
 
+/** Logged out: the account's member pages and members' photos are removed from this device. */
+export function forgetGroupData(): void {
+  memberHabits.clear();
+  memberRequests.clear();
+  loadedFor.clear();
+  readyPhotos.forEach((url) => URL.revokeObjectURL(url));
+  readyPhotos.clear();
+  loadingPhotos.clear();
+  if (typeof caches !== "undefined") {
+    caches.delete(PHOTO_CACHE).catch(() => undefined);
+  }
+}
+
 /** Load every shared habit's member photos ahead of the habit screen. */
 export function preloadMemberPhotos(habits: readonly Habit[]): void {
   for (const habit of habits) {
