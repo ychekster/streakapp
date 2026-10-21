@@ -790,6 +790,19 @@ export const dataStore = {
     return ops.length === 0;
   },
 
+  /** Wait until every change has reached the server — without hurrying it, as sendAll
+   *  does (quick taps still go in one request). False — still unsent after `limitMs` (no
+   *  connection). */
+  async settled(limitMs = 20_000): Promise<boolean> {
+    for (let waited = 0; ops.length > 0 || inFlight; waited += 100) {
+      if (waited >= limitMs) {
+        return false;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    return true;
+  },
+
   /** A login or logout may have switched the account: another account starts from its
    *  own data; the same one just syncs. */
   switchAccount(): void {

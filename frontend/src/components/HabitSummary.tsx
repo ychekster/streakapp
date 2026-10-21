@@ -49,8 +49,6 @@ interface HabitSummaryProps {
   onToggle?: (taskId: number) => void;
   /** Подзаголовок истории — якорь заголовка в шапке (когда он первый на экране). */
   headingRef?: Ref<HTMLHeadingElement>;
-  /** Данные ещё не пришли: вместо чисел — прочерк. */
-  pending?: boolean;
   /** Под последней карточкой (кнопка «Исключить участника»). */
   children?: ReactNode;
 }
@@ -61,13 +59,11 @@ export function HabitSummary({
   interactive,
   onToggle,
   headingRef,
-  pending = false,
   children,
 }: HabitSummaryProps) {
   const strings = useStrings();
   const markDay = useGridView().day;
   const days = markDay ? trackedDays(habit, markDay) : 0;
-  const dash = "—";
   return (
     <>
       <Section title={headings.history} headingRef={headingRef}>
@@ -86,19 +82,17 @@ export function HabitSummary({
         <div className={styles.stats}>
           <StatCard
             icon={<FlameIcon />}
-            value={pending ? dash : habit.current_streak}
+            value={habit.current_streak}
             label={strings.statCurrentStreak}
           />
           <StatCard
             icon={<TrophyIcon />}
-            value={pending ? dash : habit.best_streak}
+            value={habit.best_streak}
             label={strings.statBestStreak}
           />
           <StatCard
             icon={<CompletedIcon />}
-            value={
-              pending ? dash : days > 0 ? `${habit.total_done} / ${days}` : habit.total_done
-            }
+            value={days > 0 ? `${habit.total_done} / ${days}` : habit.total_done}
             label={strings.statTotalDone}
           />
           <StatCard

@@ -18,7 +18,7 @@
  * Групповая привычка (data/groups.ts): разделы — про всю группу («Последние 364 дня
  * группы», «Основное группы», «Календарь группы»). Первым блоком, над историей, —
  * «Участники» (кто как выполнил свою часть; нажатие открывает страницу участника —
- * GroupMemberScreen, там владелец и исключает) с рядом «Добавить участника» —
+ * GroupMemberScreen, там владелец и исключает; открывается уже с данными) с рядом «Добавить участника» —
  * отправить ссылку-приглашение (она загружается заранее, при открытии экрана, чтобы окно
  * «Поделиться» открывалось сразу). В той же карточке настроек — «Отметки участников» и «Сбросить ссылку»
  * (владелец); вместо «Удалить» — «Выйти из привычки» (привычка пропадает, по ссылке
@@ -50,8 +50,8 @@ import {
   inviteToShared,
   leaveShared,
   notifyShared,
+  loadMemberHabit,
   prefetchInvite,
-  prefetchMemberHabits,
   reportGroupError,
   resetSharedLink,
 } from "../data/groups";
@@ -106,20 +106,12 @@ export function HabitScreen({
   // «Отметки участников» переключаются сразу; ответ сервера их подтверждает.
   const [notify, setNotify] = useState(group?.notify_marks ?? false);
   useEffect(() => setNotify(group?.notify_marks ?? false), [group?.notify_marks]);
-  // Ссылка-приглашение и страницы участников — заранее: «Добавить участника» открывает
-  // окно сразу, участник открывается с данными.
+  // Ссылка-приглашение — заранее: «Добавить участника» открывает окно сразу.
   const groupId = group?.id;
   useEffect(() => {
     if (groupId !== undefined) {
       prefetchInvite(groupId);
     }
-  }, [groupId]);
-  useEffect(() => {
-    if (group) {
-      prefetchMemberHabits(group);
-    }
-    // Один раз при открытии, а не с каждым ответом сервера: страница участника всё равно
-    // спрашивает свежие данные, когда открывается.
   }, [groupId]);
 
   const frozen = habit.frozen_since !== null;
@@ -183,6 +175,18 @@ export function HabitScreen({
     }
   }
 
+  /** Страница участника открывается только с его данными (обычно они уже загружены
+   *  заранее — data/groups.ts): целиком, без пустой сетки. */
+  function openMember(member: GroupMember): void {
+    if (!group) {
+      return;
+    }
+    void groupAction(async () => {
+      await loadMemberHabit(group.id, member.user_id);
+      onOpenMember(member);
+    }, false);
+  }
+
   function invite(): void {
     void groupAction(() => inviteToShared(habit.id, habit.name, strings), false);
   }
@@ -244,7 +248,7 @@ export function HabitScreen({
             mineDone={habit.done_today}
             mineCount={habit.today_count}
             // Участник группы, созданной без связи, ещё не на сервере — открывать нечего.
-            onPressMember={group.id > 0 ? onOpenMember : undefined}
+            onPressMember={group.id > 0 ? openMember : undefined}
             onAddMember={invite}
             headingRef={headingRef}
           />

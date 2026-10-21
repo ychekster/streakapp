@@ -304,7 +304,6 @@ const RU = {
   kickDialogConfirm: "Исключить",
   // Страница участника (владелец, не себя).
   kickMember: "Исключить участника",
-  memberLoadFailed: "Не удалось загрузить участника",
   groupDialogCancel: "Отменить",
   groupActionFailed: "Не удалось выполнить действие",
   groupLoginTitle: "Войдите через Telegram",
@@ -708,7 +707,6 @@ const EN: Strings = {
   kickDialogMessage: "The habit will disappear for them. They can come back through the invite link — with their check-ins.",
   kickDialogConfirm: "Remove",
   kickMember: "Remove Member",
-  memberLoadFailed: "Couldn’t load this member",
   groupDialogCancel: "Cancel",
   groupActionFailed: "Couldn’t do that",
   groupLoginTitle: "Log In with Telegram",

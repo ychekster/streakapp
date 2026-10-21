@@ -1,31 +1,30 @@
 /**
  * Страница участника групповой привычки: та же сводка, что на экране привычки
  * (HabitSummary — сетка за последние 364 дня, «Основное», календарь), но только по его
- * отметкам — как обычная привычка, в его днях (его пояс). В карточке вместо названия — его
- * имя («Вы» — я), кнопка отметки только показывает, как у него дела сегодня.
+ * отметкам — как обычная привычка, в его днях (его пояс). В карточке — название и
+ * описание привычки (как у меня: у него название может быть с номером), его имя («Вы» —
+ * я) — заголовком в шапке; кнопка отметки только показывает, как у него дела сегодня.
  *
- * Открывается нажатием на участника в «Участниках» (любой участник — любого, себя тоже).
- * Данные — с сервера (data/groups.ts, загружены заранее, при открытии экрана привычки, и
- * ещё раз при открытии страницы); пока их нет — пустая сетка и прочерки, нет связи — ошибка
- * с «Повторить».
+ * Открывается нажатием на участника в «Участниках» (любой участник — любого, себя тоже) и
+ * только когда его данные уже есть (HabitScreen их дожидается): они загружаются заранее и
+ * обновляются сами (data/groups.ts, preloadMemberHabits), поэтому страница открывается
+ * сразу целиком; пришли новые, пока она открыта, — видны сразу.
  *
  * Владелец на чужой странице может исключить участника (системный диалог); после
  * исключения App возвращает к экрану привычки. Других настроек нет.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useSyncExternalStore } from "react";
 
-import type { MemberHabit } from "../api/groups";
 import { DestructiveButton } from "../components/DestructiveButton";
 import { GridViewContext, useGridView } from "../components/gridLayout";
 import { HabitSummary } from "../components/HabitSummary";
 import { Screen } from "../components/Screen";
-import { StatusMessage } from "../components/StatusMessage";
 import {
   knownMemberHabit,
-  loadMemberHabit,
   removeFromShared,
   reportGroupError,
+  subscribeMemberHabits,
 } from "../data/groups";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
@@ -34,7 +33,7 @@ import type { GroupMember, Habit, HabitGroup } from "../types/habit";
 import styles from "./HabitScreen.module.css";
 
 interface GroupMemberScreenProps {
-  /** Групповая привычка (моя): цвет, расписание — пока нет данных участника. */
+  /** Групповая привычка (моя): название, описание, цвет. */
   habit: Habit;
   group: HabitGroup;
   member: GroupMember;
@@ -42,27 +41,6 @@ interface GroupMemberScreenProps {
   onRemoved: () => void;
   /** Войти через Telegram (веб-приложение): групповые привычки — только с ним. */
   onLinkTelegram: () => void;
-}
-
-/** Пока данных нет: та же привычка без отметок, сегодня — как в «Участниках». */
-function emptyHabit(habit: Habit, member: GroupMember): Habit {
-  const none = habit.history.map(() => false);
-  return {
-    ...habit,
-    history: none,
-    frozen_history: none,
-    history_counts: [],
-    current_streak: 0,
-    best_streak: 0,
-    total_done: 0,
-    done_today: member.done,
-    today_count: member.count,
-    frozen_since: null,
-    next_day_done: false,
-    next_day_count: 0,
-    started_on: null,
-    group: null,
-  };
 }
 
 export function GroupMemberScreen({
@@ -75,44 +53,27 @@ export function GroupMemberScreen({
   const strings = useStrings();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const gridView = useGridView();
-  const [loaded, setLoaded] = useState<MemberHabit | null>(() =>
+  const loaded = useSyncExternalStore(subscribeMemberHabits, () =>
     knownMemberHabit(group.id, member.user_id),
   );
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const busy = useRef(false);
-
-  useEffect(() => {
-    let current = true;
-    loadMemberHabit(group.id, member.user_id, member.is_me).then(
-      (fresh) => {
-        if (current) {
-          setLoaded(fresh);
-          setFailed(false);
-        }
-      },
-      () => {
-        if (current) {
-          setFailed(true);
-        }
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [group.id, member.user_id, member.is_me, attempt]);
-
-  const name = member.is_me ? strings.groupMe : member.name;
-  const shown: Habit = {
-    ...(loaded ? loaded.habit : emptyHabit(habit, member)),
-    name,
-    description: null,
-  };
   // Сетка и календарь — в днях участника.
   const memberDay = loaded?.day ?? gridView.day;
   const memberView = useMemo(
     () => ({ layout: gridView.layout, day: memberDay }),
     [gridView.layout, memberDay],
+  );
+  const shown = useMemo(
+    () =>
+      loaded
+        ? {
+            ...loaded.habit,
+            name: habit.name,
+            description: habit.description ?? null,
+            color: habit.color,
+          }
+        : null,
+    [loaded, habit.name, habit.description, habit.color],
   );
 
   async function askToRemove(): Promise<void> {
@@ -140,17 +101,14 @@ export function GroupMemberScreen({
   }
 
   return (
-    <Screen title={name} titleAnchorRef={headingRef} withTabBar={false}>
+    <Screen
+      title={member.is_me ? strings.groupMe : member.name}
+      titleAnchorRef={headingRef}
+      withTabBar={false}
+    >
       <div className={styles.enter} style={habitColorStyle(habit.color)}>
-        {failed && !loaded ? (
-          <StatusMessage
-            icon="alert"
-            title={strings.errorTitle}
-            description={strings.memberLoadFailed}
-            actionLabel={strings.errorRetry}
-            onAction={() => setAttempt((value) => value + 1)}
-          />
-        ) : (
+        {/* Без данных страница не открывается (HabitScreen их дожидается). */}
+        {shown ? (
           <GridViewContext.Provider value={memberView}>
             <HabitSummary
               habit={shown}
@@ -161,14 +119,13 @@ export function GroupMemberScreen({
               }}
               interactive={false}
               headingRef={headingRef}
-              pending={!loaded}
             >
               {group.is_owner && !member.is_me ? (
                 <DestructiveButton label={strings.kickMember} onPress={() => void askToRemove()} />
               ) : null}
             </HabitSummary>
           </GridViewContext.Provider>
-        )}
+        ) : null}
       </div>
     </Screen>
   );

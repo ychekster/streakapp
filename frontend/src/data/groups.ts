@@ -11,7 +11,8 @@
  * the user's tap).
  *
  * Members' Telegram photos are kept on the device and loaded ahead (preloadMemberPhotos);
- * members' pages (their habit by their own marks) — in memory, loaded ahead too.
+ * members' pages (their habit by their own marks) — in memory, loaded ahead too
+ * (preloadMemberHabits).
  */
 
 import { ApiRequestError } from "../api/client";
@@ -30,7 +31,7 @@ import { appPlatform, devicePlatform } from "../platform";
 import { clearPressFeedback, onNextTap } from "../pressFeedback";
 import { dimScreen } from "../web/dimScreen";
 import type { Strings } from "../strings";
-import type { Habit, HabitGroup } from "../types/habit";
+import type { Habit } from "../types/habit";
 import { confirmAction, shareToTelegram, showAlert } from "../telegram/webapp";
 import { dataStore } from "./store";
 
@@ -169,47 +170,108 @@ export async function notifyShared(groupId: number, on: boolean): Promise<void> 
 
 /*
  * Member pages: each member's habit by their own marks (GET /groups/{id}/members/{user}).
- * Loaded ahead when the habit screen opens (prefetchMemberHabits), so a member's page
- * opens filled; on opening it is asked for again. Kept in memory only.
+ * Loaded ahead, as soon as the habits arrive (preloadMemberHabits), and again when they
+ * may have changed, so a member's page opens complete at once. Others' — when the group's
+ * answer from the server changes (their marks, the schedule); mine — when my marks change,
+ * once they have reached the server. Kept in memory only.
  */
 
 /** Member habits by "<group>:<user>". */
 const memberHabits = new Map<string, MemberHabit>();
+/** The latest request per member: an older answer arriving later is dropped. */
+const memberRequests = new Map<string, number>();
+let memberRequestCount = 0;
+const memberListeners = new Set<() => void>();
+/** What the member pages of each shared habit were last loaded for (habit id →). */
+const loadedFor = new Map<number, { others: string; mine: string }>();
 
 function memberKey(groupId: number, userId: number): string {
   return `${groupId}:${userId}`;
 }
 
-/** A member's habit if it is already loaded (shown at once); null — not yet. */
+function fetchMember(groupId: number, userId: number): Promise<MemberHabit> {
+  const key = memberKey(groupId, userId);
+  memberRequestCount += 1;
+  const ticket = memberRequestCount;
+  memberRequests.set(key, ticket);
+  return memberHabitOf(groupId, userId).then((loaded) => {
+    if (memberRequests.get(key) !== ticket) {
+      return memberHabits.get(key) ?? loaded;
+    }
+    memberHabits.set(key, loaded);
+    memberListeners.forEach((listener) => listener());
+    return loaded;
+  });
+}
+
+function refetchMember(groupId: number, userId: number): void {
+  fetchMember(groupId, userId).catch(() => undefined);
+}
+
+/** A member's habit if it is already loaded; null — not yet. */
 export function knownMemberHabit(groupId: number, userId: number): MemberHabit | null {
   return memberHabits.get(memberKey(groupId, userId)) ?? null;
 }
 
-/** A member's habit, fresh from the server. My own — after my changes reach it. */
-export async function loadMemberHabit(
-  groupId: number,
-  userId: number,
-  isMe: boolean,
-): Promise<MemberHabit> {
-  if (isMe) {
-    await dataStore.sendAll();
-  }
-  const loaded = await memberHabitOf(groupId, userId);
-  memberHabits.set(memberKey(groupId, userId), loaded);
-  return loaded;
+/** Follow loaded member habits (useSyncExternalStore). */
+export function subscribeMemberHabits(listener: () => void): () => void {
+  memberListeners.add(listener);
+  return () => memberListeners.delete(listener);
 }
 
-/** Load every member's page ahead (the habit screen opened). No connection — on the tap. */
-export function prefetchMemberHabits(group: HabitGroup): void {
-  if (group.id <= 0) {
-    return;
-  }
-  for (const member of group.members) {
-    if (!member.is_me) {
-      void memberHabitOf(group.id, member.user_id).then(
-        (loaded) => memberHabits.set(memberKey(group.id, member.user_id), loaded),
-        () => undefined,
-      );
+/** A member's habit — the loaded one, or from the server now (the page opens with it). */
+export function loadMemberHabit(groupId: number, userId: number): Promise<MemberHabit> {
+  const known = knownMemberHabit(groupId, userId);
+  return known ? Promise.resolve(known) : fetchMember(groupId, userId);
+}
+
+/** Load the member pages of every shared habit ahead, and again when they may have changed. */
+export function preloadMemberHabits(habits: readonly Habit[]): void {
+  for (const habit of habits) {
+    const group = habit.group;
+    if (!group || group.id <= 0) {
+      continue;
+    }
+    const schedule = [
+      habit.frequency_type,
+      habit.days,
+      habit.start_date,
+      habit.times_per_day,
+      habit.schedule_history,
+    ];
+    // From the server only: changes when someone else marks or the owner edits.
+    const others = JSON.stringify([
+      schedule,
+      group.members.filter((member) => !member.is_me),
+      group.others_history,
+      group.others_units,
+    ]);
+    // My marks and freezes — changed on the device first.
+    const mine = JSON.stringify([
+      schedule,
+      habit.done_today,
+      habit.today_count,
+      habit.history_counts,
+      habit.frozen_history,
+      habit.next_day_done,
+    ]);
+    const last = loadedFor.get(habit.id);
+    loadedFor.set(habit.id, { others, mine });
+    if (last?.others !== others) {
+      for (const member of group.members) {
+        if (!member.is_me) {
+          refetchMember(group.id, member.user_id);
+        }
+      }
+    }
+    const me = group.members.find((member) => member.is_me);
+    if (me && last?.mine !== mine) {
+      // Asked for once my changes are on the server, or it would answer with the old ones.
+      void dataStore.settled().then((sent) => {
+        if (sent && loadedFor.get(habit.id)?.mine === mine) {
+          refetchMember(group.id, me.user_id);
+        }
+      });
     }
   }
 }
