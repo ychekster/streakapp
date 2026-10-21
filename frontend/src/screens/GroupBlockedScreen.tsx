@@ -16,6 +16,7 @@ import { MemberAvatar, MemberRows } from "../components/GroupMembers";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
+import { StatusMessage } from "../components/StatusMessage";
 import { reportGroupError, unbanFromShared } from "../data/groups";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
@@ -60,8 +61,8 @@ export function GroupBlockedScreen({ habit, group, onLinkTelegram }: GroupBlocke
 
   return (
     <Screen title={strings.blockedTitle} withTabBar={false} enterAnimation pinnedTitle>
-      <div className={styles.list} style={habitColorStyle(habit.color)}>
-        {banned.length > 0 ? (
+      {banned.length > 0 ? (
+        <div className={styles.list} style={habitColorStyle(habit.color)}>
           <Section variant="form" footer={strings.blockedFooter}>
             <MemberRows>
               <Card>
@@ -77,10 +78,15 @@ export function GroupBlockedScreen({ habit, group, onLinkTelegram }: GroupBlocke
               </Card>
             </MemberRows>
           </Section>
-        ) : (
-          <p className={styles.empty}>{strings.blockedEmpty}</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        // Пусто — как пустые экраны «Привычек» и папок.
+        <StatusMessage
+          icon="hand"
+          title={strings.blockedEmptyTitle}
+          description={strings.blockedEmptyDescription}
+        />
+      )}
     </Screen>
   );
 }

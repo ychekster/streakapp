@@ -13,7 +13,14 @@
 
 import styles from "./StatusMessage.module.css";
 
-export type StatusIconName = "check" | "alert" | "star" | "send" | "folder" | "spinner";
+export type StatusIconName =
+  | "check"
+  | "alert"
+  | "star"
+  | "send"
+  | "folder"
+  | "hand"
+  | "spinner";
 
 /*
  * Глифы нарисованы в квадрате 40×40, круг — вписанная окружность (центр 20, радиус 20).
@@ -23,6 +30,8 @@ interface Glyph {
   d: string;
   stroke?: number;
   fill?: boolean;
+  /** Глиф, нарисованный в другом квадрате, — переведённый в этот. */
+  transform?: string;
 }
 
 const GLYPHS: Record<Exclude<StatusIconName, "spinner">, Glyph[]> = {
@@ -34,6 +43,15 @@ const GLYPHS: Record<Exclude<StatusIconName, "spinner">, Glyph[]> = {
     {
       d: "M10.5 15a2 2 0 0 1 2-2h4.4l2.4 2.6h8.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H12.5a2 2 0 0 1-2-2Z",
       stroke: 3.2,
+    },
+  ],
+  // Поднятая ладонь (пустой «Чёрный список») — та же, что у его ряда (SettingsIcons,
+  // квадрат 24×24), увеличенная до здешнего круга.
+  hand: [
+    {
+      d: "M8.5 12.5V6.75a1.25 1.25 0 0 1 2.5 0V11m0-5.75V5a1.25 1.25 0 0 1 2.5 0v6m0-5.25a1.25 1.25 0 0 1 2.5 0V11.5m0-3a1.25 1.25 0 0 1 2.5 0v5a6.5 6.5 0 0 1-6.5 6.5h-.4a5.6 5.6 0 0 1-4.5-2.3L5.6 15a1.3 1.3 0 0 1 2-1.6l.9 1",
+      stroke: 2.3,
+      transform: "translate(5.25 5.1) scale(1.25)",
     },
   ],
   // Восклицательный знак: штрих и точка под ним.
@@ -84,6 +102,7 @@ export function StatusIcon({ name }: StatusIconProps) {
             strokeWidth={glyph.stroke}
             strokeLinecap="round"
             strokeLinejoin="round"
+            transform={glyph.transform}
           />
         ))}
       </mask>

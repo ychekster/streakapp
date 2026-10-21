@@ -292,7 +292,8 @@ const RU = {
   groupNotify: "Отметки участников",
   // «Чёрный список» (владелец): исключённые по ссылке не вступят.
   blockedTitle: "Чёрный список",
-  blockedEmpty: "Здесь появятся исключённые участники",
+  blockedEmptyTitle: "Список пуст",
+  blockedEmptyDescription: "Сюда попадают исключённые участники: по ссылке они не вступят",
   blockedFooter:
     "Исключённые не могут вступить по ссылке-приглашению. Нажмите на участника, чтобы убрать его из списка.",
   unbanDialogTitle: "Убрать из чёрного списка",
@@ -306,6 +307,9 @@ const RU = {
   leaveGroupDialogTitle: "Выйти из привычки",
   leaveGroupDialogMessage:
     "Привычка останется у вас обычной — со всеми отметками. Вернуться в группу можно по ссылке-приглашению.",
+  // В привычке больше никого: после выхода группы не будет.
+  leaveGroupAloneDialogMessage:
+    "Привычка станет обычной — со всеми отметками. Ссылка-приглашение перестанет работать.",
   leaveGroupDialogConfirm: "Выйти",
   kickDialogTitle: (name: string) => `Исключить ${name}`,
   kickDialogMessage:
@@ -703,7 +707,8 @@ const EN: Strings = {
   inviteCopiedMessage: "Send it to the person you want to keep up the habit with.",
   groupNotify: "Members’ Check-Ins",
   blockedTitle: "Blocked",
-  blockedEmpty: "Removed members will appear here",
+  blockedEmptyTitle: "No One Here",
+  blockedEmptyDescription: "Removed members land here and can’t join through the link",
   blockedFooter:
     "Blocked people can’t join through the invite link. Tap someone to unblock them.",
   unbanDialogTitle: "Unblock",
@@ -717,6 +722,8 @@ const EN: Strings = {
   leaveGroupDialogTitle: "Leave Habit",
   leaveGroupDialogMessage:
     "The habit stays with you as an ordinary one — with all your check-ins. You can rejoin the group through the invite link.",
+  leaveGroupAloneDialogMessage:
+    "The habit becomes an ordinary one — with all your check-ins. The invite link will stop working.",
   leaveGroupDialogConfirm: "Leave",
   kickDialogTitle: (name: string) => `Remove ${name}`,
   kickDialogMessage:

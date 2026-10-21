@@ -8,11 +8,3 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* Список пуст — серой строкой посередине, как «Ничего не найдено» в выборе пояса. */
-.empty {
-  padding: var(--space-section-gap) var(--space-card-padding);
-  text-align: center;
-  font-size: var(--font-size-habit-name);
-  color: var(--color-text-secondary);
-}

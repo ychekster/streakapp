@@ -21,14 +21,17 @@
   line-height: 1;
 }
 
+/* Имя — medium, как имена аккаунтов в настройках Telegram. */
 .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .owner {
   color: var(--color-text-secondary);
+  font-weight: 400;
 }
 
 .check {
