@@ -13,11 +13,9 @@
  * «Закрыть» Telegram заменена на «Назад»:
  *  - экран привычки — нажатием на привычку в списке; поверх него у групповой — страница
  *    участника (GroupMemberScreen), нажатием на участника;
- *  - «Добавить привычку» — кнопкой «+» (NewHabitScreen: новая, групповая или из
- *    шаблона); поверх неё — форма новой привычки, «Назад» из формы возвращает на неё;
- *  - форма привычки — оттуда или «Редактировать привычку» на экране привычки; «Назад»
- *    закрывает её без сохранения. Созданная совместная открывает свой экран и сразу
- *    отправляет приглашение;
+ *  - форма привычки — кнопкой «+» (новая) или «Редактировать привычку» на экране
+ *    привычки; «Назад» закрывает её без сохранения. Созданная групповая («Вести с
+ *    друзьями» в форме) открывает свой экран — там «Добавить участника»;
  *  - выбор часового пояса, «Написать отзыв», «Папки», политика конфиденциальности и
  *    условия использования — из настроек. Поверх «Папок» — форма папки, поверх неё —
  *    выбор привычек в папку (черновик формы — здесь, folderDraft). «Написать отзыв» открывает и кнопка под рассылкой:
@@ -67,7 +65,8 @@ import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
-import { preloadMemberHabits, preloadMemberPhotos, reportGroupError } from "./data/groups";
+import { isShared } from "./data/derive";
+import { preloadMemberHabits, preloadMemberPhotos } from "./data/groups";
 import { dataStore } from "./data/store";
 import { useAppData } from "./hooks/useAppData";
 import { useBackButton } from "./hooks/useBackButton";
@@ -86,7 +85,6 @@ import {
 import { usePlatform } from "./platform";
 import { AccountScreen } from "./screens/AccountScreen";
 import { HabitFormScreen } from "./screens/HabitFormScreen";
-import { NewHabitScreen } from "./screens/NewHabitScreen";
 import { InstallFromTelegramScreen } from "./screens/InstallFromTelegramScreen";
 import { HabitScreen } from "./screens/HabitScreen";
 import { GroupMemberScreen } from "./screens/GroupMemberScreen";
@@ -114,7 +112,7 @@ import {
   setTelegramColors,
 } from "./telegram/webapp";
 import type { Folder, FolderKind } from "./types/folder";
-import type { GroupMember, Habit, HabitInput } from "./types/habit";
+import type { GroupMember, Habit } from "./types/habit";
 import type { TimezoneEntry } from "./types/meta";
 import type { Settings, SettingsUpdate } from "./types/settings";
 import { keepAccount, keptAccount } from "./web/account";
@@ -180,10 +178,6 @@ let startLinkErrorShown = false;
 /** Открытая форма привычки: редактируемая привычка или null — новая. */
 interface Editor {
   habit: Habit | null;
-  /** Новая: начальные значения (шаблон, название из поиска). */
-  initial?: Partial<HabitInput> | null;
-  /** Новая совместная: после создания открывается её экран. */
-  newShared?: boolean;
 }
 
 type TabKey = "habits" | "settings";
@@ -227,8 +221,6 @@ export function App() {
   const [editor, setEditor] = useState<Editor | null>(
     start === "new_habit" ? { habit: null } : null,
   );
-  // «Добавить привычку» (кнопка «+»): под формой новой привычки.
-  const [newHabitOpen, setNewHabitOpen] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
     start === "review" ? "review" : start === "install" ? "install" : null,
   );
@@ -252,7 +244,6 @@ export function App() {
   const scrollUnderHabit = useRef(0);
   const scrollUnderMember = useRef(0);
   const scrollUnderEditor = useRef(0);
-  const scrollUnderNewHabit = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
   const scrollUnderFolderForm = useRef(0);
   const scrollUnderFolderPicker = useRef(0);
@@ -398,10 +389,10 @@ export function App() {
     }
   }, [openMemberId, openMember, hideMember]);
 
-  const showEditor = useCallback((habit: Habit | null, options?: Omit<Editor, "habit">) => {
+  const showEditor = useCallback((habit: Habit | null) => {
     scrollUnderEditor.current = window.scrollY;
     pendingScroll.current = 0;
-    setEditor({ habit, ...options });
+    setEditor({ habit });
   }, []);
 
   const hideEditor = useCallback(() => {
@@ -409,18 +400,6 @@ export function App() {
     pendingBack.current = true;
     setHabitEntering(false);
     setEditor(null);
-  }, []);
-
-  const showNewHabit = useCallback(() => {
-    scrollUnderNewHabit.current = window.scrollY;
-    pendingScroll.current = 0;
-    setNewHabitOpen(true);
-  }, []);
-
-  const hideNewHabit = useCallback(() => {
-    pendingScroll.current = scrollUnderNewHabit.current;
-    pendingBack.current = true;
-    setNewHabitOpen(false);
   }, []);
 
   const showSettingsPage = useCallback((page: SettingsPage) => {
@@ -515,18 +494,14 @@ export function App() {
   // Привычка уже сохранена (на устройстве, сервер — следом): изменённая — возвращаемся на
   // её экран, новая (она в конце списка) — открывается список привычек. Новая, пока
   // выбрана папка, попадает в неё — иначе её не было бы видно в открывшемся списке.
-  // Новая закрывает и «Добавить привычку» под формой. Новая совместная открывает свой экран:
-  // там «Добавить участника» и видно, кто присоединился.
+  // Новая групповая открывает свой экран: там «Добавить участника» и видно, кто
+  // присоединился.
   function saveHabit(habit: Habit): void {
     hapticNotification("success");
     if (editor?.habit == null && activeFolder) {
       dataStore.addToFolder(activeFolder.id, habit.id);
     }
     if (editor?.habit == null) {
-      if (newHabitOpen) {
-        scrollUnderEditor.current = scrollUnderNewHabit.current;
-        setNewHabitOpen(false);
-      }
       // Форма открыта с другой вкладки: та запоминает свою позицию, а список привычек
       // открывается на своей.
       if (tab !== "habits") {
@@ -535,7 +510,7 @@ export function App() {
       }
       setTab("habits");
     }
-    if (editor?.newShared) {
+    if (editor?.habit == null && isShared(habit)) {
       scrollUnderHabit.current = scrollUnderEditor.current;
       pendingScroll.current = 0;
       setEditor(null);
@@ -544,20 +519,6 @@ export function App() {
       return;
     }
     hideEditor();
-  }
-
-  // «Совместная привычка»: гостю веб-приложения — сначала вход через Telegram (без него
-  // пригласить нельзя), остальным — форма совместной привычки.
-  function openSharedForm(): void {
-    if (web && account?.is_guest) {
-      void reportGroupError(
-        new ApiRequestError(0, "group_needs_telegram", ""),
-        strings,
-        linkTelegram,
-      );
-      return;
-    }
-    showEditor(null, { newShared: true });
   }
 
   // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.
@@ -608,9 +569,7 @@ export function App() {
       ? null
       : editor
         ? hideEditor
-        : newHabitOpen
-          ? hideNewHabit
-          : openMember
+        : openMember
           ? hideMember
           : openHabit
           ? hideHabit
@@ -875,18 +834,10 @@ export function App() {
         <HabitFormScreen
           key={editor.habit?.id ?? "new"}
           habit={editor.habit}
-          initial={editor.initial}
-          newShared={editor.newShared}
+          // Групповую гостю веб-приложения — после входа через Telegram.
+          sharedNeedsTelegram={web && account?.is_guest === true}
+          onLinkTelegram={linkTelegram}
           onSaved={saveHabit}
-        />
-      );
-    }
-    if (newHabitOpen) {
-      return (
-        <NewHabitScreen
-          habits={habits}
-          onCreate={(initial) => showEditor(null, { initial })}
-          onCreateShared={openSharedForm}
         />
       );
     }
@@ -1071,10 +1022,10 @@ export function App() {
         tabs={tabs}
         active={tab}
         hidden={
-          editor !== null || newHabitOpen || openHabit !== undefined || settingsPage !== null
+          editor !== null || openHabit !== undefined || settingsPage !== null
         }
         onSelect={selectTab}
-        onAdd={showNewHabit}
+        onAdd={() => showEditor(null)}
         addLabel={strings.addHabit}
       />
       {web ? <WebChrome /> : <TelegramChrome />}

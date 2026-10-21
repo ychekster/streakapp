@@ -2,8 +2,8 @@
  * Экран создания и редактирования привычки — один и тот же, отличаются заголовок, кнопка
  * и начальные значения.
  *
- * Заголовок «Новая привычка» («Совместная привычка», «Редактирование») — сразу маленький,
- * по центру шапки, как на «Добавить привычку» и в «Папках» (Screen `pinnedTitle`); под ним
+ * Заголовок «Новая привычка» («Редактирование») — сразу маленький, по центру шапки, как в
+ * «Папках» (Screen `pinnedTitle`); под ним
  * — секции в стиле экрана привычки, но с заголовками как в эталоне: с заглавной буквы (не
  * капсом) и со сдвигом до конца скругления карточки:
  *  - Информация — название и под ним описание (необязательно; в списке — серым под
@@ -32,16 +32,20 @@
  *    под переключателем — как их включить (spec §9);
  *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка);
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
- *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд пропадает.
+ *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд
+ *    пропадает; в групповой его нет;
+ *  - Групповая привычка — переключатель «Вести с друзьями» с пояснением, пока в привычке
+ *    никого, кроме пользователя (новая, обычная или групповая без других). Включение — с
+ *    окошком, что это такое; гостю веб-приложения — предложение войти через Telegram.
+ *    Когда в привычке есть другие, ряда нет: из неё можно только выйти (экран привычки).
  *
- * Совместная привычка — та же форма, только без автоотметки. Всё, кроме напоминаний
+ * Групповая привычка — та же форма, только без автоотметки. Всё, кроме напоминаний
  * (название, описание, повтор, цель, тема), задаёт владелец — у остальных эти поля бледные
- * и не нажимаются; напоминания у каждого свои. Новая совместная («Совместная привычка» на
- * экране «Добавить привычку») создаётся той же кнопкой «Добавить привычку»; App открывает
- * её экран, звать друзей — «Добавить участника» там.
+ * и не нажимаются; напоминания у каждого свои. Новая групповая открывает свой экран (App),
+ * звать друзей — «Добавить участника» там.
  *
- * Открывается с экрана «Добавить привычку» (кнопка «+»: пустая, из шаблона или с названием
- * из поиска — `initial`) или рядом «Редактировать привычку» на экране привычки. Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
+ * Открывается кнопкой «+» (пустая) или рядом «Редактировать привычку» на экране привычки.
+ * Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
  * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Добавить привычку» или
  * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
  */
@@ -68,7 +72,9 @@ import {
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
-import { isShared, reminderTimesOf, usesStartDate } from "../data/derive";
+import { ApiRequestError } from "../api/client";
+import { reminderTimesOf, usesStartDate } from "../data/derive";
+import { reportGroupError } from "../data/groups";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
@@ -76,7 +82,7 @@ import { useMeta } from "../hooks/useMeta";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
-import { hapticNotification } from "../telegram/webapp";
+import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
 import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
@@ -86,42 +92,44 @@ import styles from "./HabitFormScreen.module.css";
 interface HabitFormScreenProps {
   /** Редактируемая привычка; null — создание новой. */
   habit: Habit | null;
-  /** Новая привычка: начальные значения (шаблон, название из поиска) вместо пустых. */
-  initial?: Partial<HabitInput> | null;
-  /** Новая привычка — совместная (без автоотметки). */
-  newShared?: boolean;
+  /** Групповую привычку не завести без входа через Telegram (гость веб-приложения). */
+  sharedNeedsTelegram?: boolean;
+  /** «Войти» в предложении войти через Telegram. */
+  onLinkTelegram: () => void;
   /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
 }
 
 export function HabitFormScreen({
   habit,
-  initial = null,
-  newShared = false,
+  sharedNeedsTelegram = false,
+  onLinkTelegram,
   onSaved,
 }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
-  // Совместная привычка: всё, кроме напоминаний, — у владельца.
-  const shared = habit ? isShared(habit) : newShared;
-  const locked = habit !== null && shared && !habit.group?.is_owner;
-  // Начальные значения: редактируемая привычка, иначе шаблон (или пусто).
-  const seed = habit ?? initial;
-  const [name, setName] = useState(seed?.name ?? "");
-  const [description, setDescription] = useState(seed?.description ?? "");
+  // «Групповая привычка»: переключатель — пока в привычке никого, кроме пользователя.
+  const group = habit?.group ?? null;
+  const wasShared = group !== null;
+  const [shared, setShared] = useState(wasShared);
+  const canSwitchShared = group === null || group.members.length <= 1;
+  // Групповая привычка: всё, кроме напоминаний, — у владельца.
+  const locked = group !== null && !group.is_owner;
+  const [name, setName] = useState(habit?.name ?? "");
+  const [description, setDescription] = useState(habit?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
   const [repeat, setRepeat] = useState<RepeatMode>(() =>
-    seed?.frequency_type && usesStartDate(seed.frequency_type)
-      ? (seed.frequency_type as RepeatMode)
+    habit?.frequency_type && usesStartDate(habit.frequency_type)
+      ? (habit.frequency_type as RepeatMode)
       : "weekly",
   );
   // Дни недели; у «каждый день» и у новой привычки — все. Помнятся при смене частоты.
   const [days, setDays] = useState<Set<string>>(
-    () => new Set(seed?.frequency_type === "specific_days" ? seed.days : WEEKDAYS),
+    () => new Set(habit?.frequency_type === "specific_days" ? habit.days : WEEKDAYS),
   );
   // Первый день «через день» / «каждый месяц»: по умолчанию сегодня; помнится при смене
   // частоты.
-  const [startDate, setStartDate] = useState(() => seed?.start_date ?? localDate());
+  const [startDate, setStartDate] = useState(() => habit?.start_date ?? localDate());
   const [reminderOn, setReminderOn] = useState(habit?.reminder_time != null);
   // Времена помнятся, даже если напоминание выключить и включить снова. `key` — для
   // React: строки удаляются из середины.
@@ -133,8 +141,8 @@ export function HabitFormScreen({
       time,
     }));
   });
-  const [color, setColor] = useState<HabitColor>(seed?.color ?? DEFAULT_HABIT_COLOR);
-  const [timesPerDay, setTimesPerDay] = useState(seed?.times_per_day ?? 1);
+  const [color, setColor] = useState<HabitColor>(habit?.color ?? DEFAULT_HABIT_COLOR);
+  const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
   // Помнится, пока цель больше одного раза (ряд скрыт), но сохраняется только при одном.
   const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -184,6 +192,30 @@ export function HabitFormScreen({
     setReminders((previous) => previous.filter((reminder) => reminder.key !== key));
   }
 
+  async function switchShared(on: boolean): Promise<void> {
+    if (!on) {
+      setShared(false);
+      return;
+    }
+    if (sharedNeedsTelegram) {
+      await reportGroupError(
+        new ApiRequestError(0, "group_needs_telegram", ""),
+        strings,
+        onLinkTelegram,
+      );
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: strings.sharedDialogTitle,
+      message: strings.sharedDialogMessage,
+      confirmLabel: strings.sharedDialogConfirm,
+      cancelLabel: strings.groupDialogCancel,
+    });
+    if (confirmed) {
+      setShared(true);
+    }
+  }
+
   function toggleDay(code: string): void {
     setDays((previous) => {
       const next = new Set(previous);
@@ -227,10 +259,10 @@ export function HabitFormScreen({
       reminder_times: reminderOn ? reminders.map((item) => item.time) : [],
       color,
       times_per_day: timesPerDay,
-      // У «несколько раз в день» и в совместной автоотметки нет (ряд скрыт).
+      // У «несколько раз в день» и в групповой автоотметки нет (ряд скрыт).
       auto_mark: autoMark && timesPerDay === 1 && !shared,
-      // Совместной привычка бывает только с создания.
-      ...(habit === null && newShared ? { shared: true } : {}),
+      // Только если переключатель изменили: иначе привычка такая, какая есть на сервере.
+      ...(shared !== wasShared ? { shared } : {}),
     };
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
@@ -387,15 +419,13 @@ export function HabitFormScreen({
 
   return (
     <Screen
-      title={
-        habit ? strings.formEditTitle : newShared ? strings.sharedFormTitle : strings.formCreateTitle
-      }
+      title={habit ? strings.formEditTitle : strings.formCreateTitle}
       withTabBar={false}
       enterAnimation
       pinnedTitle
     >
       <div className={`${styles.form} ${styles.pinned}`} style={habitColorStyle(color)}>
-        {/* Совместная привычка у участника: всё, кроме напоминаний, задаёт владелец. */}
+        {/* Групповая привычка у участника: всё, кроме напоминаний, задаёт владелец. */}
         <Section variant="form" title={strings.formInfoHeading}>
           <fieldset className={styles.fieldset} disabled={locked}>
             <Card>
@@ -442,6 +472,24 @@ export function HabitFormScreen({
                   checked={autoMark}
                   onChange={setAutoMark}
                   label={strings.formAutoMarkToggle}
+                />
+              </ListItem>
+            </Card>
+          </Section>
+        ) : null}
+
+        {canSwitchShared ? (
+          <Section
+            variant="form"
+            title={strings.formSharedHeading}
+            footer={strings.formSharedFooter}
+          >
+            <Card>
+              <ListItem label={strings.formSharedToggle}>
+                <Switch
+                  checked={shared}
+                  onChange={(on) => void switchShared(on)}
+                  label={strings.formSharedToggle}
                 />
               </ListItem>
             </Card>

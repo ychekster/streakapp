@@ -326,19 +326,20 @@ export function HabitScreen({
             ) : null}
           </Card>
           {/* Удаление — отдельной кнопкой-капсулой под блоком (как «Удалить будильник» в
-              «Часах» iOS). У групповой — выход: привычка пропадает, по ссылке вернётся. */}
-          {shared ? (
+              «Часах» iOS). В групповой, где есть другие, над ним — выход: привычка
+              остаётся обычной, по ссылке вернётся в группу. Одному выходить не из чего —
+              «Вести с друзьями» выключается в форме. */}
+          {group && group.members.length > 1 ? (
             <DestructiveButton
               label={strings.leaveGroup}
               onPress={() => void askToLeave()}
             />
-          ) : (
-            <DestructiveButton
-              label={strings.deleteHabit}
-              disabled={deleting}
-              onPress={() => void askToDelete()}
-            />
-          )}
+          ) : null}
+          <DestructiveButton
+            label={strings.deleteHabit}
+            disabled={deleting}
+            onPress={() => void askToDelete()}
+          />
           {deleteError ? (
             <p className={styles.error} role="alert">
               {deleteError}

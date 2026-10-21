@@ -105,15 +105,44 @@ def _today(client: TestClient, user: AuthUser) -> date:
     return date.fromisoformat(_sync(client, user)["today"])
 
 
-def test_plain_habit_cannot_be_shared(client: TestClient, user: AuthUser) -> None:
-    task_id = _habit(client, user)
+def _update(client: TestClient, user: AuthUser, task_id: int, **fields: object) -> dict:
+    """Изменить привычку «Бег» (ежедневную) с полями формы `fields`: результат операции."""
+    habit = {"name": "Бег", "frequency_type": "daily", **fields}
+    return _sync(client, user, {"type": "update", "task": task_id, "habit": habit})["results"][0]
+
+
+def test_plain_habit_becomes_shared_and_back(client: TestClient, user: AuthUser) -> None:
+    task_id = _habit(client, user, auto_mark=True)
+    today = _today(client, user)
+    _mark(client, user, task_id, today - timedelta(days=1))
     assert _only(client, user)["group"] is None
-    response = client.post("/groups/invite", json={"task": task_id}, headers=user.headers)
-    assert response.status_code in (404, 405)
-    # «shared» при изменении ничего не меняет.
-    _sync(client, user, {"type": "update", "task": task_id,
-                         "habit": {"name": "Бег", "frequency_type": "daily", "shared": True}})
-    assert _only(client, user)["group"] is None
+
+    # Включил «Групповую привычку»: та же привычка с отметками, автоотметки больше нет.
+    assert _update(client, user, task_id, shared=True, auto_mark=True)["ok"]
+    habit = _only(client, user)
+    assert habit["id"] == task_id and habit["auto_mark"] is False
+    assert habit["total_done"] == 1 and len(habit["group"]["members"]) == 1
+    group_id = habit["group"]["id"]
+    code = _link(client, user, group_id)
+    # Без «shared» (старые клиенты) — как была.
+    _update(client, user, task_id)
+    assert _only(client, user)["group"]["id"] == group_id
+
+    # Есть другие — выключить нельзя, только выйти.
+    friend = new_user()
+    _join(friend, code)
+    result = _update(client, user, task_id, shared=False)
+    assert result["error"]["code"] == "group_has_members"
+    assert _only(client, user)["group"]["id"] == group_id
+
+    # Снова один — выключил: привычка обычная с отметками, ссылки больше нет.
+    client.post(f"/groups/{group_id}/leave", headers=friend.headers)
+    assert _update(client, user, task_id, shared=False)["ok"]
+    habit = _only(client, user)
+    assert habit["group"] is None and habit["total_done"] == 1
+    with pytest.raises(ApiError) as refused:
+        _join(new_user(), code)
+    assert refused.value.code == "group_not_found"
 
 
 def test_invite_join_and_the_shared_day(client: TestClient, user: AuthUser) -> None:
@@ -199,7 +228,7 @@ def test_name_taken_by_the_member_gets_a_number(client: TestClient, user: AuthUs
     assert {habit["name"] for habit in _sync(client, friend)["habits"]} == {"Йога", "Йога (2)"}
 
 
-def test_leave_hides_and_return_restores(client: TestClient, user: AuthUser) -> None:
+def test_leave_keeps_the_habit_and_return_restores(client: TestClient, user: AuthUser) -> None:
     owner_task, group_id, code = _shared(client, user)
     friend, other = new_user(), new_user()
     _join(friend, code)
@@ -210,9 +239,13 @@ def test_leave_hides_and_return_restores(client: TestClient, user: AuthUser) -> 
     _mark(client, other, _only(client, other)["id"], today)
     assert _only(client, user)["history"][-1] is False
 
-    # Друг вышел: у него привычки больше нет, у остальных день засчитан.
+    # Друг вышел: привычка осталась у него обычной, у остальных день засчитан.
+    yesterday = today - timedelta(days=1)
+    _mark(client, friend, friend_task, yesterday)
     assert client.post(f"/groups/{group_id}/leave", headers=friend.headers).status_code == 204
-    assert friend_task not in _ids(client, friend)
+    alone = _only(client, friend)
+    assert alone["id"] == friend_task and alone["group"] is None
+    assert alone["history"][-2] is True
     assert _only(client, user)["history"][-1] is True
     assert len(_only(client, user)["group"]["members"]) == 2
 
@@ -239,9 +272,9 @@ def test_alone_it_stays_shared_and_last_out_ends_it(client: TestClient, user: Au
     alone = _only(client, user)
     assert alone["group"]["id"] == group_id and len(alone["group"]["members"]) == 1
 
-    # Вышел последний — группы больше нет, ссылка не действует.
+    # Вышел последний — группы больше нет, ссылка не действует; привычка осталась обычной.
     client.post(f"/groups/{group_id}/leave", headers=user.headers)
-    assert owner_task not in _ids(client, user)
+    assert _only(client, user)["id"] == owner_task and _only(client, user)["group"] is None
     with pytest.raises(ApiError) as refused:
         _join(friend, code)
     assert refused.value.code == "group_not_found"
@@ -268,7 +301,9 @@ def test_kick_and_owner_leaving(client: TestClient, user: AuthUser) -> None:
         ).status_code
         == 204
     )
-    assert _ids(client, second) == set()
+    # Исключённый не теряет привычку: она у него обычная, со всеми отметками.
+    kept = _sync(client, second)["habits"]
+    assert len(kept) == 1 and kept[0]["group"] is None
 
     # Владелец вышел — владелец тот, кто вступил раньше всех.
     client.post(f"/groups/{group_id}/leave", headers=user.headers)

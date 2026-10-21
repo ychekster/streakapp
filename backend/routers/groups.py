@@ -2,7 +2,7 @@
 
     GET  /groups/{group_id}/invite  — ссылка-приглашение
     POST /groups/{group_id}/reset   — новая ссылка, прежняя больше не действует (владелец)
-    POST /groups/{group_id}/leave   — выйти: привычка пропадает (вернётся по ссылке)
+    POST /groups/{group_id}/leave   — выйти: привычка остаётся обычной (по ссылке вернётся)
     POST /groups/{group_id}/kick    — исключить участника (владелец)
     POST /groups/{group_id}/notify  — «Отметки участников»
     GET  /groups/{group_id}/members/{user_id} — страница участника: его привычка по его
@@ -10,8 +10,8 @@
     GET  /groups/{group_id}/members/{user_id}/photo?v=<версия> — фото участника из Telegram
          (JPEG; нет — 404)
 
-Совместную привычку создают через POST /sync (`create` с `shared`); обычную совместной
-не сделать. Только с аккаунтом Telegram (Mini App или веб-приложение со входом через Telegram).
+Групповой привычку делают через POST /sync (`create` или `update` с `shared`), обычной —
+`update` с `"shared": false`, пока в ней никого, кроме него. Только с аккаунтом Telegram (Mini App или веб-приложение со входом через Telegram).
 Вступают по ссылке через бота (bot/handlers/group_invite.py). Состояние после действия
 приложение берёт из следующего POST /sync.
 """

@@ -8,11 +8,11 @@
 оставшихся, а возврат его восстанавливает. Дни вне участия человека оцениваются по его
 собственным отметкам: история вступившего начинается с дня вступления.
 
-Совместная привычка — отдельный вид, а не обычная привычка со ссылкой: она создаётся
-совместной (`create_group`, /sync с `shared`) и остаётся ею, даже когда в ней один
-человек; обычную совместной не сделать. Вышедший (и исключённый) теряет привычку — она
-удаляется мягко и по ссылке возвращается со всеми отметками; вышел последний — группы
-больше нет. Автоотметки в совместной привычке нет.
+Групповой можно сделать и новую, и уже существующую привычку (/sync с `shared`), пока
+человек в ней один, — и так же обратно сделать обычной (`unshare`). Вышедший и
+исключённый привычку не теряют: она остаётся у него обычной, со всеми отметками, а по
+ссылке возвращается в группу с ними же; вышел последний — группы больше нет. Автоотметки
+в групповой привычке нет.
 
 Общие поля (название, описание, расписание, цель на день, цвет — всё, кроме напоминаний)
 берутся с привычки владельца, и меняет их только он (services.update_habit →
@@ -347,9 +347,13 @@ async def share_owner_changes(repo: Repository, user: User, task: Task) -> None:
 
 
 async def create_group(repo: Repository, user: User, task: Task) -> HabitGroup:
-    """Только что созданная привычка `task` — совместная: группа, где пользователь —
-    владелец и пока единственный участник."""
+    """Привычка `task` (новая или уже существующая) — групповая: группа, где пользователь —
+    владелец и пока единственный участник. Уже групповая — та же группа. Дни до
+    сегодняшнего оцениваются по его собственным отметкам."""
     _require_telegram(user)
+    membership = await _active_membership(repo, task)
+    if membership is not None:
+        return membership[0]
     if task.auto_mark:
         await repo.set_auto_mark(task, False)
     group = await repo.create_group(user.telegram_id, await _new_code(repo))
@@ -390,15 +394,11 @@ async def invite_of(repo: Repository, user: User, group_id: int) -> HabitGroup:
 async def _deactivate(
     repo: Repository, group: HabitGroup, member: HabitGroupMember, user: User | None
 ) -> None:
-    """Участник больше не в группе (с его дня отметки), и привычки у него больше нет:
-    она удаляется мягко — с отметками и периодами участия, чтобы вернуться по ссылке. Ушёл
+    """Участник больше не в группе (с его дня отметки); привычка остаётся у него обычной,
+    со всеми отметками (периоды участия хранятся, чтобы вернуться по ссылке). Ушёл
     владелец — владелец тот, кто вступил раньше всех; не осталось никого — группа удаляется."""
     end = services.user_today(user) if user is not None else date.today()
     await repo.deactivate_member(member, end)
-    if member.task_id is not None:
-        task = await repo.get_active_task(member.task_id, member.user_id)
-        if task is not None:
-            await repo.soft_delete_task(task)
     heir = await repo.earliest_active_member(group.id)
     if heir is None:
         await repo.delete_group(group)
@@ -407,7 +407,8 @@ async def _deactivate(
 
 
 async def leave(repo: Repository, user: User, group_id: int) -> None:
-    """«Выйти»: привычка у него пропадает, по ссылке возвращается со всеми отметками."""
+    """«Выйти»: привычка остаётся у него обычной, по ссылке возвращается в группу со
+    всеми отметками."""
     group, member = await _membership(repo, user, group_id)
     task_id = member.task_id
     await _deactivate(repo, group, member, user)
@@ -415,7 +416,8 @@ async def leave(repo: Repository, user: User, group_id: int) -> None:
 
 
 async def kick(repo: Repository, user: User, group_id: int, user_id: int) -> None:
-    """Исключить участника (только владелец): у него привычка пропадает, как при выходе."""
+    """Исключить участника (только владелец): привычка остаётся у него обычной, как при
+    выходе."""
     group, _ = await _membership(repo, user, group_id)
     _require_owner(group, user)
     target = await repo.get_member(group_id, user_id)
@@ -461,9 +463,23 @@ async def set_notify(repo: Repository, user: User, group_id: int, on: bool) -> N
     await repo.set_member_notify(member, on)
 
 
+async def unshare(repo: Repository, user: User, task: Task) -> None:
+    """Выключить «Групповую привычку»: можно, только пока в ней никого, кроме него, —
+    группа удаляется (ссылка больше не действует), привычка остаётся обычной."""
+    membership = await _active_membership(repo, task)
+    if membership is None:
+        return
+    group, _ = membership
+    if await repo.count_active_members(group.id) > 1:
+        raise ApiError(
+            409, "group_has_members", "В привычке есть другие участники — из неё можно только выйти"
+        )
+    await repo.delete_group(group)
+    await repo.log_action(user.telegram_id, "group_unshared", ref_id=task.id)
+
+
 async def forget_task(repo: Repository, user: User, task: Task) -> None:
-    """Совместную привычку удалили (в приложении у неё «Выйти», это — с другого
-    устройства или со старого клиента): то же, что выход."""
+    """Групповую привычку удалили: сначала выход из группы."""
     membership = await _active_membership(repo, task)
     if membership is not None:
         group, member = membership
@@ -486,8 +502,8 @@ class InvitePreview:
 async def _reusable_task(
     repo: Repository, user: User, member: HabitGroupMember | None
 ) -> Task | None:
-    """Прежняя привычка вышедшего, с которой он вернётся (удалена при выходе), — если она
-    не в другой группе."""
+    """Прежняя привычка вышедшего, с которой он вернётся (осталась у него обычной или
+    удалена), — если она не в другой группе."""
     if member is None or member.task_id is None:
         return None
     task = await repo.get_user_task(member.task_id, user.telegram_id)

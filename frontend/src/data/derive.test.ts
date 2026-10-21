@@ -636,6 +636,29 @@ describe("shared habit", () => {
     const plain = view(snapshot([]), [{ type: "create", ref: "r2", habit: { ...input(), name: "Сон" } }]);
     expect(isShared(plain.habits[0])).toBe(false);
   });
+
+  it("is switched on and off on the device before the server answers", () => {
+    const update = (shared?: boolean): Operation => ({
+      type: "update",
+      task: 1,
+      habit: {
+        name: "Бег",
+        frequency_type: "daily",
+        days: [],
+        start_date: null,
+        reminder_time: null,
+        color: "green",
+        times_per_day: 1,
+        auto_mark: false,
+        ...(shared === undefined ? {} : { shared }),
+      },
+    });
+    const on = view(snapshot([habit()]), [update(true), update()]);
+    expect(on.habits[0].group?.members.map((member) => member.is_me)).toEqual([true]);
+    const alone = habit({ group: group(history([]), []) });
+    expect(isShared(view(snapshot([alone]), [update(false)]).habits[0])).toBe(false);
+    expect(isShared(view(snapshot([alone]), [update()]).habits[0])).toBe(true);
+  });
 });
 
 describe("reuseUnchanged", () => {

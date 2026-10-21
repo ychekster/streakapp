@@ -149,7 +149,8 @@ export async function resetSharedLink(groupId: number): Promise<void> {
   inviteLinks.set(groupId, invite.invite_url);
 }
 
-/** «Выйти из привычки»: the habit is gone (the link brings it back with every check-in). */
+/** «Выйти из привычки»: the habit stays as an ordinary one (the link brings it back into
+ *  the group with every check-in). */
 export async function leaveShared(groupId: number): Promise<void> {
   await dataStore.sendAll();
   await leaveGroup(groupId);

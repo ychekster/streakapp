@@ -400,9 +400,9 @@ class HabitGroup(Base):
 
 
 class HabitGroupMember(Base):
-    """Участник совместной привычки. Вышедший (`active` = False) остаётся записью: пока его
-    привычка жива (`task_id`), он может вернуться, и его прошлые периоды участия снова
-    считаются. Удалил привычку — `task_id` = None, периоды стёрты: вернётся с нуля."""
+    """Участник групповой привычки. Вышедший (`active` = False) остаётся записью, а его
+    привычка — у него обычной: пока она не в другой группе, он может вернуться с ней, и его
+    прошлые периоды участия снова считаются."""
 
     __tablename__ = "habit_group_members"
     __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_member"),)
@@ -552,7 +552,8 @@ class ActivityLog(Base):
     вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),
     broadcast_sent / broadcast_failed (`ref_id` — рассылка), install_offer_sent;
-    совместные привычки: group_created (пригласил впервые), group_joined, group_left
+    групповые привычки: group_created (сделал привычку групповой), group_joined, group_left,
+    group_unshared (снова обычная)
     (`ref_id` — его привычка), group_kicked (`ref_id` — исключённый), group_mark_sent /
     group_mark_failed («Отметки участников», `ref_id` — привычка получателя).
 

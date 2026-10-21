@@ -297,10 +297,11 @@ const RU = {
   leaveGroup: "Выйти из привычки",
   leaveGroupDialogTitle: "Выйти из привычки",
   leaveGroupDialogMessage:
-    "Привычка пропадёт из вашего списка. Вернуться можно по ссылке-приглашению — с вашими отметками.",
+    "Привычка останется у вас обычной — со всеми отметками. Вернуться в группу можно по ссылке-приглашению.",
   leaveGroupDialogConfirm: "Выйти",
   kickDialogTitle: (name: string) => `Исключить ${name}`,
-  kickDialogMessage: "Привычка пропадёт у участника. По ссылке он сможет вернуться — с его отметками.",
+  kickDialogMessage:
+    "Привычка останется у участника обычной — со всеми его отметками. По ссылке он сможет вернуться.",
   kickDialogConfirm: "Исключить",
   // Страница участника (владелец, не себя).
   kickMember: "Исключить участника",
@@ -320,17 +321,6 @@ const RU = {
   // Привычка «несколько раз в день»: нажатие считает ещё один раз.
   checkCount: (name: string, count: number, total: number) =>
     `Отметить ещё раз: ${name} (${count} из ${total})`,
-
-  // --- «Добавить привычку» (кнопка «+»): обычная, групповая или из шаблона ---
-  newHabitPlain: "Новая привычка",
-  newHabitShared: "Групповая привычка",
-  templatesHeading: "Популярные",
-  templatesSearch: "Поиск",
-  // Поиск не нашёл шаблона — создать привычку с таким названием.
-  templateCreate: (name: string) => `Создать «${name}»`,
-
-  // --- Форма групповой привычки ---
-  sharedFormTitle: "Групповая привычка",
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
@@ -373,6 +363,15 @@ const RU = {
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
+  // «Групповая привычка» — пока в привычке никого, кроме вас; включение — с пояснением.
+  formSharedHeading: "Групповая привычка",
+  formSharedToggle: "Вести с друзьями",
+  formSharedFooter:
+    "Позовите друзей по ссылке: у каждого свои отметки, а день засчитывается, когда его выполнили все.",
+  sharedDialogTitle: "Групповая привычка",
+  sharedDialogMessage:
+    "После сохранения на экране привычки можно будет пригласить друзей. Название, расписание и цель задаёте вы, напоминания у каждого свои. Автоотметки в групповой привычке нет.",
+  sharedDialogConfirm: "Включить",
 
   // Дни недели (ключи — WEEKDAYS в constants.ts): в выборе дней, в цели серии
   // («Пн, Ср, Пт») и для скринридеров.
@@ -444,6 +443,7 @@ const RU = {
     group_full: "В привычке уже максимум участников",
     group_not_owner: "Это может только владелец привычки",
     group_member_not_found: "Участник уже вышел из привычки",
+    group_has_members: "В привычке есть другие участники — из неё можно только выйти",
   } as Partial<Record<ApiErrorCode, string>>,
 
   // --- Документы ---
@@ -701,10 +701,11 @@ const EN: Strings = {
   leaveGroup: "Leave Habit",
   leaveGroupDialogTitle: "Leave Habit",
   leaveGroupDialogMessage:
-    "The habit will disappear from your list. You can come back through the invite link — with your check-ins.",
+    "The habit stays with you as an ordinary one — with all your check-ins. You can rejoin the group through the invite link.",
   leaveGroupDialogConfirm: "Leave",
   kickDialogTitle: (name: string) => `Remove ${name}`,
-  kickDialogMessage: "The habit will disappear for them. They can come back through the invite link — with their check-ins.",
+  kickDialogMessage:
+    "The habit stays with them as an ordinary one — with all their check-ins. They can come back through the invite link.",
   kickDialogConfirm: "Remove",
   kickMember: "Remove Member",
   groupDialogCancel: "Cancel",
@@ -721,14 +722,6 @@ const EN: Strings = {
   checkFrozen: (name: string) => `${name}: frozen`,
   checkCount: (name: string, count: number, total: number) =>
     `Mark once more: ${name} (${count} of ${total})`,
-
-  newHabitPlain: "New Habit",
-  newHabitShared: "Group Habit",
-  templatesHeading: "Popular",
-  templatesSearch: "Search",
-  templateCreate: (name: string) => `Create “${name}”`,
-
-  sharedFormTitle: "Group Habit",
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
@@ -762,6 +755,14 @@ const EN: Strings = {
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
+  formSharedHeading: "Group Habit",
+  formSharedToggle: "Do It with Friends",
+  formSharedFooter:
+    "Invite friends with a link: everyone checks off their own part, and a day counts once everyone has done it.",
+  sharedDialogTitle: "Group Habit",
+  sharedDialogMessage:
+    "Once saved, you can invite friends from the habit’s screen. You set the name, schedule and goal; everyone has their own reminders. Group habits have no auto check-off.",
+  sharedDialogConfirm: "Turn On",
 
   daysWorkdays: "Weekdays",
   daysWeekends: "Weekends",
@@ -826,6 +827,7 @@ const EN: Strings = {
     group_full: "This habit already has the most people it can",
     group_not_owner: "Only the habit’s owner can do this",
     group_member_not_found: "This person has already left the habit",
+    group_has_members: "Other people are in this habit — you can only leave it",
   },
 
   privacyPolicy: LEGAL_EN.privacy,

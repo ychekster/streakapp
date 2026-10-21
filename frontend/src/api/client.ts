@@ -111,7 +111,8 @@ export type ApiErrorCode =
   | "group_not_found"
   | "group_full"
   | "group_not_owner"
-  | "group_member_not_found";
+  | "group_member_not_found"
+  | "group_has_members";
 
 /** Единая ошибка запроса к API. */
 export class ApiRequestError extends Error {

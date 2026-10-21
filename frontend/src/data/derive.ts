@@ -87,7 +87,7 @@ type ScheduleWithHistory = Schedule & {
   open_from?: string | null;
 };
 
-/** Is the habit a shared one — it stays shared even when one person is left in it. */
+/** Is the habit a group one («Групповая привычка» on, or joined by a link). */
 export function isShared(habit: { group?: HabitGroup | null }): habit is { group: HabitGroup } {
   return habit.group != null;
 }
@@ -336,7 +336,8 @@ interface Draft {
   /** Calendar day whose unchecked record auto check-off turned on here has forgotten
    *  (services.update_habit) — applyAutoMark may mark it again. */
   autoMarkFresh?: string;
-  /** Created on the device as a shared habit (the server has no group for it yet). */
+  /** «Групповая привычка» switched on the device: true — on (the server may have no group
+   *  for it yet), false — off; none — as on the server. */
   shared?: boolean;
 }
 
@@ -463,8 +464,9 @@ function buildHabit(
   };
   // A shared habit: a day is the group's when I did it and so did the others (the
   // server's answer). Days after it are unknown — not done by the others yet; alone in
-  // the group, my days are its days.
-  const group = base?.group ?? (draft.shared ? localGroup() : null);
+  // the group, my days are its days. Switched off on the device — an ordinary habit.
+  const group =
+    draft.shared === false ? null : (base?.group ?? (draft.shared ? localGroup() : null));
   const othersDone = (day: string): boolean => {
     if (!group || group.members.length <= 1) {
       return true;
@@ -650,6 +652,9 @@ export function deriveView(
       if (draft && op.type === "update") {
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
         draft.fields = habitFields(op.habit, before);
+        if (op.habit.shared !== undefined) {
+          draft.shared = op.habit.shared;
+        }
         // As the server (services._remember_schedule): the schedule before the marking day
         // is kept — past days are still judged by it. A habit created that day has no past.
         const periods = draft.periods ?? draft.base?.schedule_history ?? [];

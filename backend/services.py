@@ -492,9 +492,15 @@ async def update_habit(
     История отметок не трогается. Новое расписание действует с дня отметки: прежнее
     запоминается (TaskSchedulePeriod), и прошлые дни по-прежнему оцениваются по нему.
 
-    Совместная привычка: общие поля (название, расписание, цель) меняет только владелец —
-    и они меняются у всех участников; автоотметки в ней нет (groups.py).
+    Групповая привычка: общие поля (название, расписание, цель) меняет только владелец —
+    и они меняются у всех участников; автоотметки в ней нет (groups.py). `shared`: true —
+    привычка становится групповой, false — снова обычной (пока в ней никого, кроме него),
+    не передано — как была.
     """
+    if payload.shared is False:
+        await groups.unshare(repo, user, task)
+    elif payload.shared:
+        payload = payload.model_copy(update={"auto_mark": False})
     payload = await groups.restrict_update(repo, user, task, payload)
     fields = await _validate_habit_fields(repo, user, payload, task_id=task.id)
     auto_mark_turned_on = fields.auto_mark and not task.auto_mark
@@ -520,6 +526,8 @@ async def update_habit(
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
     await groups.share_owner_changes(repo, user, task)
+    if payload.shared:
+        await groups.create_group(repo, user, task)
     # Включили автоотметку — это «отмечай заново», даже если отметку за сегодня сняли
     # (бот сам снятую отметку не трогает). День, который уже пора отметить (без
     # напоминания — сегодняшний, с напоминаниями — если последнее сегодня уже было),
@@ -562,8 +570,8 @@ async def remember_schedule(
 
 
 async def delete_habit(repo: Repository, user: User, task: Task) -> None:
-    """Удалить привычку (мягко) и записать это в ленту. Совместная — сначала выход из
-    группы (вернуться потом можно только с нуля)."""
+    """Удалить привычку (мягко) и записать это в ленту. Групповая — сначала выход из
+    группы (по ссылке вернётся со всеми отметками)."""
     await groups.forget_task(repo, user, task)
     await repo.soft_delete_task(task)
     await repo.log_action(user.telegram_id, "habit_deleted", ref_id=task.id)
