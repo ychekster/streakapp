@@ -165,13 +165,12 @@
   --count-sheet-quick-size: 20px;
   --count-sheet-actions-top: 22px;
   --count-sheet-action-height: 44px; /* «Сбросить», «Заполнить день» */
-  --count-sheet-action-font-size: 16px;
-  /* Плашка «Отменить» после серии быстрых нажатий (UndoToast) — как у Telegram (iPhone 16
-     Pro), только уже: сплошная тёмная в обеих темах. */
+  --count-sheet-action-font-size: 14px;
+  /* Плашка «Отменить» после серии быстрых нажатий (UndoToast) — размеры как у Telegram
+     (iPhone 16 Pro), только уже; стекло — как у навигации (--glass-*). */
   --undo-toast-height: 50px;
   --undo-toast-margin: 24px; /* от краёв экрана — уже карточек привычек */
   --undo-toast-gap: 13px; /* над навигацией */
-  --undo-toast-fill: #2c2c2e;
   --undo-toast-padding-left: 11.5px;
   --undo-toast-padding-right: 9px; /* у «Отменить» свои поля 8 — до текста 17 */
   --undo-toast-timer-size: 25px;
@@ -180,7 +179,7 @@
   --undo-toast-text-gap: 15px; /* от кружка до текста */
   --undo-toast-font-size: 14px;
   --undo-toast-action-font-size: 17px;
-  --undo-toast-action-color: #86cef7;
+  --undo-toast-action-color: var(--color-accent);
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру
@@ -552,7 +551,6 @@
   --count-sheet-chip-fill: #2f2f31;
   --count-sheet-close-fill: #313136;
   --count-sheet-button-fill: #39393b;
-  --undo-toast-fill: #1b1b1b;
   --color-stepper-divider: rgba(84, 84, 88, 0.65);
   --color-search-clear: rgba(235, 235, 245, 0.45);
   --main-button-disabled-bg: #2c2c2e;

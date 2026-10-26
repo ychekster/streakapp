@@ -22,7 +22,7 @@ import styles from "./CheckButton.module.css";
 const FILL_MS = 340;
 
 /** Долгое нажатие: сколько держать (мс) и на сколько можно сдвинуть палец (px). */
-const LONG_PRESS_MS = 450;
+const LONG_PRESS_MS = 350;
 const LONG_PRESS_SLOP = 8;
 
 /** С этого числа кнопка «Сверх плана» — пилюля (три цифры в кружок не помещаются). */

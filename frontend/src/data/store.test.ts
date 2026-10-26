@@ -131,8 +131,8 @@ describe("dataStore", () => {
     expect(store.getState().habits[0]).toMatchObject({ today_count: 3, done_today: true });
     store.setCount(1, 1);
     expect(store.getState().habits[0]).toMatchObject({ today_count: 1, done_today: false });
-    store.setCount(1, 250000);
-    expect(store.getState().habits[0]).toMatchObject({ today_count: 99999, done_today: true });
+    store.setCount(1, 2500000);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 999999, done_today: true });
     store.setCount(1, -3);
     expect(store.getState().habits[0]).toMatchObject({ today_count: 0, done_today: false });
   });

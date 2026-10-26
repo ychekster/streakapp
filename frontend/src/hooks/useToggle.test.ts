@@ -65,7 +65,7 @@ afterEach(() => {
 });
 
 describe("tapHabit", () => {
-  it("offers undo from the fifth quick press and puts the count back", () => {
+  it("offers undo from the BURST_MIN_TAPS-th quick press and puts the count back", () => {
     habits.push(overtimeHabit(1));
     for (let tap = 1; tap < BURST_MIN_TAPS; tap += 1) {
       tapHabit(1);

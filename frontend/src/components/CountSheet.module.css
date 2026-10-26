@@ -52,6 +52,32 @@
   }
 }
 
+/* Закрытие — то же движение назад: окно уезжает вниз, затемнение гаснет. Нажатия уже
+   проходят к экрану под ним. */
+.closing {
+  pointer-events: none;
+}
+
+.closing .backdrop {
+  animation: fade-out var(--count-sheet-anim) ease-in forwards;
+}
+
+.closing .sheet {
+  animation: slide-down var(--count-sheet-anim) cubic-bezier(0.7, 0, 0.8, 0.1) forwards;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-down {
+  to {
+    transform: translateY(calc(100% + var(--count-sheet-margin-bottom)));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
   .sheet {
@@ -136,13 +162,14 @@
   overflow: hidden;
 }
 
+/* Заполненная часть — по ширине (не растяжением): её правый конец скруглён так же, как
+   концы дорожки. */
 .fill {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: rgb(var(--habit-rgb));
-  transform-origin: left center;
-  transition: transform var(--transition-fast);
+  transition: width var(--transition-fast);
 }
 
 .progressLabels {

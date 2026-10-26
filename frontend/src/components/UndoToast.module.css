@@ -1,6 +1,7 @@
-/* Плашка «Отменить» — как у Telegram (снято со скриншота iPhone 16 Pro): тёмная капсула
-   высотой 50 со сплошной заливкой, слева кружок с отсчётом, справа «Отменить». Уже
-   карточек привычек; над навигацией или у нижнего края. Размеры — токены --undo-toast-*. */
+/* Плашка «Отменить» — по размерам как у Telegram (снято со скриншота iPhone 16 Pro):
+   капсула высотой 50, слева кружок с отсчётом, справа «Отменить». Стекло — как у
+   навигации (TabBar), чтобы выделялась над списком привычек. Уже карточек привычек; над
+   навигацией или у нижнего края. Размеры — токены --undo-toast-*. */
 
 .toast {
   position: fixed;
@@ -13,8 +14,11 @@
   height: var(--undo-toast-height);
   padding: 0 var(--undo-toast-padding-right) 0 var(--undo-toast-padding-left);
   border-radius: var(--radius-pill);
-  background: var(--undo-toast-fill);
-  color: #ffffff;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-shadow);
+  color: var(--glass-icon);
   animation: toast-in var(--transition-fast) ease-out;
 }
 

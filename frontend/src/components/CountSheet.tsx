@@ -8,7 +8,8 @@
  * «Заполнить день» (до цели). Всё применяется сразу (dataStore.setCount): окно лишь
  * показывает счёт из стора, своего черновика у него нет — кроме вводимого числа.
  *
- * Закрывается «×», нажатием на затемнение и кнопкой «Назад» (App, useBackButton).
+ * Закрывается «×» и нажатием на затемнение — уезжает вниз той же анимацией, что
+ * появилась. Это слой поверх экрана, а не переход: кнопки «Назад» у него нет.
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
@@ -61,7 +62,10 @@ export function useCountSheetHabit(): number | null {
 export function CountSheet() {
   const strings = useStrings();
   const { habits, settings } = useAppData();
-  const habitId = useCountSheetHabit();
+  const openId = useCountSheetHabit();
+  // Показанная привычка: после закрытия окно ещё уезжает вниз (closing) с ней же.
+  const [habitId, setHabitId] = useState(openId);
+  const closing = openId === null;
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
   // Привычку удалили, заморозили, выключили ей «Сверх плана» — окну нечего показывать.
   const usable =
@@ -71,10 +75,18 @@ export function CountSheet() {
   const backdropPressed = useRef(false);
 
   useEffect(() => {
-    if (habitId !== null && !usable) {
+    if (openId !== null) {
+      setHabitId(openId);
+    } else if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      // Без анимации конца анимации не будет — убрать сразу.
+      setHabitId(null);
+    }
+  }, [openId]);
+  useEffect(() => {
+    if (!closing && habitId !== null && !usable) {
       closeCountSheet();
     }
-  }, [habitId, usable]);
+  }, [closing, habitId, usable]);
   useEffect(() => setDraft(null), [habitId]);
 
   const count = habit?.today_count ?? 0;
@@ -122,7 +134,10 @@ export function CountSheet() {
   const done = count >= goal;
   const progress = Math.min(count / goal, 1);
   return (
-    <div className={styles.layer} style={habitColorStyle(habit.color)}>
+    <div
+      className={`${styles.layer} ${closing ? styles.closing : ""}`}
+      style={habitColorStyle(habit.color)}
+    >
       <div
         className={styles.backdrop}
         aria-hidden="true"
@@ -138,7 +153,18 @@ export function CountSheet() {
           backdropPressed.current = false;
         }}
       />
-      <div className={styles.sheet} role="dialog" aria-modal="true" aria-label={habit.name}>
+      <div
+        className={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label={habit.name}
+        onAnimationEnd={(event) => {
+          // Уехало вниз — убрать (анимации кнопок внутри сюда не относятся).
+          if (closing && event.target === event.currentTarget) {
+            setHabitId(null);
+          }
+        }}
+      >
         <div className={styles.header}>
           <span className={`${styles.chip} ${styles.dayChip}`}>
             <CalendarIcon />
@@ -159,7 +185,7 @@ export function CountSheet() {
 
         <div className={styles.progress} aria-hidden="true">
           <span className={styles.track}>
-            <span className={styles.fill} style={{ transform: `scaleX(${progress})` }} />
+            <span className={styles.fill} style={{ width: `${progress * 100}%` }} />
           </span>
           <span className={styles.progressLabels}>
             <span className={styles.percent}>{Math.round(progress * 100)}%</span>

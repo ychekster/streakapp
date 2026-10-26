@@ -19,7 +19,7 @@ import { hapticImpact } from "../telegram/webapp";
 /** Нажатие не позже этого после прошлого (мс) продолжает серию. */
 export const BURST_GAP_MS = 700;
 /** С какого нажатия серии видна плашка «Отменить». */
-export const BURST_MIN_TAPS = 5;
+export const BURST_MIN_TAPS = 3;
 
 interface Burst {
   id: number;

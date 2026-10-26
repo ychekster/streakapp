@@ -160,7 +160,7 @@ def test_overtime_counts_past_the_goal(client: TestClient, user: AuthUser) -> No
 
     [habit] = [item for item in _sync(client, user, count(5))["habits"] if item["name"] == "Вода"]
     assert (habit["today_count"], habit["done_today"], habit["current_streak"]) == (5, True, 1)
-    response = client.post("/sync", json={"ops": [count(100000)]}, headers=user.headers)
+    response = client.post("/sync", json={"ops": [count(1000000)]}, headers=user.headers)
     assert response.status_code == 422
 
     # Turned off: a count still queued on a device stops at the goal.
