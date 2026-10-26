@@ -2,8 +2,11 @@
  * Окно, всплывающее снизу поверх экрана: окно счёта «Сверх плана» (CountSheet) и окно дня
  * в календаре (DaySheet). Ширина и отступ снизу постоянные — окно растёт только вверх.
  *
- * Закрывается «×» в шапке (SheetHeader) и нажатием на затемнение — уезжает вниз той же
- * анимацией, что появилось. Это слой поверх экрана, а не переход: кнопки «Назад» у него
+ * Закрывается «×» в шапке (SheetHeader), нажатием на затемнение и смахиванием вниз
+ * (карточка едет за пальцем, затемнение бледнеет; отпустили дальше DISMISS_PX или
+ * быстрым рывком — закрылось, иначе вернулась на место). Закрытое «×» и затемнением
+ * уезжает вниз той же анимацией, что появилось; смахнутое — продолжает движение пальца:
+ * с постоянной скоростью, не медленнее броска (FLING_MIN_SPEED), сразу за край экрана. Это слой поверх экрана, а не переход: кнопки «Назад» у него
  * нет. Что показывать, пока окно уезжает, хранит useSheetContent.
  */
 
@@ -18,6 +21,30 @@ import {
 
 import { useStrings } from "../preferences";
 import styles from "./BottomSheet.module.css";
+
+/** Смахнули вниз дальше (px) — закрыть. */
+const DISMISS_PX = 90;
+/** …или быстрее (px/мс) и хоть немного (DISMISS_FLICK_PX). */
+const DISMISS_SPEED = 0.5;
+const DISMISS_FLICK_PX = 24;
+/** Смахнутое окно уезжает с постоянной скоростью броска, но не медленнее этой (px/мс) и
+ *  не дольше FLING_MAX_MS. */
+const FLING_MIN_SPEED = 1.4;
+const FLING_MAX_MS = 280;
+/** С какого сдвига (px) понятно направление жеста: вниз — смахивание, вбок — листание. */
+const AXIS_SLOP_PX = 8;
+
+/** Жест по карточке: где начался, направление (null — ещё не ясно), насколько вниз и
+ *  последняя точка для скорости. */
+interface Drag {
+  x: number;
+  y: number;
+  axis: "x" | "y" | null;
+  dy: number;
+  lastY: number;
+  lastTime: number;
+  speed: number;
+}
 
 /**
  * Что показывает окно: открытое значение (`open`; null — окно закрыто), а после закрытия
@@ -87,10 +114,131 @@ export function BottomSheet({
   children,
 }: BottomSheetProps) {
   const backdropPressed = useRef(false);
+  const card = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
+  const drag = useRef<Drag | null>(null);
+  // Смахнули вниз: окно уезжает переходом от пальца, а не анимацией закрытия.
+  const [flung, setFlung] = useState(false);
+  useEffect(() => {
+    if (!closing) {
+      setFlung(false);
+    }
+  }, [closing]);
+
+  /** Сдвинуть карточку вниз на `dy` (0 — на место; `animate` — плавно) и приглушить
+   *  затемнение в ту же меру. */
+  function offset(dy: number, animate: boolean): void {
+    const element = card.current;
+    if (!element) {
+      return;
+    }
+    element.style.transition = animate
+      ? "transform var(--count-sheet-anim) cubic-bezier(0.2, 0.9, 0.3, 1)"
+      : "none";
+    element.style.transform = dy > 0 ? `translateY(${dy}px)` : "";
+    if (backdrop.current) {
+      backdrop.current.style.opacity =
+        dy > 0 ? String(Math.max(0, 1 - dy / element.offsetHeight)) : "";
+    }
+  }
+
+  function dragStart(event: TouchEvent): void {
+    const point = event.touches[0];
+    drag.current =
+      point && event.touches.length === 1
+        ? {
+            x: point.clientX,
+            y: point.clientY,
+            axis: null,
+            dy: 0,
+            lastY: point.clientY,
+            lastTime: event.timeStamp,
+            speed: 0,
+          }
+        : null;
+    onTouchStart?.(event);
+  }
+
+  function dragMove(event: TouchEvent): void {
+    const state = drag.current;
+    const point = event.touches[0];
+    if (!state || !point || closing) {
+      return;
+    }
+    const dx = point.clientX - state.x;
+    const dy = point.clientY - state.y;
+    if (state.axis === null && Math.hypot(dx, dy) > AXIS_SLOP_PX) {
+      state.axis = Math.abs(dy) > Math.abs(dx) ? "y" : "x";
+      // Тянут окно — поле ввода не держит фокус (клавиатура уходит).
+      if (state.axis === "y" && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    if (state.axis !== "y") {
+      return;
+    }
+    const elapsed = event.timeStamp - state.lastTime;
+    if (elapsed > 0) {
+      state.speed = (point.clientY - state.lastY) / elapsed;
+    }
+    state.lastY = point.clientY;
+    state.lastTime = event.timeStamp;
+    // Вверх окно не тянется.
+    state.dy = Math.max(0, dy);
+    offset(state.dy, false);
+  }
+
+  function dragEnd(event: TouchEvent): void {
+    const state = drag.current;
+    drag.current = null;
+    if (state?.axis !== "y") {
+      onTouchEnd?.(event);
+      return;
+    }
+    if (
+      state.dy > DISMISS_PX ||
+      (state.speed > DISMISS_SPEED && state.dy > DISMISS_FLICK_PX)
+    ) {
+      fling(state);
+      onClose();
+    } else {
+      offset(0, true);
+    }
+  }
+
+  /** Уехать вниз с того места, где отпустили, с постоянной скоростью броска; затемнение
+   *  гаснет за то же время. Уехало — onTransitionEnd. */
+  function fling(state: Drag): void {
+    const element = card.current;
+    if (!element) {
+      return;
+    }
+    const bottom = parseFloat(getComputedStyle(element).marginBottom) || 0;
+    const distance = element.offsetHeight + bottom;
+    const speed = Math.max(state.speed, FLING_MIN_SPEED);
+    // Не нулевая: иначе перехода (и его конца) не будет.
+    const duration = Math.max(16, Math.min((distance - state.dy) / speed, FLING_MAX_MS));
+    setFlung(true);
+    element.style.transition = `transform ${duration}ms linear`;
+    element.style.transform = `translateY(${distance}px)`;
+    if (backdrop.current) {
+      backdrop.current.style.transition = `opacity ${duration}ms linear`;
+      backdrop.current.style.opacity = "0";
+    }
+  }
+
+  function dragCancel(): void {
+    if (drag.current?.axis === "y") {
+      offset(0, true);
+    }
+    drag.current = null;
+  }
+
   return (
     <div className={`${styles.layer} ${closing ? styles.closing : ""}`} style={style}>
       <div
-        className={styles.backdrop}
+        ref={backdrop}
+        className={`${styles.backdrop} ${flung ? styles.flung : ""}`}
         aria-hidden="true"
         // Только касание, начатое на затемнении: палец, которым удерживали кнопку
         // отметки, отпускают уже над ним, и iOS присылает клик туда.
@@ -125,15 +273,24 @@ export function BottomSheet({
         key={cardKey === undefined ? undefined : `in-${cardKey}`}
         className={`${styles.sheet} ${
           turn === "next" ? styles.inFromNext : turn === "previous" ? styles.inFromPrevious : ""
-        }`}
+        } ${flung ? styles.flung : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
+        ref={card}
+        onTouchStart={dragStart}
+        onTouchMove={dragMove}
+        onTouchEnd={dragEnd}
+        onTouchCancel={dragCancel}
         onAnimationEnd={(event) => {
           // Уехало вниз — убрать (анимации внутри сюда не относятся).
-          if (closing && event.target === event.currentTarget) {
+          if (closing && !flung && event.target === event.currentTarget) {
+            onGone();
+          }
+        }}
+        onTransitionEnd={(event) => {
+          // Смахнутое уехало вниз.
+          if (closing && flung && event.target === event.currentTarget) {
             onGone();
           }
         }}

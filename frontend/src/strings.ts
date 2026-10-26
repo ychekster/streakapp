@@ -406,11 +406,33 @@ const RU = {
   // «Пн, 14 октября».
   daySheetDate: (weekday: string, day: number, monthOf: string) => `${weekday}, ${day} ${monthOf}`,
   daySheetMark: "Отметить выполненной",
-  daySheetDone: "Выполнено",
-  daySheetUnmark: "Выполнено. Нажмите, чтобы снять отметку",
+  daySheetUnmark: "Снять отметку",
   daySheetNote: "Заметка к дню",
   // Подпись окна для скринридеров; свайп влево-вправо — соседний день.
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайп — соседний день`,
+  // Что было в этот день (components/dayInfo.ts).
+  dayInfoStatus: "Статус",
+  dayInfoStatuses: {
+    done: "Выполнено",
+    bonus: "Выполнено",
+    partial: "Не до конца",
+    missed: "Пропущено",
+    open: "Ещё не отмечено",
+    free: "Не отмечено",
+    frozen: "Заморожено",
+    rest: "Не запланировано",
+    before: "До начала привычки",
+  },
+  // Выполнено вне статистики (бонусная отметка) — подпись плитки статуса.
+  dayInfoNotInStats: "Не в статистике",
+  dayInfoSchedule: "График",
+  // Цель того дня; с тех пор поменялась — отмечается по нынешней.
+  dayInfoTimesADay: "Раз в день",
+  dayInfoTimesADayNow: (now: number) => `Раз в день, сейчас ${now}`,
+  dayInfoOf: (done: number, total: number) => `${done} из ${total}`,
+  dayInfoStreakDay: "День серии",
+  dayInfoGroupDone: "Группа выполнила",
+  dayInfoGroupFill: "Сделано группой",
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
@@ -876,10 +898,29 @@ const EN: Strings = {
 
   daySheetDate: (weekday: string, day: number, monthOf: string) => `${weekday}, ${monthOf} ${day}`,
   daySheetMark: "Mark as Done",
-  daySheetDone: "Done",
-  daySheetUnmark: "Done. Tap to unmark",
+  daySheetUnmark: "Unmark",
   daySheetNote: "Note for the day",
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Swipe for the next day`,
+  dayInfoStatus: "Status",
+  dayInfoStatuses: {
+    done: "Done",
+    bonus: "Done",
+    partial: "Not finished",
+    missed: "Missed",
+    open: "Not marked yet",
+    free: "Not marked",
+    frozen: "Frozen",
+    rest: "Not scheduled",
+    before: "Before the habit began",
+  },
+  dayInfoNotInStats: "Not in stats",
+  dayInfoSchedule: "Schedule",
+  dayInfoTimesADay: "Times a day",
+  dayInfoTimesADayNow: (now: number) => `Times a day, now ${now}`,
+  dayInfoOf: (done: number, total: number) => `${done} of ${total}`,
+  dayInfoStreakDay: "Day of the streak",
+  dayInfoGroupDone: "Group done",
+  dayInfoGroupFill: "Done by the group",
   undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 

@@ -167,8 +167,16 @@
   --count-sheet-action-height: 44px; /* «Сбросить», «Заполнить день» */
   --count-sheet-action-font-size: 14px;
   /* Окно дня (DaySheet): отметка «раз в день», заметка, сдвиг при смене дня. */
-  --day-sheet-mark-top: 22.5px; /* от чипов до кнопки отметки (как до полосы прогресса) */
-  --day-sheet-mark-icon-size: 22px;
+  --day-sheet-info-top: 16px; /* от чипов до плиток «что было в этот день» */
+  --day-sheet-tile-gap: 8px;
+  --day-sheet-tile-padding: 10px 12px 11px;
+  --day-sheet-tile-icon-size: 30px; /* плашка значка (как у карточек «Основного», мельче) */
+  --day-sheet-tile-icon-radius: 8px;
+  --day-sheet-tile-glyph: 19px;
+  --day-sheet-tile-value-gap: 4px;
+  --day-sheet-tile-value-size: 19px;
+  --day-sheet-tile-label-size: 13px;
+  --day-sheet-mark-top: 12px; /* от плиток до кнопки отметки */
   --day-sheet-note-top: 16px;
   --day-sheet-note-min-height: 44px;
   --day-sheet-note-padding: 12px 14px;

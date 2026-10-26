@@ -50,3 +50,31 @@ export function TargetIcon() {
     </svg>
   );
 }
+
+/** График: календарь. */
+export function ScheduleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect {...STROKE} x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path {...STROKE} d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </svg>
+  );
+}
+
+/** Пропущено: крестик. */
+export function MissedIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M7 7l10 10M17 7L7 17" />
+    </svg>
+  );
+}
+
+/** Не запланировано, не отмечено: черта. */
+export function RestIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M7 12h10" />
+    </svg>
+  );
+}

@@ -127,6 +127,12 @@
   animation: slide-down var(--count-sheet-anim) cubic-bezier(0.7, 0, 0.8, 0.1) forwards;
 }
 
+/* Смахнутое вниз окно уезжает переходом от пальца (BottomSheet, fling) — без анимации
+   закрытия. */
+.closing .flung {
+  animation: none;
+}
+
 @keyframes fade-out {
   to {
     opacity: 0;

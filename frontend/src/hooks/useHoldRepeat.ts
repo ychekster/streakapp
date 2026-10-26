@@ -16,11 +16,15 @@ import { useEffect, useRef, type MouseEvent, type PointerEvent, type TouchEvent 
 /** Через сколько удержания шаг начинает повторяться и как часто (мс). */
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 70;
+/** Палец сдвинулся дальше (px) — это уже не удержание, а жест (окно смахивают вниз):
+ *  повтор останавливается. */
+const MOVE_SLOP_PX = 10;
 /** Сколько после отпускания ждать клика, который нужно погасить (мс). */
 const CLICK_AFTER_RELEASE_MS = 400;
 
 export interface HoldRepeatHandlers {
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: () => void;
   onPointerLeave: () => void;
   onPointerCancel: () => void;
@@ -36,6 +40,8 @@ export function useHoldRepeat(step: (delta: number) => boolean): (delta: number)
   const stepRef = useRef(step);
   stepRef.current = step;
   const timer = useRef<number | null>(null);
+  // Где палец коснулся кнопки; null — не держат.
+  const down = useRef<{ x: number; y: number } | null>(null);
   // Снять перехват клика (swallowClick); null — перехвата нет.
   const releaseClick = useRef<(() => void) | null>(null);
 
@@ -77,6 +83,7 @@ export function useHoldRepeat(step: (delta: number) => boolean): (delta: number)
   }
 
   function release(): void {
+    down.current = null;
     stop();
     releaseClick.current?.();
   }
@@ -109,7 +116,15 @@ export function useHoldRepeat(step: (delta: number) => boolean): (delta: number)
       }
       event.preventDefault();
       swallowClick();
+      down.current = { x: event.clientX, y: event.clientY };
       start(delta);
+    },
+    onPointerMove: (event) => {
+      const from = down.current;
+      if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > MOVE_SLOP_PX) {
+        down.current = null;
+        stop();
+      }
     },
     onPointerUp: release,
     onPointerLeave: release,

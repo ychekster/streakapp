@@ -3,7 +3,10 @@
  * снизу окно (BottomSheet), где этот день можно исправить — любой день истории до дня
  * отметки, и пропущенный, и уже отмеченный.
  *
- * Шапка — день, название привычки и «×». Под ней отметка по текущим настройкам привычки:
+ * Шапка — день, название привычки и «×». Под ней — что было в этот день (dayInfo.ts),
+ * плитками, как карточки «Основного» на экране привычки: статус, график и цель того дня,
+ * счёт периода «Гибкого графика», день серии, у совместной — сколько сделала группа. Ниже
+ * отметка по текущим настройкам привычки:
  * у «раз в день» — одна кнопка (отметить / снять), у «несколько раз в день» — счёт за день
  * (CountControls, до текущей цели; быстрые прибавки — у «Сверх плана»). В совместной —
  * моя часть. Не запланированный в тот день (или замороженный) — тоже можно: отметка
@@ -15,14 +18,22 @@
  * Отметки применяются сразу (dataStore.markDay / setDayCount / setNote).
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type TouchEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type TouchEvent,
+} from "react";
 
 import { NOTE_MAX_LENGTH, OVERTIME_MAX_COUNT, WEEKDAYS } from "../constants";
 import { addDays, markingDay, todayIn, weekdayIndex } from "../data/dates";
 import { myDay } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
-import { useStrings } from "../preferences";
+import { useLanguage, useStrings } from "../preferences";
+import type { Strings } from "../strings";
 import { hapticImpact, hapticSelection } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import {
@@ -33,6 +44,17 @@ import {
   type SheetTurn,
 } from "./BottomSheet";
 import { CountControls } from "./CountControls";
+import { dayInfo, type DayInfo, type DaySchedule, type DayStatus } from "./dayInfo";
+import { ClockIcon, PeopleIcon, SnowflakeIcon } from "./SettingsIcons";
+import {
+  CompletedIcon,
+  FlameIcon,
+  MissedIcon,
+  RestIcon,
+  ScheduleIcon,
+  TargetIcon,
+} from "./StatIcons";
+import { weekdayLabel } from "../weekdayLabel";
 import styles from "./DaySheet.module.css";
 
 /** Свайп короче — не смена дня. */
@@ -77,6 +99,7 @@ function useOpenDay(): OpenDay | null {
 
 export function DaySheet() {
   const strings = useStrings();
+  const language = useLanguage();
   const { habits, settings } = useAppData();
   // Показанный день: после закрытия окно ещё уезжает вниз (closing) с ним же.
   const { shown, closing, gone } = useSheetContent(useOpenDay());
@@ -147,6 +170,7 @@ export function DaySheet() {
     return (
       <>
         <SheetHeader day={labelOf(on)} name={habit!.name} onClose={close} />
+        <DayTiles info={dayInfo(habit!, on, day)} strings={strings} language={language} />
         {multi ? (
           <div className={styles.count}>
             <CountControls
@@ -166,24 +190,12 @@ export function DaySheet() {
             type="button"
             className={`${styles.mark} ${mine.done ? styles.markDone : ""}`}
             aria-pressed={mine.done}
-            aria-label={mine.done ? strings.daySheetUnmark : strings.daySheetMark}
             onClick={() => {
               hapticSelection();
               dataStore.markDay(id, on, !mine.done);
             }}
           >
-            <span className={styles.markCircle} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 12.75l4.5 4.5L19 7.75"
-                  stroke="currentColor"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            {mine.done ? strings.daySheetDone : strings.daySheetMark}
+            {mine.done ? strings.daySheetUnmark : strings.daySheetMark}
           </button>
         )}
         <textarea
@@ -257,6 +269,143 @@ export function DaySheet() {
       {card(date, noteText)}
     </BottomSheet>
   );
+}
+
+/** Плитка «что было в этот день». */
+interface Tile {
+  key: string;
+  icon: ReactNode;
+  value: string;
+  label: string;
+  /** Выполнено, цель периода набрана — значение цветом привычки. */
+  accent?: boolean;
+}
+
+/** Значок статуса дня. */
+function statusIcon(status: DayStatus): ReactNode {
+  switch (status) {
+    case "done":
+    case "bonus":
+      return <CompletedIcon />;
+    case "missed":
+      return <MissedIcon />;
+    case "frozen":
+      return <SnowflakeIcon />;
+    case "open":
+      return <ClockIcon />;
+    case "partial":
+      return <TargetIcon />;
+    default:
+      return <RestIcon />;
+  }
+}
+
+/** Что было в этот день — плитки в две колонки; при нечётном их числе статус — во всю
+ *  ширину. Плитки без значения не показываются. */
+function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings; language: string }) {
+  const tiles: Tile[] = [
+    {
+      key: "status",
+      icon: statusIcon(info.status),
+      value: strings.dayInfoStatuses[info.status],
+      label: info.status === "bonus" ? strings.dayInfoNotInStats : strings.dayInfoStatus,
+      accent: info.status === "done",
+    },
+  ];
+  if (info.streak) {
+    tiles.push({
+      key: "streak",
+      icon: <FlameIcon />,
+      value: String(info.streak),
+      label: strings.dayInfoStreakDay,
+    });
+  }
+  if (info.period) {
+    tiles.push({
+      key: "period",
+      icon: <TargetIcon />,
+      value: strings.dayInfoOf(info.period.done, info.period.quota),
+      label: periodLabel(info.period, strings, language),
+      accent: info.period.done >= info.period.quota,
+    });
+  }
+  tiles.push({
+    key: "schedule",
+    icon: <ScheduleIcon />,
+    value: scheduleLabel(info.schedule, strings),
+    label: strings.dayInfoSchedule,
+  });
+  if (info.goalThen > 1 || info.goalNow > 1) {
+    tiles.push({
+      key: "goal",
+      icon: <TargetIcon />,
+      value: String(info.goalThen),
+      label:
+        info.goalThen === info.goalNow
+          ? strings.dayInfoTimesADay
+          : strings.dayInfoTimesADayNow(info.goalNow),
+    });
+  }
+  if (info.group) {
+    const byPeople = info.goalNow === 1;
+    tiles.push({
+      key: "group",
+      icon: <PeopleIcon />,
+      value: byPeople
+        ? strings.dayInfoOf(info.group.done, info.group.people)
+        : `${Math.round(info.group.fill * 100)}%`,
+      label: byPeople ? strings.dayInfoGroupDone : strings.dayInfoGroupFill,
+    });
+  }
+  const wideFirst = tiles.length % 2 === 1;
+  return (
+    <div className={styles.tiles}>
+      {tiles.map((tile, index) => (
+        <div
+          key={tile.key}
+          className={`${styles.tile} ${wideFirst && index === 0 ? styles.tileWide : ""} ${
+            tile.accent ? styles.tileAccent : ""
+          }`}
+        >
+          <span className={styles.tileIcon} aria-hidden="true">
+            {tile.icon}
+          </span>
+          <p className={styles.tileValue}>{tile.value}</p>
+          <p className={styles.tileLabel}>{tile.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** График того дня: «Каждый день», «Пн, Ср и Пт», «Через день», «3 дня в неделю». */
+function scheduleLabel(schedule: DaySchedule, strings: Strings): string {
+  switch (schedule.frequency_type) {
+    case "daily":
+      return strings.formDaily;
+    case "every_other_day":
+      return strings.formEveryOtherDay;
+    case "monthly":
+      return strings.formMonthly;
+    case "flexible":
+      return strings.formPeriodTimes(schedule.period_times ?? 1, schedule.period ?? "week");
+    default:
+      return weekdayLabel(schedule.days, strings, strings.formDaily);
+  }
+}
+
+/** Период «Гибкого графика»: «Неделя 20 окт. – 26 окт.», «Октябрь», «2026». */
+function periodLabel(period: NonNullable<DayInfo["period"]>, strings: Strings, language: string): string {
+  if (period.kind === "year") {
+    return period.start.slice(0, 4);
+  }
+  if (period.kind === "month") {
+    return strings.monthNames[Number(period.start.slice(5, 7)) - 1];
+  }
+  const asDate = (day: string): Date => new Date(`${day}T00:00:00Z`);
+  const format = new Intl.DateTimeFormat(language, { day: "numeric", month: "short", timeZone: "UTC" });
+  const range = `${format.format(asDate(period.start))} – ${format.format(asDate(period.end))}`;
+  return `${strings.periodNames.week} ${range}`;
 }
 
 /** Поле заметки — по высоте текста (окно растёт вверх), но не выше предела из стилей:
