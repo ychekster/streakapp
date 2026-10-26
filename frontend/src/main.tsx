@@ -30,6 +30,26 @@ import "./styles/global.css";
 applyPlatform();
 // Подсветка нажатий, не срабатывающая при прокрутке (см. pressFeedback.ts).
 installPressFeedback();
+// Размер физического пикселя — для деталей, которые выравниваются по пикселям экрана.
+followDevicePixel();
+
+/**
+ * --device-pixel на <html>: один физический пиксель экрана в CSS-пикселях (1/3px на
+ * iPhone, 1/2.625px на многих Android, 1/1.25px на компьютере с масштабом 125%). Им
+ * округляют размеры переключателя (Switch.module.css), иначе браузер округляет края
+ * дорожки и ползунка порознь — и щель между ними сверху и снизу выходит разной. На
+ * компьютере масштаб меняется (зум страницы, другой монитор) — тогда и значение.
+ */
+function followDevicePixel(): void {
+  const apply = (): void => {
+    const ratio = window.devicePixelRatio || 1;
+    document.documentElement.style.setProperty("--device-pixel", `${1 / ratio}px`);
+    window
+      .matchMedia(`(resolution: ${ratio}dppx)`)
+      .addEventListener?.("change", apply, { once: true });
+  };
+  apply();
+}
 
 // The install page is a file of its own: the app (Telegram, installed) never loads it,
 // so it starts with less code.
