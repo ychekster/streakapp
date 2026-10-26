@@ -123,7 +123,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Schedule history | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule; frontend derive.ts (scheduleOn, isDueOnDay) |
 | Bonus marks (not due / frozen / past a flexible goal: in the grid, not in the numbers) | services.counted_days (compute_streaks, flexible_streaks, total_done); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |
 | Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onPickDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
-| «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / _check_quota / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
+| «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / counted_days / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change
