@@ -68,6 +68,19 @@ def test_offline_habit_is_created_once_and_found_by_its_ref(
     assert again["habits"][0]["total_done"] == 1
 
 
+def test_habit_takes_a_custom_color(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "create", "ref": "a", "habit": _habit(color="#12AbEf")},
+        {"type": "create", "ref": "b", "habit": _habit(color="#12abe")},
+        {"type": "create", "ref": "c", "habit": _habit(color="tomato")},
+    )
+    codes = [result["error"] and result["error"]["code"] for result in data["results"]]
+    assert codes == [None, "invalid_color", "invalid_color"]
+    assert [habit["color"] for habit in data["habits"]] == ["#12abef"]
+
+
 def test_mark_sets_a_day_and_is_idempotent(client: TestClient, user: AuthUser) -> None:
     today = _today(client, user)
     yesterday = today - timedelta(days=1)

@@ -136,6 +136,12 @@
   cursor: pointer;
 }
 
+/* В правке текст рядов сдвинут на «−» (и на пустое место у «Создать папку» и «Все
+   привычки») — линия-разделитель тоже начинается от текста. */
+.editing {
+  --list-row-separator-left: calc(var(--space-card-padding) * 2 + var(--reminder-badge-size));
+}
+
 .minus,
 .removeSpace {
   position: relative;

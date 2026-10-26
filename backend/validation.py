@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from datetime import date, datetime, time, timedelta
 
@@ -15,6 +16,7 @@ from backend.cities import City, city_index
 from backend.constants import (
     GRID_LAYOUTS,
     BROADCAST_BUTTONS,
+    CUSTOM_HABIT_COLOR_PATTERN,
     FOLDER_NAME_MAX_LENGTH,
     HABIT_COLORS,
     HABIT_DESCRIPTION_MAX_LENGTH,
@@ -171,10 +173,14 @@ def validate_reminder_times(single: str | None, values: list[str] | None) -> lis
 
 
 def validate_color(value: str) -> str:
-    """Проверить, что цвет привычки — ключ палитры."""
-    if value not in HABIT_COLORS:
-        raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
-    return value
+    """Проверить, что цвет привычки — ключ палитры или свой цвет «#rrggbb» (вернуть его
+    строчными)."""
+    if value in HABIT_COLORS:
+        return value
+    custom = value.lower()
+    if re.fullmatch(CUSTOM_HABIT_COLOR_PATTERN, custom):
+        return custom
+    raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
 
 
 def validate_times_per_day(value: int) -> int:

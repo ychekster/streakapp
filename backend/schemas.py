@@ -233,7 +233,10 @@ class Habit(BaseModel):
         default_factory=list,
         description="Все напоминания «ЧЧ:ММ» по возрастанию; пустой список — без напоминания",
     )
-    color: str = Field(..., description="Цвет (тема) привычки — ключ палитры: blue, green, …")
+    color: str = Field(
+        ...,
+        description="Цвет (тема) привычки — ключ палитры (blue, green, …) или свой «#rrggbb»",
+    )
     frozen_since: date | None = Field(
         None,
         description=(
@@ -380,7 +383,9 @@ class HabitCreate(BaseModel):
             "напоминания. Не передан — одно напоминание `reminder_time` (старые клиенты)"
         ),
     )
-    color: str = Field(DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры")
+    color: str = Field(
+        DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры или свой «#rrggbb»"
+    )
     times_per_day: int = Field(
         1, description=f"Сколько раз в день нужно выполнить привычку: 1–{MAX_TIMES_PER_DAY}"
     )

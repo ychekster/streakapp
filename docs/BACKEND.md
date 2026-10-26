@@ -212,7 +212,7 @@ Telegram, гостю веб-приложения — `403 group_needs_telegram`)
   // все напоминания по возрастанию; [] — без напоминания
   "reminder_times": ["09:00", "13:00"],
   // цвет (тема) — ключ палитры: blue, lightblue, teal, green, yellow, orange, red,
-  // pink, purple, indigo, brown, graphite
+  // pink, purple, indigo, brown, graphite — или свой цвет «#rrggbb» (палитра)
   "color": "green",
   // с какого дня заморожена; null — не заморожена
   "frozen_since": null,

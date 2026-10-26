@@ -1,6 +1,8 @@
 /**
  * Выбор цвета (темы) привычки: ряд цветных кружков, прокручивается по горизонтали.
- * Выбранный отмечен белой точкой в центре.
+ * Выбранный отмечен белой точкой в центре. Последний кружок — палитра (свой цвет): под ним
+ * системный выбор цвета (`<input type="color">`), любой оттенок и насыщенность. Выбран
+ * свой цвет — радуга палитры остаётся ободком, внутри — сам цвет.
  *
  * При открытии ряд прокручен так, чтобы выбранный цвет был виден (у привычки, открытой
  * на редактирование, он может оказаться в конце ряда).
@@ -10,7 +12,7 @@ import { useLayoutEffect, useRef } from "react";
 
 import { HABIT_COLORS } from "../constants";
 import { useStrings } from "../preferences";
-import { habitColorStyle } from "../theme";
+import { habitColorHex, habitColorStyle, isCustomColor } from "../theme";
 import type { HabitColor } from "../types/habit";
 import styles from "./ColorPicker.module.css";
 
@@ -24,7 +26,11 @@ interface ColorPickerProps {
 export function ColorPicker({ value, onChange, label }: ColorPickerProps) {
   const strings = useStrings();
   const rowRef = useRef<HTMLDivElement>(null);
-  const selectedRef = useRef<HTMLButtonElement>(null);
+  const selectedRef = useRef<HTMLElement | null>(null);
+  const custom = isCustomColor(value);
+  const keepSelected = (element: HTMLElement | null): void => {
+    selectedRef.current = element;
+  };
 
   // Только при открытии: дальше ряд прокручивает сам пользователь.
   useLayoutEffect(() => {
@@ -43,7 +49,7 @@ export function ColorPicker({ value, onChange, label }: ColorPickerProps) {
           return (
             <button
               key={color}
-              ref={selected ? selectedRef : undefined}
+              ref={selected ? keepSelected : undefined}
               type="button"
               role="radio"
               aria-checked={selected}
@@ -54,6 +60,19 @@ export function ColorPicker({ value, onChange, label }: ColorPickerProps) {
             />
           );
         })}
+        <label
+          ref={custom ? keepSelected : undefined}
+          className={`${styles.swatch} ${styles.custom} ${custom ? styles.selected : ""}`}
+          style={custom ? habitColorStyle(value) : undefined}
+        >
+          <input
+            type="color"
+            className={styles.input}
+            value={habitColorHex(value)}
+            aria-label={strings.colorCustom}
+            onChange={(event) => onChange(event.target.value.toLowerCase() as HabitColor)}
+          />
+        </label>
       </div>
     </div>
   );

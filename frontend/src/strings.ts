@@ -474,6 +474,7 @@ const RU = {
     brown: "Коричневый",
     graphite: "Графитовый",
   },
+  colorCustom: "Свой цвет",
 
   // Ошибки API по кодам (см. errors.ts). Кода нет в списке — показывается текст,
   // который подходит к действию («Не удалось сохранить привычку» и т.п.).
@@ -901,6 +902,7 @@ const EN: Strings = {
     brown: "Brown",
     graphite: "Graphite",
   },
+  colorCustom: "Custom color",
 
   apiErrors: {
     network_error: "No internet connection. Check your connection and try again.",

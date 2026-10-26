@@ -15,8 +15,9 @@
  * «Изменить» справа от заголовка секции (кнопку в шапке не поставить: в Mini App там
  * кнопки Telegram) включает правку: у папок слева красный «−» — удалить (с
  * подтверждением), справа у всех рядов, и у «Все привычки», — ручка: потянув за неё,
- * ряд переставляют. «Готово» выключает правку. Всё сохраняется сразу, как остальные
- * изменения (data/store.ts).
+ * ряд переставляют. «Создать папку» сдвигается вправо вместе с названиями, и линии между
+ * рядами начинаются от текста — «−» стоят без линий. «Готово» выключает правку. Всё
+ * сохраняется сразу, как остальные изменения (data/store.ts).
  */
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
@@ -210,11 +211,21 @@ export function FoldersScreen({
           <Card>
             <button
               type="button"
-              className={`${rowStyles.row} ${rowStyles.pressable} ${rowStyles.accent}`}
+              className={[
+                rowStyles.row,
+                rowStyles.pressable,
+                rowStyles.accent,
+                editing ? styles.editing : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               disabled={!canCreate}
               onClick={onCreate}
             >
-              <span className={`${rowStyles.label} ${!canCreate ? styles.dimmed : ""}`}>
+              {editing ? <span className={styles.removeSpace} aria-hidden="true" /> : null}
+              <span
+                className={`${rowStyles.label} ${styles.name} ${!canCreate ? styles.dimmed : ""}`}
+              >
                 {strings.foldersCreate}
               </span>
             </button>
@@ -223,6 +234,7 @@ export function FoldersScreen({
               const className = [
                 rowStyles.row,
                 styles.row,
+                editing ? styles.editing : "",
                 !editing && folder ? rowStyles.pressable : "",
                 drag?.index === index ? styles.dragging : "",
                 drag && !settling ? styles.shifting : "",

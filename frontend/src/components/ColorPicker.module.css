@@ -50,3 +50,38 @@
 .selected::after {
   transform: scale(1);
 }
+
+/* Палитра (свой цвет): цветовой круг — оттенки по кругу, к центру светлее. */
+.custom {
+  background: radial-gradient(circle closest-side, #ffffff, rgba(255, 255, 255, 0)),
+    conic-gradient(#ff3b30, #ffcc00, #34c759, #5ac8fa, #007aff, #af52de, #ff2d55, #ff3b30);
+  cursor: pointer;
+}
+
+/* Выбран свой цвет — круг остаётся ободком, внутри — сам цвет (вырастает из центра). */
+.custom::before {
+  content: "";
+  position: absolute;
+  inset: var(--swatch-custom-ring);
+  border-radius: 50%;
+  background-color: rgb(var(--habit-rgb));
+  transform: scale(0);
+  transition: transform var(--transition-fast);
+}
+
+.custom.selected::before {
+  transform: scale(1);
+}
+
+/* Системный выбор цвета — невидимое поле поверх круга: нажатие открывает его. */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}

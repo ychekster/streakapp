@@ -28,7 +28,11 @@
  *
  * Экран с `pinned` (настройки папок): заголовок Б стоит по центру с самого начала, А
  * нет (отступ сверху задаёт сам контент). Подложка проявляется вслед за прокруткой — от прозрачной в начале до полной, когда
- * верх первого блока контента доходит до её нижнего края.
+ * верх первого блока контента доходит до её нижнего края. Пока она не полная, обратная
+ * прокрутка так же её гасит. Полная — точка невозврата: дальше подложка ведёт себя как
+ * обычная шапка — при прокрутке назад за порог уходит сама, плавным переходом, а не
+ * вслед за пальцем, и снова появляется переходом, когда порог пройден опять. За прокруткой
+ * она следует снова, только когда экран вернулся к самому началу.
  */
 
 import { type RefObject, useLayoutEffect, useRef } from "react";
@@ -116,14 +120,53 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
     let collapseThreshold = Number.POSITIVE_INFINITY;
     // Эффект перезапускается (смена языка) при уже свёрнутой шапке — берём её состояние.
     let collapsed = headerEl.classList.contains(styles.collapsed);
+    // `pinned`: подложка идёт за прокруткой, пока не стала полной (follow), затем —
+    // переходами, как обычная шапка (shown — полная, hidden — ушла за порогом).
+    let barMode: "follow" | "shown" | "hidden" = "follow";
+
+    const setBar = (opacity: number, fade: boolean): void => {
+      const bar = barRef.current;
+      if (!bar) {
+        return;
+      }
+      bar.classList.toggle(styles.barFade, fade);
+      bar.style.setProperty("opacity", String(opacity));
+    };
+
+    const updatePinned = (y: number, instant: boolean): void => {
+      if (instant) {
+        // Открыт на запомненной прокрутке — сразу нужный вид, без перехода.
+        barMode = y >= collapseThreshold ? "shown" : "follow";
+        setBar(barMode === "shown" ? 1 : Math.max(0, y / collapseThreshold), false);
+        return;
+      }
+      if (barMode === "follow") {
+        const progress = Math.min(1, Math.max(0, y / collapseThreshold));
+        if (progress >= 1) {
+          barMode = "shown";
+        }
+        setBar(progress, false);
+      } else if (barMode === "shown") {
+        if (y < collapseThreshold - COLLAPSE_HYSTERESIS) {
+          barMode = "hidden";
+          setBar(0, true);
+        }
+      } else if (y >= collapseThreshold) {
+        barMode = "shown";
+        setBar(1, true);
+      } else if (y <= 0) {
+        // Вернулись к началу: дальше подложка снова идёт за прокруткой. Переход ухода
+        // (если ещё идёт) доигрывает — выключится со следующей прокруткой.
+        barMode = "follow";
+      }
+    };
 
     // instant — без анимации: стили применяются с выключенными переходами (чтение
     // offsetWidth), после чего переходы возвращаются для обычной прокрутки.
     const updateState = (instant = false): void => {
       const y = window.scrollY;
       if (pinned) {
-        const progress = Math.min(1, Math.max(0, y / collapseThreshold));
-        barRef.current?.style.setProperty("opacity", String(progress));
+        updatePinned(y, instant);
         return;
       }
       const next = collapsed

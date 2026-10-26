@@ -2,8 +2,11 @@
 
 import type { HABIT_COLORS } from "../constants";
 
-/** Цвет (тема) привычки — ключ палитры. */
-export type HabitColor = (typeof HABIT_COLORS)[number];
+/** Цвет палитры — ключ `--palette-*`. */
+export type PaletteColor = (typeof HABIT_COLORS)[number];
+
+/** Цвет (тема) привычки — ключ палитры или свой цвет «#rrggbb» (палитра в форме). */
+export type HabitColor = PaletteColor | `#${string}`;
 
 export interface Habit {
   /** Идентификатор задачи. */

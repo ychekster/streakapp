@@ -231,7 +231,7 @@ class Task(Base):
     # Индекс: бот каждую минуту выбирает привычки по времени напоминания. Напоминаний
     # несколько — здесь самое раннее, остальные в TaskReminder (extra_reminders).
     reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True, index=True)
-    # Цвет (тема) привычки — ключ палитры из constants.HABIT_COLORS.
+    # Цвет (тема) привычки — ключ палитры из constants.HABIT_COLORS или свой «#rrggbb».
     color: Mapped[str] = mapped_column(
         String(HABIT_COLOR_MAX_LENGTH),
         default=DEFAULT_HABIT_COLOR,

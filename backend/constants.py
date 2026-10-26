@@ -103,6 +103,8 @@ HABIT_COLORS: tuple[str, ...] = (
     "graphite",
 )
 DEFAULT_HABIT_COLOR = "blue"
+# Свой цвет привычки (палитра в конце ряда цветов формы) — «#rrggbb» строчными.
+CUSTOM_HABIT_COLOR_PATTERN = r"#[0-9a-f]{6}"
 # Длина колонки tasks.color (с запасом под будущие ключи палитры).
 HABIT_COLOR_MAX_LENGTH = 20
 

@@ -369,6 +369,7 @@
   --swatch-gap: 5px;
   --swatch-row-pad-y: 14px;
   --swatch-dot-size: 8px; /* белая точка в выбранном кружке */
+  --swatch-custom-ring: 3px; /* ободок палитры вокруг своего цвета */
   /* Нижняя кнопка (MainButtonBar), пока форма не заполнена. */
   --main-button-disabled-bg: #e3e3e8;
   --main-button-disabled-text: #aeaeb2;
