@@ -223,6 +223,8 @@ export function App() {
   const [editor, setEditor] = useState<Editor | null>(
     start === "new_habit" ? { habit: null } : null,
   );
+  // «Дополнительно» поверх формы привычки (рисует её же экран, см. HabitFormScreen).
+  const [editorAdvanced, setEditorAdvanced] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(
     start === "review" ? "review" : null,
   );
@@ -247,6 +249,7 @@ export function App() {
   const scrollUnderMember = useRef(0);
   const scrollUnderBlocked = useRef(0);
   const scrollUnderEditor = useRef(0);
+  const scrollUnderAdvanced = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
   const scrollUnderFolderForm = useRef(0);
   const scrollUnderFolderPicker = useRef(0);
@@ -418,6 +421,7 @@ export function App() {
   const showEditor = useCallback((habit: Habit | null) => {
     scrollUnderEditor.current = window.scrollY;
     pendingScroll.current = 0;
+    setEditorAdvanced(false);
     setEditor({ habit });
   }, []);
 
@@ -425,7 +429,20 @@ export function App() {
     pendingScroll.current = scrollUnderEditor.current;
     pendingBack.current = true;
     setHabitEntering(false);
+    setEditorAdvanced(false);
     setEditor(null);
+  }, []);
+
+  const showEditorAdvanced = useCallback(() => {
+    scrollUnderAdvanced.current = window.scrollY;
+    pendingScroll.current = 0;
+    setEditorAdvanced(true);
+  }, []);
+
+  const hideEditorAdvanced = useCallback(() => {
+    pendingScroll.current = scrollUnderAdvanced.current;
+    pendingBack.current = true;
+    setEditorAdvanced(false);
   }, []);
 
   const showSettingsPage = useCallback((page: SettingsPage) => {
@@ -600,7 +617,9 @@ export function App() {
     adminMode
       ? null
       : editor
-        ? hideEditor
+        ? editorAdvanced
+          ? hideEditorAdvanced
+          : hideEditor
         : blockedOpen
           ? hideBlocked
           : openMember
@@ -876,6 +895,8 @@ export function App() {
           sharedNeedsTelegram={web && account?.is_guest === true}
           onLinkTelegram={linkTelegram}
           onSaved={saveHabit}
+          advanced={editorAdvanced}
+          onOpenAdvanced={showEditorAdvanced}
         />
       );
     }

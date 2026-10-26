@@ -430,6 +430,7 @@ const RU = {
   formReminderAdd: "Добавить напоминание",
   formReminderRemove: (time: string) => `Удалить напоминание ${time}`,
   formThemeHeading: "Тема",
+  formAdvanced: "Дополнительно",
   formAutoMarkHeading: "Автоотметка",
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
@@ -865,6 +866,7 @@ const EN: Strings = {
   formReminderAdd: "Add Reminder",
   formReminderRemove: (time: string) => `Remove reminder ${time}`,
   formThemeHeading: "Color",
+  formAdvanced: "Advanced",
   formAutoMarkHeading: "Auto Check-Off",
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:

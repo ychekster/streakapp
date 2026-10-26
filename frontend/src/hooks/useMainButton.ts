@@ -4,6 +4,9 @@
  *
  * Нажатие вызывает актуальный `onClick` из последнего рендера, поэтому подписка одна на всё
  * время жизни экрана и обработчик не обязан быть стабильным.
+ *
+ * `state` null — кнопка спрятана (экран, который рисует и вложенный экран без кнопки, —
+ * форма привычки и её «Дополнительно»).
  */
 
 import { useEffect, useLayoutEffect, useRef } from "react";
@@ -15,8 +18,9 @@ import {
   type MainButtonState,
 } from "../telegram/webapp";
 
-export function useMainButton(state: MainButtonState, onClick: () => void): void {
-  const { text, color, textColor, active, progress } = state;
+export function useMainButton(state: MainButtonState | null, onClick: () => void): void {
+  const shown = state !== null;
+  const { text = "", color = "", textColor = "", active = false, progress = false } = state ?? {};
   const handlerRef = useRef(onClick);
 
   useLayoutEffect(() => {
@@ -26,8 +30,12 @@ export function useMainButton(state: MainButtonState, onClick: () => void): void
   useEffect(() => onMainButtonClick(() => handlerRef.current()), []);
 
   useEffect(() => {
-    showMainButton({ text, color, textColor, active, progress });
-  }, [text, color, textColor, active, progress]);
+    if (shown) {
+      showMainButton({ text, color, textColor, active, progress });
+    } else {
+      hideMainButton();
+    }
+  }, [shown, text, color, textColor, active, progress]);
 
   useEffect(() => hideMainButton, []);
 }

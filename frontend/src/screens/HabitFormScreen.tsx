@@ -34,6 +34,11 @@
  *    уведомления не выключены (никогда — при первом запуске). Если уведомления запрещены,
  *    под переключателем — как их включить (spec §9);
  *  - Тема — цвет привычки. Форма сразу окрашивается в выбранный цвет (дни недели, кнопка);
+ *  - «Дополнительно ›» — ряд, открывающий экран «Дополнительно» с двумя секциями ниже,
+ *    нужными реже остальных. Переключатели там сразу меняют форму — нижней кнопки на
+ *    экране нет, «Назад» (или свайп) возвращает в форму с ними. Привычку, как всегда,
+ *    сохраняет кнопка формы. Экран рисует сама форма (её поля живут здесь), а открыт ли
+ *    он, решает App (`advanced`) — так «Назад» Telegram ведёт с него в форму;
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд
  *    пропадает; в групповой его нет;
@@ -59,6 +64,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { ColorPicker } from "../components/ColorPicker";
 import { DateField, localDate } from "../components/DateField";
 import { DayPicker } from "../components/DayPicker";
+import { Disclosure } from "../components/Disclosure";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
 import { Screen } from "../components/Screen";
@@ -103,6 +109,9 @@ interface HabitFormScreenProps {
   onLinkTelegram: () => void;
   /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
+  /** Открыт экран «Дополнительно» поверх формы. */
+  advanced: boolean;
+  onOpenAdvanced: () => void;
 }
 
 export function HabitFormScreen({
@@ -110,6 +119,8 @@ export function HabitFormScreen({
   sharedNeedsTelegram = false,
   onLinkTelegram,
   onSaved,
+  advanced,
+  onOpenAdvanced,
 }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
@@ -198,13 +209,16 @@ export function HabitFormScreen({
     }
   }
 
+  // На «Дополнительно» нижней кнопки нет.
   useMainButton(
-    {
-      text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
-      ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
-      active: valid,
-      progress: submitting,
-    },
+    advanced
+      ? null
+      : {
+          text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
+          ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
+          active: valid,
+          progress: submitting,
+        },
     submit,
   );
 
@@ -475,8 +489,53 @@ export function HabitFormScreen({
       <p className={styles.note}>{strings.notificationsDenied}</p>
     ) : null;
 
+  if (advanced) {
+    return (
+      <Screen key="advanced" title={strings.formAdvanced} withTabBar={false} enterAnimation pinnedTitle>
+        <div className={`${styles.form} ${styles.pinned}`} style={habitColorStyle(color)}>
+          {timesPerDay === 1 && !shared ? (
+            <Section
+              variant="form"
+              title={strings.formAutoMarkHeading}
+              footer={strings.formAutoMarkFooter}
+            >
+              <Card>
+                <ListItem label={strings.formAutoMarkToggle}>
+                  <Switch
+                    checked={autoMark}
+                    onChange={setAutoMark}
+                    label={strings.formAutoMarkToggle}
+                  />
+                </ListItem>
+              </Card>
+            </Section>
+          ) : null}
+
+          {canSwitchShared ? (
+            <Section
+              variant="form"
+              title={strings.formSharedHeading}
+              footer={strings.formSharedFooter}
+            >
+              <Card>
+                <ListItem label={strings.formSharedToggle}>
+                  <Switch
+                    checked={shared}
+                    onChange={(on) => void switchShared(on)}
+                    label={strings.formSharedToggle}
+                  />
+                </ListItem>
+              </Card>
+            </Section>
+          ) : null}
+        </div>
+      </Screen>
+    );
+  }
+
   return (
     <Screen
+      key="form"
       title={habit ? strings.formEditTitle : strings.formCreateTitle}
       withTabBar={false}
       enterAnimation
@@ -518,37 +577,11 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {timesPerDay === 1 && !shared ? (
-          <Section
-            variant="form"
-            title={strings.formAutoMarkHeading}
-            footer={strings.formAutoMarkFooter}
-          >
+        {(timesPerDay === 1 && !shared) || canSwitchShared ? (
+          <Section variant="form">
             <Card>
-              <ListItem label={strings.formAutoMarkToggle}>
-                <Switch
-                  checked={autoMark}
-                  onChange={setAutoMark}
-                  label={strings.formAutoMarkToggle}
-                />
-              </ListItem>
-            </Card>
-          </Section>
-        ) : null}
-
-        {canSwitchShared ? (
-          <Section
-            variant="form"
-            title={strings.formSharedHeading}
-            footer={strings.formSharedFooter}
-          >
-            <Card>
-              <ListItem label={strings.formSharedToggle}>
-                <Switch
-                  checked={shared}
-                  onChange={(on) => void switchShared(on)}
-                  label={strings.formSharedToggle}
-                />
+              <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>
+                <Disclosure />
               </ListItem>
             </Card>
           </Section>
