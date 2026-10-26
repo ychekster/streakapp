@@ -230,11 +230,11 @@ def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -
             "type": "update",
             "task": owner_task,
             "habit": {"name": "Книги", "description": "по 20 страниц", "frequency_type": "daily",
-                      "times_per_day": 2, "color": "green", "auto_mark": False},
+                      "times_per_day": 2, "color": "green", "auto_mark": False, "overtime": True},
         },
     )
     mine = _only(client, friend, "Книги")
-    assert (mine["times_per_day"], mine["color"]) == (2, "green")
+    assert (mine["times_per_day"], mine["color"], mine["overtime"]) == (2, "green", True)
     assert mine["description"] == "по 20 страниц" and mine["reminder_time"] == "08:00"
 
 

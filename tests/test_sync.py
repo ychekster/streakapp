@@ -142,6 +142,33 @@ def test_habit_done_several_times_a_day(client: TestClient, user: AuthUser) -> N
     assert refused["results"][0]["error"]["code"] == "invalid_times_per_day"
 
 
+def test_overtime_counts_past_the_goal(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    created = _sync(
+        client,
+        user,
+        {"type": "create", "ref": "o", "habit": _habit("Вода", times_per_day=3, overtime=True)},
+        {"type": "create", "ref": "once", "habit": _habit("Бег", overtime=True)},
+    )
+    habit_id = created["results"][0]["id"]
+    by_name = {habit["name"]: habit for habit in created["habits"]}
+    # «Сверх плана» — only for habits done several times a day.
+    assert (by_name["Вода"]["overtime"], by_name["Бег"]["overtime"]) == (True, False)
+
+    def count(value: int) -> dict[str, object]:
+        return {"type": "mark", "task": habit_id, "date": today.isoformat(), "done": True, "count": value}
+
+    [habit] = [item for item in _sync(client, user, count(5))["habits"] if item["name"] == "Вода"]
+    assert (habit["today_count"], habit["done_today"], habit["current_streak"]) == (5, True, 1)
+    response = client.post("/sync", json={"ops": [count(100000)]}, headers=user.headers)
+    assert response.status_code == 422
+
+    # Turned off: a count still queued on a device stops at the goal.
+    _sync(client, user, {"type": "update", "task": habit_id, "habit": _habit("Вода", times_per_day=3)})
+    [habit] = [item for item in _sync(client, user, count(7))["habits"] if item["name"] == "Вода"]
+    assert (habit["overtime"], habit["today_count"], habit["done_today"]) == (False, 3, True)
+
+
 def test_mark_outside_the_history_is_refused(client: TestClient, user: AuthUser) -> None:
     today = _today(client, user)
     created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})

@@ -2,19 +2,31 @@
  *  галочкой).
  *
  *  Привычка «несколько раз в день» (`total` > 1): пока день не выполнен, обводка бледная,
- *  а посередине — сколько раз осталось (обратный отсчёт: 10, 9, … 1) цветом привычки.
- *  Каждое нажатие уменьшает число и плавно закрашивает следующую долю обводки — дугой от 12
- *  часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у обычной
+ *  а посередине — сколько раз уже сделано (счёт с нуля: 0, 1, … 9) цветом привычки.
+ *  Каждое нажатие увеличивает число и плавно закрашивает следующую долю обводки — дугой от
+ *  12 часов по часовой стрелке. Последнее нажатие сразу ставит галочку, как у обычной
  *  привычки; следующее обнуляет день.
+ *
+ *  «Сверх плана» (`countUp`): на цели кружок залит, а посередине вместо галочки остаётся
+ *  число; дальше нажатия только увеличивают его. С трёх цифр кнопка вытягивается влево в
+ *  пилюлю (шире с каждой цифрой). Долгое нажатие открывает окно счёта (`onLongPress`,
+ *  CountSheet).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 
 import { useStrings } from "../preferences";
 import styles from "./CheckButton.module.css";
 
 /** Длительность закрашивания доли обводки (мс). */
 const FILL_MS = 340;
+
+/** Долгое нажатие: сколько держать (мс) и на сколько можно сдвинуть палец (px). */
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_SLOP = 8;
+
+/** С этого числа кнопка «Сверх плана» — пилюля (три цифры в кружок не помещаются). */
+const WIDE_FROM = 100;
 
 /** Геометрия SVG поверх кнопки «несколько раз в день» (вся кнопка с обводкой, 30×30 —
  *  --check-size): дуга идёт по середине обводки толщиной 2⅔px (--check-stroke). */
@@ -72,6 +84,56 @@ interface CheckButtonProps {
   total?: number;
   /** Сколько раз выполнена за день отметки. */
   count?: number;
+  /** «Сверх плана»: счёт вверх и число вместо галочки. */
+  countUp?: boolean;
+  /** Долгое нажатие (только у активной кнопки «Сверх плана»). */
+  onLongPress?: () => void;
+}
+
+/** Обработчики долгого нажатия; `consumeClick` — сработало ли оно: тогда `click`, который
+ *  приходит следом, — не обычное нажатие. */
+function useLongPress(onLongPress: (() => void) | undefined) {
+  const timer = useRef(0);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const fired = useRef(false);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  if (!onLongPress) {
+    return { handlers: {}, consumeClick: () => false };
+  }
+  const cancel = (): void => {
+    window.clearTimeout(timer.current);
+    start.current = null;
+  };
+  return {
+    handlers: {
+      onPointerDown: (event: PointerEvent) => {
+        fired.current = false;
+        start.current = { x: event.clientX, y: event.clientY };
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => {
+          fired.current = true;
+          start.current = null;
+          onLongPress();
+        }, LONG_PRESS_MS);
+      },
+      onPointerMove: (event: PointerEvent) => {
+        const from = start.current;
+        if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > LONG_PRESS_SLOP) {
+          cancel();
+        }
+      },
+      onPointerUp: cancel,
+      onPointerCancel: cancel,
+      onPointerLeave: cancel,
+      // Без системного меню под пальцем.
+      onContextMenu: (event: MouseEvent) => event.preventDefault(),
+    },
+    consumeClick: (): boolean => {
+      const was = fired.current;
+      fired.current = false;
+      return was;
+    },
+  };
 }
 
 export function CheckButton({
@@ -82,10 +144,14 @@ export function CheckButton({
   frozen = false,
   total = 1,
   count = 0,
+  countUp = false,
+  onLongPress,
 }: CheckButtonProps) {
   const strings = useStrings();
   const multi = total > 1;
+  const up = multi && countUp;
   const made = Math.min(count, total);
+  const longPress = useLongPress(disabled || !up ? undefined : onLongPress);
   // Выполненный день — галочка без дуги: дуга обнуляется, а не докрашивается.
   const fraction = useAnimatedFraction(multi && !done ? made / total : 0);
   return (
@@ -94,12 +160,23 @@ export function CheckButton({
       className={[
         styles.button,
         multi ? styles.multi : "",
+        up ? styles.up : "",
+        up && count >= WIDE_FROM ? styles.wide : "",
         done ? styles.done : "",
         disabled ? styles.disabled : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={disabled ? undefined : onToggle}
+      onClick={
+        disabled
+          ? undefined
+          : () => {
+              if (!longPress.consumeClick()) {
+                onToggle();
+              }
+            }
+      }
+      {...longPress.handlers}
       disabled={disabled}
       aria-pressed={done}
       aria-label={
@@ -109,11 +186,13 @@ export function CheckButton({
             : frozen
               ? strings.checkFrozen(habitName)
               : strings.checkNotScheduled(habitName)
-          : done
-            ? strings.checkUnmark(habitName)
-            : multi
-              ? strings.checkCount(habitName, made, total)
-              : strings.checkMark(habitName)
+          : up
+            ? strings.checkCountUp(habitName, count, total)
+            : done
+              ? strings.checkUnmark(habitName)
+              : multi
+                ? strings.checkCount(habitName, made, total)
+                : strings.checkMark(habitName)
       }
     >
       {multi ? (
@@ -131,10 +210,11 @@ export function CheckButton({
           ) : null}
         </svg>
       ) : null}
-      {/* Сколько раз осталось; у выполненного дня вместо числа — галочка. */}
+      {/* Сколько раз сделано; у выполненного дня вместо числа — галочка, у «Сверх плана» —
+          то же число. */}
       {multi ? (
         <span className={styles.count} aria-hidden="true">
-          {total - made}
+          {up ? count : made}
         </span>
       ) : null}
       {/* Галочка появляется только в выполненном состоянии. */}

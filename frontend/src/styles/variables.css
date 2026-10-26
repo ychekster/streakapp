@@ -118,6 +118,30 @@
      разы — дугой по обводке. */
   --check-faded-opacity: 0.35; /* бледная обводка — как у неактивной кнопки */
   --check-count-font-size: 13px; /* число внутри кружка (до двух цифр) */
+  --check-wide-padding: 6px; /* «Сверх плана»: поля пилюли по бокам числа (от трёх цифр) */
+  /* Окно счёта «Сверх плана» (CountSheet): карточка снизу над затемнением. */
+  --count-sheet-margin: 8px; /* от краёв экрана */
+  --count-sheet-padding: 16px;
+  --count-sheet-radius: 34px;
+  --count-sheet-gap: 16px; /* между рядами */
+  --count-sheet-fill: var(--color-card);
+  --count-sheet-backdrop: rgba(0, 0, 0, 0.25);
+  --count-sheet-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  --count-sheet-anim: 260ms;
+  --count-sheet-chip-height: 30px;
+  --count-sheet-chip-gap: 8px;
+  --count-sheet-track-height: 8px;
+  --count-sheet-row-height: 50px; /* «−», число, «+» и быстрые прибавки */
+  --count-sheet-step-width: 64px;
+  --count-sheet-button-gap: 8px;
+  --count-sheet-button-radius: 16px;
+  --count-sheet-value-size: 24px;
+  --count-sheet-value-padding: 14px;
+  --count-sheet-quick-size: 17px;
+  --count-sheet-action-height: 52px; /* «Сбросить», «Заполнить день» */
+  /* Плашка «Отменить» после серии быстрых нажатий (UndoToast). */
+  --undo-toast-height: 50px;
+  --undo-toast-gap: 10px; /* над навигацией */
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру
@@ -484,6 +508,8 @@
   --color-danger-soft: rgba(255, 69, 58, 0.16);
   --color-placeholder: rgba(235, 235, 245, 0.3);
   --color-fill: rgba(118, 118, 128, 0.24);
+  --count-sheet-backdrop: rgba(0, 0, 0, 0.5);
+  --count-sheet-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1);
   --color-stepper-divider: rgba(84, 84, 88, 0.65);
   --color-search-clear: rgba(235, 235, 245, 0.45);
   --main-button-disabled-bg: #2c2c2e;

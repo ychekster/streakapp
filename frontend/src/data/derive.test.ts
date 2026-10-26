@@ -263,6 +263,13 @@ describe("deriveView", () => {
     expect(lowered).toMatchObject({ times_per_day: 2, today_count: 2, done_today: true });
   });
 
+  it("stops a count at the goal without «Сверх плана»", () => {
+    const mark = { type: "mark" as const, task: 1, date: TODAY, done: true, count: 5 };
+    expect(view(snapshot([habit({ times_per_day: 3 })]), [mark]).habits[0].today_count).toBe(3);
+    const over = view(snapshot([habit({ times_per_day: 3, overtime: true })]), [mark]).habits[0];
+    expect(over).toMatchObject({ today_count: 5, done_today: true, current_streak: 1 });
+  });
+
   it("returns the server's habits as they are when nothing changed", () => {
     const base = habit();
     expect(view(snapshot([base])).habits[0]).toBe(base);

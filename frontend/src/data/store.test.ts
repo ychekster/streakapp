@@ -118,6 +118,25 @@ describe("dataStore", () => {
     expect(localStorage.getItem("streak:changes")).toContain('"value":[]');
   });
 
+  it("counts past the goal with «Сверх плана» and sets the count from the count window", async () => {
+    syncChanges.mockResolvedValueOnce(answer([habit({ times_per_day: 2, today_count: 1, overtime: true })]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.toggle(1);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 2, done_today: true });
+    // Past the goal a press keeps counting instead of starting the day over.
+    store.toggle(1);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 3, done_today: true });
+    store.setCount(1, 1);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 1, done_today: false });
+    store.setCount(1, 250000);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 99999, done_today: true });
+    store.setCount(1, -3);
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 0, done_today: false });
+  });
+
   it("sends every unsent change before logging out, or says it could not", async () => {
     syncChanges.mockResolvedValueOnce(answer([habit()]));
     const store = await freshStore();

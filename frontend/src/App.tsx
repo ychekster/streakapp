@@ -60,9 +60,11 @@ import { loadMeta, loadTimezones } from "./api/meta";
 import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "./components/CollapsingHeader";
+import { closeCountSheet, CountSheet, useCountSheetHabit } from "./components/CountSheet";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
+import { UndoToast } from "./components/UndoToast";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
 import { isShared } from "./data/derive";
@@ -199,6 +201,8 @@ export function App() {
   const { settings, save } = settingsState;
   const { rejected, folders, allHabitsPosition } = useAppData();
   const toggle = useToggle();
+  // Открытое окно счёта «Сверх плана» (удержание кнопки отметки); «Назад» закрывает его.
+  const countSheetHabit = useCountSheetHabit();
   const platform = usePlatform();
   const telegramAvailable = platform === "telegram";
   const web = platform === "web";
@@ -612,10 +616,14 @@ export function App() {
     [hideHabit],
   );
 
+  const tabBarHidden = editor !== null || openHabit !== undefined || settingsPage !== null;
+
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
     adminMode
       ? null
+      : countSheetHabit !== null
+        ? closeCountSheet
       : editor
         ? editorAdvanced
           ? hideEditorAdvanced
@@ -1088,13 +1096,14 @@ export function App() {
       <TabBar
         tabs={tabs}
         active={tab}
-        hidden={
-          editor !== null || openHabit !== undefined || settingsPage !== null
-        }
+        hidden={tabBarHidden}
         onSelect={selectTab}
         onAdd={() => showEditor(null)}
         addLabel={strings.addHabit}
       />
+      {/* «Сверх плана»: плашка «Отменить» после серии нажатий и окно счёта (удержание). */}
+      <UndoToast aboveTabBar={!tabBarHidden} />
+      <CountSheet />
       {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );

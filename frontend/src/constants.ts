@@ -249,6 +249,10 @@ export const MAX_GROUP_MEMBERS = 12;
  *  −/+ stops there. */
 export const MAX_TIMES_PER_DAY = 96;
 
+/** «Сверх плана»: the most times a day a habit can be counted past its goal
+ *  (OVERTIME_MAX_COUNT on the backend). */
+export const OVERTIME_MAX_COUNT = 99999;
+
 /** «Гибкий график»: periods and the most times a period can ask for — the longest such
  *  period's days (PERIOD_MAX_TIMES on the backend); a shorter one asks for its days. */
 export const PERIOD_MAX_TIMES = { week: 7, month: 31, year: 366 } as const;

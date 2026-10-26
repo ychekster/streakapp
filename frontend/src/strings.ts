@@ -387,6 +387,23 @@ const RU = {
   // Привычка «несколько раз в день»: нажатие считает ещё один раз.
   checkCount: (name: string, count: number, total: number) =>
     `Отметить ещё раз: ${name} (${count} из ${total})`,
+  // «Сверх плана»: нажатие — ещё раз, удержание — окно счёта.
+  checkCountUp: (name: string, count: number, total: number) =>
+    `Отметить ещё раз: ${name} (сделано ${count}, цель ${total}). Удерживайте, чтобы открыть счёт`,
+
+  // --- Окно счёта «Сверх плана» (удержание кнопки отметки) ---
+  countSheetToday: "Сегодня",
+  countSheetYesterday: "Вчера",
+  countSheetClose: "Закрыть",
+  countSheetLess: "Меньше на один",
+  countSheetMore: "Больше на один",
+  countSheetValue: "Сколько раз сделано",
+  countSheetAdd: (step: number) => `Прибавить ${step}`,
+  countSheetReset: "Сбросить",
+  countSheetFill: "Заполнить день",
+  // Плашка после серии быстрых нажатий.
+  undoTaps: (name: string, taps: number) => `${name}: +${taps}`,
+  undo: "Отменить",
 
   // --- Создание и редактирование привычки ---
   formCreateTitle: "Новая привычка",
@@ -435,6 +452,10 @@ const RU = {
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
+  formOvertimeHeading: "Сверх плана",
+  formOvertimeToggle: "Можно больше цели",
+  formOvertimeFooter:
+    "Когда цель набрана, день засчитан, но отмечать можно и дальше. Зажмите кнопку отметки — откроется окно, где можно прибавить сразу много, ввести число, заполнить или сбросить день.",
   // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
   // пригласить.
   formSharedHeading: "Групповая привычка (Beta)",
@@ -829,6 +850,20 @@ const EN: Strings = {
   checkFrozen: (name: string) => `${name}: frozen`,
   checkCount: (name: string, count: number, total: number) =>
     `Mark once more: ${name} (${count} of ${total})`,
+  checkCountUp: (name: string, count: number, total: number) =>
+    `Mark once more: ${name} (${count} done, goal ${total}). Hold to open the count`,
+
+  countSheetToday: "Today",
+  countSheetYesterday: "Yesterday",
+  countSheetClose: "Close",
+  countSheetLess: "One less",
+  countSheetMore: "One more",
+  countSheetValue: "Times done",
+  countSheetAdd: (step: number) => `Add ${step}`,
+  countSheetReset: "Reset",
+  countSheetFill: "Fill the Day",
+  undoTaps: (name: string, taps: number) => `${name}: +${taps}`,
+  undo: "Undo",
 
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
@@ -871,6 +906,10 @@ const EN: Strings = {
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
+  formOvertimeHeading: "Beyond the Goal",
+  formOvertimeToggle: "Allow More Than the Goal",
+  formOvertimeFooter:
+    "Once the goal is reached the day counts, but you can keep going. Press and hold the check button to open a window where you can add a lot at once, type a number, fill or reset the day.",
   formSharedHeading: "Group Habit (Beta)",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:

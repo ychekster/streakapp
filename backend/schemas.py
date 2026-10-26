@@ -21,6 +21,7 @@ from backend.constants import (
     MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
+    OVERTIME_MAX_COUNT,
     SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
 )
@@ -268,6 +269,13 @@ class Habit(BaseModel):
             "напоминаниями — сразу после последнего (только при times_per_day = 1)"
         ),
     )
+    overtime: bool = Field(
+        False,
+        description=(
+            "«Сверх плана»: счёт идёт вверх, после цели можно отмечать ещё (до "
+            "OVERTIME_MAX_COUNT); только при times_per_day > 1"
+        ),
+    )
     history_counts: list[int] = Field(
         default_factory=list,
         description=(
@@ -393,6 +401,10 @@ class HabitCreate(BaseModel):
         False,
         description="«Автоотметка» (экран привычки); при times_per_day > 1 не действует",
     )
+    overtime: bool = Field(
+        False,
+        description="«Сверх плана»: после цели можно отмечать ещё; при times_per_day = 1 не действует",
+    )
     shared: bool | None = Field(
         None,
         description=(
@@ -493,13 +505,14 @@ class SyncMark(BaseModel):
     """Отметить (`done: true`) или снять отметку выполнения привычки за день `date`.
 
     У привычки «несколько раз в день» `count` — сколько раз она выполнена за день (`done`
-    — набрано ли `times_per_day`); без `count` — обычная отметка."""
+    — набрано ли `times_per_day`; больше цели — только у «Сверх плана»); без `count` —
+    обычная отметка."""
 
     type: Literal["mark"]
     task: TaskRef
     date: date
     done: bool
-    count: int | None = Field(None, ge=0, le=MAX_TIMES_PER_DAY)
+    count: int | None = Field(None, ge=0, le=OVERTIME_MAX_COUNT)
 
 
 class SyncFreeze(BaseModel):

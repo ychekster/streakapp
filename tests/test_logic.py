@@ -69,7 +69,7 @@ def test_habit_starts_on_its_first_mark_or_freeze() -> None:
     # этот день ушёл из истории. Пока нет ни того ни другого, привычка просто существует.
     task = Task(
         id=1, user_id=1, name="Бег", frequency_type=FrequencyType.daily, color="red",
-        times_per_day=1, auto_mark=False, is_active=True,
+        times_per_day=1, auto_mark=False, overtime=False, is_active=True,
     )
     old = TODAY - timedelta(days=500)
     habit = build_habit(task, {old, TODAY}, TODAY)

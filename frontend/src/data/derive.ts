@@ -331,6 +331,7 @@ function habitFields(
   | "color"
   | "times_per_day"
   | "auto_mark"
+  | "overtime"
 > {
   // Kept on the device before "several times a day" existed: once.
   const timesPerDay = input.times_per_day ?? 1;
@@ -358,6 +359,8 @@ function habitFields(
     times_per_day: timesPerDay,
     // As the server: auto check-off only for once-a-day habits.
     auto_mark: (input.auto_mark ?? false) && timesPerDay === 1,
+    // «Сверх плана» only for habits done several times a day.
+    overtime: (input.overtime ?? false) && timesPerDay > 1,
   };
 }
 
@@ -975,8 +978,11 @@ export function deriveView(
           draft.counts.set(op.date, 0);
           draft.marks.set(op.date, op.done);
         } else {
-          draft.counts.set(op.date, op.count);
-          draft.marks.set(op.date, op.count >= (fields?.times_per_day ?? 1));
+          // Past the goal only with «Сверх плана» (a press may have waited in the queue).
+          const target = fields?.times_per_day ?? 1;
+          const count = fields?.overtime ? op.count : Math.min(op.count, target);
+          draft.counts.set(op.date, count);
+          draft.marks.set(op.date, count >= target);
         }
       } else if (draft && op.type === "freeze") {
         draft.freezes ??= serverFreezes(draft.base);

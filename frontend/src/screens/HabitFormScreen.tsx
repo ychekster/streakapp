@@ -168,6 +168,10 @@ export function HabitFormScreen({
   const [timesPerDay, setTimesPerDay] = useState(habit?.times_per_day ?? 1);
   // Помнится, пока цель больше одного раза (ряд скрыт), но сохраняется только при одном.
   const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
+  // «Сверх плана» — наоборот: помнится при одном разе, сохраняется только при нескольких.
+  const [overtime, setOvertime] = useState(habit?.overtime ?? false);
+  // Участник групповой привычки его не меняет (поле владельца).
+  const showOvertime = timesPerDay > 1 && !locked;
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
@@ -301,6 +305,7 @@ export function HabitFormScreen({
       times_per_day: timesPerDay,
       // У «несколько раз в день» и в групповой автоотметки нет (ряд скрыт).
       auto_mark: autoMark && timesPerDay === 1 && !shared,
+      overtime: overtime && timesPerDay > 1,
       // Только если переключатель изменили: иначе привычка такая, какая есть на сервере.
       ...(shared !== wasShared ? { shared } : {}),
     };
@@ -511,6 +516,24 @@ export function HabitFormScreen({
             </Section>
           ) : null}
 
+          {showOvertime ? (
+            <Section
+              variant="form"
+              title={strings.formOvertimeHeading}
+              footer={strings.formOvertimeFooter}
+            >
+              <Card>
+                <ListItem label={strings.formOvertimeToggle}>
+                  <Switch
+                    checked={overtime}
+                    onChange={setOvertime}
+                    label={strings.formOvertimeToggle}
+                  />
+                </ListItem>
+              </Card>
+            </Section>
+          ) : null}
+
           {canSwitchShared ? (
             <Section
               variant="form"
@@ -577,7 +600,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {(timesPerDay === 1 && !shared) || canSwitchShared ? (
+        {(timesPerDay === 1 && !shared) || showOvertime || canSwitchShared ? (
           <Section variant="form">
             <Card>
               <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>

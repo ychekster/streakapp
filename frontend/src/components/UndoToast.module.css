@@ -1,0 +1,93 @@
+/* Плашка «Отменить»: стеклянная капсула, как навигация; над ней или у нижнего края. */
+
+.toast {
+  position: fixed;
+  left: var(--space-screen-x);
+  right: var(--space-screen-x);
+  bottom: var(--tabbar-offset);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--undo-toast-height);
+  padding: 0 8px 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-shadow);
+  color: var(--color-text-primary);
+  animation: toast-in var(--transition-fast) ease-out;
+}
+
+.aboveTabBar {
+  bottom: calc(var(--tabbar-offset) + var(--tabbar-height) + var(--undo-toast-gap));
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Кружок с обратным отсчётом: обводка убывает за UNDO_MS (5 с), внутри — секунды. */
+.timer {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.timer svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  /* Длина окружности r=12: 2π·12 ≈ 75.4. */
+  stroke-dasharray: 75.4;
+  animation: ring-out 5s linear forwards;
+}
+
+@keyframes ring-out {
+  to {
+    stroke-dashoffset: 75.4;
+  }
+}
+
+.seconds {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+}
+
+.undo {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}

@@ -19,10 +19,12 @@ import { memo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
 import { groupFill } from "../data/derive";
+import { endBurst } from "../hooks/useToggle";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import { CheckButton } from "./CheckButton";
+import { openCountSheet } from "./CountSheet";
 import { fixedGridFill, useGridView } from "./gridLayout";
 import { YearGrid } from "./YearGrid";
 import styles from "./HabitBlock.module.css";
@@ -77,6 +79,9 @@ export const HabitBlock = memo(function HabitBlock({
           frozen={habit.frozen_since !== null}
           total={habit.times_per_day}
           count={habit.today_count}
+          countUp={habit.overtime}
+          // Отмечать можно — удержание открывает окно счёта (у «Сверх плана»).
+          onLongPress={onToggle ? () => openSheet(habit.id) : undefined}
           onToggle={() => onToggle?.(habit.id)}
         />
       </div>
@@ -93,3 +98,9 @@ export const HabitBlock = memo(function HabitBlock({
     </article>
   );
 });
+
+/** Окно счёта: серия быстрых нажатий и её плашка «Отменить» заканчиваются. */
+function openSheet(habitId: number): void {
+  endBurst();
+  openCountSheet(habitId);
+}

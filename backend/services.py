@@ -369,6 +369,7 @@ def build_habit(
         times_per_day=task.times_per_day,
         today_count=today_count,
         auto_mark=task.auto_mark,
+        overtime=task.overtime,
         auto_mark_ahead=auto_mark_ahead,
         history_counts=(
             group.my_units
@@ -576,6 +577,7 @@ class HabitFields:
     color: str
     times_per_day: int
     auto_mark: bool
+    overtime: bool
 
     @property
     def reminder_time(self) -> time | None:
@@ -625,6 +627,8 @@ async def _validate_habit_fields(
         times_per_day=times_per_day,
         # Автоотметка — только у привычек «раз в день».
         auto_mark=payload.auto_mark and times_per_day == 1,
+        # «Сверх плана» — только у привычек «несколько раз в день».
+        overtime=payload.overtime and times_per_day > 1,
     )
 
 
@@ -651,6 +655,7 @@ async def _create_task(
         color=fields.color,
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
+        overtime=fields.overtime,
         client_ref=client_ref,
     )
     await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
@@ -705,6 +710,7 @@ async def update_habit(
         color=fields.color,
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
+        overtime=fields.overtime,
     )
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
     await groups.share_owner_changes(repo, user, task)
@@ -913,6 +919,10 @@ async def _apply_sync_op(
         if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
             raise ApiError(422, "invalid_date", "День вне истории привычки")
         log = await repo.get_or_create_log(task.id, user.telegram_id, op.date)
+        # Больше цели — только у «Сверх плана» (отметка могла ждать в очереди, пока
+        # настройку выключили).
+        if op.count is not None and not task.overtime:
+            op = op.model_copy(update={"count": min(op.count, task.times_per_day)})
         # Привычка «несколько раз в день»: день выполнен, когда набрано times_per_day.
         done = op.done if op.count is None else op.count >= task.times_per_day
         target = TaskStatus.done if done else TaskStatus.pending

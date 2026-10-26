@@ -385,6 +385,7 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
         source.color,
         source.period,
         source.period_times,
+        source.overtime,
     )
 
 
@@ -428,6 +429,7 @@ async def restrict_update(repo: Repository, user: User, task: Task, payload):  #
             period=task.period,
             period_times=task.period_times,
             times_per_day=task.times_per_day,
+            overtime=task.overtime,
         )
     return payload.model_copy(update=updates)
 
@@ -709,6 +711,7 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         period_times=source.period_times,
         color=source.color,
         times_per_day=source.times_per_day,
+        overtime=source.overtime,
     )
     await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
     if me is not None:

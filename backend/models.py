@@ -251,6 +251,12 @@ class Task(Base):
     auto_mark: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # «Сверх плана»: у привычки «несколько раз в день» счёт идёт вверх и не
+    # останавливается на цели — день выполнен с цели, а дальше можно отмечать ещё (до
+    # OVERTIME_MAX_COUNT). Только при times_per_day > 1. У групповой — поле владельца.
+    overtime: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     # Id, который дало привычке устройство, создав её без связи (POST /sync): по нему
     # повтор создания не заводит вторую привычку, а отметки новой привычки её находят.
     client_ref: Mapped[str | None] = mapped_column(

@@ -28,6 +28,7 @@ import { syncChanges } from "../api/sync";
 import {
   MAX_FOLDERS_PER_USER,
   MAX_HABITS_PER_USER,
+  OVERTIME_MAX_COUNT,
   SYNC_BATCH_SIZE,
   SYNC_DELAY_MS,
   SYNC_REFRESH_MIN_MS,
@@ -618,16 +619,19 @@ export const dataStore = {
   },
 
   /** Mark or unmark the habit for the marking day. A habit done several times a day
-   *  counts one more time per press; once done, a press starts the day over. */
+   *  counts one more time per press; once done, a press starts the day over — with
+   *  «Сверх плана» it keeps counting (up to OVERTIME_MAX_COUNT). */
   toggle(id: number): void {
     const habit = state.habits.find((item) => item.id === id);
     if (!habit?.scheduled_today || habit.frozen_since !== null || !viewDay) {
       return;
     }
     if (habit.times_per_day > 1) {
-      const count = habit.done_today
-        ? 0
-        : Math.min(habit.today_count + 1, habit.times_per_day);
+      const count = habit.overtime
+        ? Math.min(habit.today_count + 1, OVERTIME_MAX_COUNT)
+        : habit.done_today
+          ? 0
+          : Math.min(habit.today_count + 1, habit.times_per_day);
       enqueue({
         type: "mark",
         task: keyOf(id),
@@ -638,6 +642,26 @@ export const dataStore = {
     } else {
       enqueue({ type: "mark", task: keyOf(id), date: viewDay, done: !habit.done_today });
     }
+  },
+
+  /** «Сверх плана»: set how many times the habit is done on the marking day (the count
+   *  window, an undone run of presses); below the goal the day is not done again. */
+  setCount(id: number, value: number): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit?.overtime || !habit.scheduled_today || habit.frozen_since !== null || !viewDay) {
+      return;
+    }
+    const count = Math.max(0, Math.min(Math.round(value), OVERTIME_MAX_COUNT));
+    if (count === habit.today_count) {
+      return;
+    }
+    enqueue({
+      type: "mark",
+      task: keyOf(id),
+      date: viewDay,
+      done: count >= habit.times_per_day,
+      count,
+    });
   },
 
   /** Freeze the habit from the marking day, or unfreeze it (the marking day is an
@@ -685,6 +709,7 @@ export const dataStore = {
         color: habit.color,
         times_per_day: habit.times_per_day,
         auto_mark: on,
+        overtime: habit.overtime,
       },
     });
   },

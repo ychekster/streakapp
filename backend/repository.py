@@ -675,6 +675,7 @@ class Repository:
         description: str | None = None,
         period: str | None = None,
         period_times: int | None = None,
+        overtime: bool = False,
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync);
         `extra_reminder_times` — напоминания после первого (`reminder_time`)."""
@@ -691,6 +692,7 @@ class Repository:
             color=color,
             times_per_day=times_per_day,
             auto_mark=auto_mark,
+            overtime=overtime,
             client_ref=client_ref,
             is_active=True,
             extra_reminders=[
@@ -716,10 +718,12 @@ class Repository:
         description: str | None = None,
         period: str | None = None,
         period_times: int | None = None,
+        overtime: bool = False,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
         task.auto_mark = auto_mark
+        task.overtime = overtime
         task.name = name
         task.description = description
         task.frequency_type = frequency_type
@@ -1384,6 +1388,7 @@ class Repository:
         color: str,
         period: str | None = None,
         period_times: int | None = None,
+        overtime: bool = False,
     ) -> None:
         """Общие поля совместной привычки (как у владельца); автоотметки в ней нет."""
         task.name = name
@@ -1395,6 +1400,7 @@ class Repository:
         task.period = period
         task.period_times = period_times
         task.times_per_day = times_per_day
+        task.overtime = overtime
         task.auto_mark = False
         await self.session.flush()
 
