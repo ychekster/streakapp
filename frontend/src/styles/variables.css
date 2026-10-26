@@ -12,6 +12,8 @@
  */
 :root {
   color-scheme: light; /* системные меню, выбор времени, клавиатура — в тон теме */
+  /* Флаг темы для своего цвета привычки (theme.ts, habitRgb): 1 — светлая, 0 — тёмная. */
+  --theme-light: 1;
 
   /* --- Цвета --- */
   --color-background: #f2f2f6; /* фон «Настроек» iOS 26 (замер со скриншота) */
@@ -422,6 +424,7 @@
  */
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --theme-light: 0;
 
   --color-background: #000000;
   --color-card: #1c1c1e;
