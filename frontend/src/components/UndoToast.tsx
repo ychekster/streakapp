@@ -98,7 +98,10 @@ export function UndoToast({ aboveTabBar }: UndoToastProps) {
         </svg>
         <span className={styles.seconds}>{seconds}</span>
       </span>
-      <span className={styles.text}>{strings.undoTaps(current.name, current.taps)}</span>
+      <span className={styles.text}>
+        <span className={styles.name}>{current.name}</span>
+        <span className={styles.taps}>{strings.undoTapsSuffix(current.taps)}</span>
+      </span>
       <button
         type="button"
         className={styles.undo}

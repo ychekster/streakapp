@@ -75,14 +75,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* «Вода: +12»: длинное название сокращается многоточием, а число нажатий видно всегда. */
 .text {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
   white-space: nowrap;
   font-size: var(--undo-toast-font-size);
   font-weight: 600;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.taps {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .undo {

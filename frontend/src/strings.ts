@@ -401,8 +401,9 @@ const RU = {
   countSheetAdd: (step: number) => `Прибавить ${step}`,
   countSheetReset: "Сбросить",
   countSheetFill: "Заполнить день",
-  // Плашка после серии быстрых нажатий.
-  undoTaps: (name: string, taps: number) => `${name}: +${taps}`,
+  // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
+  // видно всегда.
+  undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Отменить",
 
   // --- Создание и редактирование привычки ---
@@ -862,7 +863,7 @@ const EN: Strings = {
   countSheetAdd: (step: number) => `Add ${step}`,
   countSheetReset: "Reset",
   countSheetFill: "Fill the Day",
-  undoTaps: (name: string, taps: number) => `${name}: +${taps}`,
+  undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 
   formCreateTitle: "New Habit",

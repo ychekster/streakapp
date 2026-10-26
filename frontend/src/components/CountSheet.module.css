@@ -4,10 +4,15 @@
    место под полоску «Домой». Размеры сняты со скриншота iPhone 16 Pro (402pt) и
    лежат в токенах --count-sheet-* (variables.css); цвет привычки — --habit-rgb. */
 
+/* Пока окно открыто, экран под ним не листается: ни прокрутки, ни свайпа между папками и
+   «Назад» (useHorizontalSwipe не берёт касания с touch-action: none). Окно закрывают
+   только «×» и нажатие на затемнение. */
 .layer {
   position: fixed;
   inset: 0;
   z-index: 40;
+  touch-action: none;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
