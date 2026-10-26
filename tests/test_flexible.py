@@ -129,6 +129,29 @@ def test_quota_closes_the_period(client: TestClient, user: AuthUser) -> None:
     assert habit["scheduled_today"] is False and habit["period_done"] == 1
 
 
+def test_quota_lets_a_partial_day_go_down(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    if today.timetuple().tm_yday == 1:
+        pytest.skip("1 января: другого дня этого года ещё не было")
+    habit = _habit("Вода", "year", 1, times_per_day=3)
+    created = _sync(client, user, {"type": "create", "ref": "y", "habit": habit})
+    task_id = created["results"][0]["id"]
+
+    def mark(day: date, count: int) -> dict[str, object]:
+        return {
+            "type": "mark", "task": task_id, "date": day.isoformat(),
+            "done": count >= 3, "count": count,
+        }
+
+    # Сегодня начат (2 из 3), а цель года набрал вчерашний день.
+    data = _sync(client, user, mark(today, 2), mark(today - timedelta(days=1), 3))
+    assert all(result["ok"] for result in data["results"])
+    # Счёт сегодняшнего дня можно уменьшить, но не увеличить.
+    data = _sync(client, user, mark(today, 1), mark(today, 2))
+    assert data["results"][0]["ok"] is True
+    assert data["results"][1]["error"]["code"] == "quota_reached"
+
+
 def test_flexible_form_is_validated(client: TestClient, user: AuthUser) -> None:
     data = _sync(
         client,

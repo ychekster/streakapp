@@ -916,8 +916,11 @@ async def _apply_sync_op(
         # Привычка «несколько раз в день»: день выполнен, когда набрано times_per_day.
         done = op.done if op.count is None else op.count >= task.times_per_day
         target = TaskStatus.done if done else TaskStatus.pending
-        # «Гибкий график»: новый день периода, где цель уже набрана, не отмечается.
-        if log.status != TaskStatus.done and (op.done if op.count is None else op.count > 0):
+        # «Гибкий график»: новый день периода, где цель уже набрана, не отмечается (снять
+        # отметку или уменьшить счёт — можно).
+        if log.status != TaskStatus.done and (
+            op.done if op.count is None else op.count > (log.count or 0)
+        ):
             await _check_quota(repo, task, op.date)
         if log.count != op.count:
             await repo.set_log_count(log, op.count)

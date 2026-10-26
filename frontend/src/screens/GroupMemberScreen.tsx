@@ -23,6 +23,7 @@ import { DestructiveButton } from "../components/DestructiveButton";
 import { GridViewContext, useGridView } from "../components/gridLayout";
 import { HabitSummary } from "../components/HabitSummary";
 import { Screen } from "../components/Screen";
+import { periodGoal } from "../data/derive";
 import {
   knownMemberHabit,
   removeFromShared,
@@ -80,7 +81,7 @@ export function GroupMemberScreen({
       description: habit.description ?? null,
       color: habit.color,
     };
-    return mine && loaded.day === gridView.day ? withMyToday(page, habit) : page;
+    return mine && loaded.day === gridView.day ? withMyToday(page, habit, loaded.day) : page;
   }, [loaded, mine, habit, gridView.day]);
 
   async function askToRemove(): Promise<void> {
@@ -142,9 +143,11 @@ export function GroupMemberScreen({
 /**
  * Моя страница со мной сегодняшним с устройства (`mine` — моя привычка из data/store, её
  * кнопка — моя часть): отметка видна сразу, серия и «Всего выполнено» — на день больше
- * или меньше, пока не ответит сервер.
+ * или меньше, пока не ответит сервер. У «Гибкого графика» серия — в периодах: на день
+ * меняется счёт периода, а серия — закончившиеся периоды (`prior_streak`) и текущий, если
+ * в нём набрана цель. `day` — мой день отметки.
  */
-function withMyToday(page: Habit, mine: Habit): Habit {
+function withMyToday(page: Habit, mine: Habit, day: string): Habit {
   const done = mine.done_today;
   const count = mine.today_count ?? 0;
   const shown = { ...page, id: mine.id };
@@ -152,7 +155,14 @@ function withMyToday(page: Habit, mine: Habit): Habit {
     return shown;
   }
   const delta = Number(done) - Number(page.done_today);
-  const current = Math.max(0, page.current_streak + delta);
+  const goal = periodGoal(page, day);
+  const periodDone = Math.max(0, (page.period_done ?? 0) + delta);
+  const current =
+    goal === null
+      ? Math.max(0, page.current_streak + delta)
+      : (page.prior_streak ?? 0) + Number(periodDone >= goal);
+  const best =
+    goal === null ? Math.max(page.best_streak, current) : Math.max(page.prior_best ?? 0, current);
   const last = page.history.length - 1;
   const counts = page.history_counts ?? [];
   return {
@@ -162,7 +172,8 @@ function withMyToday(page: Habit, mine: Habit): Habit {
     history: page.history.map((value, index) => (index === last ? done : value)),
     history_counts: counts.map((value, index) => (index === counts.length - 1 ? count : value)),
     total_done: Math.max(0, page.total_done + delta),
+    period_done: goal === null ? page.period_done : periodDone,
     current_streak: current,
-    best_streak: Math.max(page.best_streak, current),
+    best_streak: best,
   };
 }
