@@ -3,7 +3,8 @@
  * Telegram: круглое фото из Telegram (нет — первая буква имени цветом привычки), @username
  * или имя («Вы» — я), «(владелец)». Справа — как идут дела в день отметки: галочка — свою
  * часть выполнил, у привычки «несколько раз в день» — сколько раз из скольких («3/10»),
- * снежинка — заморожен (тогда его не ждут).
+ * снежинка — заморожен (тогда его не ждут). У «Гибкого графика» — как идёт его период:
+ * сколько дней из цели («1/3»), набрал — галочка.
  *
  * Последний ряд — «+ Добавить участника» (как «Add Account»): отправить ссылку-приглашение;
  * он есть у всех участников. Нажатие на участника (любого, себя тоже) открывает его
@@ -22,8 +23,11 @@ import styles from "./GroupMembers.module.css";
 
 interface GroupMembersProps {
   group: HabitGroup;
-  /** Сколько раз в день нужно выполнить привычку. */
+  /** Сколько раз в день нужно выполнить привычку; у «Гибкого графика» (`byPeriod`) —
+   *  сколько дней за период. */
   total: number;
+  /** «Гибкий график»: справа — дни в текущем периоде (`period_done`), мои — `mineCount`. */
+  byPeriod?: boolean;
   /** Моя часть — моё состояние на устройстве свежее ответа сервера. */
   mineDone: boolean;
   mineCount: number;
@@ -75,6 +79,7 @@ export function MemberRows({ children }: { children: ReactNode }) {
 export function GroupMembers({
   group,
   total,
+  byPeriod = false,
   mineDone,
   mineCount,
   onPressMember,
@@ -87,8 +92,9 @@ export function GroupMembers({
       <div className={styles.members}>
         <Card>
           {group.members.map((member) => {
-            const done = member.is_me ? mineDone : member.done;
-            const count = Math.min(member.is_me ? mineCount : member.count, total);
+            const own = member.is_me ? mineCount : byPeriod ? (member.period_done ?? 0) : member.count;
+            const count = Math.min(own, total);
+            const done = byPeriod ? count >= total : member.is_me ? mineDone : member.done;
             return (
               <ListItem
                 key={member.user_id}
@@ -124,7 +130,7 @@ export function GroupMembers({
                       strokeLinejoin="round"
                     />
                   </svg>
-                ) : total > 1 ? (
+                ) : total > 1 || byPeriod ? (
                   <span className={styles.count} aria-label={strings.groupMemberCount(count, total)}>
                     {count}/{total}
                   </span>

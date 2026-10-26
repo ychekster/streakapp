@@ -48,7 +48,9 @@ import {
 } from "../components/SettingsIcons";
 import { Switch } from "../components/Switch";
 import { DestructiveButton } from "../components/DestructiveButton";
-import { isShared } from "../data/derive";
+import { localDate } from "../components/DateField";
+import { useGridView } from "../components/gridLayout";
+import { isShared, periodGoal } from "../data/derive";
 import {
   inviteToShared,
   leaveShared,
@@ -109,6 +111,8 @@ export function HabitScreen({
   const groupBusy = useRef(false);
   const shared = isShared(habit);
   const group = habit.group ?? null;
+  // «Гибкий график»: цель текущего периода — участники показывают, сколько из неё набрали.
+  const goal = periodGoal(habit, useGridView().day ?? localDate());
   // «Отметки участников» переключаются сразу; ответ сервера их подтверждает.
   const [notify, setNotify] = useState(group?.notify_marks ?? false);
   useEffect(() => setNotify(group?.notify_marks ?? false), [group?.notify_marks]);
@@ -257,9 +261,10 @@ export function HabitScreen({
         {shared && group ? (
           <GroupMembers
             group={group}
-            total={habit.times_per_day}
+            total={goal ?? habit.times_per_day}
+            byPeriod={goal !== null}
             mineDone={habit.done_today}
-            mineCount={habit.today_count}
+            mineCount={goal !== null ? (habit.period_done ?? 0) : habit.today_count}
             // Участник группы, созданной без связи, ещё не на сервере — открывать нечего.
             onPressMember={group.id > 0 ? openMember : undefined}
             onAddMember={invite}

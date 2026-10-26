@@ -14,7 +14,9 @@
  *    (сохранить нельзя). Все дни сохраняются как `daily`, остальные — `specific_days`.
  *    «Через день» и «каждый месяц» добавляют дату начала (системный календарь): с неё
  *    привычка идёт каждый второй день или то же число каждого месяца (в коротком месяце
- *    — его последний день);
+ *    — его последний день). «Гибкий график» — вместо дней «Период» (неделя, месяц, год) и
+ *    сколько раз за него («3 раза в неделю», степпер −/+) в любые дни; цель больше дней
+ *    короткого месяца (года) — под карточкой сказано, что в нём по числу дней;
  *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
  *    одного раза — кружок отметки бледный, внутри — сколько раз осталось, каждое нажатие
  *    закрашивает его часть (CheckButton);
@@ -70,6 +72,7 @@ import {
   HABIT_DESCRIPTION_MAX_LENGTH,
   MAX_REMINDERS_PER_HABIT,
   MAX_TIMES_PER_DAY,
+  PERIOD_MAX_TIMES,
   START_DATE_MAX_AHEAD_DAYS,
   WEEKDAYS,
 } from "../constants";
@@ -85,7 +88,7 @@ import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
 import { hapticNotification, showAlert } from "../telegram/webapp";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
-import type { FrequencyType, Habit, HabitColor, HabitInput } from "../types/habit";
+import type { FrequencyType, Habit, HabitColor, HabitInput, Period } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitFormScreen.module.css";
@@ -120,10 +123,14 @@ export function HabitFormScreen({
   const [description, setDescription] = useState(habit?.description ?? "");
   // По дням недели (daily и specific_days — одна строка меню) или с даты начала.
   const [repeat, setRepeat] = useState<RepeatMode>(() =>
-    habit?.frequency_type && usesStartDate(habit.frequency_type)
+    habit?.frequency_type &&
+    (usesStartDate(habit.frequency_type) || habit.frequency_type === "flexible")
       ? (habit.frequency_type as RepeatMode)
       : "weekly",
   );
+  // «Гибкий график»: период и сколько раз за него; помнятся при смене частоты.
+  const [period, setPeriod] = useState<Period>(habit?.period ?? "week");
+  const [periodTimes, setPeriodTimes] = useState(habit?.period_times ?? 3);
   // Дни недели; у «каждый день» и у новой привычки — все. Помнятся при смене частоты.
   const [days, setDays] = useState<Set<string>>(
     () => new Set(habit?.frequency_type === "specific_days" ? habit.days : WEEKDAYS),
@@ -162,7 +169,22 @@ export function HabitFormScreen({
     { value: "weekly", label: weekdayLabel(days, strings, strings.formDaily) },
     { value: "every_other_day", label: strings.formEveryOtherDay },
     { value: "monthly", label: strings.formMonthly },
+    { value: "flexible", label: strings.formFlexible },
   ] as const;
+  const periodOptions = (["week", "month", "year"] as const).map((value) => ({
+    value,
+    label: strings.periodNames[value],
+  }));
+  // Цель больше дней короткого месяца или года: сказать, что там — по числу дней.
+  const shorterNote =
+    (period === "month" && periodTimes > 28) || (period === "year" && periodTimes > 365)
+      ? strings.formPeriodShorter[period]
+      : undefined;
+
+  function changePeriod(next: Period): void {
+    setPeriod(next);
+    setPeriodTimes((times) => Math.min(times, PERIOD_MAX_TIMES[next]));
+  }
 
   useMainButton(
     {
@@ -244,6 +266,8 @@ export function HabitFormScreen({
       // Дни — в порядке недели, как их показывает выбор.
       days: frequency === "specific_days" ? WEEKDAYS.filter((code) => days.has(code)) : [],
       start_date: usesStartDate(frequency) ? startDate : null,
+      period: frequency === "flexible" ? period : null,
+      period_times: frequency === "flexible" ? periodTimes : null,
       // Порядок и повторы приводит в вид сервер (и data/derive.ts на устройстве).
       reminder_time: reminderOn ? [...reminders.map((item) => item.time)].sort()[0] : null,
       reminder_times: reminderOn ? reminders.map((item) => item.time) : [],
@@ -314,6 +338,28 @@ export function HabitFormScreen({
         <ListItem>
           <DayPicker selected={days} onToggle={toggleDay} />
         </ListItem>
+      ) : null}
+      {frequency === "flexible" ? (
+        <>
+          <ListItem label={strings.formPeriod}>
+            <MenuSelect<Period>
+              options={periodOptions}
+              value={period}
+              onChange={changePeriod}
+              label={strings.formPeriod}
+            />
+          </ListItem>
+          <ListItem label={strings.formPeriodTimes(periodTimes, period)}>
+            <Stepper
+              value={periodTimes}
+              min={1}
+              max={PERIOD_MAX_TIMES[period]}
+              onChange={setPeriodTimes}
+              decreaseLabel={strings.formPeriodLess}
+              increaseLabel={strings.formPeriodMore}
+            />
+          </ListItem>
+        </>
       ) : null}
       {usesStartDate(frequency) ? (
         <ListItem label={strings.formStartDate}>
@@ -416,7 +462,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        <Section variant="form" title={strings.formFrequencyHeading}>
+        <Section variant="form" title={strings.formFrequencyHeading} footer={shorterNote}>
           <fieldset className={styles.fieldset} disabled={locked}>
             <Card>{frequencyRows}</Card>
           </fieldset>
@@ -488,8 +534,9 @@ function blurOnEnter(event: KeyboardEvent<HTMLInputElement>): void {
   }
 }
 
-/** Строка меню «Повтор»: по дням недели (daily / specific_days) или с даты начала. */
-type RepeatMode = "weekly" | "every_other_day" | "monthly";
+/** Строка меню «Повтор»: по дням недели (daily / specific_days), с даты начала или
+ *  «Гибкий график». */
+type RepeatMode = "weekly" | "every_other_day" | "monthly" | "flexible";
 
 interface Reminder {
   key: number;

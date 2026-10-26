@@ -27,6 +27,18 @@ export interface Habit {
   /** Первый день привычки every_other_day («ГГГГ-ММ-ДД»), дальше — каждый второй, или
    *  monthly — дальше то же число каждого месяца; иначе null. */
   start_date: string | null;
+  /** «Гибкий график» (flexible): календарный период (неделя с понедельника, месяц с 1-го,
+   *  год с 1 января); иначе null. Нет у привычек, сохранённых до «Гибкого графика». */
+  period?: Period | null;
+  /** «Гибкий график»: сколько дней за период (в коротком — не больше его дней). */
+  period_times?: number | null;
+  /** «Гибкий график»: сколько дней выполнено в текущем периоде (в совместной — мной). */
+  period_done?: number;
+  /** «Гибкий график»: серия (в периодах) по закончившимся периодам — без текущего;
+   *  набрана цель текущего — на 1 больше (data/derive.ts). */
+  prior_streak?: number;
+  /** «Гибкий график»: лучшая серия по закончившимся периодам. */
+  prior_best?: number;
   /**
    * Выполнение за последние HISTORY_DAYS дней (старое → сегодня).
    * true — день выполнен, false — пропущен/нет данных.
@@ -125,6 +137,9 @@ export interface HabitGroup {
   /** За те же дни: доля дня, выполненная всеми (0…1) — ей закрашиваются сетка и календарь
    *  (на устройстве пересчитывается с моими отметками, data/derive.ts). */
   fill_history?: number[];
+  /** «Гибкий график»: остальные (бывшие в группе весь мой текущий период) уже набрали в
+   *  нём цель — период засчитают, когда наберу я. */
+  others_reached?: boolean;
 }
 
 
@@ -140,6 +155,8 @@ export interface GroupMember {
   count: number;
   /** Заморожен в день отметки — не в счёт. */
   frozen: boolean;
+  /** «Гибкий график»: сколько дней выполнил в своём текущем периоде. */
+  period_done?: number;
   /** Версия фото профиля в Telegram (меняется вместе с фото); null — фото нет, буква.
    *  Нет у групп, сохранённых на устройстве до этого поля. */
   photo?: string | null;
@@ -161,11 +178,16 @@ export interface SchedulePeriod {
   frequency_type: FrequencyType;
   days: string[];
   start_date: string | null;
+  period?: Period | null;
+  period_times?: number | null;
   times_per_day: number;
 }
 
-/** Частота выполнения привычки. */
-export type FrequencyType = "daily" | "specific_days" | "every_other_day" | "monthly";
+/** Частота выполнения привычки; flexible — «Гибкий график»: N дней за период в любые дни. */
+export type FrequencyType = "daily" | "specific_days" | "every_other_day" | "monthly" | "flexible";
+
+/** Период «Гибкого графика». */
+export type Period = "week" | "month" | "year";
 
 /** Поля формы привычки: создание и изменение (операции create / update в POST /sync,
  *  как тело POST /tasks и PUT /tasks/{id}). */
@@ -179,6 +201,10 @@ export interface HabitInput {
   days: string[];
   /** Первый день («ГГГГ-ММ-ДД») для every_other_day и monthly; для остальных — null. */
   start_date: string | null;
+  /** «Гибкий график»: период и сколько дней за него (PERIOD_MAX_TIMES); для остальных —
+   *  null или нет. */
+  period?: Period | null;
+  period_times?: number | null;
   /** Первое напоминание «ЧЧ:ММ»; null — без напоминания (его читают старые серверы). */
   reminder_time: string | null;
   /** Все напоминания «ЧЧ:ММ» (до MAX_REMINDERS_PER_HABIT); пустой — без напоминания. Нет

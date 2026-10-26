@@ -43,6 +43,7 @@ from bot.constants import (
     SCHEDULE_DAILY,
     SCHEDULE_EVERY_OTHER_DAY,
     SCHEDULE_MONTHLY,
+    SCHEDULE_PERIOD,
     SCHEDULE_WEEKDAYS,
 )
 from bot.handlers.start import record_start
@@ -67,7 +68,13 @@ def _text(texts: dict[str, str], language: str) -> str:
 
 def schedule_label(task: Task, language: str) -> str:
     """Расписание привычки — как «Повтор» в приложении."""
-    if task.frequency_type == FrequencyType.every_other_day:
+    if task.frequency_type == FrequencyType.flexible:
+        label = _times_label(
+            task.period_times or 1,
+            SCHEDULE_PERIOD.get(language, SCHEDULE_PERIOD[DEFAULT_LANGUAGE])[task.period or "week"],
+            language,
+        )
+    elif task.frequency_type == FrequencyType.every_other_day:
         label = _text(SCHEDULE_EVERY_OTHER_DAY, language)
     elif task.frequency_type == FrequencyType.monthly:
         label = _text(SCHEDULE_MONTHLY, language)
@@ -86,11 +93,16 @@ def schedule_label(task: Task, language: str) -> str:
 
 def goal_label(count: int, language: str) -> str:
     """Цель — как в приложении: «1 раз в день», «3 раза в день»; «Once a day»…"""
+    return _times_label(count, "a day" if language == "en" else "в день", language)
+
+
+def _times_label(count: int, per: str, language: str) -> str:
+    """«3 раза в день», «1 раз в неделю»; «Once a day», «3 times a week»."""
     if language == "en":
-        return "Once a day" if count == 1 else "Twice a day" if count == 2 else f"{count} times a day"
+        return "Once " + per if count == 1 else "Twice " + per if count == 2 else f"{count} times {per}"
     tens, ones = count % 100, count % 10
     word = "раза" if 2 <= ones <= 4 and not 12 <= tens <= 14 else "раз"
-    return f"{count} {word} в день"
+    return f"{count} {word} {per}"
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(groups.INVITE_PREFIX)))

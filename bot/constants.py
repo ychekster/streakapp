@@ -160,6 +160,11 @@ INVITE_HABIT_LIMIT: dict[str, str] = {
 SCHEDULE_DAILY: dict[str, str] = {"ru": "Каждый день", "en": "Every day"}
 SCHEDULE_EVERY_OTHER_DAY: dict[str, str] = {"ru": "Через день", "en": "Every other day"}
 SCHEDULE_MONTHLY: dict[str, str] = {"ru": "Каждый месяц", "en": "Every month"}
+# «Гибкий график»: «3 раза в неделю» / «3 times a week» (bot/handlers/group_invite.py).
+SCHEDULE_PERIOD: dict[str, dict[str, str]] = {
+    "ru": {"week": "в неделю", "month": "в месяц", "year": "в год"},
+    "en": {"week": "a week", "month": "a month", "year": "a year"},
+}
 SCHEDULE_WEEKDAYS: dict[str, tuple[str, ...]] = {
     "ru": ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"),
     "en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),

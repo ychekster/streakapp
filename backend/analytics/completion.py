@@ -5,6 +5,9 @@
 - выполнено — отметки `done` таких привычек за D (отметка в незапланированный день не
   считается, поэтому доля не больше 100%).
 
+У «Гибкого графика» дней нет: такая привычка в счёт дня, только если в него выполнена
+(запланировано и выполнено — по одной), — пропущенные дни её доли не портят.
+
 Удалённые привычки не учитываются: в прошлые дни они исказили бы знаменатель.
 """
 
@@ -35,7 +38,11 @@ def completion_by_day(
     created_by_weekday: list[list[date]] = [[] for _ in range(_WEEK_DAYS)]
     alternating: list[tuple[date, Callable[[date], bool]]] = []
     due: dict[int, tuple[date, Callable[[date], bool]]] = {}
+    flexible: dict[int, date] = {}
     for schedule in schedules:
+        if schedule.frequency_type == FrequencyType.flexible:
+            flexible[schedule.id] = schedule.created_on
+            continue
         # У TaskSchedule те же поля расписания, что у Task.
         due[schedule.id] = (schedule.created_on, due_check(schedule))  # type: ignore[arg-type]
         if schedule.frequency_type in (FrequencyType.every_other_day, FrequencyType.monthly):
@@ -47,15 +54,20 @@ def completion_by_day(
         dates.sort()
 
     completed: Counter[date] = Counter()
+    flexible_done: Counter[date] = Counter()
     for task_id, day in done:
         info = due.get(task_id)
         if info is not None and info[0] <= day and info[1](day):
             completed[day] += 1
+        elif task_id in flexible and flexible[task_id] <= day:
+            completed[day] += 1
+            flexible_done[day] += 1
 
     return [
         (
             bisect_right(created_by_weekday[day.weekday()], day)
-            + sum(1 for created, is_due in alternating if created <= day and is_due(day)),
+            + sum(1 for created, is_due in alternating if created <= day and is_due(day))
+            + flexible_done[day],
             completed[day],
         )
         for day in days

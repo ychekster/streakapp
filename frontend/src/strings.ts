@@ -7,6 +7,7 @@
 
 import type { ApiErrorCode } from "./api/client";
 import { LEGAL_EN, LEGAL_RU } from "./legal";
+import type { Period } from "./types/habit";
 import type { Language } from "./types/settings";
 
 /** Названия языков в меню выбора — каждое на своём языке. */
@@ -14,6 +15,15 @@ export const LANGUAGE_NAMES: Record<Language, string> = {
   ru: "Русский",
   en: "English",
 };
+
+function ruTimes(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  return ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
+}
+
+const RU_PER: Record<Period, string> = { week: "в неделю", month: "в месяц", year: "в год" };
+const EN_PER: Record<Period, string> = { week: "a week", month: "a month", year: "a year" };
 
 const RU = {
   screenTitle: "Привычки",
@@ -240,6 +250,24 @@ const RU = {
   goalDaily: "Ежедневно",
   goalEveryOtherDay: "Через день",
   goalMonthly: "Каждый месяц",
+  // «Гибкий график»: серии — в периодах («5 нед.»), выполнено — в днях (без «из скольких»),
+  // вместо «Цели серии» — сколько сделано в текущем периоде («2 / 3»). У года вместо серий
+  // — сколько осталось и темп: на сколько дней впереди или позади равномерного плана.
+  streakInPeriods: {
+    week: (count: number) => `${count} нед.`,
+    month: (count: number) => `${count} мес.`,
+    year: (count: number) => `${count}`,
+  } as Record<Period, (count: number) => string>,
+  statDaysDone: "Дней выполнено",
+  statThisPeriod: {
+    week: "На этой неделе",
+    month: "В этом месяце",
+    year: "В этом году",
+  } as Record<Period, string>,
+  statRemaining: "Осталось",
+  statAhead: "Впереди плана",
+  statBehind: "Позади плана",
+  statOnPlan: "По плану",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
@@ -364,6 +392,19 @@ const RU = {
   formDaily: "Каждый день",
   formEveryOtherDay: "Через день",
   formMonthly: "Каждый месяц",
+  // «Гибкий график»: N раз за неделю / месяц / год в любые дни («3 раза в неделю»).
+  formFlexible: "Гибкий график",
+  formPeriod: "Период",
+  periodNames: { week: "Неделя", month: "Месяц", year: "Год" } as Record<Period, string>,
+  formPeriodTimes: (count: number, period: Period) =>
+    `${count} ${ruTimes(count)} ${RU_PER[period]}`,
+  formPeriodLess: "Меньше раз за период",
+  formPeriodMore: "Больше раз за период",
+  // Цель больше дней короткого периода: в нём — по числу дней.
+  formPeriodShorter: {
+    month: "В месяцах, где дней меньше, — по числу дней",
+    year: "В невисокосный год — 365",
+  } as Partial<Record<Period, string>>,
   // Первый день привычки «через день» / «каждый месяц»: «Сегодня», «Завтра» или дата.
   formStartDate: "Начало",
   dateToday: "Сегодня",
@@ -371,12 +412,7 @@ const RU = {
   // Цель: сколько раз в день выполнить привычку («1 раз в день», «3 раза в день»,
   // «5 раз в день»), степпер −/+.
   formGoalHeading: "Цель",
-  formTimesPerDay: (count: number) => {
-    const tens = count % 100;
-    const ones = count % 10;
-    const word = ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
-    return `${count} ${word} в день`;
-  },
+  formTimesPerDay: (count: number) => `${count} ${ruTimes(count)} в день`,
   formTimesLess: "Меньше раз в день",
   formTimesMore: "Больше раз в день",
   formReminderHeading: "Напоминание",
@@ -446,6 +482,9 @@ const RU = {
     invalid_description: "Описание слишком длинное",
     invalid_days: "Выберите хотя бы один день недели",
     invalid_start_date: "Выберите дату начала",
+    invalid_period: "Выберите период",
+    invalid_period_times: "Столько раз за период не получится",
+    quota_reached: "Цель на этот период уже набрана",
     invalid_reminder_time: "Укажите время напоминания",
     invalid_timezone: "Не удалось распознать часовой пояс",
     invalid_review: "Напишите отзыв",
@@ -673,6 +712,17 @@ const EN: Strings = {
   goalDaily: "Daily",
   goalEveryOtherDay: "Every Other Day",
   goalMonthly: "Every Month",
+  streakInPeriods: {
+    week: (count: number) => `${count} wk`,
+    month: (count: number) => `${count} mo`,
+    year: (count: number) => `${count}`,
+  },
+  statDaysDone: "Days completed",
+  statThisPeriod: { week: "This week", month: "This month", year: "This year" },
+  statRemaining: "Left",
+  statAhead: "Ahead of plan",
+  statBehind: "Behind plan",
+  statOnPlan: "On plan",
   calendarHeading: "Calendar",
   groupHistoryHeading: "Group’s last 364 days",
   groupMainHeading: "Group overview",
@@ -781,6 +831,21 @@ const EN: Strings = {
   formDaily: "Every Day",
   formEveryOtherDay: "Every Other Day",
   formMonthly: "Every Month",
+  formFlexible: "Flexible",
+  formPeriod: "Period",
+  periodNames: { week: "Week", month: "Month", year: "Year" },
+  formPeriodTimes: (count: number, period: Period) =>
+    count === 1
+      ? `Once ${EN_PER[period]}`
+      : count === 2
+        ? `Twice ${EN_PER[period]}`
+        : `${count} times ${EN_PER[period]}`,
+  formPeriodLess: "Fewer times a period",
+  formPeriodMore: "More times a period",
+  formPeriodShorter: {
+    month: "In shorter months — as many as there are days",
+    year: "In a non-leap year — 365",
+  },
   formStartDate: "Starts",
   dateToday: "Today",
   dateTomorrow: "Tomorrow",
@@ -847,6 +912,9 @@ const EN: Strings = {
     invalid_description: "The description is too long",
     invalid_days: "Choose at least one day of the week",
     invalid_start_date: "Choose a start date",
+    invalid_period: "Choose a period",
+    invalid_period_times: "That many times a period isn’t possible",
+    quota_reached: "This period’s goal is already reached",
     invalid_reminder_time: "Set a reminder time",
     invalid_timezone: "Couldn’t recognize the time zone",
     invalid_review: "Write your review",

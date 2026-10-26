@@ -39,9 +39,9 @@ from backend.constants import (
     MAX_HABITS_PER_USER,
 )
 from backend.errors import ApiError
-from backend.models import HabitGroup, HabitGroupMember, Task, User
+from backend.models import FrequencyType, HabitGroup, HabitGroupMember, Task, User
 from backend.repository import Repository
-from backend.schedule import task_days
+from backend.schedule import period_bounds, task_days
 from backend.schemas import BannedMember, GroupMember, GroupMemberHabitResponse, HabitGroupView
 
 # Параметр /start ссылки-приглашения: `join_<код>`.
@@ -118,6 +118,15 @@ class _Part:
     def is_frozen(self, day: date) -> bool:
         return self.live_frozen(day) if self._live(day) else day in self.past_frozen
 
+    def reached(self, start: date, end: date, quota: int) -> bool | None:
+        """«Гибкий график»: набрал ли он цель `quota` (дней) за период с `start` по `end`;
+        None — был в группе не весь период или замораживал привычку: тогда период по нему
+        не оценивается."""
+        days = [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
+        if not all(self.covers(day) and not self.is_frozen(day) for day in days):
+            return None
+        return sum(1 for day in days if self.is_done(day)) >= quota
+
 
 @dataclass(kw_only=True)
 class _Member(_Part):
@@ -152,6 +161,8 @@ class ViewerGroup:
     open_from: date
     # Моя часть по дням истории (выполненный день — цель).
     my_units: list[int]
+    # «Гибкий график»: набрали ли цель за период остальные (services.OthersReached).
+    others_reached: Callable[[date, date, int], bool] | None = None
 
 
 @dataclass
@@ -275,6 +286,14 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
     def others_done(day: date) -> bool:
         return all(item.is_done(day) for item in required(day))
 
+    def others_reached(start: date, end: date, quota: int) -> bool:
+        """«Гибкий график»: период засчитан остальными — каждый, кто был в группе весь
+        период (и не замораживал), набрал цель. Вступивший или ушедший посреди периода не
+        в счёт; до моего вступления — только я."""
+        if start < joined:
+            return True
+        return all(item.reached(start, end, quota) is not False for item in others)
+
     history_start = today - timedelta(days=HISTORY_DAYS - 1)
     history_days = [history_start + timedelta(days=offset) for offset in range(HISTORY_DAYS)]
     target = me.task.times_per_day
@@ -289,6 +308,10 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
         fill.append(round(min((units + own) / ((len(needed) + 1) * target), 1.0), 4))
     owner_id = state.group.owner_id
     is_owner = owner_id == me.user.telegram_id
+    flexible = me.task.frequency_type == FrequencyType.flexible
+    if flexible:
+        start, end = period_bounds(me.task.period or "week", today)
+        quota = min(me.task.period_times or 1, (end - start).days + 1)
     view = HabitGroupView(
         id=state.group.id,
         is_owner=is_owner,
@@ -302,6 +325,7 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
                 done=item.is_done(today),
                 count=item.count_on(today, item.task.times_per_day),
                 frozen=item.is_frozen(today),
+                period_done=_period_done(item) if flexible else 0,
                 photo=item.user.photo_id,
             )
             for item in state.members
@@ -318,10 +342,23 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
         others_units=others_units,
         people=people,
         fill_history=fill,
+        others_reached=others_reached(start, end, quota) if flexible else True,
     )
     return ViewerGroup(
-        view=view, others_done=others_done, open_from=view.open_from or today, my_units=mine
+        view=view,
+        others_done=others_done,
+        open_from=view.open_from or today,
+        my_units=mine,
+        others_reached=others_reached,
     )
+
+
+def _period_done(item: _Member) -> int:
+    """«Гибкий график»: сколько дней участник выполнил в своём текущем периоде (в своих
+    днях — пояс и «Отмечать за вчера» у каждого свои)."""
+    start, _ = period_bounds(item.task.period or "week", item.today)
+    days = (item.today - start).days + 1
+    return sum(1 for offset in range(days) if item.is_done(start + timedelta(days=offset)))
 
 
 # --------------------------------------------------------------------------- #
@@ -335,7 +372,7 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
     автоотметка выключается."""
     await services.remember_schedule(
         repo, user, task, source.frequency_type, source.days, source.start_date,
-        source.times_per_day,
+        source.times_per_day, source.period, source.period_times,
     )
     await repo.set_task_shared_fields(
         task,
@@ -346,6 +383,8 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
         source.start_date,
         source.times_per_day,
         source.color,
+        source.period,
+        source.period_times,
     )
 
 
@@ -386,6 +425,8 @@ async def restrict_update(repo: Repository, user: User, task: Task, payload):  #
             frequency_type=task.frequency_type.value,
             days=task_days(task),
             start_date=task.start_date,
+            period=task.period,
+            period_times=task.period_times,
             times_per_day=task.times_per_day,
         )
     return payload.model_copy(update=updates)
@@ -664,6 +705,8 @@ async def join(repo: Repository, user: User, code: str) -> tuple[str, Task]:
         frequency_type=source.frequency_type,
         days=source.days,
         start_date=source.start_date,
+        period=source.period,
+        period_times=source.period_times,
         color=source.color,
         times_per_day=source.times_per_day,
     )

@@ -23,6 +23,7 @@ from backend.constants import (
     MAX_DB_INT,
     MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
+    PERIOD_MAX_TIMES,
     REMINDER_TIME_FORMAT,
     REVIEW_MAX_LENGTH,
     START_DATE_MAX_AHEAD_DAYS,
@@ -109,7 +110,27 @@ def validate_frequency(
         if start_date is None or start_date > today + timedelta(days=START_DATE_MAX_AHEAD_DAYS):
             raise ApiError(422, "invalid_start_date", "Выберите дату начала")
         return FrequencyType(frequency_type), None, start_date
+    if frequency_type == "flexible":
+        return FrequencyType.flexible, None, None
     raise ApiError(422, "invalid_frequency", "Неизвестная частота")
+
+
+def validate_period(
+    frequency: FrequencyType, period: str | None, times: int | None
+) -> tuple[str | None, int | None]:
+    """Период и цель «Гибкого графика»: week / month / year и от 1 до дней самого
+    длинного такого периода (PERIOD_MAX_TIMES). У остальных частот — (None, None)."""
+    if frequency != FrequencyType.flexible:
+        return None, None
+    if period not in PERIOD_MAX_TIMES:
+        raise ApiError(422, "invalid_period", "Выберите период")
+    if times is None or not 1 <= times <= PERIOD_MAX_TIMES[period]:
+        raise ApiError(
+            422,
+            "invalid_period_times",
+            f"Сколько раз за период — от 1 до {PERIOD_MAX_TIMES[period]}",
+        )
+    return period, times
 
 
 def validate_days(days: list[str]) -> str:

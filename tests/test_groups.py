@@ -585,3 +585,25 @@ def test_member_page_shows_their_own_marks(client: TestClient, user: AuthUser) -
     # Исключённого больше не открыть.
     client.post(f"/groups/{group_id}/kick", json={"user_id": friend.id}, headers=user.headers)
     assert page(user, friend).status_code == 404
+
+
+def test_shared_flexible_counts_each_members_goal(client: TestClient, user: AuthUser) -> None:
+    _, group_id, code = _shared(client, user, "Текст", frequency_type="flexible", period="year", period_times=1)
+    friend = new_user()
+    assert _join(friend, code) == "joined"
+    _joined_days_ago(user, group_id, 400)
+    _joined_days_ago(friend, group_id, 400)
+    today = date.fromisoformat(_sync(client, user)["today"])
+    mine = _only(client, user, "Текст")
+    _mark(client, user, mine["id"], today)
+    habit = _only(client, user, "Текст")
+    # Я набрал цель, друг — нет: период группы ещё не засчитан.
+    assert habit["period_done"] == 1 and habit["group"]["others_reached"] is False
+    assert habit["current_streak"] == 0 and habit["history"][-1] is True
+    progress = {member["is_me"]: member["period_done"] for member in habit["group"]["members"]}
+    assert progress == {True: 1, False: 0}
+    # Друг выполнил в другой день — у каждого своя цель: засчитано.
+    theirs = _only(client, friend, "Текст")
+    _mark(client, friend, theirs["id"], date.fromisoformat(_sync(client, friend)["today"]))
+    habit = _only(client, user, "Текст")
+    assert habit["group"]["others_reached"] is True and habit["current_streak"] == 1

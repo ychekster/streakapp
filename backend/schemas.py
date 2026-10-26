@@ -40,9 +40,11 @@ class SchedulePeriod(BaseModel):
     """Прежнее расписание привычки: действовало до дня `until` (не включая его)."""
 
     until: date = Field(..., description="Первый день следующего расписания")
-    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"]
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly", "flexible"]
     days: list[str] = Field(default_factory=list, description="Дни недели для specific_days")
     start_date: date | None = None
+    period: Literal["week", "month", "year"] | None = None
+    period_times: int | None = None
     times_per_day: int = 1
 
 
@@ -56,6 +58,12 @@ class GroupMember(BaseModel):
     done: bool = Field(..., description="Выполнил ли свою часть в день отметки")
     count: int = Field(0, description="Сколько раз выполнил в день отметки (до цели)")
     frozen: bool = Field(False, description="Заморожен в день отметки — не в счёт")
+    period_done: int = Field(
+        0,
+        description=(
+            "«Гибкий график»: сколько дней он выполнил в своём текущем периоде (иначе 0)"
+        ),
+    )
     photo: str | None = Field(
         None,
         description=(
@@ -127,6 +135,13 @@ class HabitGroupView(BaseModel):
             "выполненные группой, они серию не рвут"
         ),
     )
+    others_reached: bool = Field(
+        True,
+        description=(
+            "«Гибкий график»: остальные участники (бывшие в группе весь мой текущий период) "
+            "уже набрали в нём цель — тогда период засчитают, когда наберу я"
+        ),
+    )
 
 
 class Habit(BaseModel):
@@ -151,8 +166,8 @@ class Habit(BaseModel):
             "True — задачу можно отмечать; False — только просмотр прогресса."
         ),
     )
-    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] = Field(
-        ..., description="Каждый день, конкретные дни недели или через день"
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly", "flexible"] = Field(
+        ..., description="Каждый день, дни недели, через день, раз в месяц или «Гибкий график»"
     )
     days: list[str] = Field(
         ...,
@@ -161,6 +176,37 @@ class Habit(BaseModel):
     start_date: date | None = Field(
         None,
         description="Первый день привычки every_other_day (дальше — каждый второй) или monthly (дальше — то же число каждого месяца); иначе null",
+    )
+    period: Literal["week", "month", "year"] | None = Field(
+        None,
+        description=(
+            "«Гибкий график» (flexible): календарный период — неделя с понедельника, месяц с "
+            "1-го, год с 1 января; иначе null"
+        ),
+    )
+    period_times: int | None = Field(
+        None,
+        description=(
+            "«Гибкий график»: сколько дней за период выполнить (в более коротком периоде — "
+            "не больше его дней); иначе null"
+        ),
+    )
+    period_done: int = Field(
+        0,
+        description=(
+            "«Гибкий график»: сколько дней выполнено в текущем периоде (по день отметки), "
+            "в совместной — мной; иначе 0"
+        ),
+    )
+    prior_streak: int = Field(
+        0,
+        description=(
+            "«Гибкий график»: серия (в периодах) по закончившимся периодам — без текущего; "
+            "набрана цель текущего — серия на 1 больше"
+        ),
+    )
+    prior_best: int = Field(
+        0, description="«Гибкий график»: лучшая серия по закончившимся периодам"
     )
     history: list[bool] = Field(
         ...,
@@ -303,8 +349,8 @@ class HabitCreate(BaseModel):
             "клиенты не знают описания)"
         ),
     )
-    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] = Field(
-        ..., description="Каждый день, конкретные дни недели или через день"
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly", "flexible"] = Field(
+        ..., description="Каждый день, дни недели, через день, раз в месяц или «Гибкий график»"
     )
     days: list[str] = Field(
         default_factory=list,
@@ -313,6 +359,16 @@ class HabitCreate(BaseModel):
     start_date: date | None = Field(
         None,
         description="Первый день привычки every_other_day или monthly (ГГГГ-ММ-ДД); для остальных игнорируется",
+    )
+    period: str | None = Field(
+        None, description="«Гибкий график»: week / month / year; для остальных игнорируется"
+    )
+    period_times: int | None = Field(
+        None,
+        description=(
+            "«Гибкий график»: сколько дней за период — неделя 1–7, месяц 1–31, год 1–366; "
+            "для остальных игнорируется"
+        ),
     )
     reminder_time: str | None = Field(
         None, description="Время напоминания «ЧЧ:ММ» в поясе пользователя; null — без напоминания"

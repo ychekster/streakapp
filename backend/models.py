@@ -56,6 +56,7 @@ class FrequencyType(str, enum.Enum):
     specific_days = "specific_days"  # конкретные дни недели
     every_other_day = "every_other_day"  # через день, начиная с Task.start_date
     monthly = "monthly"  # раз в месяц, в число Task.start_date (или последний день месяца)
+    flexible = "flexible"  # Task.period_times раз за период Task.period, в любые дни
 
 
 class TaskStatus(str, enum.Enum):
@@ -219,6 +220,11 @@ class Task(Base):
     # Для every_other_day: первый день привычки; дальше — каждый второй день от него.
     # Для monthly: первый день; дальше — то же число каждого месяца (или последний день).
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Для flexible («Гибкий график»): период — week / month / year (календарные: неделя с
+    # понедельника, месяц с 1-го, год с 1 января) и сколько дней за него выполнить (в
+    # коротком периоде — не больше его дней, schedule.period_quota).
+    period: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    period_times: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Время напоминания в поясе пользователя; None — без напоминания. Напоминание
     # присылает бот (bot/reminders.py) в запланированные дни, если привычка не выполнена.
@@ -373,6 +379,8 @@ class TaskSchedulePeriod(Base):
     )
     days: Mapped[str | None] = mapped_column(String(64), nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    period_times: Mapped[int | None] = mapped_column(Integer, nullable=True)
     times_per_day: Mapped[int] = mapped_column(
         Integer, default=1, server_default="1", nullable=False
     )

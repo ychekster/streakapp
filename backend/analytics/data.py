@@ -164,6 +164,8 @@ class TaskRow:
     is_active: bool
     deleted: datetime | None
     auto_mark: bool = False
+    period: str | None = None
+    period_times: int | None = None
 
     @property
     def opens_count(self) -> bool:
@@ -494,6 +496,8 @@ async def load_dataset(
             is_active=bool(row.is_active),
             deleted=row.deleted_at,
             auto_mark=bool(row.auto_mark),
+            period=row.period,
+            period_times=row.period_times,
         )
         for row in await repo.analytics_tasks()
         if keep(row.user_id)

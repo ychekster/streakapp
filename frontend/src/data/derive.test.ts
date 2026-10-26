@@ -15,6 +15,8 @@ import {
   groupFill,
   isDueOn,
   isShared,
+  periodBounds,
+  periodQuota,
   reuseUnchanged,
   type Operation,
   type Snapshot,
@@ -507,7 +509,7 @@ describe("schedule history", () => {
     ]);
     const [changed] = result.habits;
     expect(changed.schedule_history).toEqual([
-      { until: TODAY, ...everyOtherDay, times_per_day: 1 },
+      { until: TODAY, ...everyOtherDay, period: null, period_times: null, times_per_day: 1 },
     ]);
     expect(changed.current_streak).toBe(4);
     expect(changed.scheduled_today).toBe(false);
@@ -673,5 +675,113 @@ describe("reuseUnchanged", () => {
     expect(next[1].name).toBe("Сон");
     const list = [one, two];
     expect(reuseUnchanged(list, [habit({ id: 1 }), habit({ id: 2 })])).toBe(list);
+  });
+});
+
+describe("flexible schedule", () => {
+  // TODAY is Monday 5 October: the month began on Thursday the 1st.
+  const flexible = (period: "week" | "month" | "year", times: number) => ({
+    frequency_type: "flexible" as const,
+    period,
+    period_times: times,
+  });
+
+  it("knows calendar periods and their goals", () => {
+    expect(periodBounds("week", "2026-10-08")).toEqual(["2026-10-05", "2026-10-11"]);
+    expect(periodBounds("month", "2026-02-14")).toEqual(["2026-02-01", "2026-02-28"]);
+    expect(periodBounds("year", TODAY)).toEqual(["2026-01-01", "2026-12-31"]);
+    expect(periodQuota(31, "2026-02-01", "2026-02-28")).toBe(28);
+    expect(isDueOn({ ...flexible("week", 3), days: [], start_date: null }, TODAY)).toBe(false);
+  });
+
+  it("adds the current period to the streak once its goal is reached", () => {
+    const base = habit({
+      ...flexible("month", 3),
+      history: history([4, 3]),
+      total_done: 2,
+      period_done: 2,
+      prior_streak: 4,
+      prior_best: 6,
+      current_streak: 4,
+      best_streak: 6,
+    });
+    const marked = view(snapshot([base]), [{ type: "mark", task: 1, date: TODAY, done: true }]);
+    const [habitNow] = marked.habits;
+    expect(habitNow.period_done).toBe(3);
+    expect([habitNow.current_streak, habitNow.best_streak]).toEqual([5, 6]);
+    // The day the goal was reached stays «today» with its mark.
+    expect(habitNow.scheduled_today).toBe(true);
+    // The next day the month's goal is closed: not «today» any more.
+    const tomorrow = view(
+      snapshot([base]),
+      [{ type: "mark", task: 1, date: TODAY, done: true }],
+      new Date(`${addDays(TODAY, 1)}T12:00:00Z`),
+    );
+    expect(tomorrow.habits[0].scheduled_today).toBe(false);
+    expect(tomorrow.habits[0].current_streak).toBe(5);
+  });
+
+  it("counts a week that ended after the server's answer", () => {
+    // The answer was for Wednesday 30 September: once a week, done on Tuesday.
+    const base = habit({
+      ...flexible("week", 1),
+      history: history([1]),
+      total_done: 1,
+      period_done: 1,
+      prior_streak: 2,
+      prior_best: 2,
+      current_streak: 3,
+      best_streak: 3,
+    });
+    const [now] = view(snapshot([base], {}, "2026-09-30")).habits;
+    expect([now.prior_streak, now.current_streak, now.period_done]).toEqual([3, 3, 0]);
+    expect(now.scheduled_today).toBe(true);
+  });
+
+  it("auto check-off closes the goal and then stops", () => {
+    const base = habit({
+      ...flexible("week", 1),
+      auto_mark: true,
+      auto_mark_ahead: true,
+    });
+    const tuesday = view(snapshot([base]), [], new Date(`${addDays(TODAY, 1)}T12:00:00Z`));
+    const [result] = tuesday.habits;
+    // Monday was marked; Tuesday is past the week's goal.
+    expect(result.history.slice(-2)).toEqual([true, false]);
+    expect(result.scheduled_today).toBe(false);
+  });
+
+  it("keeps my own days in a shared habit", () => {
+    const member = (fields: Partial<GroupMember>): GroupMember => ({
+      user_id: 2,
+      name: "Петя",
+      is_me: false,
+      is_owner: false,
+      done: false,
+      count: 0,
+      frozen: false,
+      ...fields,
+    });
+    const group: HabitGroup = {
+      id: 7,
+      is_owner: true,
+      notify_marks: false,
+      members: [member({ user_id: 1, is_me: true, is_owner: true }), member({})],
+      others_history: history([]),
+      others_next_day: false,
+      open_from: null,
+      others_reached: false,
+    };
+    const base = habit({ ...flexible("week", 1), group });
+    const [mine] = view(snapshot([base]), [{ type: "mark", task: 1, date: TODAY, done: true }]).habits;
+    // My day counts as mine, but the week is the group's only when the others are done too.
+    expect([mine.history[HISTORY_DAYS - 1], mine.period_done, mine.current_streak]).toEqual([
+      true,
+      1,
+      0,
+    ]);
+    const reached = habit({ ...flexible("week", 1), group: { ...group, others_reached: true } });
+    const [both] = view(snapshot([reached]), [{ type: "mark", task: 1, date: TODAY, done: true }]).habits;
+    expect(both.current_streak).toBe(1);
   });
 });

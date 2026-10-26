@@ -10,7 +10,14 @@
 
 import { FOLDER_HABIT_TYPES, HISTORY_DAYS, WEEKDAYS } from "../constants";
 import type { Folder, FolderHabitType, FolderKind } from "../types/folder";
-import type { FrequencyType, Habit, HabitGroup, HabitInput, SchedulePeriod } from "../types/habit";
+import type {
+  FrequencyType,
+  Habit,
+  HabitGroup,
+  HabitInput,
+  Period,
+  SchedulePeriod,
+} from "../types/habit";
 import type { Settings } from "../types/settings";
 import type { FolderKey, SyncOperation, TaskKey } from "../types/sync";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
@@ -48,6 +55,8 @@ interface Schedule {
   frequency_type: FrequencyType;
   days: string[];
   start_date: string | null;
+  period?: Period | null;
+  period_times?: number | null;
 }
 
 /** Does the frequency start from a chosen day (every other day, monthly). */
@@ -55,8 +64,47 @@ export function usesStartDate(frequency: FrequencyType): boolean {
   return frequency === "every_other_day" || frequency === "monthly";
 }
 
-/** Is the habit due on `day` (schedule.is_due_on). */
+/** First and last day of the calendar period `period` that `day` falls in
+ *  (schedule.period_bounds): a week from Monday, a month from the 1st, a year from 1 January. */
+export function periodBounds(period: Period, day: string): [string, string] {
+  if (period === "week") {
+    const start = addDays(day, -weekdayIndex(day));
+    return [start, addDays(start, 6)];
+  }
+  if (period === "month") {
+    const start = `${day.slice(0, 8)}01`;
+    return [start, addDays(start, daysInMonth(day) - 1)];
+  }
+  return [`${day.slice(0, 4)}-01-01`, `${day.slice(0, 4)}-12-31`];
+}
+
+/** Days to do in the period from `start` to `end`: the goal, but no more than its days
+ *  (schedule.period_quota — «31 раз в месяц» in February is 28). */
+export function periodQuota(times: number, start: string, end: string): number {
+  return Math.min(times, daysBetween(start, end) + 1);
+}
+
+/** «Гибкий график»: the goal of the period `day` falls in; null — another frequency. */
+export function periodGoal(habit: Schedule, day: string): number | null {
+  const period = flexiblePeriod(habit);
+  if (period === null) {
+    return null;
+  }
+  const [start, end] = periodBounds(period, day);
+  return periodQuota(habit.period_times ?? 1, start, end);
+}
+
+/** «Гибкий график»'s period, or null for the other frequencies. */
+export function flexiblePeriod(habit: Schedule): Period | null {
+  return habit.frequency_type === "flexible" ? (habit.period ?? "week") : null;
+}
+
+/** Is the habit due on `day` (schedule.is_due_on). «Гибкий график» has no due days: it can
+ *  be marked while its period's goal is open, and a day without a mark breaks nothing. */
 export function isDueOn(habit: Schedule, day: string): boolean {
+  if (habit.frequency_type === "flexible") {
+    return false;
+  }
   if (habit.frequency_type === "every_other_day") {
     if (habit.start_date === null) {
       return false;
@@ -138,7 +186,9 @@ function scheduleChanged(
     before.frequency_type !== after.frequency_type ||
     before.days.join(",") !== after.days.join(",") ||
     before.start_date !== after.start_date ||
-    before.times_per_day !== after.times_per_day
+    before.times_per_day !== after.times_per_day ||
+    (before.period ?? null) !== (after.period ?? null) ||
+    (before.period_times ?? null) !== (after.period_times ?? null)
   );
 }
 
@@ -196,6 +246,8 @@ function habitFields(
   | "frequency_type"
   | "days"
   | "start_date"
+  | "period"
+  | "period_times"
   | "reminder_time"
   | "reminder_times"
   | "color"
@@ -204,6 +256,7 @@ function habitFields(
 > {
   // Kept on the device before "several times a day" existed: once.
   const timesPerDay = input.times_per_day ?? 1;
+  const flexible = input.frequency_type === "flexible";
   // As the server (validate_reminder_times): in order, without repeats.
   const reminders = [...new Set(reminderTimesOf(input))].sort();
   return {
@@ -219,6 +272,8 @@ function habitFields(
         ? WEEKDAYS.filter((code) => input.days.includes(code))
         : [],
     start_date: usesStartDate(input.frequency_type) ? input.start_date : null,
+    period: flexible ? (input.period ?? "week") : null,
+    period_times: flexible ? (input.period_times ?? 1) : null,
     reminder_time: reminders[0] ?? null,
     reminder_times: reminders,
     color: input.color,
@@ -357,6 +412,88 @@ function frozenCheck(draft: Draft, snapshotToday: string): (day: string) => bool
   };
 }
 
+/** Was a day done by the server's answer: its history, and the day after it (the calendar
+ *  day in «Отмечать за вчера»). */
+function serverDone(base: Habit | null, snapshotToday: string): (day: string) => boolean {
+  const nextDay = addDays(snapshotToday, 1);
+  return (day) => {
+    if (!base) {
+      return false;
+    }
+    if (day === nextDay) {
+      return base.next_day_done ?? false;
+    }
+    const index = base.history.length - 1 - daysBetween(day, snapshotToday);
+    return index >= 0 && index < base.history.length ? base.history[index] : false;
+  };
+}
+
+/** Is a day done — marked on the device, or by the server's answer. For «Гибкий график»
+ *  the history has my days, also in a shared habit. */
+function draftDone(draft: Draft, snapshotToday: string): (day: string) => boolean {
+  const baseDone = serverDone(draft.base, snapshotToday);
+  return (day) => draft.marks.get(day) ?? baseDone(day);
+}
+
+/**
+ * «Гибкий график»: done days in the period from `start` to `end`, up to `until`. The
+ * server's count (`period_done`) is the base when its answer is for this period — a year
+ * reaches past the history; marks made on the device since then change it.
+ */
+function periodDoneIn(
+  draft: Draft,
+  period: Period,
+  start: string,
+  end: string,
+  until: string,
+  snapshotToday: string,
+): number {
+  const done = draftDone(draft, snapshotToday);
+  const baseDone = serverDone(draft.base, snapshotToday);
+  const last = until < end ? until : end;
+  const { base } = draft;
+  const fromServer =
+    base !== null &&
+    flexiblePeriod(base) === period &&
+    start <= snapshotToday &&
+    snapshotToday <= end;
+  let count = fromServer ? (base.period_done ?? 0) : 0;
+  for (let day = start; day <= end; day = addDays(day, 1)) {
+    count += day <= last ? Number(done(day)) : 0;
+    // The server counted its days up to its marking day.
+    count -= fromServer && day <= snapshotToday ? Number(baseDone(day)) : 0;
+  }
+  return Math.max(0, count);
+}
+
+/** «Гибкий график»: is the goal of `day`'s period still open without `day` itself — the
+ *  habit can be marked that day (services._quota_open). */
+function quotaOpen(
+  draft: Draft,
+  fields: Schedule & { period_times?: number | null },
+  day: string,
+  snapshotToday: string,
+): boolean {
+  const period = flexiblePeriod(fields) ?? "week";
+  const [start, end] = periodBounds(period, day);
+  const done = periodDoneIn(draft, period, start, end, end, snapshotToday);
+  const others = done - Number(draftDone(draft, snapshotToday)(day));
+  return others < periodQuota(fields.period_times ?? 1, start, end);
+}
+
+/** Is a day one to auto check-off: due by the schedule, for «Гибкий график» — while its
+ *  period's goal is open (services._auto_mark_day). */
+function autoMarkDue(
+  draft: Draft,
+  fields: ReturnType<typeof habitFields>,
+  day: string,
+  snapshotToday: string,
+): boolean {
+  return fields.frequency_type === "flexible"
+    ? quotaOpen(draft, fields, day, snapshotToday)
+    : isDueOn(fields, day);
+}
+
 /** Last reminder «HH:MM» of a habit's fields, null — without reminders. */
 function lastReminder(fields: ReturnType<typeof habitFields>): string | null {
   return fields.reminder_times.length > 0
@@ -401,13 +538,61 @@ function applyAutoMark(
       known ||
       draft.marks.has(day) ||
       frozenOn(day) ||
-      !isDueOn(fields, day) ||
+      !autoMarkDue(draft, fields, day, snapshotToday) ||
       (day === calendarToday && last !== null && clock < last)
     ) {
       continue;
     }
     draft.marks.set(day, true);
   }
+}
+
+/**
+ * «Гибкий график»: the current period's count and goal, and the streaks in periods
+ * (services.flexible_streaks). Ended periods are the server's (`prior_streak`,
+ * `prior_best`); the device adds the current one once its goal is reached — in a shared
+ * habit, when the others have reached theirs too (`others_reached`). Periods that ended
+ * after the server's answer are counted here by their days (others unknown — not reached).
+ */
+function flexibleState(
+  draft: Draft,
+  fields: ReturnType<typeof habitFields>,
+  period: Period,
+  today: string,
+  snapshotToday: string,
+  group: HabitGroup | null,
+): {
+  periodDone: number;
+  quota: number;
+  current: number;
+  best: number;
+  prior: number;
+  priorBest: number;
+} {
+  const times = fields.period_times ?? 1;
+  const [start, end] = periodBounds(period, today);
+  const quota = periodQuota(times, start, end);
+  const periodDone = periodDoneIn(draft, period, start, end, today, snapshotToday);
+  const alone = !group || group.members.length <= 1;
+  const { base } = draft;
+  const [serverStart] = periodBounds(period, snapshotToday);
+  const known = base !== null && flexiblePeriod(base) === period;
+  let prior = known ? (base.prior_streak ?? 0) : 0;
+  let priorBest = known ? (base.prior_best ?? 0) : 0;
+  if (known) {
+    for (let day = serverStart; day < start; ) {
+      const [from, to] = periodBounds(period, day);
+      const reached =
+        periodDoneIn(draft, period, from, to, to, snapshotToday) >= periodQuota(times, from, to) &&
+        (alone || (from === serverStart && (group?.others_reached ?? true)));
+      prior = reached ? prior + 1 : 0;
+      priorBest = Math.max(priorBest, prior);
+      day = addDays(to, 1);
+    }
+  }
+  const othersReached = alone || (known && serverStart === start && (group?.others_reached ?? true));
+  const current = prior + Number(periodDone >= quota && othersReached);
+  return { periodDone, quota, current, best: Math.max(priorBest, current), prior, priorBest };
 }
 
 /** The habit for `today` (the marking day) from its draft; `snapshotToday` — the day the
@@ -442,16 +627,7 @@ function buildHabit(
   // The server's days: its history, and the day after it (the calendar day in «Отмечать
   // за вчера» — switched off, today's marks are there at once).
   const nextDay = addDays(snapshotToday, 1);
-  const baseDone = (day: string): boolean => {
-    if (!base) {
-      return false;
-    }
-    if (day === nextDay) {
-      return base.next_day_done ?? false;
-    }
-    const index = base.history.length - 1 - daysBetween(day, snapshotToday);
-    return index >= 0 && index < base.history.length ? base.history[index] : false;
-  };
+  const baseDone = serverDone(base, snapshotToday);
   const baseFrozenHistory: boolean[] = base?.frozen_history ?? [];
   const freezes = draft.freezes ?? serverFreezes(base);
   const frozenOn = frozenCheck(draft, snapshotToday);
@@ -481,7 +657,10 @@ function buildHabit(
     }
     return index < 0 || group.others_history[index];
   };
-  const shownMark = (day: string, done: boolean): boolean => done && othersDone(day);
+  // «Гибкий график»: everyone has their own goal for the period — the days are mine.
+  const period = flexiblePeriod(fields);
+  const shownMark = (day: string, done: boolean): boolean =>
+    done && (period !== null || othersDone(day));
   // How much of a day the group did: the others' presses (the server's answer) and mine
   // (as on the device), out of people × times a day — every press of anyone is one share.
   const target = fields.times_per_day;
@@ -557,7 +736,12 @@ function buildHabit(
   const run = currentRun(history, frozenHistory, today, schedule);
   let current = run.count;
   let best = Math.max(current, bestRun(history, frozenHistory, today, schedule));
-  if (base) {
+  const flexible =
+    period !== null ? flexibleState(draft, fields, period, today, snapshotToday, group) : null;
+  if (flexible) {
+    current = flexible.current;
+    best = flexible.best;
+  } else if (base) {
     if (run.exhausted) {
       // The run started before the history: the server knows how much earlier.
       const baseHistory = base.history;
@@ -580,11 +764,18 @@ function buildHabit(
   const myDoneToday =
     marks.get(today) ??
     (group ? (base && today === snapshotToday ? base.done_today : false) : undefined);
+  const doneToday = myDoneToday ?? history[history.length - 1];
   return {
     id,
     ...fields,
-    done_today: myDoneToday ?? history[history.length - 1],
-    scheduled_today: isDueOn(fields, today),
+    done_today: doneToday,
+    // «Гибкий график»: while the period's goal is open, and on the day it was reached.
+    scheduled_today: flexible
+      ? flexible.periodDone - Number(doneToday) < flexible.quota
+      : isDueOn(fields, today),
+    period_done: flexible?.periodDone ?? 0,
+    prior_streak: flexible?.prior ?? 0,
+    prior_best: flexible?.priorBest ?? 0,
     history,
     current_streak: current,
     best_streak: best,
@@ -673,6 +864,8 @@ export function deriveView(
               frequency_type: before.frequency_type,
               days: before.days,
               start_date: before.start_date,
+              period: before.period,
+              period_times: before.period_times,
               times_per_day: before.times_per_day,
             },
           ];
@@ -687,7 +880,7 @@ export function deriveView(
           if (
             draft.fields.reminder_time === null &&
             !frozen &&
-            isDueOn(draft.fields, calendarToday)
+            autoMarkDue(draft, draft.fields, calendarToday, snapshot.today)
           ) {
             draft.marks.set(calendarToday, true);
           } else {

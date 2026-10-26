@@ -673,6 +673,8 @@ class Repository:
         auto_mark: bool = False,
         extra_reminder_times: Sequence[time] = (),
         description: str | None = None,
+        period: str | None = None,
+        period_times: int | None = None,
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync);
         `extra_reminder_times` — напоминания после первого (`reminder_time`)."""
@@ -683,6 +685,8 @@ class Repository:
             frequency_type=frequency_type,
             days=days,
             start_date=start_date,
+            period=period,
+            period_times=period_times,
             reminder_time=reminder_time,
             color=color,
             times_per_day=times_per_day,
@@ -710,6 +714,8 @@ class Repository:
         auto_mark: bool = False,
         extra_reminder_times: Sequence[time] = (),
         description: str | None = None,
+        period: str | None = None,
+        period_times: int | None = None,
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
@@ -719,6 +725,8 @@ class Repository:
         task.frequency_type = frequency_type
         task.days = days
         task.start_date = start_date
+        task.period = period
+        task.period_times = period_times
         task.reminder_time = reminder_time
         task.extra_reminders = [
             TaskReminder(user_id=task.user_id, time=value) for value in extra_reminder_times
@@ -1018,6 +1026,8 @@ class Repository:
                 frequency_type=task.frequency_type,
                 days=task.days,
                 start_date=task.start_date,
+                period=task.period,
+                period_times=task.period_times,
                 times_per_day=task.times_per_day,
             )
         )
@@ -1372,6 +1382,8 @@ class Repository:
         start_date: date | None,
         times_per_day: int,
         color: str,
+        period: str | None = None,
+        period_times: int | None = None,
     ) -> None:
         """Общие поля совместной привычки (как у владельца); автоотметки в ней нет."""
         task.name = name
@@ -1380,6 +1392,8 @@ class Repository:
         task.frequency_type = frequency_type
         task.days = days
         task.start_date = start_date
+        task.period = period
+        task.period_times = period_times
         task.times_per_day = times_per_day
         task.auto_mark = False
         await self.session.flush()
@@ -1677,6 +1691,8 @@ class Repository:
                 Task.frequency_type,
                 Task.days,
                 Task.start_date,
+                Task.period,
+                Task.period_times,
                 Task.reminder_time,
                 Task.auto_mark,
                 Task.created_at,
