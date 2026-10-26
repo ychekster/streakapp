@@ -164,6 +164,29 @@ describe("dataStore", () => {
     ]);
   });
 
+  it("a tap on a calendar day counts up to the goal and starts over, «Сверх плана» too", async () => {
+    syncChanges.mockResolvedValueOnce(
+      answer([
+        habit({ times_per_day: 2, overtime: true, history_counts: Array<number>(HISTORY_DAYS).fill(0) }),
+      ]),
+    );
+    const store = await freshStore();
+    store.start();
+    await settle();
+    const past = "2026-10-01";
+    const countOf = () => store.getState().habits[0].history_counts?.[HISTORY_DAYS - 5];
+    store.toggleDay(1, past);
+    store.toggleDay(1, past);
+    expect(countOf()).toBe(2);
+    expect(store.getState().habits[0].history[HISTORY_DAYS - 5]).toBe(true);
+    store.toggleDay(1, past);
+    expect(countOf()).toBe(0);
+    // Past the goal (set in the day window) — a tap starts the day over too.
+    store.setDayCount(1, past, 7);
+    store.toggleDay(1, past);
+    expect(countOf()).toBe(0);
+  });
+
   it("marks a habit not due today: a bonus mark", async () => {
     syncChanges.mockResolvedValueOnce(answer([habit({ scheduled_today: false })]));
     const store = await freshStore();

@@ -15,7 +15,8 @@
   flex-direction: column;
   min-width: 0;
   padding: var(--day-sheet-tile-padding);
-  border-radius: var(--count-sheet-button-radius);
+  /* Скругление — как у карточек приложения (StatCard на экране привычки). */
+  border-radius: var(--radius-card);
   background: var(--count-sheet-button-fill);
 }
 
@@ -31,7 +32,7 @@
   justify-content: center;
   width: var(--day-sheet-tile-icon-size);
   height: var(--day-sheet-tile-icon-size);
-  border-radius: var(--day-sheet-tile-icon-radius);
+  border-radius: var(--radius-stat-icon);
   background-color: rgba(var(--habit-rgb), var(--habit-soft-alpha));
   color: rgb(var(--habit-rgb));
 }
@@ -59,11 +60,6 @@
   color: var(--color-text-secondary);
 }
 
-/* Выполнено, цель периода набрана — значение цветом привычки. */
-.tileAccent .tileValue {
-  color: rgb(var(--habit-rgb));
-}
-
 /* Счёт «несколько раз в день» — тот же блок, что в окне счёта (CountControls). */
 .count {
   display: flex;
@@ -71,18 +67,22 @@
 }
 
 /* «Раз в день»: одна кнопка во всю ширину — «Отметить выполненной» цветом привычки, у
-   выполненного дня — серая «Снять отметку» (статус — на плитке). */
+   выполненного дня — серая «Снять отметку» (статус — на плитке). Форма — как у нижней
+   кнопки приложения («Добавить привычку», «Сохранить» — WebChrome .main): пилюля той же
+   высоты, кромка и шрифт. */
 .mark {
   width: 100%;
-  height: var(--count-sheet-action-height);
+  height: var(--web-main-height);
   margin-top: var(--day-sheet-mark-top);
   padding: 0;
   border: none;
-  border-radius: var(--count-sheet-button-radius);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0.67px 0 var(--web-main-rim), inset 0 -0.67px 0 var(--web-main-rim),
+    inset 0 0 0 0.67px rgba(255, 255, 255, 0.06);
   background: rgb(var(--habit-rgb));
   color: var(--color-on-habit);
   font: inherit;
-  font-size: var(--count-sheet-action-font-size);
+  font-size: 17px;
   font-weight: 600;
   touch-action: manipulation;
   transition: background-color var(--transition-fast), color var(--transition-fast);

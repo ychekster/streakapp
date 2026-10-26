@@ -27,6 +27,8 @@ import { weekdayLabel } from "../weekdayLabel";
 import { trackedDays } from "./calendarDays";
 import { useGridView } from "./gridLayout";
 import { HabitBlock } from "./HabitBlock";
+import { dataStore } from "../data/store";
+import { hapticSelection } from "../telegram/webapp";
 import { closeDaySheet, openDaySheet } from "./DaySheet";
 import { HabitCalendar } from "./HabitCalendar";
 import { Card, Section } from "./Section";
@@ -192,8 +194,21 @@ export function HabitSummary({
             <HabitCalendar
               habit={habit}
               day={markDay}
-              // Свои привычки — день можно исправить в окне дня.
-              onPickDay={onToggle ? (date) => openDaySheet(habit.id, date) : undefined}
+              // Свои привычки: тап у «раз в день» — отметить / снять, у «несколько раз в
+              // день» — сразу окно дня (по цвету кружка счёт не угадать); удержание — окно.
+              onTapDay={
+                onToggle
+                  ? (date) => {
+                      if (habit.times_per_day > 1) {
+                        openDaySheet(habit.id, date);
+                        return;
+                      }
+                      hapticSelection();
+                      dataStore.toggleDay(habit.id, date);
+                    }
+                  : undefined
+              }
+              onHoldDay={onToggle ? (date) => openDaySheet(habit.id, date) : undefined}
             />
           </Card>
           {children}

@@ -5,9 +5,10 @@
  * Закрывается «×» в шапке (SheetHeader), нажатием на затемнение и смахиванием вниз
  * (карточка едет за пальцем, затемнение бледнеет; отпустили дальше DISMISS_PX или
  * быстрым рывком — закрылось, иначе вернулась на место). Закрытое «×» и затемнением
- * уезжает вниз той же анимацией, что появилось; смахнутое — продолжает движение пальца:
- * с постоянной скоростью, не медленнее броска (FLING_MIN_SPEED), сразу за край экрана. Это слой поверх экрана, а не переход: кнопки «Назад» у него
- * нет. Что показывать, пока окно уезжает, хранит useSheetContent.
+ * уезжает вниз той же анимацией, что появилось; смахнутое — от того места, где отпустили,
+ * всегда с одной и той же постоянной скоростью (как бы его ни тянули и ни бросали), такой,
+ * что всё окно уехало бы за FLING_FULL_MS — быстро, как от «×». Это слой поверх экрана, а
+ * не переход: кнопки «Назад» у него нет. Что показывать, пока окно уезжает, хранит useSheetContent.
  */
 
 import {
@@ -27,10 +28,9 @@ const DISMISS_PX = 90;
 /** …или быстрее (px/мс) и хоть немного (DISMISS_FLICK_PX). */
 const DISMISS_SPEED = 0.5;
 const DISMISS_FLICK_PX = 24;
-/** Смахнутое окно уезжает с постоянной скоростью броска, но не медленнее этой (px/мс) и
- *  не дольше FLING_MAX_MS. */
-const FLING_MIN_SPEED = 1.4;
-const FLING_MAX_MS = 280;
+/** Смахнутое окно уезжает с постоянной скоростью: всё окно — за это время (мс), как
+ *  анимация закрытия (--count-sheet-anim); уже сдвинутое — быстрее, по оставшемуся пути. */
+const FLING_FULL_MS = 260;
 /** С какого сдвига (px) понятно направление жеста: вниз — смахивание, вбок — листание. */
 const AXIS_SLOP_PX = 8;
 
@@ -199,25 +199,24 @@ export function BottomSheet({
       state.dy > DISMISS_PX ||
       (state.speed > DISMISS_SPEED && state.dy > DISMISS_FLICK_PX)
     ) {
-      fling(state);
+      fling(state.dy);
       onClose();
     } else {
       offset(0, true);
     }
   }
 
-  /** Уехать вниз с того места, где отпустили, с постоянной скоростью броска; затемнение
-   *  гаснет за то же время. Уехало — onTransitionEnd. */
-  function fling(state: Drag): void {
+  /** Уехать вниз с того места, где отпустили, всегда с одной скоростью; затемнение гаснет
+   *  за то же время. Уехало — onTransitionEnd. */
+  function fling(dy: number): void {
     const element = card.current;
     if (!element) {
       return;
     }
     const bottom = parseFloat(getComputedStyle(element).marginBottom) || 0;
     const distance = element.offsetHeight + bottom;
-    const speed = Math.max(state.speed, FLING_MIN_SPEED);
     // Не нулевая: иначе перехода (и его конца) не будет.
-    const duration = Math.max(16, Math.min((distance - state.dy) / speed, FLING_MAX_MS));
+    const duration = Math.max(16, (FLING_FULL_MS * (distance - dy)) / distance);
     setFlung(true);
     element.style.transition = `transform ${duration}ms linear`;
     element.style.transform = `translateY(${distance}px)`;

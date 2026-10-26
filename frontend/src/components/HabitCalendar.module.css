@@ -80,8 +80,9 @@
   color: var(--color-text-primary);
 }
 
-/* День, который можно исправить (окно дня): кнопка, выглядит как обычный день — состояния
-   ниже перекрывают фон. */
+/* День, который можно отметить (тап) или открыть в окне дня (удержание): кнопка, выглядит
+   как обычный день — состояния ниже перекрывают фон. Без выделения и системного меню под
+   пальцем. */
 .pickable {
   padding: 0;
   border: none;
@@ -89,6 +90,9 @@
   font-family: inherit;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .done {

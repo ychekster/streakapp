@@ -6,12 +6,13 @@
  * Шапка — день, название привычки и «×». Под ней — что было в этот день (dayInfo.ts),
  * плитками, как карточки «Основного» на экране привычки: статус, график и цель того дня,
  * счёт периода «Гибкого графика», день серии, у совместной — сколько сделала группа. Ниже
- * отметка по текущим настройкам привычки:
+ * отметка по текущим настройкам привычки (сам день календаря отмечают тапом — окно
+ * открывается удержанием, HabitCalendar):
  * у «раз в день» — одна кнопка (отметить / снять), у «несколько раз в день» — счёт за день
  * (CountControls, до текущей цели; быстрые прибавки — у «Сверх плана»). В совместной —
  * моя часть. Не запланированный в тот день (или замороженный) — тоже можно: отметка
- * бонусная, в числах её нет (data/derive.ts, countedDays). Ниже — заметка к дню:
- * сохраняется, когда поле теряет фокус, при смене дня и при закрытии.
+ * бонусная, в числах её нет (data/derive.ts, countedDays). Ниже — заметка к дню (пока
+ * скрыта, SHOW_NOTE): сохраняется, когда поле теряет фокус, при смене дня и при закрытии.
  *
  * Свайп влево — следующий день, вправо — предыдущий: карточка дня целиком уезжает вбок, а
  * карточка нового дня одновременно въезжает с другой стороны (BottomSheet, `leaving`).
@@ -59,6 +60,9 @@ import styles from "./DaySheet.module.css";
 
 /** Свайп короче — не смена дня. */
 const SWIPE_MIN_PX = 40;
+
+/** Заметка к дню в окне — пока скрыта (данные и сохранение остаются: вернёмся к ней). */
+const SHOW_NOTE = false;
 
 // --- Какой день открыт (одно окно на всё приложение) ---
 
@@ -198,20 +202,22 @@ export function DaySheet() {
             {mine.done ? strings.daySheetUnmark : strings.daySheetMark}
           </button>
         )}
-        <textarea
-          className={styles.note}
-          placeholder={strings.daySheetNote}
-          aria-label={strings.daySheetNote}
-          maxLength={NOTE_MAX_LENGTH}
-          rows={1}
-          value={noteText}
-          ref={grow}
-          onChange={(event) => {
-            setNote(event.target.value);
-            grow(event.target);
-          }}
-          onBlur={saveNote}
-        />
+        {SHOW_NOTE ? (
+          <textarea
+            className={styles.note}
+            placeholder={strings.daySheetNote}
+            aria-label={strings.daySheetNote}
+            maxLength={NOTE_MAX_LENGTH}
+            rows={1}
+            value={noteText}
+            ref={grow}
+            onChange={(event) => {
+              setNote(event.target.value);
+              grow(event.target);
+            }}
+            onBlur={saveNote}
+          />
+        ) : null}
       </>
     );
   }
@@ -277,8 +283,6 @@ interface Tile {
   icon: ReactNode;
   value: string;
   label: string;
-  /** Выполнено, цель периода набрана — значение цветом привычки. */
-  accent?: boolean;
 }
 
 /** Значок статуса дня. */
@@ -309,7 +313,6 @@ function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings
       icon: statusIcon(info.status),
       value: strings.dayInfoStatuses[info.status],
       label: info.status === "bonus" ? strings.dayInfoNotInStats : strings.dayInfoStatus,
-      accent: info.status === "done",
     },
   ];
   if (info.streak) {
@@ -326,7 +329,6 @@ function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings
       icon: <TargetIcon />,
       value: strings.dayInfoOf(info.period.done, info.period.quota),
       label: periodLabel(info.period, strings, language),
-      accent: info.period.done >= info.period.quota,
     });
   }
   tiles.push({
@@ -363,9 +365,7 @@ function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings
       {tiles.map((tile, index) => (
         <div
           key={tile.key}
-          className={`${styles.tile} ${wideFirst && index === 0 ? styles.tileWide : ""} ${
-            tile.accent ? styles.tileAccent : ""
-          }`}
+          className={`${styles.tile} ${wideFirst && index === 0 ? styles.tileWide : ""}`}
         >
           <span className={styles.tileIcon} aria-hidden="true">
             {tile.icon}

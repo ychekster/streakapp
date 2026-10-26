@@ -6,14 +6,17 @@
  * обведён.
  *
  * Листается стрелками в шапке и свайпом влево-вправо — от месяца начала истории до месяца
- * дня отметки; открывается на нём. С `onPickDay` дни истории по день отметки нажимаются —
- * открывается окно дня (DaySheet), где день можно исправить; без него (страница другого
- * участника) — только просмотр.
+ * дня отметки; открывается на нём. Свои привычки (`onTapDay`, `onHoldDay`): дни истории по
+ * день отметки нажимаются: что делает тап, решает экран (HabitSummary: у «раз в день» —
+ * отметить / снять, у «несколько раз в день» — окно дня), удержание открывает окно дня
+ * (DaySheet).
+ * Без них (страница другого участника) — только просмотр.
  */
 
 import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
 import { WEEKDAYS } from "../constants";
+import { useLongPress } from "../hooks/useLongPress";
 import { useStrings } from "../preferences";
 import type { Habit } from "../types/habit";
 import { addMonths, calendarMonth, firstMonth, monthOf } from "./calendarDays";
@@ -26,8 +29,10 @@ interface HabitCalendarProps {
   habit: Habit;
   /** День отметки («ГГГГ-ММ-ДД»). */
   day: string;
-  /** Нажали на день («ГГГГ-ММ-ДД»). */
-  onPickDay?: (date: string) => void;
+  /** Тап по дню («ГГГГ-ММ-ДД»). */
+  onTapDay?: (date: string) => void;
+  /** Удержание дня — открыть окно дня. */
+  onHoldDay?: (date: string) => void;
 }
 
 function Chevron({ back }: { back: boolean }) {
@@ -43,8 +48,9 @@ function Chevron({ back }: { back: boolean }) {
   );
 }
 
-export function HabitCalendar({ habit, day, onPickDay }: HabitCalendarProps) {
+export function HabitCalendar({ habit, day, onTapDay, onHoldDay }: HabitCalendarProps) {
   const strings = useStrings();
+  const longPress = useLongPress();
   const last = monthOf(day);
   const first = firstMonth(habit, day);
   const [picked, setPicked] = useState(last);
@@ -128,13 +134,18 @@ export function HabitCalendar({ habit, day, onPickDay }: HabitCalendarProps) {
           };
           const number = Number(cell.date.slice(8, 10));
           // Исправить можно дни истории по день отметки.
-          return onPickDay && cell.date <= day && cell.state !== "unknown" ? (
+          return onTapDay && onHoldDay && cell.date <= day && cell.state !== "unknown" ? (
             <button
               key={place}
               type="button"
               {...props}
               className={`${props.className} ${styles.pickable}`}
-              onClick={() => onPickDay(cell.date)}
+              {...longPress.handlers(() => onHoldDay(cell.date))}
+              onClick={() => {
+                if (!longPress.consumeClick()) {
+                  onTapDay(cell.date);
+                }
+              }}
             >
               {number}
             </button>

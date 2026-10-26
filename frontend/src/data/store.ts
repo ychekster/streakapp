@@ -678,6 +678,30 @@ export const dataStore = {
     }
   },
 
+  /** Mark or unmark a day of the history by the habit's current goal (a tap on a calendar
+   *  day of a once-a-day habit): one done several times a day counts one more up to its
+   *  goal, and a done day starts over — with «Сверх плана» too (past the goal is set in the
+   *  day window). A frozen or not due day too — a bonus mark. */
+  toggleDay(id: number, date: string): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || !viewDay || !dataStore.editableDay(date)) {
+      return;
+    }
+    const mine = myDay(habit, date, viewDay);
+    if (habit.times_per_day > 1) {
+      const count = mine.done ? 0 : Math.min(mine.count + 1, habit.times_per_day);
+      enqueue({
+        type: "mark",
+        task: keyOf(id),
+        date,
+        done: count >= habit.times_per_day,
+        count,
+      });
+    } else {
+      enqueue({ type: "mark", task: keyOf(id), date, done: !mine.done });
+    }
+  },
+
   /** How many times the habit «несколько раз в день» is done on a day of the history: up
    *  to the current goal, past it only with «Сверх плана». */
   setDayCount(id: number, date: string, value: number): void {

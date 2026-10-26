@@ -16,17 +16,14 @@
  *  числах её нет (data/derive.ts, countedDays), поэтому кнопка бледная.
  */
 
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useLongPress } from "../hooks/useLongPress";
 import { useStrings } from "../preferences";
 import styles from "./CheckButton.module.css";
 
 /** Длительность закрашивания доли обводки (мс). */
 const FILL_MS = 340;
-
-/** Долгое нажатие: сколько держать (мс) и на сколько можно сдвинуть палец (px). */
-const LONG_PRESS_MS = 250;
-const LONG_PRESS_SLOP = 8;
 
 /** С этого числа кнопка «Сверх плана» — пилюля (три цифры в кружок не помещаются). */
 const WIDE_FROM = 100;
@@ -95,52 +92,6 @@ interface CheckButtonProps {
   onLongPress?: () => void;
 }
 
-/** Обработчики долгого нажатия; `consumeClick` — сработало ли оно: тогда `click`, который
- *  приходит следом, — не обычное нажатие. */
-function useLongPress(onLongPress: (() => void) | undefined) {
-  const timer = useRef(0);
-  const start = useRef<{ x: number; y: number } | null>(null);
-  const fired = useRef(false);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  if (!onLongPress) {
-    return { handlers: {}, consumeClick: () => false };
-  }
-  const cancel = (): void => {
-    window.clearTimeout(timer.current);
-    start.current = null;
-  };
-  return {
-    handlers: {
-      onPointerDown: (event: PointerEvent) => {
-        fired.current = false;
-        start.current = { x: event.clientX, y: event.clientY };
-        window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => {
-          fired.current = true;
-          start.current = null;
-          onLongPress();
-        }, LONG_PRESS_MS);
-      },
-      onPointerMove: (event: PointerEvent) => {
-        const from = start.current;
-        if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > LONG_PRESS_SLOP) {
-          cancel();
-        }
-      },
-      onPointerUp: cancel,
-      onPointerCancel: cancel,
-      onPointerLeave: cancel,
-      // Без системного меню под пальцем.
-      onContextMenu: (event: MouseEvent) => event.preventDefault(),
-    },
-    consumeClick: (): boolean => {
-      const was = fired.current;
-      fired.current = false;
-      return was;
-    },
-  };
-}
-
 export function CheckButton({
   done,
   habitName,
@@ -157,7 +108,8 @@ export function CheckButton({
   const multi = total > 1;
   const up = multi && countUp;
   const made = Math.min(count, total);
-  const longPress = useLongPress(disabled || !up ? undefined : onLongPress);
+  const longPress = useLongPress();
+  const holdHandlers = disabled || !up || !onLongPress ? {} : longPress.handlers(onLongPress);
   // Выполненный день — галочка без дуги: дуга обнуляется, а не докрашивается.
   const fraction = useAnimatedFraction(multi && !done ? made / total : 0);
   return (
@@ -183,7 +135,7 @@ export function CheckButton({
               }
             }
       }
-      {...longPress.handlers}
+      {...holdHandlers}
       disabled={disabled}
       aria-pressed={done}
       aria-label={
