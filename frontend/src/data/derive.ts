@@ -115,9 +115,11 @@ export function yearStats(habit: Habit, day: string): YearStats {
   const quota = periodQuota(habit.period_times ?? 1, start, end);
   const done = habit.period_done ?? 0;
   const remaining = Math.max(0, quota - done);
+  // Bonus marks (past the goal, frozen days) aside.
+  const counted = countedHistory(habit, day);
   const doneOn = (date: string): boolean => {
     const index = habit.history.length - 1 - daysBetween(date, day);
-    return index >= 0 && index < habit.history.length && habit.history[index];
+    return index >= 0 && index < counted.length && counted[index];
   };
 
   const left = daysBetween(day, end) + (habit.done_today ? 0 : 1);
@@ -206,7 +208,7 @@ export function isDueOn(habit: Schedule, day: string): boolean {
 
 /** A schedule with its past ones: days before a change are judged by the schedule then
  *  in force (models.TaskSchedulePeriod). */
-type ScheduleWithHistory = Schedule & {
+export type ScheduleWithHistory = Schedule & {
   times_per_day: number;
   schedule_history?: readonly SchedulePeriod[];
   /** A shared habit: from this day the day is not over for someone (time zones). */
@@ -249,9 +251,87 @@ export function scheduleOn(
   return (day) => periods.find((period) => day < period.until) ?? habit;
 }
 
+/** My mark on `date` (the day window in the calendar): done and how many times; `day` —
+ *  the marking day (the history's last). In a shared habit — my part (`history_counts`),
+ *  not the group's day. The day after the marking day is not mine to mark — none. */
+export function myDay(
+  habit: Habit,
+  date: string,
+  day: string,
+): { done: boolean; count: number } {
+  if (date === day) {
+    return { done: habit.done_today, count: habit.today_count };
+  }
+  const index = habit.history.length - 1 - daysBetween(date, day);
+  if (date > day || index < 0) {
+    return { done: false, count: 0 };
+  }
+  const counts = habit.history_counts ?? [];
+  if (isShared(habit) || habit.times_per_day > 1) {
+    const count = counts[index] ?? 0;
+    return { done: count >= habit.times_per_day, count };
+  }
+  const done = habit.history[index] ?? false;
+  return { done, count: Number(done) };
+}
+
 /** Was the habit due on `day` by the schedule in force on that day. */
 export function isDueOnDay(habit: ScheduleWithHistory, day: string): boolean {
   return isDueOn(scheduleOn(habit)(day), day);
+}
+
+/**
+ * Done days from `from` to `to` that count in the numbers (services.counted_days): due by
+ * the schedule in force that day and not frozen; for «Гибкий график» — the first days of
+ * a period, up to its goal (a period begun before `from` — from its days since). The
+ * other marks are bonus ones: in the grid and the calendar, not in the numbers.
+ */
+export function countedDays(
+  schedule: ScheduleWithHistory,
+  from: string,
+  to: string,
+  doneOn: (day: string) => boolean,
+  frozenOn: (day: string) => boolean,
+): Set<string> {
+  const on = scheduleOn(schedule);
+  const taken = new Map<string, number>();
+  const counted = new Set<string>();
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    if (!doneOn(day) || frozenOn(day)) {
+      continue;
+    }
+    const current = on(day);
+    const period = flexiblePeriod(current);
+    if (period !== null) {
+      const [start, end] = periodBounds(period, day);
+      const key = `${period}:${start}`;
+      const used = taken.get(key) ?? 0;
+      if (used < periodQuota(current.period_times ?? 1, start, end)) {
+        taken.set(key, used + 1);
+        counted.add(day);
+      }
+    } else if (isDueOn(current, day)) {
+      counted.add(day);
+    }
+  }
+  return counted;
+}
+
+/** Which days of a habit's `history` count in the numbers (countedDays); `lastDay` — the
+ *  history's last day. */
+export function countedHistory(
+  habit: ScheduleWithHistory & { history: readonly boolean[]; frozen_history: readonly boolean[] },
+  lastDay: string,
+): boolean[] {
+  const first = addDays(lastDay, 1 - habit.history.length);
+  const counted = countedDays(
+    habit,
+    first,
+    lastDay,
+    (day) => habit.history[daysBetween(first, day)] ?? false,
+    (day) => habit.frozen_history[daysBetween(first, day)] ?? false,
+  );
+  return habit.history.map((_, index) => counted.has(addDays(first, index)));
 }
 
 /** Does a form change the schedule (repeat, days, first day or times a day) —
@@ -381,18 +461,20 @@ function breaksRun(
 
 /** Run of done days ending on the last day of `history` (compute_streaks): an undone
  *  marking day does not break it (the day is not over), an undone due day before it
- *  does, unless frozen. `exhausted` — the run goes on past the start of the history. */
+ *  does, unless frozen. A bonus mark (done, not `counted`) neither adds nor breaks.
+ *  `exhausted` — the run goes on past the start of the history. */
 function currentRun(
   history: boolean[],
+  counted: readonly boolean[],
   frozen: readonly boolean[],
   lastDay: string,
   schedule: ScheduleWithHistory,
 ): { count: number; exhausted: boolean } {
   let count = 0;
   for (let index = history.length - 1; index >= 0; index -= 1) {
-    if (history[index]) {
+    if (counted[index]) {
       count += 1;
-    } else if (breaksRun(history, frozen, index, lastDay, schedule)) {
+    } else if (!history[index] && breaksRun(history, frozen, index, lastDay, schedule)) {
       return { count, exhausted: false };
     }
   }
@@ -402,6 +484,7 @@ function currentRun(
 /** Longest run inside `history` (days before it unknown). */
 function bestRun(
   history: boolean[],
+  counted: readonly boolean[],
   frozen: readonly boolean[],
   lastDay: string,
   schedule: ScheduleWithHistory,
@@ -409,10 +492,10 @@ function bestRun(
   let best = 0;
   let current = 0;
   history.forEach((done, index) => {
-    if (done) {
+    if (counted[index]) {
       current += 1;
       best = Math.max(best, current);
-    } else if (breaksRun(history, frozen, index, lastDay, schedule)) {
+    } else if (!done && breaksRun(history, frozen, index, lastDay, schedule)) {
       current = 0;
     }
   });
@@ -466,6 +549,8 @@ interface Draft {
   marks: Map<string, boolean>;
   /** Times done on a day marked on the device (a mark without `count` — 0, as the server). */
   counts: Map<string, number>;
+  /** Notes to days written on the device («» — removed). */
+  notes: Map<string, string>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
   /** Past schedules after a change on the device; none — as on the server. */
@@ -517,9 +602,10 @@ function draftDone(draft: Draft, snapshotToday: string): (day: string) => boolea
 }
 
 /**
- * «Гибкий график»: done days in the period from `start` to `end`, up to `until`. The
- * server's count (`period_done`) is the base when its answer is for this period — a year
- * reaches past the history; marks made on the device since then change it.
+ * «Гибкий график»: done days in the period from `start` to `end`, up to `until`, frozen
+ * ones aside — past the goal too (the numbers cap it). Days of the period before the
+ * history (a year reaches past it) are known only from the server's count: what it has
+ * beyond the history's days.
  */
 function periodDoneIn(
   draft: Draft,
@@ -530,21 +616,28 @@ function periodDoneIn(
   snapshotToday: string,
 ): number {
   const done = draftDone(draft, snapshotToday);
-  const baseDone = serverDone(draft.base, snapshotToday);
+  const frozenOn = frozenCheck(draft, snapshotToday);
   const last = until < end ? until : end;
   const { base } = draft;
-  const fromServer =
+  const historyStart = addDays(snapshotToday, 1 - HISTORY_DAYS);
+  let count = 0;
+  if (
     base !== null &&
     flexiblePeriod(base) === period &&
-    start <= snapshotToday &&
-    snapshotToday <= end;
-  let count = fromServer ? (base.period_done ?? 0) : 0;
-  for (let day = start; day <= end; day = addDays(day, 1)) {
-    count += day <= last ? Number(done(day)) : 0;
-    // The server counted its days up to its marking day.
-    count -= fromServer && day <= snapshotToday ? Number(baseDone(day)) : 0;
+    start < historyStart &&
+    snapshotToday <= end
+  ) {
+    const baseDone = serverDone(base, snapshotToday);
+    let inHistory = 0;
+    for (let day = historyStart; day <= snapshotToday; day = addDays(day, 1)) {
+      inHistory += Number(baseDone(day) && !frozenOn(day));
+    }
+    count = Math.max(0, (base.period_done ?? 0) - inHistory);
   }
-  return Math.max(0, count);
+  for (let day = start; day <= last; day = addDays(day, 1)) {
+    count += Number(done(day) && !frozenOn(day));
+  }
+  return count;
 }
 
 /** «Гибкий график»: is the goal of `day`'s period still open without `day` itself — the
@@ -558,8 +651,8 @@ function quotaOpen(
   const period = flexiblePeriod(fields) ?? "week";
   const [start, end] = periodBounds(period, day);
   const done = periodDoneIn(draft, period, start, end, end, snapshotToday);
-  const others = done - Number(draftDone(draft, snapshotToday)(day));
-  return others < periodQuota(fields.period_times ?? 1, start, end);
+  const own = draftDone(draft, snapshotToday)(day) && !frozenCheck(draft, snapshotToday)(day);
+  return done - Number(own) < periodQuota(fields.period_times ?? 1, start, end);
 }
 
 /** Is a day one to auto check-off: due by the schedule, for «Гибкий график» — while its
@@ -634,6 +727,8 @@ function applyAutoMark(
  * `prior_best`); the device adds the current one once its goal is reached — in a shared
  * habit, when the others have reached theirs too (`others_reached`). Periods that ended
  * after the server's answer are counted here by their days (others unknown — not reached).
+ * Days past the goal are bonus ones: `periodDone` stops at it; `open` — the goal is open
+ * without the marking day itself (the habit is «on today»).
  */
 function flexibleState(
   draft: Draft,
@@ -645,6 +740,7 @@ function flexibleState(
 ): {
   periodDone: number;
   quota: number;
+  open: boolean;
   current: number;
   best: number;
   prior: number;
@@ -653,7 +749,8 @@ function flexibleState(
   const times = fields.period_times ?? 1;
   const [start, end] = periodBounds(period, today);
   const quota = periodQuota(times, start, end);
-  const periodDone = periodDoneIn(draft, period, start, end, today, snapshotToday);
+  const done = periodDoneIn(draft, period, start, end, today, snapshotToday);
+  const doneToday = draftDone(draft, snapshotToday)(today) && !frozenCheck(draft, snapshotToday)(today);
   const alone = !group || group.members.length <= 1;
   const { base } = draft;
   const [serverStart] = periodBounds(period, snapshotToday);
@@ -672,8 +769,16 @@ function flexibleState(
     }
   }
   const othersReached = alone || (known && serverStart === start && (group?.others_reached ?? true));
-  const current = prior + Number(periodDone >= quota && othersReached);
-  return { periodDone, quota, current, best: Math.max(priorBest, current), prior, priorBest };
+  const current = prior + Number(done >= quota && othersReached);
+  return {
+    periodDone: Math.min(done, quota),
+    quota,
+    open: done - Number(doneToday) < quota,
+    current,
+    best: Math.max(priorBest, current),
+    prior,
+    priorBest,
+  };
 }
 
 /** The habit for `today` (the marking day) from its draft; `snapshotToday` — the day the
@@ -692,6 +797,7 @@ function buildHabit(
     !draft.fields &&
     !draft.periods &&
     marks.size === 0 &&
+    draft.notes.size === 0 &&
     !draft.freezes &&
     today === snapshotToday &&
     base.id === id &&
@@ -782,41 +888,44 @@ function buildHabit(
       fillHistory.push(groupFillOf(day));
     }
     frozenHistory.push(frozenOn(day));
-    if (severalTimes) {
+    if (group) {
+      // As the server: in a shared habit — my part, whatever the goal.
+      historyCounts.push(myUnits(day));
+    } else if (severalTimes) {
       // As the server: a mark without a count leaves none (0).
       historyCounts.push(draft.counts.get(day) ?? baseCount(day));
-    }
-  }
-
-  // Done days the server counted (up to its day), changed or no longer counted here.
-  let total = base?.total_done ?? 0;
-  marks.forEach((done, day) => {
-    if (day <= today) {
-      // The server's total has its days only (up to snapshotToday).
-      total += Number(shownMark(day, done)) - (day <= snapshotToday ? Number(baseDone(day)) : 0);
-    }
-  });
-  if (base && snapshotToday > today) {
-    for (let day = addDays(today, 1); day <= snapshotToday; day = addDays(day, 1)) {
-      if (!marks.has(day)) {
-        total -= Number(baseDone(day));
-      }
-    }
-  } else if (base && today > snapshotToday) {
-    // Days after the server's, done on the server (the next day) and not changed here.
-    for (let day = nextDay; day <= today; day = addDays(day, 1)) {
-      if (!marks.has(day)) {
-        total += Number(baseDone(day));
-      }
     }
   }
 
   const scheduleHistory = draft.periods ?? base?.schedule_history ?? [];
   const openFrom = group?.open_from ?? null;
   const schedule = { ...fields, schedule_history: scheduleHistory, open_from: openFrom };
-  const run = currentRun(history, frozenHistory, today, schedule);
+  const baseSchedule = base
+    ? { ...habitFields(base), schedule_history: base.schedule_history ?? [], open_from: openFrom }
+    : null;
+  const baseFrozenOn = (day: string): boolean => {
+    const index = baseFrozenHistory.length - 1 - daysBetween(day, snapshotToday);
+    return index >= 0 && index < baseFrozenHistory.length && baseFrozenHistory[index];
+  };
+
+  // «Всего выполнено» — counted days only (countedDays, bonus marks aside): the server's
+  // count, with the days it knows (its history, up to its day) counted anew as they are
+  // here. Older days are as it says.
+  const from = addDays(today < snapshotToday ? today : snapshotToday, 1 - HISTORY_DAYS);
+  const doneHere = (day: string): boolean => {
+    const mark = marks.get(day);
+    return mark === undefined ? baseDone(day) : shownMark(day, mark);
+  };
+  let total = countedDays(schedule, from, today, doneHere, frozenOn).size;
+  if (base && baseSchedule) {
+    total +=
+      base.total_done - countedDays(baseSchedule, from, snapshotToday, baseDone, baseFrozenOn).size;
+  }
+
+  const counted = countedHistory({ ...schedule, history, frozen_history: frozenHistory }, today);
+  const run = currentRun(history, counted, frozenHistory, today, schedule);
   let current = run.count;
-  let best = Math.max(current, bestRun(history, frozenHistory, today, schedule));
+  let best = Math.max(current, bestRun(history, counted, frozenHistory, today, schedule));
   const flexible =
     period !== null ? flexibleState(draft, fields, period, today, snapshotToday, group) : null;
   if (flexible) {
@@ -826,11 +935,17 @@ function buildHabit(
     if (run.exhausted) {
       // The run started before the history: the server knows how much earlier.
       const baseHistory = base.history;
-      const baseRun = currentRun(baseHistory, baseFrozenHistory, snapshotToday, {
-        ...habitFields(base),
-        schedule_history: base.schedule_history ?? [],
-        open_from: openFrom,
-      });
+      const baseCounted = countedHistory(
+        { ...baseSchedule!, history: baseHistory, frozen_history: baseFrozenHistory },
+        snapshotToday,
+      );
+      const baseRun = currentRun(
+        baseHistory,
+        baseCounted,
+        baseFrozenHistory,
+        snapshotToday,
+        baseSchedule!,
+      );
       current += Math.max(0, base.current_streak - baseRun.count);
       best = Math.max(best, current);
     }
@@ -851,9 +966,7 @@ function buildHabit(
     ...fields,
     done_today: doneToday,
     // «Гибкий график»: while the period's goal is open, and on the day it was reached.
-    scheduled_today: flexible
-      ? flexible.periodDone - Number(doneToday) < flexible.quota
-      : isDueOn(fields, today),
+    scheduled_today: flexible ? flexible.open : isDueOn(fields, today),
     period_done: flexible?.periodDone ?? 0,
     prior_streak: flexible?.prior ?? 0,
     prior_best: flexible?.priorBest ?? 0,
@@ -871,8 +984,44 @@ function buildHabit(
     created_on: base ? base.created_on : calendarToday,
     started_on: base ? base.started_on : null,
     schedule_history: scheduleHistory,
+    notes: notesOf(base, draft.notes, today),
     group: group ? { ...group, fill_history: fillHistory } : group,
   };
+}
+
+/** Notes to the history's days: the server's, as changed on the device. */
+function notesOf(
+  base: Habit | null,
+  changed: Map<string, string>,
+  today: string,
+): Record<string, string> {
+  const first = addDays(today, 1 - HISTORY_DAYS);
+  const notes: Record<string, string> = {};
+  for (const [day, text] of Object.entries(base?.notes ?? {})) {
+    if (day >= first && day <= today) {
+      notes[day] = text;
+    }
+  }
+  changed.forEach((text, day) => {
+    if (text) {
+      notes[day] = text;
+    } else {
+      delete notes[day];
+    }
+  });
+  return notes;
+}
+
+/** A note as the server keeps it (validation.validate_note): lines kept (no more than one
+ *  empty in a row), other control characters — spaces, spaces collapsed, trimmed. */
+export function cleanNote(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map(cleanHabitName)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export interface View {
@@ -907,6 +1056,7 @@ export function deriveView(
     fields: null,
     marks: new Map(),
     counts: new Map(),
+    notes: new Map(),
     freezes: null,
   }));
   for (const op of ops) {
@@ -917,10 +1067,16 @@ export function deriveView(
         fields: habitFields(op.habit),
         marks: new Map(),
         counts: new Map(),
+        notes: new Map(),
         freezes: null,
         shared: op.habit.shared ?? false,
       });
-    } else if (op.type === "update" || op.type === "mark" || op.type === "freeze") {
+    } else if (
+      op.type === "update" ||
+      op.type === "mark" ||
+      op.type === "freeze" ||
+      op.type === "note"
+    ) {
       const draft = drafts.find((item) => item.key === op.task);
       if (draft && op.type === "update") {
         const before = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
@@ -984,6 +1140,8 @@ export function deriveView(
           draft.counts.set(op.date, count);
           draft.marks.set(op.date, count >= target);
         }
+      } else if (draft && op.type === "note") {
+        draft.notes.set(op.date, cleanNote(op.text));
       } else if (draft && op.type === "freeze") {
         draft.freezes ??= serverFreezes(draft.base);
         applyFreeze(draft.freezes, op, draft.base);

@@ -75,13 +75,13 @@ describe("trackedDays", () => {
     expect(trackedDays(gym, "2026-10-16")).toBe(4);
   });
 
-  it("counts a done day off the schedule", () => {
+  it("leaves out a bonus mark off the schedule", () => {
     const gym = habit("2026-10-16", ["2026-10-05", "2026-10-06"], {
       frequency_type: "specific_days",
       days: ["mon"],
     });
-    // 5 (Mon, done), 6 (Tue, done), 12 (Mon).
-    expect(trackedDays(gym, "2026-10-16")).toBe(3);
+    // 5 (Mon, done), 12 (Mon); 6 (Tue) is a bonus mark.
+    expect(trackedDays(gym, "2026-10-16")).toBe(2);
   });
 
   it("counts due days older than the history by the schedule", () => {
@@ -125,9 +125,9 @@ describe("calendarMonth", () => {
     expect(state("2026-10-17")).toBe("off");
   });
 
-  it("starts at the first month of the habit, not older than the history", () => {
+  it("starts at the first month of the history: any of its days can be changed", () => {
     const run = habit("2026-10-10", ["2026-08-20"]);
-    expect(firstMonth(run, "2026-10-10")).toBe("2026-08");
+    expect(firstMonth(run, "2026-10-10")).toBe("2025-10");
     const old = habit("2026-10-10", [], { started_on: "2024-01-01" });
     expect(firstMonth(old, "2026-10-10")).toBe("2025-10");
   });

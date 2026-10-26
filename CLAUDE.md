@@ -41,7 +41,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0033)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0034)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -121,6 +121,8 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx |
 | Shared habits | models.HabitGroup*, backend/groups.py, routers/groups.py, bot/handlers/group_invite.py, bot/profiles.py, reminders (group marks); frontend data/groups.ts, api/groups.ts, derive.ts (isShared, groupProgress), components/GroupMembers.tsx, CheckButton (group), screens/HabitScreen.tsx |
 | Schedule history | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule; frontend derive.ts (scheduleOn, isDueOnDay) |
+| Bonus marks (not due / frozen / past a flexible goal: in the grid, not in the numbers) | services.counted_days (compute_streaks, flexible_streaks, total_done); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |
+| Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onPickDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
 | «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / _check_quota / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 

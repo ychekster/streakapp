@@ -61,6 +61,7 @@ import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "./components/CollapsingHeader";
 import { CountSheet } from "./components/CountSheet";
+import { DaySheet } from "./components/DaySheet";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
@@ -1100,6 +1101,8 @@ export function App() {
       {/* «Сверх плана»: плашка «Отменить» после серии нажатий и окно счёта (удержание). */}
       <UndoToast aboveTabBar={!tabBarHidden} />
       <CountSheet />
+      {/* Окно дня: нажатие на день в календаре привычки. */}
+      <DaySheet />
       {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );

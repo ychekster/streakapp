@@ -325,7 +325,7 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
                 done=item.is_done(today),
                 count=item.count_on(today, item.task.times_per_day),
                 frozen=item.is_frozen(today),
-                period_done=_period_done(item) if flexible else 0,
+                period_done=min(_period_done(item), quota) if flexible else 0,
                 photo=item.user.photo_id,
             )
             for item in state.members
@@ -355,7 +355,8 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
 
 def _period_done(item: _Member) -> int:
     """«Гибкий график»: сколько дней участник выполнил в своём текущем периоде (в своих
-    днях — пояс и «Отмечать за вчера» у каждого свои)."""
+    днях — пояс и «Отмечать за вчера» у каждого свои). Дни сверх цели — бонусные: в счёт
+    их не берут (не больше цели)."""
     start, _ = period_bounds(item.task.period or "week", item.today)
     days = (item.today - start).days + 1
     return sum(1 for offset in range(days) if item.is_done(start + timedelta(days=offset)))
@@ -747,10 +748,13 @@ async def due_group_marks(
     """Уведомления об отметках, которые пора прислать, и записи отметок, о которых они
     (записи помечаются, даже если сообщать некому: так «Отметки участников», включённые
     позже, не принесут старых). Одна отметка — одно уведомление за день: снятая и снова
-    поставленная повтора не даёт. Смотрит отметки за последние сутки."""
+    поставленная повтора не даёт. Смотрит отметки за последние сутки; отметка задним
+    числом (день старше позавчера — исправили его в календаре) не сообщается."""
     pending = await repo.pending_group_marks(now - timedelta(days=1))
     if not pending:
         return [], []
+    log_ids = [log.id for log, _ in pending]
+    pending = [(log, member) for log, member in pending if _fresh_mark(log.scheduled_date, log.marked_at)]
     group_ids = {member.group_id for _, member in pending}
     members = await repo.active_members(group_ids)
     users = await repo.get_users({member.user_id for member in members})
@@ -781,5 +785,11 @@ async def due_group_marks(
                     telegram=user.telegram_notifications,
                 )
             )
-    return notices, [log.id for log, _ in pending]
+    return notices, log_ids
+
+
+def _fresh_mark(day: date, marked_at: datetime | None) -> bool:
+    """Отметка за свой день, а не задним числом: день — не раньше позавчера по UTC в момент
+    отметки (пояса до ±14 ч и «Отмечать за вчера» дают свой день в пределах двух суток)."""
+    return marked_at is not None and day >= marked_at.date() - timedelta(days=2)
 

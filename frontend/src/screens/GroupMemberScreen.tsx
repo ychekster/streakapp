@@ -125,7 +125,7 @@ export function GroupMemberScreen({
                 main: strings.habitMainHeading,
                 calendar: strings.calendarHeading,
               }}
-              interactive={mine && habit.scheduled_today && habit.frozen_since === null}
+              interactive={mine && habit.frozen_since === null}
               onToggle={mine ? onToggle : undefined}
               headingRef={headingRef}
             >

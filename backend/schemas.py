@@ -18,6 +18,7 @@ from backend.constants import (
     HABIT_DESCRIPTION_MAX_LENGTH,
     HISTORY_DAYS,
     MAX_DB_INT,
+    NOTE_MAX_LENGTH,
     MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
     MAX_TIMES_PER_DAY,
@@ -326,6 +327,10 @@ class Habit(BaseModel):
             "последнего — текущее"
         ),
     )
+    notes: dict[date, str] = Field(
+        default_factory=dict,
+        description="Заметки к дням `history` (окно дня в календаре): день → текст",
+    )
     group: HabitGroupView | None = Field(
         None,
         description=(
@@ -515,6 +520,16 @@ class SyncMark(BaseModel):
     count: int | None = Field(None, ge=0, le=OVERTIME_MAX_COUNT)
 
 
+class SyncNote(BaseModel):
+    """Заметка к дню `date` привычки; пустой `text` — удалить заметку."""
+
+    type: Literal["note"]
+    task: TaskRef
+    date: date
+    # С запасом на пробелы, которые проверка уберёт (validation.validate_note).
+    text: str = Field(..., max_length=NOTE_MAX_LENGTH * 2)
+
+
 class SyncFreeze(BaseModel):
     """Заморозить (`frozen: true`) привычку с дня `date` или разморозить — `date` уже
     обычный день. Повтор (уже заморожена / не заморожена) ничего не меняет."""
@@ -614,6 +629,7 @@ class SyncFolderOrder(BaseModel):
 
 SyncOperation = Annotated[
     SyncMark
+    | SyncNote
     | SyncFreeze
     | SyncCreate
     | SyncUpdate

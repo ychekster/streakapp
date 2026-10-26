@@ -27,6 +27,7 @@ import { ApiRequestError, authorizationHeader, type ApiErrorCode } from "../api/
 import { syncChanges } from "../api/sync";
 import {
   MAX_FOLDERS_PER_USER,
+  HISTORY_DAYS,
   MAX_HABITS_PER_USER,
   OVERTIME_MAX_COUNT,
   SYNC_BATCH_SIZE,
@@ -41,11 +42,13 @@ import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
 import { currentSessionId } from "../web/session";
-import { clockIn, markingDay } from "./dates";
+import { addDays, clockIn, markingDay } from "./dates";
 import {
   cleanHabitName,
+  cleanNote,
   deriveFolders,
   deriveView,
+  myDay,
   reminderTimesOf,
   reuseUnchanged,
   type Operation,
@@ -275,9 +278,9 @@ function refersToFolder(op: Operation, key: FolderKey): boolean {
 function enqueue(op: Operation): void {
   const sent = ops.slice(0, sending);
   let unsent = ops.slice(sending);
-  if (op.type === "mark") {
+  if (op.type === "mark" || op.type === "note") {
     unsent = unsent.filter(
-      (item) => !(item.type === "mark" && item.task === op.task && item.date === op.date),
+      (item) => !(item.type === op.type && item.task === op.task && item.date === op.date),
     );
     unsent.push(op);
   } else if (op.type === "update") {
@@ -620,10 +623,11 @@ export const dataStore = {
 
   /** Mark or unmark the habit for the marking day. A habit done several times a day
    *  counts one more time per press; once done, a press starts the day over — with
-   *  «Сверх плана» it keeps counting (up to OVERTIME_MAX_COUNT). */
+   *  «Сверх плана» it keeps counting (up to OVERTIME_MAX_COUNT). Not due that day — it
+   *  can be marked too: a bonus mark (data/derive.ts, countedDays). */
   toggle(id: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (!habit?.scheduled_today || habit.frozen_since !== null || !viewDay) {
+    if (!habit || habit.frozen_since !== null || !viewDay) {
       return;
     }
     if (habit.times_per_day > 1) {
@@ -648,20 +652,63 @@ export const dataStore = {
    *  window, an undone run of presses); below the goal the day is not done again. */
   setCount(id: number, value: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (!habit?.overtime || !habit.scheduled_today || habit.frozen_since !== null || !viewDay) {
+    if (!habit?.overtime || habit.frozen_since !== null || !viewDay) {
       return;
     }
-    const count = Math.max(0, Math.min(Math.round(value), OVERTIME_MAX_COUNT));
-    if (count === habit.today_count) {
+    dataStore.setDayCount(id, viewDay, value);
+  },
+
+  /** Is `date` a day that can be changed: in the history, not after the marking day. */
+  editableDay(date: string): boolean {
+    return viewDay !== null && date <= viewDay && date > addDays(viewDay, -HISTORY_DAYS);
+  },
+
+  /** Mark or unmark the habit for any day of the history (the day window in the
+   *  calendar), by the habit's current settings: a habit done several times a day is
+   *  filled up to its goal or cleared. A frozen or not due day — a bonus mark. */
+  markDay(id: number, date: string, done: boolean): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || !viewDay || !dataStore.editableDay(date)) {
+      return;
+    }
+    if (habit.times_per_day > 1) {
+      dataStore.setDayCount(id, date, done ? habit.times_per_day : 0);
+    } else if (myDay(habit, date, viewDay).done !== done) {
+      enqueue({ type: "mark", task: keyOf(id), date, done });
+    }
+  },
+
+  /** How many times the habit «несколько раз в день» is done on a day of the history: up
+   *  to the current goal, past it only with «Сверх плана». */
+  setDayCount(id: number, date: string, value: number): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || habit.times_per_day <= 1 || !viewDay || !dataStore.editableDay(date)) {
+      return;
+    }
+    const most = habit.overtime ? OVERTIME_MAX_COUNT : habit.times_per_day;
+    const count = Math.max(0, Math.min(Math.round(value), most));
+    if (count === myDay(habit, date, viewDay).count) {
       return;
     }
     enqueue({
       type: "mark",
       task: keyOf(id),
-      date: viewDay,
+      date,
       done: count >= habit.times_per_day,
       count,
     });
+  },
+
+  /** A note to a day of the history; empty — removed. */
+  setNote(id: number, date: string, text: string): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || !dataStore.editableDay(date)) {
+      return;
+    }
+    const cleaned = cleanNote(text);
+    if (cleaned !== (habit.notes?.[date] ?? "")) {
+      enqueue({ type: "note", task: keyOf(id), date, text: cleaned });
+    }
   },
 
   /** Freeze the habit from the marking day, or unfreeze it (the marking day is an

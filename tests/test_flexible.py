@@ -1,5 +1,5 @@
 """«Гибкий график» (частота flexible): N дней за неделю / месяц / год в любые дни — цель
-периода, серии в периодах, запрет отметок сверх цели и напоминания. Совместная — в
+периода, серии в периодах, бонусные отметки сверх цели и напоминания. Совместная — в
 test_groups.py."""
 
 from __future__ import annotations
@@ -118,18 +118,21 @@ def test_quota_closes_the_period(client: TestClient, user: AuthUser) -> None:
     # В день, когда цель набрана, привычка остаётся «на сегодня» с отметкой.
     assert habit["scheduled_today"] is True and habit["period_done"] == 1
     assert (habit["current_streak"], habit["prior_streak"]) == (1, 0)
-    # Другой день того же года — сверх цели: не отмечается.
+    # Другой день того же года — сверх цели, но отмечается: в периоде засчитан более
+    # ранний день, сегодняшний стал бонусным (в сетке есть, в числах — нет).
     data = _sync(client, user, mark(today - timedelta(days=1)))
-    assert data["results"][0]["error"]["code"] == "quota_reached"
-    assert data["habits"][0]["total_done"] == 1
-    # Сняли сегодняшнюю — цель открыта снова.
-    data = _sync(client, user, mark(today, False), mark(today - timedelta(days=1)))
-    assert data["results"][1]["ok"] is True
+    assert data["results"][0]["ok"] is True
     habit = data["habits"][0]
-    assert habit["scheduled_today"] is False and habit["period_done"] == 1
+    assert habit["history"][-2:] == [True, True]
+    assert (habit["total_done"], habit["period_done"], habit["current_streak"]) == (1, 1, 1)
+    assert habit["scheduled_today"] is False and habit["done_today"] is True
+    # Сняли вчерашнюю — сегодняшняя засчитана снова.
+    data = _sync(client, user, mark(today - timedelta(days=1), False))
+    habit = data["habits"][0]
+    assert habit["scheduled_today"] is True and habit["total_done"] == 1
 
 
-def test_quota_lets_a_partial_day_go_down(client: TestClient, user: AuthUser) -> None:
+def test_quota_counts_the_first_days_of_a_period(client: TestClient, user: AuthUser) -> None:
     today = _today(client, user)
     if today.timetuple().tm_yday == 1:
         pytest.skip("1 января: другого дня этого года ещё не было")
@@ -146,10 +149,12 @@ def test_quota_lets_a_partial_day_go_down(client: TestClient, user: AuthUser) ->
     # Сегодня начат (2 из 3), а цель года набрал вчерашний день.
     data = _sync(client, user, mark(today, 2), mark(today - timedelta(days=1), 3))
     assert all(result["ok"] for result in data["results"])
-    # Счёт сегодняшнего дня можно уменьшить, но не увеличить.
-    data = _sync(client, user, mark(today, 1), mark(today, 2))
+    # Сегодняшний день можно добрать до цели — бонусом: цель года уже набрана вчера.
+    data = _sync(client, user, mark(today, 3))
     assert data["results"][0]["ok"] is True
-    assert data["results"][1]["error"]["code"] == "quota_reached"
+    [habit] = data["habits"]
+    assert habit["done_today"] is True and habit["scheduled_today"] is False
+    assert (habit["total_done"], habit["period_done"]) == (1, 1)
 
 
 def test_flexible_form_is_validated(client: TestClient, user: AuthUser) -> None:

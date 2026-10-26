@@ -4,9 +4,9 @@
  * приложения (HabitsScreen) и экран привычек пользователя в админ-панели
  * (AdminUserHabitsScreen), поэтому разбиение и порядок секций живут здесь.
  *
- * `interactive` — можно ли отмечать выполнение в первой секции: у себя можно, в
- * админ-панели привычки только показываются. Вторая и третья секции не интерактивны
- * всегда: на этот день привычка не запланирована или заморожена.
+ * `interactive` — можно ли отмечать выполнение: у себя можно, в админ-панели привычки
+ * только показываются. Во второй секции (не запланированы на этот день) отметка
+ * бонусная — кнопка бледная; третья (заморожены) не интерактивна всегда.
  */
 
 import { useStrings } from "../preferences";
@@ -17,7 +17,7 @@ interface HabitsListProps {
   habits: Habit[];
   /** Режим «Отмечать за вчера» владельца привычек: день отметки — вчера. */
   markYesterday: boolean;
-  /** Можно ли отмечать привычки, запланированные на день отметки. */
+  /** Можно ли отмечать привычки (кроме замороженных). */
   interactive: boolean;
   onToggle?: (taskId: number) => void;
   /** Открыть экран привычки по нажатию на её блок; без него блоки не нажимаются. */
@@ -49,7 +49,8 @@ export function HabitsList({
       {otherHabits.length > 0 ? (
         <HabitsSection
           habits={otherHabits}
-          interactive={false}
+          interactive={interactive}
+          onToggle={onToggle}
           subheading={
             markYesterday ? strings.otherSubheadingYesterday : strings.otherSubheadingToday
           }

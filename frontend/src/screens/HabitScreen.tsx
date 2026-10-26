@@ -287,7 +287,7 @@ export function HabitScreen({
                   calendar: strings.calendarHeading,
                 }
           }
-          interactive={habit.scheduled_today && !frozen}
+          interactive={!frozen}
           onToggle={onToggle}
           headingRef={shared && group ? undefined : headingRef}
         />

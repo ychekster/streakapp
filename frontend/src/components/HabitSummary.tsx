@@ -15,7 +15,7 @@
  * дней».
  */
 
-import type { ReactNode, Ref } from "react";
+import { useEffect, type ReactNode, type Ref } from "react";
 
 import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
 import { flexiblePeriod, periodBounds, periodQuota, yearStats } from "../data/derive";
@@ -27,6 +27,7 @@ import { weekdayLabel } from "../weekdayLabel";
 import { trackedDays } from "./calendarDays";
 import { useGridView } from "./gridLayout";
 import { HabitBlock } from "./HabitBlock";
+import { closeDaySheet, openDaySheet } from "./DaySheet";
 import { HabitCalendar } from "./HabitCalendar";
 import { Card, Section } from "./Section";
 import { StatCard } from "./StatCard";
@@ -134,6 +135,8 @@ export function HabitSummary({
   const strings = useStrings();
   const language = useLanguage();
   const markDay = useGridView().day;
+  // Ушли с экрана привычки («Назад») — окно её дня закрывается вместе с ним.
+  useEffect(() => closeDaySheet, []);
   const days = markDay ? trackedDays(habit, markDay) : 0;
   // День отметки ещё неизвестен (нет настроек) — сегодня на устройстве.
   const flexible = flexibleStats(habit, markDay ?? localDate(), strings, language);
@@ -186,7 +189,12 @@ export function HabitSummary({
       {markDay ? (
         <Section title={headings.calendar}>
           <Card padded>
-            <HabitCalendar habit={habit} day={markDay} />
+            <HabitCalendar
+              habit={habit}
+              day={markDay}
+              // Свои привычки — день можно исправить в окне дня.
+              onPickDay={onToggle ? (date) => openDaySheet(habit.id, date) : undefined}
+            />
           </Card>
           {children}
         </Section>

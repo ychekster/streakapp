@@ -68,6 +68,7 @@ from backend.schemas import (
     SyncFolderUpdate,
     SyncFreeze,
     SyncMark,
+    SyncNote,
     SyncOperation,
     SyncResult,
     SyncUpdate,
@@ -141,6 +142,37 @@ def frozen_check(
     return lambda day: any(start <= day < end for start, end in periods)
 
 
+def counted_days(
+    task: Task,
+    done_dates: Collection[date],
+    is_frozen: Callable[[date], bool] = lambda day: False,
+    periods: Sequence[TaskSchedulePeriod] = (),
+) -> set[date]:
+    """Выполненные дни, которые идут в статистику (серии, «всего выполнено», счёт
+    периода): по расписанию того дня (`periods`) привычка была запланирована и не
+    заморожена. У «Гибкого графика» — первые дни периода по порядку, пока не набрана его
+    цель. Остальные отметки — бонусные: они в сетке и календаре, но не в числах.
+    """
+    is_due = due_check_with_history(task, periods)
+    schedule_on = schedule_at(task, periods)
+    taken: dict[tuple[str, date], int] = {}
+    counted: set[date] = set()
+    for day in sorted(done_dates):
+        if is_frozen(day):
+            continue
+        schedule = schedule_on(day)
+        if schedule.frequency_type == FrequencyType.flexible:
+            kind = schedule.period or "week"
+            start, end = period_bounds(kind, day)
+            used = taken.get((kind, start), 0)
+            if used < period_quota(schedule.period_times or 1, start, end):
+                taken[(kind, start)] = used + 1
+                counted.add(day)
+        elif is_due(day):
+            counted.add(day)
+    return counted
+
+
 def compute_streaks(
     task: Task,
     done_dates: set[date],
@@ -149,36 +181,41 @@ def compute_streaks(
     periods: Sequence[TaskSchedulePeriod] = (),
     open_from: date | None = None,
     others_reached: OthersReached | None = None,
+    counted: set[date] | None = None,
 ) -> tuple[int, int]:
     """Текущая и лучшая серии выполнения (в днях).
 
     Серия — подряд идущие выполненные дни. Прерывает её только пропущенный
     запланированный день: незапланированные дни (у привычек «по дням недели», «через
-    день» и «каждый месяц») и дни заморозки серию не рвут, а выполнение в такой день её продолжает.
+    день» и «каждый месяц») и дни заморозки серию не рвут. Отметка в такой день —
+    бонусная (`counted_days`): серию она не продолжает и не рвёт.
     Сегодняшний день ещё не закончился, поэтому пока он не отмечен, текущая серия тянется
     со вчерашнего. Запланирован ли прошлый день — по расписанию того дня (`periods`).
     `open_from` — с этого дня дни ещё не закончились (у совместной привычки — у кого-то из
-    участников): невыполненные, они тоже не рвут серию.
+    участников): невыполненные, они тоже не рвут серию. `counted` — уже посчитанные
+    `counted_days`.
 
     «Гибкий график» — серии в периодах (`flexible_streaks`; `others_reached` — у
     совместной).
     """
     if task.frequency_type == FrequencyType.flexible:
         streaks = flexible_streaks(
-            task, done_dates, today, is_frozen, periods, open_from, others_reached
+            task, done_dates, today, is_frozen, periods, open_from, others_reached, counted
         )
         return streaks.current, streaks.best
     if not done_dates:
         return 0, 0
+    if counted is None:
+        counted = counted_days(task, done_dates, is_frozen, periods)
     is_due = due_check_with_history(task, periods)
     open_day = min(today, open_from) if open_from is not None else today
     current = best = 0
     day = min(done_dates)
     while day <= today:
-        if day in done_dates:
+        if day in counted:
             current += 1
             best = max(best, current)
-        elif day < open_day and is_due(day) and not is_frozen(day):
+        elif day not in done_dates and day < open_day and is_due(day) and not is_frozen(day):
             current = 0
         day += timedelta(days=1)
     return current, best
@@ -221,6 +258,7 @@ def flexible_streaks(
     periods: Sequence[TaskSchedulePeriod] = (),
     open_from: date | None = None,
     others_reached: OthersReached | None = None,
+    counted: set[date] | None = None,
 ) -> FlexibleStreaks:
     """Серии «Гибкого графика» — в периодах (неделях, месяцах, годах).
 
@@ -229,17 +267,21 @@ def flexible_streaks(
     этим графиком, не раньше первой отметки и без заморозки. Неполный (привычку начали или
     сменили частоту посреди периода, была заморожена) серию не рвёт. Период ещё не
     закончился (текущий; у совместной — у кого-то из участников, `open_from`) — тоже.
+    Дни сверх цели периода и дни заморозки — бонусные (`counted_days`): не в счёт.
     """
     kind = task.period or "week"
     current_start, current_end = period_bounds(kind, today)
     times = _flexible_period(task, kind) or 1
     quota = period_quota(times, current_start, current_end)
-    done = {day for day in done_dates if day <= today}
+    marked = {day for day in done_dates if day <= today}
+    if counted is None:
+        counted = counted_days(task, marked, is_frozen, periods)
+    done = {day for day in counted if day <= today}
     period_done = sum(1 for day in done if day >= current_start)
-    if not done:
+    if not marked:
         return FlexibleStreaks(0, 0, 0, 0, period_done, quota)
     schedule_on = schedule_at(task, periods)
-    first = min(done)
+    first = min(marked)
     open_day = min(today, open_from) if open_from is not None else today
     run = best = 0
     start = period_bounds(kind, first)[0]
@@ -282,6 +324,7 @@ def build_habit(
     created_on: date | None = None,
     periods: Sequence[TaskSchedulePeriod] = (),
     group: groups.ViewerGroup | None = None,
+    notes: Mapping[date, str] | None = None,
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -296,7 +339,8 @@ def build_habit(
     `next_day_done` — выполнен ли день после `today` (календарный сегодня в режиме
     «Отмечать за вчера»), см. `Habit.next_day_done`. `created_on` — день создания
     привычки в поясе пользователя (`created_day`). `periods` — прежние расписания
-    (Repository.get_schedule_periods).
+    (Repository.get_schedule_periods). `notes` — заметки к дням истории
+    (Repository.get_notes).
 
     Совместная привычка (`group`): сетка, серии и `total_done` — по дням, выполненным
     всеми (мои отметки и `group.others_done`), а `done_today` и `today_count` — моя часть
@@ -311,6 +355,8 @@ def build_habit(
         if group is None or flexible
         else {day for day in done_dates if group.others_done(day)}
     )
+    # Дни в статистике: без бонусных (не по расписанию того дня, заморожены, сверх цели).
+    counted = counted_days(task, shown, is_frozen, periods)
     streaks = (
         flexible_streaks(
             task,
@@ -320,6 +366,7 @@ def build_habit(
             periods,
             group.open_from if group else None,
             group.others_reached if group else None,
+            counted,
         )
         if flexible
         else None
@@ -328,7 +375,13 @@ def build_habit(
         current_streak, best_streak = streaks.current, streaks.best
     else:
         current_streak, best_streak = compute_streaks(
-            task, shown, today, is_frozen, periods, group.open_from if group else None
+            task,
+            shown,
+            today,
+            is_frozen,
+            periods,
+            group.open_from if group else None,
+            counted=counted,
         )
     done_today = today in done_dates
     history_start = _history_start(today)
@@ -339,7 +392,7 @@ def build_habit(
         done_today=done_today,
         # «Гибкий график» — пока цель периода не набрана; в день, когда набрана, — тоже.
         scheduled_today=(
-            streaks.period_done - done_today < streaks.quota
+            streaks.period_done - (today in counted) < streaks.quota
             if streaks is not None
             else is_due_on(task, today)
         ),
@@ -354,7 +407,7 @@ def build_habit(
         history=build_history(shown, today),
         current_streak=current_streak,
         best_streak=best_streak,
-        total_done=len(shown),
+        total_done=len(counted),
         reminder_time=(
             task.reminder_time.strftime(REMINDER_TIME_FORMAT)
             if task.reminder_time is not None
@@ -397,6 +450,7 @@ def build_habit(
             )
             for period in periods
         ],
+        notes=dict(notes or {}),
         group=group.view if group is not None else None,
     )
 
@@ -473,6 +527,7 @@ async def _build_habits(
     )
     ahead = await _auto_mark_ahead(repo, user, task_ids)
     periods = await repo.get_schedule_periods(task_ids)
+    notes = await repo.get_notes(task_ids, _history_start(today), today)
     members = await repo.members_of_tasks(task_ids) if with_groups else {}
     states = await groups.load_groups(repo, {member.group_id for member in members.values()})
 
@@ -494,6 +549,7 @@ async def _build_habits(
             created_day(task, user),
             periods[task.id],
             group_of(task),
+            notes[task.id],
         )
         for task in tasks
     ]
@@ -516,26 +572,9 @@ async def toggle_today(repo: Repository, user: User, task: Task) -> Habit:
     today = user_today(user)
     log = await repo.get_or_create_log(task.id, user.telegram_id, today)
     target = TaskStatus.pending if log.status == TaskStatus.done else TaskStatus.done
-    if target == TaskStatus.done:
-        await _check_quota(repo, task, today)
     await repo.set_log_status(log, target)
     await _record_mark(repo, user, task, target == TaskStatus.done)
     return await _built_habit(repo, user, task)
-
-
-async def _check_quota(repo: Repository, task: Task, day: date) -> None:
-    """«Гибкий график»: цель периода, в который попадает `day`, уже набрана другими днями —
-    отметить этот день нельзя (сверх цели дней не бывает). Период и цель — по расписанию
-    того дня."""
-    periods = (await repo.get_schedule_periods([task.id]))[task.id]
-    schedule = schedule_at(task, periods)(day)
-    if schedule.frequency_type != FrequencyType.flexible:
-        return
-    start, end = period_bounds(schedule.period or "week", day)
-    done = (await repo.get_done_dates([task.id], end))[task.id]
-    others = sum(1 for other in done if start <= other <= end and other != day)
-    if others >= period_quota(schedule.period_times or 1, start, end):
-        raise ApiError(409, "quota_reached", "Цель на этот период уже набрана")
 
 
 async def _quota_open(repo: Repository, pairs: Collection[tuple[Task, date]]) -> set[int]:
@@ -925,19 +964,23 @@ async def _apply_sync_op(
             op = op.model_copy(update={"count": min(op.count, task.times_per_day)})
         # Привычка «несколько раз в день»: день выполнен, когда набрано times_per_day.
         done = op.done if op.count is None else op.count >= task.times_per_day
+        # Отметить можно любой день, и незапланированный тоже (и сверх цели «Гибкого
+        # графика»): такая отметка — бонусная, в статистику не идёт (counted_days).
         target = TaskStatus.done if done else TaskStatus.pending
-        # «Гибкий график»: новый день периода, где цель уже набрана, не отмечается (снять
-        # отметку или уменьшить счёт — можно).
-        if log.status != TaskStatus.done and (
-            op.done if op.count is None else op.count > (log.count or 0)
-        ):
-            await _check_quota(repo, task, op.date)
         if log.count != op.count:
             await repo.set_log_count(log, op.count)
         if log.status != target:
             await repo.set_log_status(log, target)
             await _record_mark(repo, user, task, done)
         outcome.checked_in = outcome.checked_in or done
+        return SyncResult(ok=True)
+    if isinstance(op, SyncNote):
+        task = await _active_task(repo, user, op.task)
+        # День — как у отметки: в пределах истории, не позже дня отметки.
+        today = user_today(user)
+        if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
+            raise ApiError(422, "invalid_date", "День вне истории привычки")
+        await repo.set_note(task, op.date, validation.validate_note(op.text), utc_now())
         return SyncResult(ok=True)
     if isinstance(op, SyncFreeze):
         task = await _active_task(repo, user, op.task)

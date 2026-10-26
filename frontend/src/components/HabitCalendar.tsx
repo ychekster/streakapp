@@ -5,8 +5,10 @@
  * замороженный — голубым; до первого дня и после дня отметки — без кружка. День отметки
  * обведён.
  *
- * Только просмотр. Листается стрелками в шапке и свайпом влево-вправо — от месяца первого
- * дня привычки (но не старше истории) до месяца дня отметки; открывается на нём.
+ * Листается стрелками в шапке и свайпом влево-вправо — от месяца начала истории до месяца
+ * дня отметки; открывается на нём. С `onPickDay` дни истории по день отметки нажимаются —
+ * открывается окно дня (DaySheet), где день можно исправить; без него (страница другого
+ * участника) — только просмотр.
  */
 
 import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
@@ -24,6 +26,8 @@ interface HabitCalendarProps {
   habit: Habit;
   /** День отметки («ГГГГ-ММ-ДД»). */
   day: string;
+  /** Нажали на день («ГГГГ-ММ-ДД»). */
+  onPickDay?: (date: string) => void;
 }
 
 function Chevron({ back }: { back: boolean }) {
@@ -39,7 +43,7 @@ function Chevron({ back }: { back: boolean }) {
   );
 }
 
-export function HabitCalendar({ habit, day }: HabitCalendarProps) {
+export function HabitCalendar({ habit, day, onPickDay }: HabitCalendarProps) {
   const strings = useStrings();
   const last = monthOf(day);
   const first = firstMonth(habit, day);
@@ -108,26 +112,38 @@ export function HabitCalendar({ habit, day }: HabitCalendarProps) {
             {strings.weekdays[weekday].short}
           </span>
         ))}
-        {days.map((cell, place) =>
-          cell === null ? (
-            <span key={place} className={styles.day} />
-          ) : (
-            <span
+        {days.map((cell, place) => {
+          if (cell === null) {
+            return <span key={place} className={styles.day} />;
+          }
+          const props = {
+            className: `${styles.day} ${styles[cell.state]} ${cell.today ? styles.today : ""}`,
+            style:
+              cell.state === "partial"
+                ? ({ "--dot-fill": cell.fill } as CSSProperties)
+                : undefined,
+            "aria-label": `${Number(cell.date.slice(8, 10))} ${strings.monthNamesOf[monthIndex]}: ${
+              strings.calendarDayStates[cell.state]
+            }`,
+          };
+          const number = Number(cell.date.slice(8, 10));
+          // Исправить можно дни истории по день отметки.
+          return onPickDay && cell.date <= day && cell.state !== "unknown" ? (
+            <button
               key={place}
-              className={`${styles.day} ${styles[cell.state]} ${cell.today ? styles.today : ""}`}
-              style={
-                cell.state === "partial"
-                  ? ({ "--dot-fill": cell.fill } as CSSProperties)
-                  : undefined
-              }
-              aria-label={`${Number(cell.date.slice(8, 10))} ${strings.monthNamesOf[monthIndex]}: ${
-                strings.calendarDayStates[cell.state]
-              }`}
+              type="button"
+              {...props}
+              className={`${props.className} ${styles.pickable}`}
+              onClick={() => onPickDay(cell.date)}
             >
-              {Number(cell.date.slice(8, 10))}
+              {number}
+            </button>
+          ) : (
+            <span key={place} {...props}>
+              {number}
             </span>
-          ),
-        )}
+          );
+        })}
       </div>
     </div>
   );

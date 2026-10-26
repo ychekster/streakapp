@@ -13,6 +13,8 @@ export type SyncOperation =
   /** Mark a day done (`done: true`) or clear it. A habit done several times a day also
    *  sends `count` — times done that day (the server sets `done` from it). */
   | { type: "mark"; task: TaskKey; date: string; done: boolean; count?: number }
+  /** A note to the day `date`; empty `text` — remove it. */
+  | { type: "note"; task: TaskKey; date: string; text: string }
   /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
    *  ordinary day again. */
   | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }

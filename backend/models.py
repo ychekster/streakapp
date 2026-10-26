@@ -364,6 +364,26 @@ class TaskFreeze(Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
 
 
+class DayNote(Base):
+    """Заметка к дню привычки (окно дня в календаре): одна на день, пустая не хранится."""
+
+    __tablename__ = "day_notes"
+    __table_args__ = (UniqueConstraint("task_id", "day", name="uq_day_note_task_day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
 class TaskSchedulePeriod(Base):
     """Прежнее расписание привычки: действовало до дня `until` (не включая его — с него
     действует следующее). Прошлые дни оцениваются по расписанию, которое было в тот день:

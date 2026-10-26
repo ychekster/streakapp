@@ -137,6 +137,43 @@ describe("dataStore", () => {
     expect(store.getState().habits[0]).toMatchObject({ today_count: 0, done_today: false });
   });
 
+  it("changes any day of the history from the day window, and notes to it", async () => {
+    syncChanges.mockResolvedValueOnce(
+      answer([habit({ times_per_day: 3, history_counts: Array<number>(HISTORY_DAYS).fill(0) })]),
+    );
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const past = "2026-09-30";
+    store.setDayCount(1, past, 2);
+    store.setDayCount(1, past, 9); // past the goal without «Сверх плана» — the goal
+    store.markDay(1, "2026-10-06", true); // after the marking day — nothing
+    store.setNote(1, past, "  Бегал  ");
+    store.setNote(1, past, "Бегал 5 км");
+    const [shown] = store.getState().habits;
+    expect(shown.history_counts?.[HISTORY_DAYS - 6]).toBe(3);
+    expect(shown.history[HISTORY_DAYS - 6]).toBe(true);
+    expect(shown.notes).toEqual({ [past]: "Бегал 5 км" });
+
+    syncChanges.mockResolvedValueOnce(answer([habit()]));
+    await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS);
+    expect(syncChanges.mock.calls[1][0]).toEqual([
+      { type: "mark", task: 1, date: past, done: true, count: 3 },
+      { type: "note", task: 1, date: past, text: "Бегал 5 км" },
+    ]);
+  });
+
+  it("marks a habit not due today: a bonus mark", async () => {
+    syncChanges.mockResolvedValueOnce(answer([habit({ scheduled_today: false })]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+    store.toggle(1);
+    const [shown] = store.getState().habits;
+    expect(shown.done_today).toBe(true);
+  });
+
   it("sends every unsent change before logging out, or says it could not", async () => {
     syncChanges.mockResolvedValueOnce(answer([habit()]));
     const store = await freshStore();

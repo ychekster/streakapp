@@ -327,6 +327,48 @@ describe("deriveView", () => {
     expect(result.current_streak).toBe(3);
   });
 
+  it("shows a bonus mark off the schedule without counting it", () => {
+    // Mon and Fri; Monday (today) done. Sunday (yesterday) is not due: a bonus mark.
+    const base = habit({
+      frequency_type: "specific_days",
+      days: ["mon", "fri"],
+      history: history([0, 3]),
+      done_today: true,
+      current_streak: 2,
+      best_streak: 2,
+      total_done: 2,
+    });
+    const [result] = view(snapshot([base]), [
+      { type: "mark", task: 1, date: addDays(TODAY, -1), done: true },
+    ]).habits;
+    expect(result.history.slice(-2)).toEqual([true, true]);
+    expect([result.current_streak, result.best_streak, result.total_done]).toEqual([2, 2, 2]);
+  });
+
+  it("fixes a missed past day: the runs join up", () => {
+    // Daily: done 1–2 and 4–5 days ago, 3 days ago missed.
+    const base = habit({
+      history: history([1, 2, 4, 5]),
+      current_streak: 2,
+      best_streak: 2,
+      total_done: 4,
+    });
+    const [result] = view(snapshot([base]), [
+      { type: "mark", task: 1, date: addDays(TODAY, -3), done: true },
+    ]).habits;
+    expect([result.current_streak, result.best_streak, result.total_done]).toEqual([5, 5, 5]);
+  });
+
+  it("keeps notes to days, removes an empty one", () => {
+    const day = addDays(TODAY, -2);
+    const base = habit({ notes: { [addDays(TODAY, -5)]: "Болел" } });
+    const [result] = view(snapshot([base]), [
+      { type: "note", task: 1, date: day, text: "  Бегал\r\n\r\n\r\n5   км " },
+      { type: "note", task: 1, date: addDays(TODAY, -5), text: "" },
+    ]).habits;
+    expect(result.notes).toEqual({ [day]: "Бегал\n\n5 км" });
+  });
+
   it("continues a streak longer than the history from the server's count", () => {
     const all = Array.from({ length: HISTORY_DAYS - 1 }, (_, index) => index + 1);
     const base = habit({ history: history(all), current_streak: 500, best_streak: 500, total_done: 500 });
@@ -744,6 +786,27 @@ describe("flexible schedule", () => {
     const [now] = view(snapshot([base], {}, "2026-09-30")).habits;
     expect([now.prior_streak, now.current_streak, now.period_done]).toEqual([3, 3, 0]);
     expect(now.scheduled_today).toBe(true);
+  });
+
+  it("marks past the goal as a bonus: the first days of the period count", () => {
+    // Once a month, done today (5 October).
+    const base = habit({
+      ...flexible("month", 1),
+      history: history([0]),
+      done_today: true,
+      total_done: 1,
+      period_done: 1,
+      current_streak: 1,
+      best_streak: 1,
+    });
+    // 2 October is in the same month and earlier: it counts, today becomes a bonus mark.
+    const [result] = view(snapshot([base]), [
+      { type: "mark", task: 1, date: addDays(TODAY, -3), done: true },
+    ]).habits;
+    expect(result.history.slice(-4)).toEqual([true, false, false, true]);
+    expect([result.period_done, result.total_done, result.current_streak]).toEqual([1, 1, 1]);
+    expect(result.done_today).toBe(true);
+    expect(result.scheduled_today).toBe(false);
   });
 
   it("auto check-off closes the goal and then stops", () => {

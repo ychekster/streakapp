@@ -1,0 +1,189 @@
+/* Счёт за день в окне снизу (окно счёта «Сверх плана», окно дня): прогресс к цели,
+   «−» число «+», быстрые прибавки, «Сбросить» и «Заполнить день». Размеры — токены
+   --count-sheet-* (variables.css); цвет привычки — --habit-rgb. */
+
+/* --- Прогресс к цели --- */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--count-sheet-label-gap);
+  margin-top: var(--count-sheet-bar-top);
+}
+
+.track {
+  height: var(--count-sheet-track-height);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
+  overflow: hidden;
+}
+
+/* Заполненная часть — по ширине (не растяжением): её правый конец скруглён так же, как
+   концы дорожки. */
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgb(var(--habit-rgb));
+  transition: width var(--transition-fast);
+}
+
+.progressLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--count-sheet-label-font-size);
+  line-height: var(--count-sheet-label-line-height);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.percent {
+  color: rgb(var(--habit-rgb));
+  font-weight: 600;
+}
+
+/* --- «−» число «+» --- */
+
+.counter {
+  display: flex;
+  gap: var(--count-sheet-counter-gap);
+  margin-top: var(--count-sheet-counter-top);
+}
+
+.step,
+.quickButton,
+.reset,
+.fillDay {
+  border: none;
+  border-radius: var(--count-sheet-button-radius);
+  background: var(--count-sheet-button-fill);
+  color: var(--color-text-primary);
+  font: inherit;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: opacity var(--transition-fast);
+}
+
+.step {
+  flex-shrink: 0;
+  width: var(--count-sheet-row-height);
+  height: var(--count-sheet-row-height);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step svg {
+  width: var(--count-sheet-step-icon-size);
+  height: var(--count-sheet-step-icon-size);
+}
+
+.step:disabled,
+.quickButton:disabled,
+.reset:disabled,
+.fillDay:disabled {
+  opacity: 0.4;
+}
+
+.value {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--count-sheet-row-height);
+  border-radius: var(--count-sheet-button-radius);
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--count-sheet-value-gap);
+  font-size: var(--count-sheet-value-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.input {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.goal {
+  color: var(--color-text-secondary);
+}
+
+/* Цель набрана — галочка в кружке цвета привычки у правого края поля. */
+.doneMark {
+  position: absolute;
+  right: var(--count-sheet-done-right);
+  top: 50%;
+  width: var(--count-sheet-done-size);
+  height: var(--count-sheet-done-size);
+  margin-top: calc(var(--count-sheet-done-size) / -2);
+  padding: var(--count-sheet-done-padding);
+  border-radius: var(--radius-pill);
+  background: rgb(var(--habit-rgb));
+  color: var(--color-check-icon);
+  display: flex;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.doneMarkOn {
+  opacity: 1;
+}
+
+.doneMark svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Быстрые прибавки --- */
+
+.quick {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--count-sheet-quick-gap);
+  margin-top: var(--count-sheet-quick-top);
+}
+
+.quickButton {
+  height: var(--count-sheet-row-height);
+  padding: 0;
+  font-size: var(--count-sheet-quick-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- «Сбросить» и «Заполнить день» --- */
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--count-sheet-counter-gap);
+  margin-top: var(--count-sheet-actions-top);
+}
+
+.reset,
+.fillDay {
+  height: var(--count-sheet-action-height);
+  font-size: var(--count-sheet-action-font-size);
+  font-weight: 600;
+}
+
+.reset {
+  color: var(--color-text-secondary);
+}
+
+.fillDay {
+  background: rgb(var(--habit-rgb));
+  color: var(--color-on-habit);
+}

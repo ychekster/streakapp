@@ -1,30 +1,22 @@
 /**
  * Окно счёта привычки «Сверх плана»: открывается удержанием кнопки отметки
- * (CheckButton → openCountSheet) и всплывает снизу поверх экрана.
+ * (CheckButton → openCountSheet) и всплывает снизу поверх экрана (BottomSheet).
  *
- * Шапка — день отметки, название привычки и «×»; под ней полоса прогресса к цели. Дальше
- * «−» / число / «+» и быстрые «+1 … +100» (нажатие — шаг, удержание повторяет его,
- * hooks/useHoldRepeat.ts; число можно ввести с клавиатуры) и внизу «Сбросить» (0) и
- * «Заполнить день» (до цели). Всё применяется сразу (dataStore.setCount): окно лишь
- * показывает счёт из стора, своего черновика у него нет — кроме вводимого числа.
- *
- * Закрывается «×» и нажатием на затемнение — уезжает вниз той же анимацией, что
- * появилась. Это слой поверх экрана, а не переход: кнопки «Назад» у него нет.
+ * Шапка — день отметки, название привычки и «×»; под ней счёт за день (CountControls:
+ * прогресс, «−» / число / «+», быстрые «+1 … +100», «Сбросить» и «Заполнить день»). Всё
+ * применяется сразу (dataStore.setCount).
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { OVERTIME_MAX_COUNT } from "../constants";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
-import { useHoldRepeat } from "../hooks/useHoldRepeat";
 import { useStrings } from "../preferences";
-import { hapticImpact, hapticSelection } from "../telegram/webapp";
+import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
-import styles from "./CountSheet.module.css";
-
-/** Быстрые прибавки. */
-const QUICK_STEPS = [1, 5, 10, 50, 100] as const;
+import { BottomSheet, SheetHeader, useSheetContent } from "./BottomSheet";
+import { CountControls } from "./CountControls";
 
 // --- Какая привычка открыта (одно окно на всё приложение) ---
 
@@ -62,238 +54,46 @@ export function useCountSheetHabit(): number | null {
 export function CountSheet() {
   const strings = useStrings();
   const { habits, settings } = useAppData();
-  const openId = useCountSheetHabit();
   // Показанная привычка: после закрытия окно ещё уезжает вниз (closing) с ней же.
-  const [habitId, setHabitId] = useState(openId);
-  const closing = openId === null;
+  const { shown: habitId, closing, gone } = useSheetContent(useCountSheetHabit());
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
   // Привычку удалили, заморозили, выключили ей «Сверх плана» — окну нечего показывать.
-  const usable =
-    habit !== undefined && habit.overtime === true && habit.scheduled_today && habit.frozen_since === null;
-  // Вводимое число; null — поле показывает счёт из стора.
-  const [draft, setDraft] = useState<string | null>(null);
-  const backdropPressed = useRef(false);
+  const usable = habit !== undefined && habit.overtime === true && habit.frozen_since === null;
 
-  useEffect(() => {
-    if (openId !== null) {
-      setHabitId(openId);
-    } else if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      // Без анимации конца анимации не будет — убрать сразу.
-      setHabitId(null);
-    }
-  }, [openId]);
   useEffect(() => {
     if (!closing && habitId !== null && !usable) {
       closeCountSheet();
     }
   }, [closing, habitId, usable]);
-  useEffect(() => setDraft(null), [habitId]);
-
-  const count = habit?.today_count ?? 0;
-  const goal = habit?.times_per_day ?? 1;
-
-  // «−», «+» и быстрые прибавки: шаг по нажатию, удержание повторяет его; у границы шаг
-  // доходит до неё и повтор останавливается.
-  const hold = useHoldRepeat((delta) => {
-    const current = dataStore.getState().habits.find((item) => item.id === habitId)?.today_count ?? 0;
-    const next = Math.max(0, Math.min(current + delta, OVERTIME_MAX_COUNT));
-    if (habitId === null || next === current) {
-      return false;
-    }
-    dataStore.setCount(habitId, next);
-    hapticSelection();
-    return true;
-  });
 
   if (!habit || !usable) {
     return null;
   }
   const id = habit.id;
-
-  function set(value: number): void {
-    hapticSelection();
-    dataStore.setCount(id, value);
-  }
-
-  /** Ввод с клавиатуры: только цифры, больше предела — предел. */
-  function type(text: string): void {
-    let digits = text.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
-    if (Number(digits) > OVERTIME_MAX_COUNT) {
-      digits = String(OVERTIME_MAX_COUNT);
-    }
-    setDraft(digits);
-  }
-
-  function commit(): void {
-    if (draft !== null) {
-      dataStore.setCount(id, Number(draft || "0"));
-      setDraft(null);
-    }
-  }
-
-  const done = count >= goal;
-  const progress = Math.min(count / goal, 1);
   return (
-    <div
-      className={`${styles.layer} ${closing ? styles.closing : ""}`}
+    <BottomSheet
+      closing={closing}
+      onClose={closeCountSheet}
+      onGone={gone}
+      label={habit.name}
       style={habitColorStyle(habit.color)}
     >
-      <div
-        className={styles.backdrop}
-        aria-hidden="true"
-        // Только касание, начатое на затемнении: палец, которым удерживали кнопку
-        // отметки, отпускают уже над ним, и iOS присылает клик туда.
-        onPointerDown={() => {
-          backdropPressed.current = true;
-        }}
-        onClick={() => {
-          if (backdropPressed.current) {
-            closeCountSheet();
-          }
-          backdropPressed.current = false;
-        }}
+      <SheetHeader
+        day={settings?.mark_yesterday ? strings.countSheetYesterday : strings.countSheetToday}
+        name={habit.name}
+        onClose={closeCountSheet}
       />
-      <div
-        className={styles.sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-label={habit.name}
-        onAnimationEnd={(event) => {
-          // Уехало вниз — убрать (анимации кнопок внутри сюда не относятся).
-          if (closing && event.target === event.currentTarget) {
-            setHabitId(null);
-          }
-        }}
-      >
-        <div className={styles.header}>
-          <span className={`${styles.chip} ${styles.dayChip}`}>
-            <CalendarIcon />
-            {settings?.mark_yesterday ? strings.countSheetYesterday : strings.countSheetToday}
-          </span>
-          <span className={`${styles.chip} ${styles.nameChip}`}>{habit.name}</span>
-          <button
-            type="button"
-            className={styles.close}
-            aria-label={strings.countSheetClose}
-            onClick={closeCountSheet}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-
-        <div className={styles.progress} aria-hidden="true">
-          <span className={styles.track}>
-            <span className={styles.fill} style={{ width: `${progress * 100}%` }} />
-          </span>
-          <span className={styles.progressLabels}>
-            <span className={styles.percent}>{Math.round(progress * 100)}%</span>
-            <span>
-              {count} / {goal}
-            </span>
-          </span>
-        </div>
-
-        <div className={styles.counter}>
-          <button
-            type="button"
-            className={styles.step}
-            aria-label={strings.countSheetLess}
-            disabled={count <= 0}
-            {...hold(-1)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
-          </button>
-          <label className={styles.value}>
-            <input
-              className={styles.input}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              aria-label={strings.countSheetValue}
-              value={draft ?? String(count)}
-              // По ширине числа (цифры одной ширины — 1ch): «9 / 6» стоит по центру поля.
-              style={{ width: `${Math.max(1, (draft ?? String(count)).length)}ch` }}
-              onChange={(event) => type(event.target.value)}
-              onFocus={(event) => {
-                setDraft(String(count));
-                event.currentTarget.select();
-              }}
-              onBlur={commit}
-              enterKeyHint="done"
-              onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-                if (event.key === "Enter") {
-                  event.currentTarget.blur();
-                }
-              }}
-            />
-            <span className={styles.goal}>/{" "}{goal}</span>
-            <span className={`${styles.doneMark} ${done ? styles.doneMarkOn : ""}`} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 12.75l4.5 4.5L19 7.75"
-                  stroke="currentColor"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </label>
-          <button
-            type="button"
-            className={styles.step}
-            aria-label={strings.countSheetMore}
-            disabled={count >= OVERTIME_MAX_COUNT}
-            {...hold(1)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-
-        <div className={styles.quick}>
-          {QUICK_STEPS.map((step) => (
-            <button
-              key={step}
-              type="button"
-              className={styles.quickButton}
-              aria-label={strings.countSheetAdd(step)}
-              disabled={count >= OVERTIME_MAX_COUNT}
-              {...hold(step)}
-            >
-              +{step}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.reset}
-            disabled={count === 0}
-            onClick={() => set(0)}
-          >
-            {strings.countSheetReset}
-          </button>
-          <button type="button" className={styles.fillDay} disabled={done} onClick={() => set(goal)}>
-            {strings.countSheetFill}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg className={styles.chipIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke="currentColor" strokeWidth="2" />
-      <path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+      <CountControls
+        key={id}
+        count={habit.today_count}
+        goal={habit.times_per_day}
+        max={OVERTIME_MAX_COUNT}
+        quick
+        current={() =>
+          dataStore.getState().habits.find((item) => item.id === id)?.today_count ?? 0
+        }
+        onSet={(value) => dataStore.setCount(id, value)}
+      />
+    </BottomSheet>
   );
 }

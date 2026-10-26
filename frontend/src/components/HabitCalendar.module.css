@@ -80,6 +80,17 @@
   color: var(--color-text-primary);
 }
 
+/* День, который можно исправить (окно дня): кнопка, выглядит как обычный день — состояния
+   ниже перекрывают фон. */
+.pickable {
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .done {
   background-color: rgb(var(--habit-rgb));
   color: var(--color-check-icon);

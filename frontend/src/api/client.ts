@@ -48,7 +48,7 @@ export type ApiErrorCode =
   | "invalid_start_date"
   | "invalid_period"
   | "invalid_period_times"
-  | "quota_reached"
+  | "invalid_note"
   | "invalid_reminder_time"
   | "invalid_times_per_day"
   | "invalid_color"

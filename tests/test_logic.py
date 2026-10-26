@@ -51,7 +51,8 @@ def test_unscheduled_days_do_not_break_streak() -> None:
 
 def test_frozen_days_do_not_break_streak() -> None:
     # Заморожена с 4 по 3 дня назад (прошедшая) и с позавчера по сегодня (текущая):
-    # пропуски в эти дни серию не рвут и не продолжают; вчерашняя отметка её продолжает.
+    # пропуски в эти дни серию не рвут и не продолжают; вчерашняя отметка (день заморозки)
+    # — бонусная: серию тоже не продолжает.
     task = SimpleNamespace(**vars(_task(FrequencyType.daily)), frozen_since=TODAY - timedelta(days=2))
     past = [(TODAY - timedelta(days=4), TODAY - timedelta(days=2))]
     is_frozen = frozen_check(task, past, TODAY)  # type: ignore[arg-type]
@@ -59,7 +60,7 @@ def test_frozen_days_do_not_break_streak() -> None:
         True, True, True, True, True, False,
     ]
     done = _days_ago(1, 5, 6)
-    assert compute_streaks(task, done, TODAY, is_frozen) == (3, 3)
+    assert compute_streaks(task, done, TODAY, is_frozen) == (2, 2)
     # Без заморозки пропуски позавчера и 3–4 дня назад серию прерывают.
     assert compute_streaks(task, done, TODAY) == (1, 2)
 

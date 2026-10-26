@@ -31,7 +31,8 @@ import styles from "./HabitBlock.module.css";
 
 interface HabitBlockProps {
   habit: Habit;
-  /** Можно ли отмечать выполнение. Для незапланированных на сегодня — только просмотр. */
+  /** Можно ли отмечать выполнение (незапланированную на сегодня — тоже: бонусная
+   *  отметка, бледная кнопка). */
   interactive: boolean;
   /** Сколько последних дней истории показать в сетке (по умолчанию — сетка списка). */
   gridDays?: number;
@@ -77,6 +78,7 @@ export const HabitBlock = memo(function HabitBlock({
           habitName={habit.name}
           disabled={!interactive}
           frozen={habit.frozen_since !== null}
+          bonus={!habit.scheduled_today}
           total={habit.times_per_day}
           count={habit.today_count}
           countUp={habit.overtime}

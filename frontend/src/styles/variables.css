@@ -166,6 +166,15 @@
   --count-sheet-actions-top: 22px;
   --count-sheet-action-height: 44px; /* «Сбросить», «Заполнить день» */
   --count-sheet-action-font-size: 14px;
+  /* Окно дня (DaySheet): отметка «раз в день», заметка, сдвиг при смене дня. */
+  --day-sheet-mark-top: 22.5px; /* от чипов до кнопки отметки (как до полосы прогресса) */
+  --day-sheet-mark-icon-size: 22px;
+  --day-sheet-note-top: 16px;
+  --day-sheet-note-min-height: 44px;
+  --day-sheet-note-padding: 12px 14px;
+  --day-sheet-note-font-size: 15px;
+  --day-sheet-slide: 24px; /* насколько въезжает новый день */
+  --day-sheet-slide-anim: 200ms;
   /* Плашка «Отменить» после серии быстрых нажатий (UndoToast) — размеры как у Telegram
      (iPhone 16 Pro), только уже; стекло — как у навигации (--glass-*). */
   --undo-toast-height: 50px;

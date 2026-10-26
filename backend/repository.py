@@ -47,6 +47,7 @@ from backend.models import (
     Broadcast,
     BroadcastStatus,
     CheckinDay,
+    DayNote,
     Event,
     Folder,
     FrequencyType,
@@ -538,6 +539,7 @@ class Repository:
         его группы переходят к вступившему раньше всех (без участников — удаляются)."""
         await self.forget_group_member(telegram_id)
         for model in (
+            DayNote,
             TaskLog,
             TaskFreeze,
             TaskSchedulePeriod,
@@ -976,6 +978,37 @@ class Repository:
             for task_id, start, end in result.tuples():
                 freezes[task_id].append((start, end))
         return freezes
+
+    async def get_notes(
+        self, task_ids: Collection[int], start: date, end: date
+    ) -> dict[int, dict[date, str]]:
+        """Заметки к дням задач с `start` по `end`: id задачи → день → текст."""
+        notes: dict[int, dict[date, str]] = {task_id: {} for task_id in task_ids}
+        for batch in _batches(notes):
+            result = await self.session.execute(
+                select(DayNote.task_id, DayNote.day, DayNote.text).where(
+                    DayNote.task_id.in_(batch), DayNote.day >= start, DayNote.day <= end
+                )
+            )
+            for task_id, day, text in result.tuples():
+                notes[task_id][day] = text
+        return notes
+
+    async def set_note(self, task: Task, day: date, text: str, now: datetime) -> None:
+        """Заметка к дню задачи; пустая — удалить."""
+        note = await self.session.scalar(
+            select(DayNote).where(DayNote.task_id == task.id, DayNote.day == day)
+        )
+        if not text:
+            if note is not None:
+                await self.session.delete(note)
+        elif note is None:
+            self.session.add(
+                DayNote(task_id=task.id, user_id=task.user_id, day=day, text=text, updated_at=now)
+            )
+        else:
+            note.text, note.updated_at = text, now
+        await self.session.flush()
 
     async def freeze_task(self, task: Task, day: date) -> None:
         """Заморозить задачу с дня `day`. Уже замороженная остаётся как есть."""
@@ -2051,7 +2084,7 @@ class Repository:
             )
         for model in (
             Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskReminder, Folder, Review,
-            WebSession, PushSubscription, Event, ActivityLog,
+            WebSession, PushSubscription, Event, ActivityLog, DayNote,
         ):
             await self.session.execute(
                 update(model)

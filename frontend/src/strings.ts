@@ -401,6 +401,16 @@ const RU = {
   countSheetAdd: (step: number) => `Прибавить ${step}`,
   countSheetReset: "Сбросить",
   countSheetFill: "Заполнить день",
+
+  // --- Окно дня (нажатие на день в календаре): отметка за этот день и заметка ---
+  // «Пн, 14 октября».
+  daySheetDate: (weekday: string, day: number, monthOf: string) => `${weekday}, ${day} ${monthOf}`,
+  daySheetMark: "Отметить выполненной",
+  daySheetDone: "Выполнено",
+  daySheetUnmark: "Выполнено. Нажмите, чтобы снять отметку",
+  daySheetNote: "Заметка к дню",
+  // Подпись окна для скринридеров; свайп влево-вправо — соседний день.
+  daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайп — соседний день`,
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
@@ -517,7 +527,7 @@ const RU = {
     invalid_start_date: "Выберите дату начала",
     invalid_period: "Выберите период",
     invalid_period_times: "Столько раз за период не получится",
-    quota_reached: "Цель на этот период уже набрана",
+    invalid_note: "Заметка слишком длинная",
     invalid_reminder_time: "Укажите время напоминания",
     invalid_timezone: "Не удалось распознать часовой пояс",
     invalid_review: "Напишите отзыв",
@@ -863,6 +873,13 @@ const EN: Strings = {
   countSheetAdd: (step: number) => `Add ${step}`,
   countSheetReset: "Reset",
   countSheetFill: "Fill the Day",
+
+  daySheetDate: (weekday: string, day: number, monthOf: string) => `${weekday}, ${monthOf} ${day}`,
+  daySheetMark: "Mark as Done",
+  daySheetDone: "Done",
+  daySheetUnmark: "Done. Tap to unmark",
+  daySheetNote: "Note for the day",
+  daySheetLabel: (name: string, date: string) => `${name}, ${date}. Swipe for the next day`,
   undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 
@@ -962,7 +979,7 @@ const EN: Strings = {
     invalid_start_date: "Choose a start date",
     invalid_period: "Choose a period",
     invalid_period_times: "That many times a period isn’t possible",
-    quota_reached: "This period’s goal is already reached",
+    invalid_note: "The note is too long",
     invalid_reminder_time: "Set a reminder time",
     invalid_timezone: "Couldn’t recognize the time zone",
     invalid_review: "Write your review",

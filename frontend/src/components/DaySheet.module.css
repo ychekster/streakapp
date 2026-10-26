@@ -1,0 +1,116 @@
+/* Окно дня (DaySheet): отметка за день и заметка под шапкой окна (BottomSheet). Размеры —
+   токены --count-sheet-* и --day-sheet-* (variables.css); цвет привычки — --habit-rgb. */
+
+/* Свайп влево-вправо — соседний день. */
+.body {
+  min-width: 0;
+}
+
+/* Новый день въезжает со стороны свайпа. */
+.fromNext {
+  animation: from-next var(--day-sheet-slide-anim) ease-out;
+}
+
+.fromPrevious {
+  animation: from-previous var(--day-sheet-slide-anim) ease-out;
+}
+
+@keyframes from-next {
+  from {
+    opacity: 0;
+    transform: translateX(var(--day-sheet-slide));
+  }
+}
+
+@keyframes from-previous {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--day-sheet-slide)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fromNext,
+  .fromPrevious {
+    animation: none;
+  }
+}
+
+/* Счёт «несколько раз в день» — тот же блок, что в окне счёта (CountControls). */
+.count {
+  display: flex;
+  flex-direction: column;
+}
+
+/* «Раз в день»: одна кнопка во всю ширину — бледная с пустым кружком, пока не отмечено;
+   залитая цветом привычки с галочкой — выполнено. */
+.mark {
+  width: 100%;
+  height: var(--count-sheet-row-height);
+  margin-top: var(--day-sheet-mark-top);
+  padding: 0;
+  border: none;
+  border-radius: var(--count-sheet-button-radius);
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
+  color: rgb(var(--habit-rgb));
+  font: inherit;
+  font-size: var(--count-sheet-action-font-size);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  touch-action: manipulation;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.markDone {
+  background: rgb(var(--habit-rgb));
+  color: var(--color-on-habit);
+}
+
+.markCircle {
+  width: var(--day-sheet-mark-icon-size);
+  height: var(--day-sheet-mark-icon-size);
+  padding: 3px;
+  border: 2px solid currentColor;
+  border-radius: var(--radius-pill);
+  display: flex;
+}
+
+.markCircle svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.markDone .markCircle svg {
+  opacity: 1;
+}
+
+/* Заметка: поле по высоте текста — окно растёт вверх. */
+.note {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--day-sheet-note-min-height);
+  margin-top: var(--day-sheet-note-top);
+  padding: var(--day-sheet-note-padding);
+  border: none;
+  border-radius: var(--count-sheet-button-radius);
+  background: var(--count-sheet-button-fill);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--day-sheet-note-font-size);
+  line-height: 1.35;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.note::placeholder {
+  color: var(--color-text-secondary);
+}

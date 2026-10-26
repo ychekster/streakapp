@@ -24,6 +24,9 @@ export const DEFAULT_NAME_MAX_LENGTH = 100;
  *  backend/constants.py). */
 export const HABIT_DESCRIPTION_MAX_LENGTH = 200;
 
+/** Максимальная длина заметки к дню (NOTE_MAX_LENGTH в backend/constants.py). */
+export const NOTE_MAX_LENGTH = 500;
+
 /** Коды дней недели в порядке недели — как их хранит бэкенд (WEEKDAYS в
  *  backend/constants.py). Подписи дней — в strings.ts. */
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;

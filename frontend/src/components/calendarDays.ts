@@ -4,12 +4,14 @@
  *
  * Отсчёт — с первого дня привычки, как у сетки fixed (gridLayout.firstDay: первая
  * отметка или первый день заморозки). Дни — из `history` (последние HISTORY_DAYS, последний
- * — день отметки); дни старше истории календарь не показывает, а в счёт дней они идут по
- * расписанию.
+ * — день отметки): календарь листается по всей истории (любой её день можно исправить в
+ * окне дня, DaySheet), а дни старше неё в счёт дней идут по расписанию. Бонусная отметка
+ * (не по расписанию того дня, data/derive.ts countedDays) в календаре — как обычная, но в
+ * «18/25» не идёт.
  */
 
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "../data/dates";
-import { groupFill, isDueOnDay } from "../data/derive";
+import { countedHistory, groupFill, isDueOnDay } from "../data/derive";
 import type { Habit } from "../types/habit";
 import { firstDay } from "./gridLayout";
 
@@ -54,9 +56,9 @@ function startOf(habit: Habit, day: string): string | null {
 
 /**
  * Сколько дней привычка шла — знаменатель «18/25»: дни с первого дня по день отметки, в
- * которые она была запланирована и не заморожена, и все выполненные. День отметки — только
- * выполненный (он ещё не закончился), как и день после него в режиме «Отмечать за вчера».
- * Не меньше `total_done`. `day` — день отметки.
+ * которые она была запланирована и не заморожена, и выполненные в них (бонусные отметки —
+ * нет). День отметки — только выполненный (он ещё не закончился), как и день после него в
+ * режиме «Отмечать за вчера». Не меньше `total_done`. `day` — день отметки.
  */
 export function trackedDays(habit: Habit, day: string): number {
   const start = startOf(habit, day);
@@ -65,6 +67,7 @@ export function trackedDays(habit: Habit, day: string): number {
   }
   const { history, frozen_history: frozen } = habit;
   const historyStart = addDays(day, 1 - history.length);
+  const counted = countedHistory(habit, day);
   let count = habit.next_day_done ? 1 : 0;
   for (let date = start; date <= day; date = addDays(date, 1)) {
     if (date < historyStart) {
@@ -72,7 +75,7 @@ export function trackedDays(habit: Habit, day: string): number {
       continue;
     }
     const index = daysBetween(historyStart, date);
-    if (history[index] || (date < day && !frozen[index] && isDueOnDay(habit, date))) {
+    if (counted[index] || (date < day && !frozen[index] && isDueOnDay(habit, date))) {
       count += 1;
     }
   }
@@ -90,11 +93,9 @@ export function addMonths(month: string, months: number): string {
   return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
 }
 
-/** Самый ранний месяц календаря: с первого дня привычки, но не старше истории. */
+/** Самый ранний месяц календаря — месяц начала истории: любой её день можно исправить. */
 export function firstMonth(habit: Habit, day: string): string {
-  const historyStart = addDays(day, 1 - habit.history.length);
-  const start = startOf(habit, day) ?? day;
-  return monthOf(start > historyStart ? start : historyStart);
+  return monthOf(addDays(day, 1 - habit.history.length));
 }
 
 /** Доля неполного дня (0…1): у совместной — сделанная всеми, у «несколько раз в день» — по

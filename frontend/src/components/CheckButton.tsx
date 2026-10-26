@@ -11,6 +11,9 @@
  *  число; дальше нажатия только увеличивают его. С трёх цифр кнопка вытягивается влево в
  *  пилюлю (шире с каждой цифрой). Долгое нажатие открывает окно счёта (`onLongPress`,
  *  CountSheet).
+ *
+ *  Не запланирована на день отметки (`bonus`): отмечать можно, но отметка бонусная — в
+ *  числах её нет (data/derive.ts, countedDays), поэтому кнопка бледная.
  */
 
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
@@ -80,6 +83,8 @@ interface CheckButtonProps {
   disabled?: boolean;
   /** Привычка заморожена (подпись неактивной кнопки). */
   frozen?: boolean;
+  /** Не запланирована на день отметки: отметка бонусная — кнопка бледная. */
+  bonus?: boolean;
   /** Сколько раз в день нужно выполнить привычку (больше 1 — кружок с числом). */
   total?: number;
   /** Сколько раз выполнена за день отметки. */
@@ -142,6 +147,7 @@ export function CheckButton({
   onToggle,
   disabled = false,
   frozen = false,
+  bonus = false,
   total = 1,
   count = 0,
   countUp = false,
@@ -164,6 +170,7 @@ export function CheckButton({
         up && count >= WIDE_FROM ? styles.wide : "",
         done ? styles.done : "",
         disabled ? styles.disabled : "",
+        bonus && !disabled ? styles.bonus : "",
       ]
         .filter(Boolean)
         .join(" ")}

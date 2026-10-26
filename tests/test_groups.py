@@ -463,6 +463,9 @@ def test_marks_are_told_once_to_those_who_asked(client: TestClient, user: AuthUs
     _mark(client, friend, friend_task, today, False)
     _mark(client, friend, friend_task, today)
     assert asyncio.run(_with_repo(due)) == []
+    # Исправил давний день в календаре — это не новость для остальных.
+    _mark(client, friend, friend_task, today - timedelta(days=5))
+    assert asyncio.run(_with_repo(due)) == []
 
 
 def test_member_days_before_joining_are_the_owners(client: TestClient, user: AuthUser) -> None:

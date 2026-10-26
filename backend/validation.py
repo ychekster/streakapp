@@ -21,6 +21,7 @@ from backend.constants import (
     HABIT_COLORS,
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
+    NOTE_MAX_LENGTH,
     LANGUAGES,
     MAX_DB_INT,
     MAX_REMINDERS_PER_HABIT,
@@ -88,6 +89,16 @@ def validate_description(description: str) -> str | None:
             f"Описание не длиннее {HABIT_DESCRIPTION_MAX_LENGTH} символов",
         )
     return cleaned or None
+
+
+def validate_note(text: str) -> str:
+    """Очистить и проверить заметку к дню: строки сохраняются (больше одной пустой подряд
+    — нет), прочие управляющие символы — пробелом; пустая — удалить заметку."""
+    lines = [_one_line(line) for line in text.replace("\r\n", "\n").split("\n")]
+    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    if len(cleaned) > NOTE_MAX_LENGTH:
+        raise ApiError(422, "invalid_note", f"Заметка не длиннее {NOTE_MAX_LENGTH} символов")
+    return cleaned
 
 
 def validate_frequency(
