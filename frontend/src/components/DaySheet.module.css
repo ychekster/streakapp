@@ -1,41 +1,6 @@
 /* Окно дня (DaySheet): отметка за день и заметка под шапкой окна (BottomSheet). Размеры —
    токены --count-sheet-* и --day-sheet-* (variables.css); цвет привычки — --habit-rgb. */
 
-/* Свайп влево-вправо — соседний день. */
-.body {
-  min-width: 0;
-}
-
-/* Новый день въезжает со стороны свайпа. */
-.fromNext {
-  animation: from-next var(--day-sheet-slide-anim) ease-out;
-}
-
-.fromPrevious {
-  animation: from-previous var(--day-sheet-slide-anim) ease-out;
-}
-
-@keyframes from-next {
-  from {
-    opacity: 0;
-    transform: translateX(var(--day-sheet-slide));
-  }
-}
-
-@keyframes from-previous {
-  from {
-    opacity: 0;
-    transform: translateX(calc(-1 * var(--day-sheet-slide)));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fromNext,
-  .fromPrevious {
-    animation: none;
-  }
-}
-
 /* Счёт «несколько раз в день» — тот же блок, что в окне счёта (CountControls). */
 .count {
   display: flex;

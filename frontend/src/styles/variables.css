@@ -173,8 +173,9 @@
   --day-sheet-note-min-height: 44px;
   --day-sheet-note-padding: 12px 14px;
   --day-sheet-note-font-size: 15px;
-  --day-sheet-slide: 24px; /* насколько въезжает новый день */
-  --day-sheet-slide-anim: 200ms;
+  /* Листание окна дня: карточка уезжает вбок, новая въезжает (BottomSheet). */
+  --sheet-turn-anim: 280ms;
+  --sheet-turn-ease: cubic-bezier(0.25, 0.8, 0.3, 1);
   /* Плашка «Отменить» после серии быстрых нажатий (UndoToast) — размеры как у Telegram
      (iPhone 16 Pro), только уже; стекло — как у навигации (--glass-*). */
   --undo-toast-height: 50px;

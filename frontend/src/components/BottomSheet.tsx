@@ -7,7 +7,14 @@
  * нет. Что показывать, пока окно уезжает, хранит useSheetContent.
  */
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type TouchEvent,
+} from "react";
 
 import { useStrings } from "../preferences";
 import styles from "./BottomSheet.module.css";
@@ -33,6 +40,16 @@ export function useSheetContent<T>(open: T | null): {
   return { shown, closing: open === null, gone: () => setShown(null) };
 }
 
+/** Куда листается окно: к следующему (новое въезжает справа) или к предыдущему. */
+export type SheetTurn = "next" | "previous";
+
+/** Карточка, которая уезжает вбок, пока на её место въезжает новая (`turn`). */
+export interface LeavingCard {
+  key: string;
+  turn: SheetTurn;
+  content: ReactNode;
+}
+
 interface BottomSheetProps {
   /** Окно уезжает вниз (уже закрыто). */
   closing: boolean;
@@ -43,10 +60,32 @@ interface BottomSheetProps {
   label: string;
   /** Цвет привычки (habitColorStyle). */
   style?: CSSProperties;
+  /** Листание (окно дня): ключ карточки — новая въезжает сбоку (`turn`), а прежняя
+   *  (`leaving`) одновременно уезжает в другую сторону; уехала — `onLeft`. */
+  cardKey?: string;
+  turn?: SheetTurn | null;
+  leaving?: LeavingCard | null;
+  onLeft?: () => void;
+  /** Касания карточки (свайп листает). */
+  onTouchStart?: (event: TouchEvent) => void;
+  onTouchEnd?: (event: TouchEvent) => void;
   children: ReactNode;
 }
 
-export function BottomSheet({ closing, onClose, onGone, label, style, children }: BottomSheetProps) {
+export function BottomSheet({
+  closing,
+  onClose,
+  onGone,
+  label,
+  style,
+  cardKey,
+  turn = null,
+  leaving = null,
+  onLeft,
+  onTouchStart,
+  onTouchEnd,
+  children,
+}: BottomSheetProps) {
   const backdropPressed = useRef(false);
   return (
     <div className={`${styles.layer} ${closing ? styles.closing : ""}`} style={style}>
@@ -65,11 +104,33 @@ export function BottomSheet({ closing, onClose, onGone, label, style, children }
           backdropPressed.current = false;
         }}
       />
+      {leaving ? (
+        <div
+          key={`out-${leaving.key}`}
+          className={`${styles.sheet} ${styles.leaving} ${
+            leaving.turn === "next" ? styles.outToPrevious : styles.outToNext
+          }`}
+          aria-hidden="true"
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget) {
+              onLeft?.();
+            }
+          }}
+        >
+          {leaving.content}
+        </div>
+      ) : null}
       <div
-        className={styles.sheet}
+        // Свой ключ у въезжающей: вернулись к уехавшему дню — новая карточка, а не та же.
+        key={cardKey === undefined ? undefined : `in-${cardKey}`}
+        className={`${styles.sheet} ${
+          turn === "next" ? styles.inFromNext : turn === "previous" ? styles.inFromPrevious : ""
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label={label}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         onAnimationEnd={(event) => {
           // Уехало вниз — убрать (анимации внутри сюда не относятся).
           if (closing && event.target === event.currentTarget) {

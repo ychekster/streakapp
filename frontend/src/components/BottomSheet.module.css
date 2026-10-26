@@ -58,6 +58,61 @@
   }
 }
 
+/* Листание (окно дня): карточка целиком уезжает вбок, новая одновременно въезжает с
+   другой стороны на её место; затемнение стоит. Уезжающая — поверх того же места у низа
+   экрана, без нажатий. Слой обрезает их у краёв экрана. */
+.layer:has(.leaving) {
+  overflow: hidden;
+}
+
+.leaving {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.inFromNext {
+  animation: in-from-next var(--sheet-turn-anim) var(--sheet-turn-ease);
+}
+
+.inFromPrevious {
+  animation: in-from-previous var(--sheet-turn-anim) var(--sheet-turn-ease);
+}
+
+.outToPrevious {
+  animation: out-to-previous var(--sheet-turn-anim) var(--sheet-turn-ease) forwards;
+}
+
+.outToNext {
+  animation: out-to-next var(--sheet-turn-anim) var(--sheet-turn-ease) forwards;
+}
+
+@keyframes in-from-next {
+  from {
+    transform: translateX(calc(100% + var(--count-sheet-margin) * 2));
+  }
+}
+
+@keyframes in-from-previous {
+  from {
+    transform: translateX(calc(-100% - var(--count-sheet-margin) * 2));
+  }
+}
+
+@keyframes out-to-previous {
+  to {
+    transform: translateX(calc(-100% - var(--count-sheet-margin) * 2));
+  }
+}
+
+@keyframes out-to-next {
+  to {
+    transform: translateX(calc(100% + var(--count-sheet-margin) * 2));
+  }
+}
+
 /* Закрытие — то же движение назад: окно уезжает вниз, затемнение гаснет. Нажатия уже
    проходят к экрану под ним. */
 .closing {
@@ -86,7 +141,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
-  .sheet {
+  .sheet,
+  .inFromNext,
+  .inFromPrevious {
     animation: none;
   }
 }

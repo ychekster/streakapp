@@ -10,7 +10,8 @@
  * бонусная, в числах её нет (data/derive.ts, countedDays). Ниже — заметка к дню:
  * сохраняется, когда поле теряет фокус, при смене дня и при закрытии.
  *
- * Свайп влево — следующий день, вправо — предыдущий: новый день въезжает сбоку.
+ * Свайп влево — следующий день, вправо — предыдущий: карточка дня целиком уезжает вбок, а
+ * карточка нового дня одновременно въезжает с другой стороны (BottomSheet, `leaving`).
  * Отметки применяются сразу (dataStore.markDay / setDayCount / setNote).
  */
 
@@ -24,7 +25,13 @@ import { useAppData } from "../hooks/useAppData";
 import { useStrings } from "../preferences";
 import { hapticImpact, hapticSelection } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
-import { BottomSheet, SheetHeader, useSheetContent } from "./BottomSheet";
+import {
+  BottomSheet,
+  SheetHeader,
+  useSheetContent,
+  type LeavingCard,
+  type SheetTurn,
+} from "./BottomSheet";
 import { CountControls } from "./CountControls";
 import styles from "./DaySheet.module.css";
 
@@ -75,8 +82,9 @@ export function DaySheet() {
   const { shown, closing, gone } = useSheetContent(useOpenDay());
   // День внутри окна: свайпы меняют его, не трогая открытый.
   const [date, setDate] = useState(shown?.date ?? "");
-  // Откуда въехал день: 1 — следующий (справа), -1 — предыдущий (слева), 0 — открыт.
-  const [direction, setDirection] = useState(0);
+  // Откуда въехала карточка дня (null — окно только открыто) и та, что уезжает.
+  const [turn, setTurn] = useState<SheetTurn | null>(null);
+  const [leaving, setLeaving] = useState<LeavingCard | null>(null);
   // Вводимая заметка; null — поле показывает заметку из стора.
   const [note, setNote] = useState<string | null>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -85,7 +93,8 @@ export function DaySheet() {
   useEffect(() => {
     if (shown) {
       setDate(shown.date);
-      setDirection(0);
+      setTurn(null);
+      setLeaving(null);
       setNote(null);
     }
   }, [shown]);
@@ -102,7 +111,6 @@ export function DaySheet() {
   const id = habit.id;
   const day = markingDay(settings.timezone, settings.mark_yesterday);
   const today = todayIn(settings.timezone);
-  const mine = myDay(habit, date, day);
   const multi = habit.times_per_day > 1;
 
   /** Записать вводимую заметку (если её меняли). */
@@ -118,13 +126,98 @@ export function DaySheet() {
     closeDaySheet();
   }
 
+  /** Подпись дня в шапке: «Сегодня», «Вчера» или «Пн, 14 октября». */
+  function labelOf(on: string): string {
+    if (on === today) {
+      return strings.countSheetToday;
+    }
+    if (addDays(on, 1) === today) {
+      return strings.countSheetYesterday;
+    }
+    return strings.daySheetDate(
+      strings.weekdays[WEEKDAYS[weekdayIndex(on)]].abbr,
+      Number(on.slice(8, 10)),
+      strings.monthNamesOf[Number(on.slice(5, 7)) - 1],
+    );
+  }
+
+  /** Карточка дня `on`: шапка, отметка и заметка `noteText`. */
+  function card(on: string, noteText: string) {
+    const mine = myDay(habit!, on, day);
+    return (
+      <>
+        <SheetHeader day={labelOf(on)} name={habit!.name} onClose={close} />
+        {multi ? (
+          <div className={styles.count}>
+            <CountControls
+              count={mine.count}
+              goal={habit!.times_per_day}
+              max={habit!.overtime ? OVERTIME_MAX_COUNT : habit!.times_per_day}
+              quick={habit!.overtime === true}
+              current={() => {
+                const now = dataStore.getState().habits.find((item) => item.id === id);
+                return now ? myDay(now, on, day).count : 0;
+              }}
+              onSet={(value) => dataStore.setDayCount(id, on, value)}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={`${styles.mark} ${mine.done ? styles.markDone : ""}`}
+            aria-pressed={mine.done}
+            aria-label={mine.done ? strings.daySheetUnmark : strings.daySheetMark}
+            onClick={() => {
+              hapticSelection();
+              dataStore.markDay(id, on, !mine.done);
+            }}
+          >
+            <span className={styles.markCircle} aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M5 12.75l4.5 4.5L19 7.75"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            {mine.done ? strings.daySheetDone : strings.daySheetMark}
+          </button>
+        )}
+        <textarea
+          className={styles.note}
+          placeholder={strings.daySheetNote}
+          aria-label={strings.daySheetNote}
+          maxLength={NOTE_MAX_LENGTH}
+          rows={1}
+          value={noteText}
+          ref={grow}
+          onChange={(event) => {
+            setNote(event.target.value);
+            grow(event.target);
+          }}
+          onBlur={saveNote}
+        />
+      </>
+    );
+  }
+
+  const noteText = note ?? habit.notes?.[date] ?? "";
+
   function go(days: number): void {
     const next = addDays(date, days);
     if (!dataStore.editableDay(next)) {
       return;
     }
     saveNote();
-    setDirection(days);
+    const direction: SheetTurn = days > 0 ? "next" : "previous";
+    // Без анимации уезжать нечему — карточка просто сменяется.
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setLeaving({ key: date, turn: direction, content: card(date, noteText) });
+    }
+    setTurn(direction);
     setDate(next);
     hapticSelection();
   }
@@ -147,88 +240,21 @@ export function DaySheet() {
     }
   }
 
-  const label =
-    date === today
-      ? strings.countSheetToday
-      : addDays(date, 1) === today
-        ? strings.countSheetYesterday
-        : strings.daySheetDate(
-            strings.weekdays[WEEKDAYS[weekdayIndex(date)]].abbr,
-            Number(date.slice(8, 10)),
-            strings.monthNamesOf[Number(date.slice(5, 7)) - 1],
-          );
-  const noteText = note ?? habit.notes?.[date] ?? "";
   return (
     <BottomSheet
       closing={closing}
       onClose={close}
       onGone={gone}
-      label={strings.daySheetLabel(habit.name, label)}
+      label={strings.daySheetLabel(habit.name, labelOf(date))}
       style={habitColorStyle(habit.color)}
+      cardKey={date}
+      turn={turn}
+      leaving={leaving}
+      onLeft={() => setLeaving(null)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
-      <SheetHeader day={label} name={habit.name} onClose={close} />
-      <div className={styles.body} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div
-          key={date}
-          className={
-            direction > 0 ? styles.fromNext : direction < 0 ? styles.fromPrevious : undefined
-          }
-        >
-          {multi ? (
-            <div className={styles.count}>
-              <CountControls
-                count={mine.count}
-                goal={habit.times_per_day}
-                max={habit.overtime ? OVERTIME_MAX_COUNT : habit.times_per_day}
-                quick={habit.overtime === true}
-                current={() => {
-                  const now = dataStore.getState().habits.find((item) => item.id === id);
-                  return now ? myDay(now, date, day).count : 0;
-                }}
-                onSet={(value) => dataStore.setDayCount(id, date, value)}
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              className={`${styles.mark} ${mine.done ? styles.markDone : ""}`}
-              aria-pressed={mine.done}
-              aria-label={mine.done ? strings.daySheetUnmark : strings.daySheetMark}
-              onClick={() => {
-                hapticSelection();
-                dataStore.markDay(id, date, !mine.done);
-              }}
-            >
-              <span className={styles.markCircle} aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 12.75l4.5 4.5L19 7.75"
-                    stroke="currentColor"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              {mine.done ? strings.daySheetDone : strings.daySheetMark}
-            </button>
-          )}
-          <textarea
-            className={styles.note}
-            placeholder={strings.daySheetNote}
-            aria-label={strings.daySheetNote}
-            maxLength={NOTE_MAX_LENGTH}
-            rows={1}
-            value={noteText}
-            ref={grow}
-            onChange={(event) => {
-              setNote(event.target.value);
-              grow(event.target);
-            }}
-            onBlur={saveNote}
-          />
-        </div>
-      </div>
+      {card(date, noteText)}
     </BottomSheet>
   );
 }
