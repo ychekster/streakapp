@@ -104,8 +104,11 @@ export interface YearStats {
 
 /**
  * «Гибкий график» on a year: progress, how often to do it to make it, this week and a
- * forecast. The pace is counted from 1 January — or from the habit's creation or its
- * switch to this schedule, if later. `day` — the marking day (the history's last day).
+ * forecast. The pace is this year's done days over the days they were done in: from
+ * 1 January, or from the habit's creation if later — a changed goal does not restart it
+ * (the year's days count whatever the goal was). At most a day a day, so a forecast date
+ * is never sooner than the goal can be reached. `day` — the marking day (the history's
+ * last day).
  */
 export function yearStats(habit: Habit, day: string): YearStats {
   const [start, end] = periodBounds("year", day);
@@ -147,10 +150,9 @@ export function yearStats(habit: Habit, day: string): YearStats {
   } else if (done === 0) {
     forecast = { kind: "none" };
   } else {
-    const history = habit.schedule_history ?? [];
-    const changed = history.length > 0 ? history[history.length - 1].until : start;
-    const from = [start, habit.created_on ?? start, changed].reduce((a, b) => (a > b ? a : b));
-    const rate = done / (daysBetween(from, day) + 1);
+    const created = habit.created_on ?? start;
+    const from = created > start ? created : start;
+    const rate = Math.min(1, done / (daysBetween(from, day) + 1));
     const finish = addDays(day, Math.ceil(remaining / rate));
     forecast =
       finish <= end

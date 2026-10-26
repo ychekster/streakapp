@@ -771,6 +771,20 @@ describe("flexible schedule", () => {
     expect(reached.forecast).toEqual({ kind: "reached", date: "2026-10-02" });
 
     expect(yearStats(gym({ period_done: 0 }), TODAY).forecast).toEqual({ kind: "none" });
+    // The goal changed today (150 → 300): the pace is still the whole year's, so out of
+    // reach means no forecast date.
+    const raised = yearStats(
+      gym({
+        period_times: 300,
+        period_done: 100,
+        schedule_history: [
+          { until: TODAY, frequency_type: "flexible", days: [], start_date: null, period: "year", period_times: 150, times_per_day: 1 },
+        ],
+      }),
+      TODAY,
+    );
+    expect(raised.need).toEqual({ per: "late" });
+    expect(raised.forecast).toEqual({ kind: "total", total: 131 });
     // The last, short week: what is left.
     expect(yearStats(gym({ period_done: 117 }), "2026-12-28").need).toEqual({ per: "week", times: 3 });
   });
