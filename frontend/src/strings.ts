@@ -22,6 +22,15 @@ function ruTimes(count: number): string {
   return ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
 }
 
+function ruDays(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (ones === 1 && tens !== 11) {
+    return "день";
+  }
+  return ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "дня" : "дней";
+}
+
 const RU_PER: Record<Period, string> = { week: "в неделю", month: "в месяц", year: "в год" };
 const EN_PER: Record<Period, string> = { week: "a week", month: "a month", year: "a year" };
 
@@ -395,19 +404,16 @@ const RU = {
   formDaily: "Каждый день",
   formEveryOtherDay: "Через день",
   formMonthly: "Каждый месяц",
-  // «Гибкий график»: N раз за неделю / месяц / год в любые дни («3 раза в неделю»).
+  // «Гибкий график»: N дней за неделю / месяц / год, в любые дни («3 дня в неделю»).
   formFlexible: "Гибкий график",
   formPeriod: "Период",
   periodNames: { week: "Неделя", month: "Месяц", year: "Год" } as Record<Period, string>,
   formPeriodTimes: (count: number, period: Period) =>
-    `${count} ${ruTimes(count)} ${RU_PER[period]}`,
-  formPeriodLess: "Меньше раз за период",
-  formPeriodMore: "Больше раз за период",
-  // Цель больше дней короткого периода: в нём — по числу дней.
-  formPeriodShorter: {
-    month: "В месяцах, где дней меньше, — по числу дней",
-    year: "В невисокосный год — 365",
-  } as Partial<Record<Period, string>>,
+    `${count} ${ruDays(count)} ${RU_PER[period]}`,
+  formPeriodLess: "Меньше дней за период",
+  formPeriodMore: "Больше дней за период",
+  // Год: число вводится с клавиатуры.
+  formYearTimes: "Дней в год",
   // Первый день привычки «через день» / «каждый месяц»: «Сегодня», «Завтра» или дата.
   formStartDate: "Начало",
   dateToday: "Сегодня",
@@ -840,17 +846,10 @@ const EN: Strings = {
   formPeriod: "Period",
   periodNames: { week: "Week", month: "Month", year: "Year" },
   formPeriodTimes: (count: number, period: Period) =>
-    count === 1
-      ? `Once ${EN_PER[period]}`
-      : count === 2
-        ? `Twice ${EN_PER[period]}`
-        : `${count} times ${EN_PER[period]}`,
-  formPeriodLess: "Fewer times a period",
-  formPeriodMore: "More times a period",
-  formPeriodShorter: {
-    month: "In shorter months — as many as there are days",
-    year: "In a non-leap year — 365",
-  },
+    `${count} ${count === 1 ? "day" : "days"} ${EN_PER[period]}`,
+  formPeriodLess: "Fewer days a period",
+  formPeriodMore: "More days a period",
+  formYearTimes: "Days a year",
   formStartDate: "Starts",
   dateToday: "Today",
   dateTomorrow: "Tomorrow",

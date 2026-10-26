@@ -69,7 +69,7 @@ def _text(texts: dict[str, str], language: str) -> str:
 def schedule_label(task: Task, language: str) -> str:
     """Расписание привычки — как «Повтор» в приложении."""
     if task.frequency_type == FrequencyType.flexible:
-        label = _times_label(
+        label = _days_label(
             task.period_times or 1,
             SCHEDULE_PERIOD.get(language, SCHEDULE_PERIOD[DEFAULT_LANGUAGE])[task.period or "week"],
             language,
@@ -96,8 +96,21 @@ def goal_label(count: int, language: str) -> str:
     return _times_label(count, "a day" if language == "en" else "в день", language)
 
 
+def _days_label(count: int, per: str, language: str) -> str:
+    """«Гибкий график» — как в приложении: «1 день в неделю», «3 дня в неделю»; «3 days a
+    week»."""
+    if language == "en":
+        return f"{count} {'day' if count == 1 else 'days'} {per}"
+    tens, ones = count % 100, count % 10
+    if ones == 1 and tens != 11:
+        word = "день"
+    else:
+        word = "дня" if 2 <= ones <= 4 and not 12 <= tens <= 14 else "дней"
+    return f"{count} {word} {per}"
+
+
 def _times_label(count: int, per: str, language: str) -> str:
-    """«3 раза в день», «1 раз в неделю»; «Once a day», «3 times a week»."""
+    """«3 раза в день»; «Once a day», «3 times a day»."""
     if language == "en":
         return "Once " + per if count == 1 else "Twice " + per if count == 2 else f"{count} times {per}"
     tens, ones = count % 100, count % 10

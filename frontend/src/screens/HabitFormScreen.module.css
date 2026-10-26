@@ -25,6 +25,27 @@
   color: var(--color-text-primary);
 }
 
+/* «Раз в год»: число в серой таблетке, как время напоминания (TimeField) — видно, что
+   его можно нажать; нажатие открывает цифровую клавиатуру. Ширина — под три цифры
+   (цифры одной ширины), шрифт ≥ 16px — иначе iOS увеличивает страницу при фокусе. */
+.numberInput {
+  box-sizing: content-box;
+  width: 3ch;
+  flex-shrink: 0;
+  padding: var(--time-pill-pad-y) var(--time-pill-pad-x);
+  border: none;
+  border-radius: var(--radius-pill);
+  outline: none;
+  background-color: var(--color-fill);
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  text-align: center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 .textInput::placeholder {
   color: var(--color-placeholder);
 }

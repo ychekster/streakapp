@@ -15,8 +15,9 @@
  *    «Через день» и «каждый месяц» добавляют дату начала (системный календарь): с неё
  *    привычка идёт каждый второй день или то же число каждого месяца (в коротком месяце
  *    — его последний день). «Гибкий график» — вместо дней «Период» (неделя, месяц, год) и
- *    сколько раз за него («3 раза в неделю», степпер −/+) в любые дни; цель больше дней
- *    короткого месяца (года) — под карточкой сказано, что в нём по числу дней;
+ *    сколько раз за него («3 раза в неделю», степпер −/+; у года — число вводится с
+ *    цифровой клавиатуры) в любые дни. Цель больше дней короткого месяца (года) в нём
+ *    молча считается по числу дней;
  *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
  *    одного раза — кружок отметки бледный, внутри — сколько раз осталось, каждое нажатие
  *    закрашивает его часть (CheckButton);
@@ -131,6 +132,9 @@ export function HabitFormScreen({
   // «Гибкий график»: период и сколько раз за него; помнятся при смене частоты.
   const [period, setPeriod] = useState<Period>(habit?.period ?? "week");
   const [periodTimes, setPeriodTimes] = useState(habit?.period_times ?? 3);
+  // Поле «Раз в год», пока его редактируют: может быть пустым или вне 1–366 — тогда
+  // цель прежняя, а при уходе из поля в нём снова она.
+  const [yearDraft, setYearDraft] = useState<string | null>(null);
   // Дни недели; у «каждый день» и у новой привычки — все. Помнятся при смене частоты.
   const [days, setDays] = useState<Set<string>>(
     () => new Set(habit?.frequency_type === "specific_days" ? habit.days : WEEKDAYS),
@@ -175,15 +179,23 @@ export function HabitFormScreen({
     value,
     label: strings.periodNames[value],
   }));
-  // Цель больше дней короткого месяца или года: сказать, что там — по числу дней.
-  const shorterNote =
-    (period === "month" && periodTimes > 28) || (period === "year" && periodTimes > 365)
-      ? strings.formPeriodShorter[period]
-      : undefined;
-
   function changePeriod(next: Period): void {
     setPeriod(next);
     setPeriodTimes((times) => Math.min(times, PERIOD_MAX_TIMES[next]));
+  }
+
+  /** Ввод в поле «Раз в год»: только цифры; число 1–366 сразу становится целью, больше —
+   *  становится 366 (дальше цифры ничего не меняют). */
+  function typeYearTimes(text: string): void {
+    let digits = text.replace(/\D/g, "");
+    if (Number(digits) > PERIOD_MAX_TIMES.year) {
+      digits = String(PERIOD_MAX_TIMES.year);
+    }
+    setYearDraft(digits);
+    const times = Number(digits);
+    if (times >= 1) {
+      setPeriodTimes(times);
+    }
   }
 
   useMainButton(
@@ -349,16 +361,35 @@ export function HabitFormScreen({
               label={strings.formPeriod}
             />
           </ListItem>
-          <ListItem label={strings.formPeriodTimes(periodTimes, period)}>
-            <Stepper
-              value={periodTimes}
-              min={1}
-              max={PERIOD_MAX_TIMES[period]}
-              onChange={setPeriodTimes}
-              decreaseLabel={strings.formPeriodLess}
-              increaseLabel={strings.formPeriodMore}
-            />
-          </ListItem>
+          {period === "year" ? (
+            // Год — до 366 раз: степпером не набрать, число вводится с клавиатуры.
+            <ListItem label={strings.formYearTimes}>
+              <input
+                className={styles.numberInput}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                aria-label={strings.formYearTimes}
+                value={yearDraft ?? String(periodTimes)}
+                onChange={(event) => typeYearTimes(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                onBlur={() => setYearDraft(null)}
+                enterKeyHint="done"
+                onKeyDown={blurOnEnter}
+              />
+            </ListItem>
+          ) : (
+            <ListItem label={strings.formPeriodTimes(periodTimes, period)}>
+              <Stepper
+                value={periodTimes}
+                min={1}
+                max={PERIOD_MAX_TIMES[period]}
+                onChange={setPeriodTimes}
+                decreaseLabel={strings.formPeriodLess}
+                increaseLabel={strings.formPeriodMore}
+              />
+            </ListItem>
+          )}
         </>
       ) : null}
       {usesStartDate(frequency) ? (
@@ -462,7 +493,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        <Section variant="form" title={strings.formFrequencyHeading} footer={shorterNote}>
+        <Section variant="form" title={strings.formFrequencyHeading}>
           <fieldset className={styles.fieldset} disabled={locked}>
             <Card>{frequencyRows}</Card>
           </fieldset>
