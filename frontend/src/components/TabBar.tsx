@@ -13,6 +13,9 @@
  *
  * Подложка ставится по измеренному положению и ширине активной вкладки — поэтому
  * вкладкам не обязательно быть одной ширины, а смена языка (другие подписи) её не сбивает.
+ * Положение — точное, дробное (getBoundingClientRect), а у крайней вкладки внешний край
+ * подложки стоит ровно на поле таблетки, округлённом до пикселей экрана
+ * (--tabbar-thumb-edge, TabBar.module.css): зазор сбоку тот же, что снизу, на любом экране.
  */
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -41,10 +44,12 @@ interface TabBarProps<K extends string> {
   addLabel?: string;
 }
 
-/** Положение подложки внутри таблетки, px. */
+/** Положение подложки внутри таблетки: края вкладки от левого и правого края таблетки, px. */
 interface Thumb {
-  x: number;
-  width: number;
+  left: number;
+  right: number;
+  first: boolean;
+  last: boolean;
 }
 
 export function TabBar<K extends string>({
@@ -73,7 +78,14 @@ export function TabBar<K extends string>({
     const measure = (): void => {
       const tab = tabElements[activeIndex];
       if (tab) {
-        setThumb({ x: tab.offsetLeft, width: tab.offsetWidth });
+        const box = tab.getBoundingClientRect();
+        const outer = pill.getBoundingClientRect();
+        setThumb({
+          left: box.left - outer.left,
+          right: outer.right - box.right,
+          first: activeIndex === 0,
+          last: activeIndex === tabElements.length - 1,
+        });
       }
     };
     measure();
@@ -85,9 +97,14 @@ export function TabBar<K extends string>({
 
   const thumbStyle = thumb
     ? ({
-        // Шире вкладки на --tabbar-thumb-overhang с каждой стороны (сдвиг влево — в CSS).
-        width: `calc(${thumb.width}px + 2 * var(--tabbar-thumb-overhang))`,
-        transform: `translateX(${thumb.x}px)`,
+        // Шире вкладки на --tabbar-thumb-overhang с каждой стороны; у края таблетки — на
+        // её поле.
+        left: thumb.first
+          ? "var(--tabbar-thumb-edge)"
+          : `calc(${thumb.left}px - var(--tabbar-thumb-overhang))`,
+        right: thumb.last
+          ? "var(--tabbar-thumb-edge)"
+          : `calc(${thumb.right}px - var(--tabbar-thumb-overhang))`,
       } as CSSProperties)
     : undefined;
 

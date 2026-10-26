@@ -41,18 +41,30 @@
   height: var(--tabbar-height);
   padding: var(--tabbar-inset) var(--tabbar-pad-x);
   border-radius: var(--radius-pill);
+  /* Поля вокруг подложки — целым числом пикселей экрана (--device-pixel, main.tsx): иначе
+     при дробном масштабе (Android, компьютер с 125%) браузер округлял края таблетки и
+     подложки порознь, и зазоры сверху, снизу и сбоку выходили разными. */
+  --tabbar-thumb-edge: var(--tabbar-inset);
+  --tabbar-thumb-top-edge: var(--tabbar-thumb-top);
 }
 
-/* Серая подложка активной вкладки: положение и ширину задаёт TabBar по измеренной
-   активной вкладке; переезжает сдвигом (и меняет ширину, если вкладки разной ширины). */
+@supports (width: round(1px, 1px)) {
+  .pill {
+    --tabbar-thumb-edge: round(var(--tabbar-inset), var(--device-pixel, 1px));
+    --tabbar-thumb-top-edge: round(var(--tabbar-thumb-top), var(--device-pixel, 1px));
+  }
+}
+
+/* Серая подложка активной вкладки: края (left, right) задаёт TabBar по измеренной
+   активной вкладке; переезжает, сдвигая их. Не transform: так край подложки встаёт на
+   пиксель экрана так же, как край таблетки. */
 .thumb {
   position: absolute;
-  top: var(--tabbar-thumb-top);
-  bottom: var(--tabbar-inset);
-  left: calc(-1 * var(--tabbar-thumb-overhang));
+  top: var(--tabbar-thumb-top-edge);
+  bottom: var(--tabbar-thumb-edge);
   border-radius: var(--radius-pill);
   background-color: var(--tabbar-thumb);
-  transition: transform var(--tabbar-anim), width var(--tabbar-anim);
+  transition: left var(--tabbar-anim), right var(--tabbar-anim);
 }
 
 /* Без кнопки «+» (админ-панель, пять вкладок) таблетка во всю ширину, как таб-бар iOS

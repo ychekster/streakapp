@@ -22,6 +22,15 @@
   color: var(--glass-icon);
 }
 
+/* Поля — целым числом пикселей экрана (--device-pixel, main.tsx): иначе при дробном
+   масштабе (Android, компьютер с 125%) браузер округлял края таблетки и подложки порознь,
+   и зазор сверху и снизу выходил разным. Сама таблетка того же размера. */
+@supports (width: round(1px, 1px)) {
+  .bar {
+    padding: round(var(--folderbar-inset), var(--device-pixel, 1px));
+  }
+}
+
 /* Лента вкладок: прокручивается вбок, когда вкладки не помещаются (без полосы прокрутки),
    и обрезается по скруглению подложки. relative — от неё считаются положение вкладок и
    подложки. */
@@ -45,13 +54,14 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
   border-radius: var(--radius-pill);
   background-color: var(--tabbar-thumb);
 }
 
+/* Переезд — сдвигом left, а не transform: край подложки встаёт на пиксель экрана так же,
+   как край таблетки, и зазор у крайних вкладок не плывёт. */
 .animated {
-  transition: transform var(--tabbar-anim), width var(--tabbar-anim);
+  transition: left var(--tabbar-anim), width var(--tabbar-anim);
 }
 
 /* relative — вкладка рисуется поверх подложки. Вкладки — по ширине названий; если вместе

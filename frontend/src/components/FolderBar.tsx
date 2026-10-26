@@ -7,6 +7,11 @@
  * пределах подложки (уходящая вкладка обрезается её краем), а выбранная вкладка доезжает
  * до видимой части.
  *
+ * Поля таблетки вокруг подложки округлены до пикселей экрана (FolderBar.module.css), а
+ * подложка ставится по точному, дробному положению вкладки (getBoundingClientRect, а не
+ * округлённые offsetLeft/offsetWidth) — так зазор у крайней вкладки сверху, снизу и сбоку
+ * одинаковый на любом экране.
+ *
  * Показывается, только когда у пользователя есть папки (Настройки → «Папки»); одна из
  * вкладок — «Все привычки».
  */
@@ -50,7 +55,9 @@ export function FolderBar({ tabs, active, onSelect }: FolderBarProps) {
     const measure = (): void => {
       const tab = tabElements[activeIndex];
       if (tab) {
-        setThumb({ x: tab.offsetLeft, width: tab.offsetWidth });
+        const box = tab.getBoundingClientRect();
+        const x = box.left - track.getBoundingClientRect().left + track.scrollLeft;
+        setThumb({ x, width: box.width });
       }
     };
     measure();
@@ -88,7 +95,7 @@ export function FolderBar({ tabs, active, onSelect }: FolderBarProps) {
   }, [activeIndex]);
 
   const thumbStyle = thumb
-    ? ({ width: `${thumb.width}px`, transform: `translateX(${thumb.x}px)` } as CSSProperties)
+    ? ({ left: `${thumb.x}px`, width: `${thumb.width}px` } as CSSProperties)
     : undefined;
 
   return (
