@@ -1,5 +1,8 @@
-/* Окно счёта «Сверх плана»: карточка, всплывающая снизу над затемнением. Размеры и цвета
-   — токены --count-sheet-* (variables.css); цвет привычки — --habit-rgb. */
+/* Окно счёта «Сверх плана»: карточка у самого низа экрана над затемнением. Повторяет
+   контур экрана — отступ 8 по краям, нижние углы скруглены как экран (только на
+   устройствах с нижней безопасной зоной, то есть со скруглённым экраном); под кнопками —
+   место под полоску «Домой». Размеры сняты со скриншота iPhone 16 Pro (402pt) и
+   лежат в токенах --count-sheet-* (variables.css); цвет привычки — --habit-rgb. */
 
 .layer {
   position: fixed;
@@ -18,17 +21,20 @@
 }
 
 .sheet {
+  --safe-bottom: var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px));
   position: relative;
-  margin: 0 var(--count-sheet-margin)
-    calc(var(--count-sheet-margin) + var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)));
-  padding: var(--count-sheet-padding);
-  border-radius: var(--count-sheet-radius);
+  margin: 0 var(--count-sheet-margin) var(--count-sheet-margin-bottom);
+  padding: var(--count-sheet-padding-top) var(--count-sheet-padding-x)
+    max(var(--count-sheet-padding-bottom-min), calc(var(--safe-bottom) + var(--count-sheet-padding-bottom-extra)));
+  /* Нижние углы — как у экрана, если он скруглён (есть нижняя безопасная зона). */
+  border-radius: var(--count-sheet-radius) var(--count-sheet-radius)
+    clamp(var(--count-sheet-radius), calc(var(--safe-bottom) * 1000), var(--count-sheet-radius-bottom))
+    clamp(var(--count-sheet-radius), calc(var(--safe-bottom) * 1000), var(--count-sheet-radius-bottom));
   background: var(--count-sheet-fill);
   box-shadow: var(--count-sheet-shadow);
   color: var(--color-text-primary);
   display: flex;
   flex-direction: column;
-  gap: var(--count-sheet-gap);
   animation: slide-up var(--count-sheet-anim) cubic-bezier(0.2, 0.9, 0.3, 1);
   -webkit-user-select: none;
   user-select: none;
@@ -42,7 +48,7 @@
 
 @keyframes slide-up {
   from {
-    transform: translateY(calc(100% + var(--count-sheet-margin)));
+    transform: translateY(calc(100% + var(--count-sheet-margin-bottom)));
   }
 }
 
@@ -59,30 +65,31 @@
   display: flex;
   align-items: center;
   gap: var(--count-sheet-chip-gap);
+  height: var(--count-sheet-chip-height);
   min-width: 0;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--count-sheet-chip-icon-gap);
   height: var(--count-sheet-chip-height);
-  padding: 0 12px;
+  padding: 0 var(--count-sheet-chip-padding);
   border-radius: var(--radius-pill);
-  font-size: var(--font-size-secondary);
-  font-weight: 600;
+  font-size: var(--count-sheet-chip-font-size);
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .dayChip {
   flex-shrink: 0;
-  background: rgba(var(--habit-rgb), var(--habit-soft-alpha));
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
   color: rgb(var(--habit-rgb));
 }
 
 .chipIcon {
-  width: 15px;
-  height: 15px;
+  width: var(--count-sheet-chip-icon-size);
+  height: var(--count-sheet-chip-icon-size);
 }
 
 .nameChip {
@@ -91,22 +98,24 @@
   text-overflow: ellipsis;
   display: block;
   line-height: var(--count-sheet-chip-height);
-  background: var(--color-fill);
+  background: var(--count-sheet-chip-fill);
 }
 
+/* «×» крупнее чипов — выступает над ними и под ними поровну. */
 .close {
   flex-shrink: 0;
-  margin-left: auto;
-  width: var(--count-sheet-chip-height);
-  height: var(--count-sheet-chip-height);
-  padding: 7px;
+  margin: 0 0 0 auto;
+  width: var(--count-sheet-close-size);
+  height: var(--count-sheet-close-size);
+  padding: var(--count-sheet-close-padding);
   border: none;
   border-radius: var(--radius-pill);
-  background: var(--color-fill);
+  background: var(--count-sheet-close-fill);
   color: var(--color-text-secondary);
 }
 
 .close svg {
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -116,13 +125,14 @@
 .progress {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--count-sheet-label-gap);
+  margin-top: var(--count-sheet-bar-top);
 }
 
 .track {
   height: var(--count-sheet-track-height);
   border-radius: var(--radius-pill);
-  background: rgba(var(--habit-rgb), var(--habit-grid-empty-alpha));
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
   overflow: hidden;
 }
 
@@ -138,7 +148,9 @@
 .progressLabels {
   display: flex;
   justify-content: space-between;
-  font-size: var(--font-size-secondary);
+  font-size: var(--count-sheet-label-font-size);
+  line-height: var(--count-sheet-label-line-height);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
 }
@@ -152,7 +164,8 @@
 
 .counter {
   display: flex;
-  gap: var(--count-sheet-button-gap);
+  gap: var(--count-sheet-counter-gap);
+  margin-top: var(--count-sheet-counter-top);
 }
 
 .step,
@@ -161,7 +174,7 @@
 .fillDay {
   border: none;
   border-radius: var(--count-sheet-button-radius);
-  background: var(--color-fill);
+  background: var(--count-sheet-button-fill);
   color: var(--color-text-primary);
   font: inherit;
   touch-action: manipulation;
@@ -172,7 +185,7 @@
 
 .step {
   flex-shrink: 0;
-  width: var(--count-sheet-step-width);
+  width: var(--count-sheet-row-height);
   height: var(--count-sheet-row-height);
   padding: 0;
   display: inline-flex;
@@ -181,8 +194,8 @@
 }
 
 .step svg {
-  width: 22px;
-  height: 22px;
+  width: var(--count-sheet-step-icon-size);
+  height: var(--count-sheet-step-icon-size);
 }
 
 .step:disabled,
@@ -198,46 +211,41 @@
   min-width: 0;
   height: var(--count-sheet-row-height);
   border-radius: var(--count-sheet-button-radius);
-  background: rgba(var(--habit-rgb), var(--habit-soft-alpha));
+  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 var(--count-sheet-value-padding);
-  line-height: var(--count-sheet-row-height);
+  gap: var(--count-sheet-value-gap);
+  font-size: var(--count-sheet-value-size);
   font-variant-numeric: tabular-nums;
 }
 
 .input {
-  min-width: 1ch;
-  max-width: 6ch;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--color-text-primary);
   font: inherit;
-  font-size: var(--count-sheet-value-size);
   font-weight: 700;
-  text-align: right;
+  text-align: center;
   outline: none;
   -webkit-user-select: text;
   user-select: text;
 }
 
 .goal {
-  font-size: var(--count-sheet-value-size);
   color: var(--color-text-secondary);
 }
 
 /* Цель набрана — галочка в кружке цвета привычки у правого края поля. */
 .doneMark {
   position: absolute;
-  right: var(--count-sheet-value-padding);
+  right: var(--count-sheet-done-right);
   top: 50%;
-  width: 24px;
-  height: 24px;
-  margin-top: -12px;
-  padding: 4px;
+  width: var(--count-sheet-done-size);
+  height: var(--count-sheet-done-size);
+  margin-top: calc(var(--count-sheet-done-size) / -2);
+  padding: var(--count-sheet-done-padding);
   border-radius: var(--radius-pill);
   background: rgb(var(--habit-rgb));
   color: var(--color-check-icon);
@@ -260,7 +268,8 @@
 .quick {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--count-sheet-button-gap);
+  gap: var(--count-sheet-quick-gap);
+  margin-top: var(--count-sheet-quick-top);
 }
 
 .quickButton {
@@ -276,14 +285,14 @@
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--count-sheet-button-gap);
-  margin-top: 4px;
+  gap: var(--count-sheet-counter-gap);
+  margin-top: var(--count-sheet-actions-top);
 }
 
 .reset,
 .fillDay {
   height: var(--count-sheet-action-height);
-  font-size: var(--font-size-body);
+  font-size: var(--count-sheet-action-font-size);
   font-weight: 600;
 }
 

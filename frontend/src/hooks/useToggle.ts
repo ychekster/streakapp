@@ -7,12 +7,12 @@
  * «Сверх плана»: серия быстрых нажатий на одну привычку (каждое — не позже BURST_GAP_MS
  * после прошлого) с BURST_MIN_TAPS нажатий показывает плашку «Отменить» (UndoToast) —
  * она возвращает счёт, бывший до серии. Пока плашка видна, серия продолжается и при
- * медленных нажатиях.
+ * медленных нажатиях; ушла сама — серия кончилась, следующая считается с нуля.
  */
 
 import { useCallback } from "react";
 
-import { hideUndo, showUndo } from "../components/UndoToast";
+import { hideUndo, showUndo, undoVisible } from "../components/UndoToast";
 import { dataStore } from "../data/store";
 import { hapticImpact } from "../telegram/webapp";
 
@@ -49,7 +49,10 @@ function countTap(taskId: number): void {
     return;
   }
   const now = Date.now();
-  if (burst && burst.id === taskId && (burst.shown || now - burst.at <= BURST_GAP_MS)) {
+  // Плашка ушла сама (5 с без нажатий) — её серия кончилась: следующие нажатия считаются
+  // заново, и «Отменить» не тронет уже подтверждённые.
+  const alive = burst !== null && (burst.shown ? undoVisible() : now - burst.at <= BURST_GAP_MS);
+  if (burst && alive && burst.id === taskId) {
     burst.taps += 1;
     burst.at = now;
   } else {

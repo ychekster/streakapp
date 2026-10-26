@@ -40,6 +40,11 @@ export function showUndo(next: Omit<UndoOffer, "until">): void {
   emit();
 }
 
+/** Видна ли плашка (через UNDO_MS после последнего обновления — уже нет). */
+export function undoVisible(): boolean {
+  return offer !== null;
+}
+
 export function hideUndo(): void {
   window.clearTimeout(hideTimer);
   if (offer !== null) {
@@ -88,8 +93,8 @@ export function UndoToast({ aboveTabBar }: UndoToastProps) {
     <div className={`${styles.toast} ${aboveTabBar ? styles.aboveTabBar : ""}`} role="status">
       {/* key — отсчёт заново с каждым обновлением. */}
       <span className={styles.timer} key={current.until} aria-hidden="true">
-        <svg viewBox="0 0 28 28">
-          <circle className={styles.ring} cx="14" cy="14" r="12" />
+        <svg viewBox="0 0 25 25">
+          <circle className={styles.ring} cx="12.5" cy="12.5" r="11.5" />
         </svg>
         <span className={styles.seconds}>{seconds}</span>
       </span>

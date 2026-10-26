@@ -28,11 +28,20 @@ vi.mock("../data/store", () => ({
   },
 }));
 
-const showUndo = vi.fn();
-const hideUndo = vi.fn();
+// Whether the toast is on screen; a test sets it to false as if it went away by itself.
+let visible = false;
+type Offer = { name: string; taps: number; undo: () => void };
+const showUndo = vi.fn((offer: Offer) => {
+  void offer;
+  visible = true;
+});
+const hideUndo = vi.fn(() => {
+  visible = false;
+});
 vi.mock("../components/UndoToast", () => ({
-  showUndo: (...args: unknown[]) => showUndo(...args),
+  showUndo: (offer: Offer) => showUndo(offer),
   hideUndo: () => hideUndo(),
+  undoVisible: () => visible,
 }));
 
 const { BURST_GAP_MS, BURST_MIN_TAPS, endBurst, tapHabit } = await import("./useToggle");
@@ -44,8 +53,9 @@ function overtimeHabit(id: number, fields: Partial<Habit> = {}): Partial<Habit> 
 beforeEach(() => {
   vi.useFakeTimers();
   habits.length = 0;
-  showUndo.mockReset();
-  hideUndo.mockReset();
+  showUndo.mockClear();
+  hideUndo.mockClear();
+  visible = false;
   setCount.mockClear();
   endBurst();
 });
@@ -67,10 +77,30 @@ describe("tapHabit", () => {
     // While it is shown, a slower press still belongs to the run.
     vi.advanceTimersByTime(BURST_GAP_MS * 2);
     tapHabit(1);
-    const offer = showUndo.mock.lastCall?.[0] as { taps: number; undo: () => void };
+    const offer = showUndo.mock.lastCall![0];
     expect(offer.taps).toBe(BURST_MIN_TAPS + 1);
     offer.undo();
     expect(setCount).toHaveBeenLastCalledWith(1, 3);
+  });
+
+  it("counts a new run from zero once the toast went away by itself", () => {
+    habits.push(overtimeHabit(1));
+    for (let tap = 0; tap < BURST_MIN_TAPS + 2; tap += 1) {
+      tapHabit(1);
+    }
+    expect(showUndo).toHaveBeenLastCalledWith(expect.objectContaining({ taps: BURST_MIN_TAPS + 2 }));
+    visible = false;
+    showUndo.mockClear();
+    for (let tap = 0; tap < BURST_MIN_TAPS - 1; tap += 1) {
+      tapHabit(1);
+    }
+    expect(showUndo).not.toHaveBeenCalled();
+    tapHabit(1);
+    const offer = showUndo.mock.lastCall![0];
+    expect(offer.taps).toBe(BURST_MIN_TAPS);
+    offer.undo();
+    // Back to the count after the first run, not before it.
+    expect(setCount).toHaveBeenLastCalledWith(1, 3 + BURST_MIN_TAPS + 2);
   });
 
   it("starts over after a pause, on another habit, and never for plain habits", () => {

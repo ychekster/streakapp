@@ -1,22 +1,20 @@
-/* Плашка «Отменить»: стеклянная капсула, как навигация; над ней или у нижнего края. */
+/* Плашка «Отменить» — как у Telegram (снято со скриншота iPhone 16 Pro): тёмная капсула
+   высотой 50 со сплошной заливкой, слева кружок с отсчётом, справа «Отменить». Уже
+   карточек привычек; над навигацией или у нижнего края. Размеры — токены --undo-toast-*. */
 
 .toast {
   position: fixed;
-  left: var(--space-screen-x);
-  right: var(--space-screen-x);
+  left: var(--undo-toast-margin);
+  right: var(--undo-toast-margin);
   bottom: var(--tabbar-offset);
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: var(--undo-toast-height);
-  padding: 0 8px 0 12px;
+  height: var(--undo-toast-height);
+  padding: 0 var(--undo-toast-padding-right) 0 var(--undo-toast-padding-left);
   border-radius: var(--radius-pill);
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow);
-  color: var(--color-text-primary);
+  background: var(--undo-toast-fill);
+  color: #ffffff;
   animation: toast-in var(--transition-fast) ease-out;
 }
 
@@ -35,11 +33,13 @@
 .timer {
   position: relative;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: var(--undo-toast-timer-size);
+  height: var(--undo-toast-timer-size);
+  margin-right: var(--undo-toast-text-gap);
 }
 
 .timer svg {
+  display: block;
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
@@ -48,16 +48,16 @@
 .ring {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.2;
+  stroke-width: var(--undo-toast-timer-stroke);
   stroke-linecap: round;
-  /* Длина окружности r=12: 2π·12 ≈ 75.4. */
-  stroke-dasharray: 75.4;
+  /* Длина окружности (r = 11.5 в координатах 25×25): 2π·11.5 ≈ 72.26. */
+  stroke-dasharray: 72.26;
   animation: ring-out 5s linear forwards;
 }
 
 @keyframes ring-out {
   to {
-    stroke-dashoffset: 75.4;
+    stroke-dashoffset: 72.26;
   }
 }
 
@@ -67,8 +67,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-secondary);
-  font-weight: 600;
+  font-size: var(--undo-toast-timer-font-size);
   font-variant-numeric: tabular-nums;
 }
 
@@ -78,16 +77,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--font-size-body);
+  font-size: var(--undo-toast-font-size);
+  font-weight: 600;
 }
 
 .undo {
   flex-shrink: 0;
-  padding: 8px 10px;
+  align-self: stretch;
+  padding: 0 8px;
   border: none;
   background: none;
-  color: var(--color-accent);
+  color: var(--undo-toast-action-color);
   font: inherit;
-  font-size: var(--font-size-body);
-  font-weight: 600;
+  font-size: var(--undo-toast-action-font-size);
+  font-weight: 400;
 }

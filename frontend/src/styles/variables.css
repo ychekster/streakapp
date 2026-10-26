@@ -112,36 +112,75 @@
   /* Место кнопки в раскладке — прежние 28px: кружок крупнее его и выступает влево, вверх
      и вниз, не сдвигая ни название, ни сетку. */
   --check-box: 28px;
-  --check-hit-slop: 6px; /* невидимая зона нажатия вокруг кружка */
+  --check-hit-slop: 14px; /* невидимая зона нажатия вокруг кружка (промах при частых нажатиях не открывает привычку) */
   --delete-button-height: 52px; /* «Удалить привычку», «Выйти из аккаунта» — капсула под последней карточкой */
   /* Привычка «несколько раз в день»: внутри кружка — сколько раз осталось, выполненные
      разы — дугой по обводке. */
   --check-faded-opacity: 0.35; /* бледная обводка — как у неактивной кнопки */
   --check-count-font-size: 13px; /* число внутри кружка (до двух цифр) */
   --check-wide-padding: 6px; /* «Сверх плана»: поля пилюли по бокам числа (от трёх цифр) */
-  /* Окно счёта «Сверх плана» (CountSheet): карточка снизу над затемнением. */
-  --count-sheet-margin: 8px; /* от краёв экрана */
-  --count-sheet-padding: 16px;
-  --count-sheet-radius: 34px;
-  --count-sheet-gap: 16px; /* между рядами */
+  /* Окно счёта «Сверх плана» (CountSheet): карточка у низа экрана над затемнением.
+     Сняты со скриншота-эталона iPhone 16 Pro (402pt). */
+  --count-sheet-margin: 8px; /* от боковых краёв экрана */
+  --count-sheet-margin-bottom: 8.5px; /* от нижнего края экрана (не от безопасной зоны) */
+  --count-sheet-radius: 37px; /* верхние углы (и нижние на экране без скругления) */
+  --count-sheet-radius-bottom: 52px; /* нижние углы — по скруглению экрана iPhone */
+  --count-sheet-padding-top: 13px;
+  --count-sheet-padding-x: 19.5px;
+  --count-sheet-padding-bottom-extra: 6px; /* над полоской «Домой» */
+  --count-sheet-padding-bottom-min: 20px; /* без нижней безопасной зоны */
   --count-sheet-fill: var(--color-card);
   --count-sheet-backdrop: rgba(0, 0, 0, 0.25);
   --count-sheet-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
   --count-sheet-anim: 260ms;
-  --count-sheet-chip-height: 30px;
+  --count-sheet-tint-alpha: 0.11; /* чип дня, дорожка прогресса и поле числа */
+  --count-sheet-chip-height: 23px;
+  --count-sheet-chip-padding: 11px;
   --count-sheet-chip-gap: 8px;
+  --count-sheet-chip-font-size: 13px;
+  --count-sheet-chip-icon-size: 12px;
+  --count-sheet-chip-icon-gap: 8px;
+  --count-sheet-chip-fill: var(--color-fill);
+  --count-sheet-close-size: 27px;
+  --count-sheet-close-padding: 3px;
+  --count-sheet-close-fill: var(--color-fill);
+  --count-sheet-bar-top: 22.5px; /* от чипов до полосы прогресса */
   --count-sheet-track-height: 8px;
-  --count-sheet-row-height: 50px; /* «−», число, «+» и быстрые прибавки */
-  --count-sheet-step-width: 64px;
-  --count-sheet-button-gap: 8px;
-  --count-sheet-button-radius: 16px;
-  --count-sheet-value-size: 24px;
-  --count-sheet-value-padding: 14px;
-  --count-sheet-quick-size: 17px;
-  --count-sheet-action-height: 52px; /* «Сбросить», «Заполнить день» */
-  /* Плашка «Отменить» после серии быстрых нажатий (UndoToast). */
+  --count-sheet-label-gap: 5px;
+  --count-sheet-label-font-size: 11px;
+  --count-sheet-label-line-height: 13px;
+  --count-sheet-counter-top: 23px; /* от подписей прогресса до «−» / «+» */
+  --count-sheet-row-height: 53px; /* «−», число, «+» и быстрые прибавки (кнопки «−» и «+» квадратные) */
+  --count-sheet-counter-gap: 12px; /* «−» / число / «+», «Сбросить» / «Заполнить день» */
+  --count-sheet-step-icon-size: 26px;
+  --count-sheet-button-radius: 14px;
+  --count-sheet-button-fill: var(--color-fill);
+  --count-sheet-value-size: 23px;
+  --count-sheet-value-gap: 4px;
+  --count-sheet-done-size: 16px;
+  --count-sheet-done-padding: 3.5px;
+  --count-sheet-done-right: 16px;
+  --count-sheet-quick-top: 20px;
+  --count-sheet-quick-gap: 8px;
+  --count-sheet-quick-size: 20px;
+  --count-sheet-actions-top: 22px;
+  --count-sheet-action-height: 44px; /* «Сбросить», «Заполнить день» */
+  --count-sheet-action-font-size: 16px;
+  /* Плашка «Отменить» после серии быстрых нажатий (UndoToast) — как у Telegram (iPhone 16
+     Pro), только уже: сплошная тёмная в обеих темах. */
   --undo-toast-height: 50px;
-  --undo-toast-gap: 10px; /* над навигацией */
+  --undo-toast-margin: 24px; /* от краёв экрана — уже карточек привычек */
+  --undo-toast-gap: 13px; /* над навигацией */
+  --undo-toast-fill: #2c2c2e;
+  --undo-toast-padding-left: 11.5px;
+  --undo-toast-padding-right: 9px; /* у «Отменить» свои поля 8 — до текста 17 */
+  --undo-toast-timer-size: 25px;
+  --undo-toast-timer-stroke: 2px;
+  --undo-toast-timer-font-size: 16px;
+  --undo-toast-text-gap: 15px; /* от кружка до текста */
+  --undo-toast-font-size: 14px;
+  --undo-toast-action-font-size: 17px;
+  --undo-toast-action-color: #86cef7;
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру
@@ -509,7 +548,11 @@
   --color-placeholder: rgba(235, 235, 245, 0.3);
   --color-fill: rgba(118, 118, 128, 0.24);
   --count-sheet-backdrop: rgba(0, 0, 0, 0.5);
-  --count-sheet-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --count-sheet-shadow: none;
+  --count-sheet-chip-fill: #2f2f31;
+  --count-sheet-close-fill: #313136;
+  --count-sheet-button-fill: #39393b;
+  --undo-toast-fill: #1b1b1b;
   --color-stepper-divider: rgba(84, 84, 88, 0.65);
   --color-search-clear: rgba(235, 235, 245, 0.45);
   --main-button-disabled-bg: #2c2c2e;

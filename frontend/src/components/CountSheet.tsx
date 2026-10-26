@@ -3,8 +3,8 @@
  * (CheckButton → openCountSheet) и всплывает снизу поверх экрана.
  *
  * Шапка — день отметки, название привычки и «×»; под ней полоса прогресса к цели. Дальше
- * «−» / число / «+» (нажатие — шаг, удержание повторяет его, hooks/useHoldRepeat.ts;
- * число можно ввести с клавиатуры), быстрые «+1 … +100» и внизу «Сбросить» (0) и
+ * «−» / число / «+» и быстрые «+1 … +100» (нажатие — шаг, удержание повторяет его,
+ * hooks/useHoldRepeat.ts; число можно ввести с клавиатуры) и внизу «Сбросить» (0) и
  * «Заполнить день» (до цели). Всё применяется сразу (dataStore.setCount): окно лишь
  * показывает счёт из стора, своего черновика у него нет — кроме вводимого числа.
  *
@@ -80,10 +80,12 @@ export function CountSheet() {
   const count = habit?.today_count ?? 0;
   const goal = habit?.times_per_day ?? 1;
 
+  // «−», «+» и быстрые прибавки: шаг по нажатию, удержание повторяет его; у границы шаг
+  // доходит до неё и повтор останавливается.
   const hold = useHoldRepeat((delta) => {
     const current = dataStore.getState().habits.find((item) => item.id === habitId)?.today_count ?? 0;
-    const next = current + delta;
-    if (habitId === null || next < 0 || next > OVERTIME_MAX_COUNT) {
+    const next = Math.max(0, Math.min(current + delta, OVERTIME_MAX_COUNT));
+    if (habitId === null || next === current) {
       return false;
     }
     dataStore.setCount(habitId, next);
@@ -187,7 +189,8 @@ export function CountSheet() {
               pattern="[0-9]*"
               aria-label={strings.countSheetValue}
               value={draft ?? String(count)}
-              size={Math.max(1, (draft ?? String(count)).length)}
+              // По ширине числа (цифры одной ширины — 1ch): «9 / 6» стоит по центру поля.
+              style={{ width: `${Math.max(1, (draft ?? String(count)).length)}ch` }}
               onChange={(event) => type(event.target.value)}
               onFocus={(event) => {
                 setDraft(String(count));
@@ -201,7 +204,7 @@ export function CountSheet() {
                 }
               }}
             />
-            <span className={styles.goal}>/ {goal}</span>
+            <span className={styles.goal}>/{" "}{goal}</span>
             <span className={`${styles.doneMark} ${done ? styles.doneMarkOn : ""}`} aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <path
@@ -235,7 +238,7 @@ export function CountSheet() {
               className={styles.quickButton}
               aria-label={strings.countSheetAdd(step)}
               disabled={count >= OVERTIME_MAX_COUNT}
-              onClick={() => set(Math.min(count + step, OVERTIME_MAX_COUNT))}
+              {...hold(step)}
             >
               +{step}
             </button>
