@@ -18,6 +18,7 @@ import {
   periodBounds,
   periodQuota,
   reuseUnchanged,
+  yearStats,
   type Operation,
   type Snapshot,
 } from "./derive";
@@ -749,6 +750,29 @@ describe("flexible schedule", () => {
     // Monday was marked; Tuesday is past the week's goal.
     expect(result.history.slice(-2)).toEqual([true, false]);
     expect(result.scheduled_today).toBe(false);
+  });
+
+  it("tells how often to do a year goal and when it is reached", () => {
+    const gym = (fields: Partial<Habit>) =>
+      habit({ ...flexible("year", 120), created_on: "2026-01-01", ...fields });
+    // 100 of 120 by Monday 5 October, done today: 87 days left, 20 to go.
+    const onTrack = yearStats(gym({ period_done: 100, done_today: true, history: history([0, 2]) }), TODAY);
+    expect(onTrack.need).toEqual({ per: "week", times: 2 });
+    expect(onTrack.thisWeek).toBe(1);
+    // 100 days in 278 — 20 more in 56 days.
+    expect(onTrack.forecast).toEqual({ kind: "date", date: "2026-11-30" });
+
+    const behind = yearStats(gym({ period_times: 300, period_done: 100 }), TODAY);
+    expect(behind.need).toEqual({ per: "late" });
+    expect(behind.forecast).toEqual({ kind: "total", total: 131 });
+
+    const reached = yearStats(gym({ period_times: 10, period_done: 10, history: history([3, 10]) }), TODAY);
+    expect(reached.need).toEqual({ per: "week", times: 0 });
+    expect(reached.forecast).toEqual({ kind: "reached", date: "2026-10-02" });
+
+    expect(yearStats(gym({ period_done: 0 }), TODAY).forecast).toEqual({ kind: "none" });
+    // The last, short week: what is left.
+    expect(yearStats(gym({ period_done: 117 }), "2026-12-28").need).toEqual({ per: "week", times: 3 });
   });
 
   it("keeps my own days in a shared habit", () => {

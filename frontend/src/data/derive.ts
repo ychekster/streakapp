@@ -84,6 +84,82 @@ export function periodQuota(times: number, start: string, end: string): number {
   return Math.min(times, daysBetween(start, end) + 1);
 }
 
+/** A year goal of «Гибкий график» as the habit screen shows it (yearStats). */
+export interface YearStats {
+  done: number;
+  quota: number;
+  /** How many times a week to do it to reach the goal by 31 December (in the last, short
+   *  week — what is left), or out of reach. */
+  need: { per: "week"; times: number } | { per: "late" };
+  /** Done days this week (this year's part of it). */
+  thisWeek: number;
+  /** When the goal is reached: the day it was (null — before the history), the day at the
+   *  current pace, or how many by the year's end; none — nothing done yet. */
+  forecast:
+    | { kind: "reached"; date: string | null }
+    | { kind: "date"; date: string }
+    | { kind: "total"; total: number }
+    | { kind: "none" };
+}
+
+/**
+ * «Гибкий график» on a year: progress, how often to do it to make it, this week and a
+ * forecast. The pace is counted from 1 January — or from the habit's creation or its
+ * switch to this schedule, if later. `day` — the marking day (the history's last day).
+ */
+export function yearStats(habit: Habit, day: string): YearStats {
+  const [start, end] = periodBounds("year", day);
+  const quota = periodQuota(habit.period_times ?? 1, start, end);
+  const done = habit.period_done ?? 0;
+  const remaining = Math.max(0, quota - done);
+  const doneOn = (date: string): boolean => {
+    const index = habit.history.length - 1 - daysBetween(date, day);
+    return index >= 0 && index < habit.history.length && habit.history[index];
+  };
+
+  const left = daysBetween(day, end) + (habit.done_today ? 0 : 1);
+  let need: YearStats["need"];
+  if (remaining > left) {
+    need = { per: "late" };
+  } else if (left < 7) {
+    need = { per: "week", times: remaining };
+  } else {
+    need = { per: "week", times: Math.ceil((remaining * 7) / left) };
+  }
+
+  const [monday] = periodBounds("week", day);
+  let thisWeek = 0;
+  for (let date = monday > start ? monday : start; date <= day; date = addDays(date, 1)) {
+    thisWeek += Number(doneOn(date));
+  }
+
+  let forecast: YearStats["forecast"];
+  if (remaining === 0) {
+    // No marks after the goal is reached: its last done day is the day it was.
+    let reached: string | null = null;
+    for (let date = day; date >= start && reached === null; date = addDays(date, -1)) {
+      if (daysBetween(date, day) >= habit.history.length) {
+        break;
+      }
+      reached = doneOn(date) ? date : null;
+    }
+    forecast = { kind: "reached", date: reached };
+  } else if (done === 0) {
+    forecast = { kind: "none" };
+  } else {
+    const history = habit.schedule_history ?? [];
+    const changed = history.length > 0 ? history[history.length - 1].until : start;
+    const from = [start, habit.created_on ?? start, changed].reduce((a, b) => (a > b ? a : b));
+    const rate = done / (daysBetween(from, day) + 1);
+    const finish = addDays(day, Math.ceil(remaining / rate));
+    forecast =
+      finish <= end
+        ? { kind: "date", date: finish }
+        : { kind: "total", total: Math.floor(done + rate * daysBetween(day, end)) };
+  }
+  return { done, quota, need, thisWeek, forecast };
+}
+
 /** «Гибкий график»: the goal of the period `day` falls in; null — another frequency. */
 export function periodGoal(habit: Schedule, day: string): number | null {
   const period = flexiblePeriod(habit);

@@ -6,8 +6,9 @@
  *
  * «Гибкий график» — свои карточки (flexibleStats): у недели и месяца серии в периодах
  * («5 нед.»), «Дней выполнено» без «из скольких» и вместо цели серии — сделано в текущем
- * периоде («2 / 3»); у года вместо серий — «Осталось» и темп (на сколько дней впереди или
- * позади равномерного плана с начала года — или с создания привычки, если позже).
+ * периоде («2 / 3»). У года (yearStats): «121 / 150 — В этом году», сколько раз в неделю
+ * нужно, чтобы успеть к 31 декабря, сколько сделано на этой неделе и прогноз — к какому
+ * дню цель будет набрана в нынешнем темпе (не успевает — сколько выйдет к концу года).
  *
  * День отметки — последний день истории — из «Вида сетки» (GridViewContext): у страницы
  * участника это его день. Неизвестен (ещё нет настроек) — без календаря и без «из скольких
@@ -17,10 +18,9 @@
 import type { ReactNode, Ref } from "react";
 
 import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
-import { daysBetween } from "../data/dates";
-import { flexiblePeriod, periodBounds, periodQuota } from "../data/derive";
+import { flexiblePeriod, periodBounds, periodQuota, yearStats } from "../data/derive";
 import { localDate } from "./DateField";
-import { useStrings } from "../preferences";
+import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import type { Habit } from "../types/habit";
 import { weekdayLabel } from "../weekdayLabel";
@@ -54,8 +54,24 @@ interface Stat {
   label: string;
 }
 
+/** «14 дек.» / «Dec 14» — день «ГГГГ-ММ-ДД». */
+function shortDate(day: string, language: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const format = new Intl.DateTimeFormat(language, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  return format.format(new Date(Date.UTC(year, month - 1, date)));
+}
+
 /** Карточки «Основного» у «Гибкого графика»; `day` — день отметки. */
-function flexibleStats(habit: Habit, day: string, strings: Strings): Stat[] | null {
+function flexibleStats(
+  habit: Habit,
+  day: string,
+  strings: Strings,
+  language: string,
+): Stat[] | null {
   const period = flexiblePeriod(habit);
   if (period === null) {
     return null;
@@ -63,44 +79,34 @@ function flexibleStats(habit: Habit, day: string, strings: Strings): Stat[] | nu
   const [start, end] = periodBounds(period, day);
   const quota = periodQuota(habit.period_times ?? 1, start, end);
   const done = habit.period_done ?? 0;
-  const progress: Stat = {
-    icon: period === "year" ? <TrophyIcon /> : <TargetIcon />,
-    value: `${done} / ${quota}`,
-    label: strings.statThisPeriod[period],
-  };
-  const total: Stat = {
-    icon: <CompletedIcon />,
-    value: habit.total_done,
-    label: strings.statDaysDone,
-  };
   if (period !== "year") {
     const streak = strings.streakInPeriods[period];
     return [
       { icon: <FlameIcon />, value: streak(habit.current_streak), label: strings.statCurrentStreak },
       { icon: <TrophyIcon />, value: streak(habit.best_streak), label: strings.statBestStreak },
-      total,
-      progress,
+      { icon: <CompletedIcon />, value: habit.total_done, label: strings.statDaysDone },
+      { icon: <TargetIcon />, value: `${done} / ${quota}`, label: strings.statThisPeriod[period] },
     ];
   }
-  // Равномерный план к дню отметки: с начала года или с того, что позже — создания
-  // привычки или смены частоты на эту.
-  const history = habit.schedule_history ?? [];
-  const changed = history.length > 0 ? history[history.length - 1].until : null;
-  const from = [start, habit.created_on ?? start, changed ?? start].reduce((a, b) =>
-    a > b ? a : b,
-  );
-  const span = daysBetween(from, end) + 1;
-  const plan = Math.floor((quota * (daysBetween(from, day) + 1)) / Math.max(span, 1));
-  const pace = done - plan;
+  const year = yearStats(habit, day);
+  const { need, forecast } = year;
   return [
-    { icon: <TargetIcon />, value: Math.max(0, quota - done), label: strings.statRemaining },
-    {
-      icon: <FlameIcon />,
-      value: Math.abs(pace),
-      label: pace > 0 ? strings.statAhead : pace < 0 ? strings.statBehind : strings.statOnPlan,
-    },
-    total,
-    progress,
+    { icon: <TrophyIcon />, value: `${year.done} / ${year.quota}`, label: strings.statThisPeriod.year },
+    need.per === "late"
+      ? { icon: <TargetIcon />, value: "—", label: strings.statTooLate }
+      : { icon: <TargetIcon />, value: need.times, label: strings.statNeedPerWeek },
+    { icon: <CompletedIcon />, value: year.thisWeek, label: strings.statThisPeriod.week },
+    forecast.kind === "reached"
+      ? {
+          icon: <FlameIcon />,
+          value: forecast.date ? shortDate(forecast.date, language) : "✓",
+          label: strings.statGoalReached,
+        }
+      : forecast.kind === "date"
+        ? { icon: <FlameIcon />, value: shortDate(forecast.date, language), label: strings.statGoalBy }
+        : forecast.kind === "total"
+          ? { icon: <FlameIcon />, value: `≈ ${forecast.total}`, label: strings.statForecast }
+          : { icon: <FlameIcon />, value: "—", label: strings.statForecastNone },
   ];
 }
 
@@ -126,10 +132,11 @@ export function HabitSummary({
   children,
 }: HabitSummaryProps) {
   const strings = useStrings();
+  const language = useLanguage();
   const markDay = useGridView().day;
   const days = markDay ? trackedDays(habit, markDay) : 0;
   // День отметки ещё неизвестен (нет настроек) — сегодня на устройстве.
-  const flexible = flexibleStats(habit, markDay ?? localDate(), strings);
+  const flexible = flexibleStats(habit, markDay ?? localDate(), strings, language);
   return (
     <>
       <Section title={headings.history} headingRef={headingRef}>

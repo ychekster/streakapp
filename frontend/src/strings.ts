@@ -252,7 +252,8 @@ const RU = {
   goalMonthly: "Каждый месяц",
   // «Гибкий график»: серии — в периодах («5 нед.»), выполнено — в днях (без «из скольких»),
   // вместо «Цели серии» — сколько сделано в текущем периоде («2 / 3»). У года вместо серий
-  // — сколько осталось и темп: на сколько дней впереди или позади равномерного плана.
+  // — сколько раз нужно, чтобы успеть к 31 декабря, и прогноз: к какому дню цель будет
+  // набрана в нынешнем темпе (не успевает — сколько выйдет к концу года).
   streakInPeriods: {
     week: (count: number) => `${count} нед.`,
     month: (count: number) => `${count} мес.`,
@@ -264,10 +265,12 @@ const RU = {
     month: "В этом месяце",
     year: "В этом году",
   } as Record<Period, string>,
-  statRemaining: "Осталось",
-  statAhead: "Впереди плана",
-  statBehind: "Позади плана",
-  statOnPlan: "По плану",
+  statNeedPerWeek: "Нужно в неделю",
+  statTooLate: "Уже не успеть",
+  statGoalBy: "Будет выполнено",
+  statForecast: "Прогноз на год",
+  statForecastNone: "Прогноз",
+  statGoalReached: "Цель выполнена",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
@@ -719,10 +722,12 @@ const EN: Strings = {
   },
   statDaysDone: "Days completed",
   statThisPeriod: { week: "This week", month: "This month", year: "This year" },
-  statRemaining: "Left",
-  statAhead: "Ahead of plan",
-  statBehind: "Behind plan",
-  statOnPlan: "On plan",
+  statNeedPerWeek: "Needed a week",
+  statTooLate: "Out of reach",
+  statGoalBy: "Will be reached",
+  statForecast: "Year forecast",
+  statForecastNone: "Forecast",
+  statGoalReached: "Goal reached",
   calendarHeading: "Calendar",
   groupHistoryHeading: "Group’s last 364 days",
   groupMainHeading: "Group overview",
