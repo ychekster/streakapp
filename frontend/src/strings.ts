@@ -284,7 +284,7 @@ const RU = {
   calendarHeading: "Календарь",
   // Справа от заголовка календаря: режим, в котором тап по дню отмечает его, а не
   // открывает окно дня.
-  calendarMark: "Отметить",
+  calendarMark: "Отметить дни",
   calendarMarkDone: "Готово",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
   groupHistoryHeading: "Последние 364 дня группы",
@@ -790,7 +790,7 @@ const EN: Strings = {
   statForecastNone: "Forecast",
   statGoalReached: "Goal reached",
   calendarHeading: "Calendar",
-  calendarMark: "Mark",
+  calendarMark: "Mark Days",
   calendarMarkDone: "Done",
   groupHistoryHeading: "Group’s last 364 days",
   groupMainHeading: "Group overview",
