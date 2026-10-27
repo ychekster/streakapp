@@ -59,6 +59,11 @@
   stroke-width: var(--web-back-stroke);
 }
 
+/* Таймер на весь экран (TimerScreen, z-index 60) — «Назад» сворачивает его, поверх. */
+:global(:root[data-timer-screen]) .back {
+  z-index: 61;
+}
+
 .back[data-pressed] {
   transform: scale(0.94);
 }

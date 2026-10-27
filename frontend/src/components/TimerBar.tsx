@@ -10,7 +10,7 @@
  * на <html> стоит --timer-bar-space: экраны и плашка «Отменить» поднимаются над ней.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
@@ -39,26 +39,22 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
   const now = useSecondTick(timer !== null);
   const screenOpen = useTimerScreenHabit() !== null;
 
-  // Таймер остановили — его привычка ещё LINGER_MS на паузе; запустили любой — сразу он.
-  const lastHabit = useRef<number | null>(null);
-  const [paused, setPaused] = useState<number | null>(null);
+  // Чья капсула: идущего таймера, а остановленного — ещё LINGER_MS (на паузе). Запоминается
+  // прямо при рендере: в кадре остановки капсула уже на паузе, а не пропадает на миг.
+  const [shownId, setShownId] = useState<number | null>(timer?.habitId ?? null);
+  if (timer && timer.habitId !== shownId) {
+    setShownId(timer.habitId);
+  }
+  const stopped = timer === null && shownId !== null;
   useEffect(() => {
-    if (timer) {
-      lastHabit.current = timer.habitId;
-      setPaused(null);
+    if (!stopped) {
       return undefined;
     }
-    const stopped = lastHabit.current;
-    lastHabit.current = null;
-    if (stopped === null) {
-      return undefined;
-    }
-    setPaused(stopped);
-    const hide = window.setTimeout(() => setPaused(null), LINGER_MS);
+    const hide = window.setTimeout(() => setShownId(null), LINGER_MS);
     return () => window.clearTimeout(hide);
-  }, [timer]);
+  }, [stopped]);
 
-  const habitId = timer ? timer.habitId : paused;
+  const habitId = timer ? timer.habitId : shownId;
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
   const shown = habit !== undefined && !screenOpen;
 

@@ -1,7 +1,8 @@
-/* Таймер на весь экран — в стиле приложения: фон экрана, белая (в тёмной теме — тёмная)
-   карточка с кольцом и цифрами, широкие кнопки-пилюли внизу. Поверх всего — навигации,
-   плашек и окон. Сверху — отступ под вырез и панель Telegram в полноэкранном режиме,
-   снизу — под home indicator. Размеры — токены --timer-screen-*. */
+/* Таймер на весь экран — как «Таймер» в часах iPhone (размеры сняты со скриншота iPhone,
+   402pt): фон экрана, сверху — полоса под «Назад» (Telegram или WebChrome), кольцо почти во всю ширину, тонкие
+   крупные цифры, две круглые кнопки и карточка внизу. Поверх всего — навигации, плашек
+   и окон. Сверху — отступ под вырез и панель Telegram в полноэкранном режиме, снизу — под
+   home indicator. Размеры — токены --timer-screen-*. */
 
 .screen {
   position: fixed;
@@ -9,12 +10,11 @@
   z-index: 60;
   display: flex;
   flex-direction: column;
-  gap: var(--timer-screen-gap);
   padding: calc(
       var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
         var(--app-content-safe-area-top, 0px) + var(--timer-screen-padding-top)
     )
-    var(--space-screen-x)
+    var(--timer-screen-margin-x)
     calc(
       var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
         var(--timer-screen-padding-bottom)
@@ -37,54 +37,38 @@
   }
 }
 
-/* Чип дня (как в окне счёта) и название под ним. */
-.top {
+/* Круглые кнопки: ✎ — серая; ▶ / ❚❚ — цветом привычки на её оттенке. */
+.round {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--timer-screen-top-gap);
-  max-width: 100%;
-  text-align: center;
-}
-
-.day {
-  height: var(--count-sheet-chip-height);
-  padding: 0 var(--count-sheet-chip-padding);
+  justify-content: center;
+  padding: 0;
+  border: none;
   border-radius: var(--radius-pill);
-  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
-  color: rgb(var(--habit-rgb));
-  font-size: var(--count-sheet-chip-font-size);
-  font-weight: 500;
-  line-height: var(--count-sheet-chip-height);
+  background: var(--timer-screen-button-fill);
+  color: var(--color-text-primary);
+  touch-action: manipulation;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
-.name {
-  margin: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--timer-screen-name-size);
-  font-weight: 700;
+.round:active {
+  transform: scale(0.94);
 }
 
-/* Карточка с кольцом — занимает всё место между названием и кнопками. */
-.card {
+/* Кольцо — во всю ширину, на невысоком экране — по высоте свободного места. */
+.dialArea {
   flex: 1;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--timer-screen-card-padding);
-  border-radius: var(--radius-card);
-  background: var(--color-card);
-  box-shadow: var(--shadow-card);
+  padding: var(--timer-screen-dial-gap) 0;
 }
 
-/* Кольцо — по меньшей стороне карточки (не больше --timer-screen-dial-max). */
 .dial {
   position: relative;
-  width: min(100%, var(--timer-screen-dial-max));
+  width: 100%;
   max-height: 100%;
   aspect-ratio: 1;
 }
@@ -102,7 +86,7 @@
 }
 
 .track {
-  stroke: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
+  stroke: var(--timer-screen-button-fill);
 }
 
 .arc {
@@ -118,81 +102,75 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--timer-screen-goal-gap);
 }
 
-/* Крупные цифры одной ширины — время не прыгает. */
-.clock {
-  font-size: var(--timer-screen-clock-size);
-  font-weight: 600;
+/* Над цифрами: 🔔 время цели / «Осталось …» — серым; набрана — цветом привычки. */
+.above {
+  display: flex;
+  align-items: center;
+  gap: var(--timer-screen-bell-gap);
+  font-size: var(--timer-screen-caption-size);
+  color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+}
+
+.aboveDone {
+  color: rgb(var(--habit-rgb));
+}
+
+.bell {
+  width: var(--timer-screen-bell-size);
+  height: var(--timer-screen-bell-size);
+}
+
+/* Крупные тонкие цифры одной ширины — время не прыгает. */
+.clock {
+  margin: var(--timer-screen-clock-gap-top) 0 var(--timer-screen-clock-gap-bottom);
+  font-size: min(var(--timer-screen-clock-size), var(--timer-screen-clock-size-fluid));
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   line-height: 1;
 }
 
 .goal {
-  font-size: var(--font-size-body);
-  color: var(--color-text-secondary);
+  font-size: var(--timer-screen-caption-size);
 }
 
-.goalDone {
-  color: rgb(var(--habit-rgb));
-  font-weight: 600;
-}
-
-/* Две широкие пилюли друг под другом. */
-.controls {
+/* ✎ слева, ▶ / ❚❚ справа — по краям кольца. */
+.buttons {
   display: flex;
-  flex-direction: column;
-  gap: var(--timer-screen-controls-gap);
+  justify-content: space-between;
 }
 
-.main,
-.collapse {
-  height: var(--timer-screen-button-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--timer-screen-button-icon-gap);
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  font: inherit;
-  font-size: var(--timer-screen-button-font-size);
-  font-weight: 600;
-  touch-action: manipulation;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
+.round {
+  width: var(--timer-screen-button-size);
+  height: var(--timer-screen-button-size);
 }
 
-.main:active,
-.collapse:active {
-  transform: scale(0.98);
-}
-
-.main svg,
-.collapse svg {
+.round svg {
   width: var(--timer-screen-icon-size);
   height: var(--timer-screen-icon-size);
 }
 
-/* «Старт» / «Продолжить» — цветом привычки. */
 .main {
-  background: rgb(var(--habit-rgb));
-  color: var(--color-on-habit);
+  background: rgba(var(--habit-rgb), var(--timer-screen-main-alpha));
+  color: rgb(var(--habit-rgb));
 }
 
 .main:disabled {
   opacity: 0.35;
 }
 
-/* Идёт — «Пауза» светлее, цветом привычки на её оттенке. */
-.mainRunning {
-  background: rgba(var(--habit-rgb), var(--count-sheet-tint-alpha));
-  color: rgb(var(--habit-rgb));
+.info {
+  margin-top: var(--timer-screen-card-top);
 }
 
-.collapse {
-  background: var(--color-card);
-  box-shadow: var(--shadow-card);
-  color: var(--color-text-primary);
+/* Значение справа в строке — серым, как в «Настройках». */
+.value {
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
 }

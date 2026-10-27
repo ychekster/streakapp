@@ -208,22 +208,25 @@
   --timer-bar-button-width: 54px; /* зона ❚❚ справа */
   --timer-bar-icon-size: 22px;
 
-  /* --- Таймер на весь экран (TimerScreen): цвета темы приложения --- */
-  --timer-screen-padding-top: 16px;
-  --timer-screen-padding-bottom: 16px;
-  --timer-screen-gap: 20px; /* между шапкой, карточкой и кнопками */
-  --timer-screen-top-gap: 8px;
-  --timer-screen-name-size: 22px;
-  --timer-screen-card-padding: 24px;
-  --timer-screen-dial-max: 320px;
-  --timer-screen-ring-stroke: 5; /* в координатах кольца 100×100 */
-  --timer-screen-clock-size: 60px;
-  --timer-screen-goal-gap: 10px;
-  --timer-screen-controls-gap: 10px;
-  --timer-screen-button-height: 54px;
-  --timer-screen-button-font-size: 17px;
-  --timer-screen-button-icon-gap: 8px;
-  --timer-screen-icon-size: 20px;
+  /* --- Таймер на весь экран (TimerScreen): как «Таймер» в часах iPhone (скриншот
+     iPhone, 402pt), в цветах темы приложения --- */
+  --timer-screen-padding-top: 8px;
+  --timer-screen-padding-bottom: 12px;
+  --timer-screen-margin-x: 20px; /* кольцо, кнопки и карточка — от краёв экрана */
+  --timer-screen-button-fill: var(--color-fill); /* ✎ и дорожка кольца */
+  --timer-screen-dial-gap: 20px; /* над и под кольцом */
+  --timer-screen-ring-stroke: 2; /* в координатах кольца 100×100: 7pt при 361pt */
+  --timer-screen-caption-size: 17px; /* 🔔 22:20 и «Цель — 45 мин» */
+  --timer-screen-bell-size: 15px;
+  --timer-screen-bell-gap: 6px;
+  --timer-screen-clock-size: 96px;
+  --timer-screen-clock-size-fluid: 23vw;
+  --timer-screen-clock-gap-top: 14px;
+  --timer-screen-clock-gap-bottom: 18px;
+  --timer-screen-button-size: 72px;
+  --timer-screen-icon-size: 28px;
+  --timer-screen-main-alpha: 0.22; /* ▶ / ❚❚ — на оттенке цвета привычки */
+  --timer-screen-card-top: 20px;
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру

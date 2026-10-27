@@ -1,25 +1,32 @@
 /**
- * Таймер «Цели по времени» на весь экран — в стиле приложения (фон, карточка и кнопки
- * темы, цвет привычки): сверху чип дня («Сегодня») и название, посередине белая карточка
- * с кольцом цветом привычки (доля цели) и крупными цифрами «12:34», под ними — цель
- * («Цель — 45 мин» или «Цель на сегодня выполнена»). Внизу две широкие кнопки: «Пауза» /
- * «Продолжить» / «Старт» цветом привычки и серая «Свернуть». Пока экран открыт, экран
- * телефона не гаснет (Wake Lock, hooks/useTimer.ts), если устройство это умеет.
+ * Таймер «Цели по времени» на весь экран — как «Таймер» в часах iPhone, в цветах темы:
+ * посередине большое кольцо цветом привычки (доля цели) и крупные тонкие цифры «09:49». Над цифрами — когда наберётся цель (🔔 22:20; на
+ * паузе — «Осталось 12 мин», набрана — «Цель на сегодня выполнена»), под ними — цель
+ * («Цель — 45 мин»). Ниже — две круглые кнопки: слева серая ✎ (окно времени за день,
+ * CountSheet), справа ▶ / ❚❚ цветом привычки. Внизу карточка: привычка и её текущая серия.
+ * Навигации нет — экран поверх всего; свернуть — та же «Назад», что на всех экранах: в
+ * Telegram его кнопка в шапке, в веб-приложении — круглая WebChrome (на время экрана —
+ * поверх него, `data-timer-screen` на <html>). Пока он открыт, экран телефона
+ * не гаснет (Wake Lock, hooks/useTimer.ts), если устройство это умеет.
  *
  * Открывается нажатием на мини-плеер (TimerBar) для его привычки; на паузе остаётся
- * открытым (время дня — из стора), «Продолжить» запускает снова. «Назад» Telegram (и
- * свайп) — свернуть (App). Одно окно на всё приложение, как окно счёта (CountSheet).
+ * открытым (время дня — из стора). «Назад» Telegram (и свайп) — свернуть (App). Одно окно
+ * на всё приложение, как окно счёта (CountSheet).
  */
 
 import { useEffect, useSyncExternalStore } from "react";
 
+import { clockIn } from "../data/dates";
 import { dataStore } from "../data/store";
-import { myDay } from "../data/derive";
+import { flexiblePeriod, myDay } from "../data/derive";
 import { useAppData } from "../hooks/useAppData";
 import { useSecondTick, useWakeLock } from "../hooks/useTimer";
 import { useStrings } from "../preferences";
 import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
+import { openCountSheet } from "./CountSheet";
+import { ListItem } from "./ListItem";
+import { Card } from "./Section";
 import { clock, duration } from "./timerFormat";
 import styles from "./TimerScreen.module.css";
 
@@ -55,8 +62,8 @@ export function useTimerScreenHabit(): number | null {
   );
 }
 
-/** Кольцо (координаты 100×100). */
-const RADIUS = 45;
+/** Кольцо (координаты 100×100): по середине обводки --timer-screen-ring-stroke (2). */
+const RADIUS = 49;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function TimerScreen() {
@@ -67,6 +74,18 @@ export function TimerScreen() {
   const running = timer !== null && timer.habitId === habitId && timer.date === today;
   const now = useSecondTick(running);
   useWakeLock(habit !== undefined);
+
+  // Круглая «Назад» веб-приложения — поверх экрана, пока он открыт.
+  const open = habitId !== null;
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    document.documentElement.dataset.timerScreen = "";
+    return () => {
+      delete document.documentElement.dataset.timerScreen;
+    };
+  }, [open]);
 
   // Привычку удалили или сделали не по времени — закрыть.
   const usable = habit !== undefined && habit.goal_unit === "seconds";
@@ -79,13 +98,20 @@ export function TimerScreen() {
   if (!habit || !usable || !today) {
     return null;
   }
-  const seconds = running ? dataStore.timerSeconds(now) : myDay(habit, today, today).count;
+  const daySeconds = myDay(habit, today, today).count;
+  const seconds = running ? dataStore.timerSeconds(now) : daySeconds;
   const goal = habit.times_per_day;
   const reached = seconds >= goal;
   const fraction = Math.min(seconds / goal, 1);
   // Дальше цели без «Сверх плана» таймер не идёт.
   const canStart = !reached || habit.overtime === true;
-  const mainLabel = running ? strings.timerPause : seconds > 0 ? strings.timerResume : strings.timerStart;
+  // Серия — в днях, у «Гибкого графика» — в его периодах («3 нед.»).
+  const period = flexiblePeriod(habit);
+  const streak =
+    period === null || period === "year"
+      ? strings.streakDaysValue(habit.current_streak)
+      : strings.streakInPeriods[period](habit.current_streak);
+  const left = goal - seconds;
   return (
     <div
       className={styles.screen}
@@ -94,14 +120,7 @@ export function TimerScreen() {
       aria-modal="true"
       aria-label={habit.name}
     >
-      <div className={styles.top}>
-        <span className={styles.day}>
-          {settings?.mark_yesterday ? strings.timerYesterday : strings.timerToday}
-        </span>
-        <h2 className={styles.name}>{habit.name}</h2>
-      </div>
-
-      <div className={styles.card}>
+      <div className={styles.dialArea}>
         <div className={styles.dial}>
           <svg className={styles.ring} viewBox="0 0 100 100" aria-hidden="true">
             <circle className={styles.track} cx="50" cy="50" r={RADIUS} />
@@ -117,21 +136,52 @@ export function TimerScreen() {
             ) : null}
           </svg>
           <div className={styles.readout}>
+            <span className={`${styles.above} ${reached ? styles.aboveDone : ""}`}>
+              {reached ? (
+                strings.timerGoalDone
+              ) : running ? (
+                <>
+                  <BellIcon />
+                  {clockIn(settings?.timezone ?? null, new Date(now + left * 1000))}
+                </>
+              ) : (
+                strings.timerLeft(duration(left, strings))
+              )}
+            </span>
             <span className={styles.clock} role="timer">
               {clock(seconds)}
             </span>
-            <span className={`${styles.goal} ${reached ? styles.goalDone : ""}`}>
-              {reached ? strings.timerGoalDone : strings.timerGoal(duration(goal, strings))}
-            </span>
+            <span className={styles.goal}>{strings.timerGoal(duration(goal, strings))}</span>
           </div>
         </div>
       </div>
 
-      <div className={styles.controls}>
+      <div className={styles.buttons}>
         <button
           type="button"
-          className={`${styles.main} ${running ? styles.mainRunning : ""}`}
+          className={`${styles.round} ${styles.edit}`}
+          aria-label={strings.timerEditTime}
+          onClick={() => {
+            closeTimerScreen();
+            openCountSheet(habit.id);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4.5 19.5l1-4L15.8 5.2a2 2 0 0 1 2.8 0l.2.2a2 2 0 0 1 0 2.8L8.5 18.5l-4 1z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`${styles.round} ${styles.main}`}
           disabled={!running && !canStart}
+          aria-label={
+            running ? strings.timerPause : seconds > 0 ? strings.timerResume : strings.timerStart
+          }
           onClick={() => {
             hapticImpact("medium");
             if (running) {
@@ -143,8 +193,8 @@ export function TimerScreen() {
         >
           {running ? (
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="6" y="4.5" width="4.2" height="15" rx="1.4" fill="currentColor" />
-              <rect x="13.8" y="4.5" width="4.2" height="15" rx="1.4" fill="currentColor" />
+              <rect x="6" y="4.5" width="4.2" height="15" rx="1.2" fill="currentColor" />
+              <rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2" fill="currentColor" />
             </svg>
           ) : (
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -154,21 +204,30 @@ export function TimerScreen() {
               />
             </svg>
           )}
-          {mainLabel}
-        </button>
-        <button type="button" className={styles.collapse} onClick={closeTimerScreen}>
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M6 9.5l6 6 6-6"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          {strings.timerCollapse}
         </button>
       </div>
+
+      <div className={styles.info}>
+        <Card>
+          <ListItem label={strings.timerHabitRow}>
+            <span className={styles.value}>{habit.name}</span>
+          </ListItem>
+          <ListItem label={strings.statCurrentStreak}>
+            <span className={styles.value}>{streak}</span>
+          </ListItem>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg className={styles.bell} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 3a6 6 0 0 0-6 6v3.6l-1.6 2.6A1.2 1.2 0 0 0 5.4 17h13.2a1.2 1.2 0 0 0 1-1.8L18 12.6V9a6 6 0 0 0-6-6zm-2.4 15.5a2.4 2.4 0 0 0 4.8 0z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
