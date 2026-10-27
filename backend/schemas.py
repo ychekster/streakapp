@@ -21,7 +21,9 @@ from backend.constants import (
     NOTE_MAX_LENGTH,
     MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
+    MAX_GOAL_SECONDS,
     MAX_TIMES_PER_DAY,
+    MIN_GOAL_SECONDS,
     OVERTIME_MAX_COUNT,
     SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
@@ -33,6 +35,8 @@ def _assume_utc(value: datetime) -> datetime:
     прочитает его как местное."""
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
+
+_Day = date
 
 # Момент времени в ответе API — всегда с поясом UTC.
 UtcDateTime = Annotated[datetime, AfterValidator(_assume_utc)]
@@ -49,6 +53,9 @@ class SchedulePeriod(BaseModel):
     period_times: int | None = None
     times_per_day: int = 1
     overtime: bool = Field(False, description="«Сверх плана» в дни этого расписания")
+    goal_unit: Literal["times", "seconds"] = Field(
+        "times", description="В чём цель этого расписания: разы или секунды («Цель по времени»)"
+    )
 
 
 class GroupMember(BaseModel):
@@ -255,7 +262,18 @@ class Habit(BaseModel):
         ),
     )
     times_per_day: int = Field(
-        1, description="Сколько раз в день нужно выполнить привычку (1 — обычная привычка)"
+        1,
+        description=(
+            "Сколько раз в день нужно выполнить привычку (1 — обычная привычка); у «Цели по "
+            "времени» — сколько секунд"
+        ),
+    )
+    goal_unit: Literal["times", "seconds"] = Field(
+        "times",
+        description=(
+            "«Цель по времени»: seconds — цель (times_per_day) и счёт дня (today_count, "
+            "history_counts) в секундах, время копит таймер; times — в разах"
+        ),
     )
     today_count: int = Field(
         0,
@@ -401,7 +419,15 @@ class HabitCreate(BaseModel):
         DEFAULT_HABIT_COLOR, description="Цвет (тема) привычки — ключ палитры или свой «#rrggbb»"
     )
     times_per_day: int = Field(
-        1, description=f"Сколько раз в день нужно выполнить привычку: 1–{MAX_TIMES_PER_DAY}"
+        1,
+        description=(
+            f"Сколько раз в день нужно выполнить привычку: 1–{MAX_TIMES_PER_DAY}; у «Цели по "
+            f"времени» — секунд, {MIN_GOAL_SECONDS}–{MAX_GOAL_SECONDS}"
+        ),
+    )
+    goal_unit: Literal["times", "seconds"] = Field(
+        "times",
+        description="«Цель по времени» (seconds) или в разах (times); у групповой — только times",
     )
     auto_mark: bool = Field(
         False,
@@ -542,6 +568,20 @@ class SyncFreeze(BaseModel):
     frozen: bool
 
 
+class SyncTimer(BaseModel):
+    """Таймер привычки «Цель по времени»: запущен (`task`, `date` — день, в который
+    пишется время, `started_at` — с какого момента) или снят (`task` null). Время
+    остановленного таймера устройство присылает отметкой (SyncMark с секундами дня)
+    перед этой операцией. У пользователя идёт не больше одного таймера: новый заменяет
+    прежний."""
+
+    type: Literal["timer"]
+    task: TaskRef | None = None
+    # Поле `date` с default затеняет тип в теле класса — тип через псевдоним.
+    date: _Day | None = None
+    started_at: UtcDateTime | None = None
+
+
 class SyncCreate(BaseModel):
     """Создать привычку; `ref` — её id на устройстве (повтор с тем же `ref` — не дубль)."""
 
@@ -633,6 +673,7 @@ SyncOperation = Annotated[
     SyncMark
     | SyncNote
     | SyncFreeze
+    | SyncTimer
     | SyncCreate
     | SyncUpdate
     | SyncDelete
@@ -716,6 +757,14 @@ class Folder(BaseModel):
     kind: str | None = Field(None, description="Рекомендуемая папка (unfinished, today) или null")
 
 
+class RunningTimerView(BaseModel):
+    """Идущий таймер пользователя (виден на всех его устройствах)."""
+
+    task: int = Field(..., description="Привычка")
+    date: _Day = Field(..., description="День, в который пишется время")
+    started_at: UtcDateTime = Field(..., description="С какого момента идёт (UTC)")
+
+
 class SyncResponse(BaseModel):
     """Ответ `POST /sync`: итог каждой операции (в том же порядке) и состояние после них."""
 
@@ -729,6 +778,7 @@ class SyncResponse(BaseModel):
     today: date = Field(
         ..., description="День отметки — последний день `history` каждой привычки"
     )
+    timer: RunningTimerView | None = Field(None, description="Идущий таймер; null — нет")
 
 
 class TimezoneEntry(BaseModel):

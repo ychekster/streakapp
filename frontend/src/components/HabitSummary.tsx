@@ -2,7 +2,8 @@
  * Сводка привычки — общая часть экрана привычки (HabitScreen) и страницы участника
  * групповой привычки (GroupMemberScreen): карточка с сеткой за последние 364 дня,
  * «Основное» (текущая и лучшая серии, всего выполнено — «18/25»: из скольких дней с первого
- * дня привычки, цель серии) и календарь по месяцам (HabitCalendar).
+ * дня привычки, цель серии; у «Цели по времени» — ещё «Всего времени» за дни истории) и
+ * календарь по месяцам (HabitCalendar).
  *
  * «Гибкий график» — свои карточки (flexibleStats): у недели и месяца серии в периодах
  * («5 нед.»), «Дней выполнено» без «из скольких» и вместо цели серии — сделано в текущем
@@ -18,7 +19,8 @@
 import { useEffect, useState, type ReactNode, type Ref } from "react";
 
 import { HISTORY_CALENDAR_ROWS, HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
-import { flexiblePeriod, periodBounds, periodQuota, yearStats } from "../data/derive";
+import { addDays } from "../data/dates";
+import { flexiblePeriod, goalOn, isTimed, periodBounds, periodQuota, yearStats } from "../data/derive";
 import { localDate } from "./DateField";
 import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
@@ -33,11 +35,24 @@ import { closeDaySheet, openDaySheet } from "./DaySheet";
 import { HabitCalendar } from "./HabitCalendar";
 import { Card, Section } from "./Section";
 import { StatCard } from "./StatCard";
-import { CompletedIcon, FlameIcon, TargetIcon, TrophyIcon } from "./StatIcons";
+import { CompletedIcon, FlameIcon, StopwatchIcon, TargetIcon, TrophyIcon } from "./StatIcons";
+import { duration } from "./timerFormat";
 import styles from "./HabitSummary.module.css";
 
 /** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будние дни»,
  *  «Выходные» или дни («Пн, Ср и Пт») — как «Повтор» в форме привычки. */
+/** «Цель по времени»: сколько секунд набрано за дни истории (`lastDay` — её последний),
+ *  без дней, когда цель была в разах (прежнее расписание). */
+export function totalSeconds(habit: Habit, lastDay: string): number {
+  const counts = habit.history_counts ?? [];
+  const first = addDays(lastDay, 1 - counts.length);
+  return counts.reduce(
+    (sum, count, index) =>
+      goalOn(habit, addDays(first, index)).unit === "seconds" ? sum + count : sum,
+    0,
+  );
+}
+
 function formatStreakGoal(habit: Habit, strings: Strings): string {
   if (habit.frequency_type === "every_other_day") {
     return strings.goalEveryOtherDay;
@@ -198,6 +213,15 @@ export function HabitSummary({
               />
             </>
           )}
+          {isTimed(habit) && markDay ? (
+            <div className={styles.wide}>
+              <StatCard
+                icon={<StopwatchIcon />}
+                value={duration(totalSeconds(habit, markDay), strings)}
+                label={strings.statTotalTime}
+              />
+            </div>
+          ) : null}
         </div>
         {markDay ? null : children}
       </Section>

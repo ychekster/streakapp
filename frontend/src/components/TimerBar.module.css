@@ -1,0 +1,109 @@
+/* Мини-плеер таймера — стеклянная капсула, как плашка «Отменить» (UndoToast): те же поля
+   от краёв, стекло и отступ над навигацией. Размеры — токены --timer-bar-*. */
+
+.bar {
+  position: fixed;
+  left: var(--undo-toast-margin);
+  right: var(--undo-toast-margin);
+  bottom: var(--tabbar-offset);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  height: var(--timer-bar-height);
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-shadow);
+  color: var(--glass-icon);
+  animation: bar-in var(--transition-fast) ease-out;
+}
+
+.aboveTabBar {
+  bottom: calc(var(--tabbar-offset) + var(--tabbar-height) + var(--undo-toast-gap));
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Вся капсула, кроме ❚❚, открывает таймер. */
+.open {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--timer-bar-text-gap);
+  padding: 0 0 0 var(--timer-bar-padding-left);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ring {
+  flex-shrink: 0;
+  width: var(--timer-bar-ring-size);
+  height: var(--timer-bar-ring-size);
+}
+
+.track,
+.arc {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.track {
+  stroke: rgba(var(--habit-rgb), var(--check-faded-opacity));
+}
+
+.arc {
+  stroke: rgb(var(--habit-rgb));
+  stroke-linecap: round;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--undo-toast-font-size);
+  font-weight: 600;
+}
+
+/* Цифры одной ширины — время не прыгает каждую секунду. */
+.time {
+  flex-shrink: 0;
+  font-size: var(--undo-toast-font-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal {
+  font-weight: 400;
+  opacity: 0.5;
+}
+
+.pause {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: var(--timer-bar-button-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgb(var(--habit-rgb));
+}
+
+.pause svg {
+  width: var(--timer-bar-icon-size);
+  height: var(--timer-bar-icon-size);
+}

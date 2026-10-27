@@ -65,6 +65,8 @@ import { DaySheet } from "./components/DaySheet";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
+import { TimerBar } from "./components/TimerBar";
+import { closeTimerScreen, TimerScreen, useTimerScreenHabit } from "./components/TimerScreen";
 import { UndoToast } from "./components/UndoToast";
 import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
@@ -626,11 +628,15 @@ export function App() {
 
   const tabBarHidden = editor !== null || openHabit !== undefined || settingsPage !== null;
 
+  const timerScreenOpen = useTimerScreenHabit() !== null;
+
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
     adminMode
       ? null
-      : editor
+      : timerScreenOpen
+        ? closeTimerScreen
+        : editor
         ? editorAdvanced
           ? hideEditorAdvanced
           : leaveEditor
@@ -1110,6 +1116,9 @@ export function App() {
       />
       {/* «Сверх плана»: плашка «Отменить» после серии нажатий и окно счёта (удержание). */}
       <UndoToast aboveTabBar={!tabBarHidden} />
+      {/* «Цель по времени»: мини-плеер идущего таймера и таймер на весь экран. */}
+      <TimerBar aboveTabBar={!tabBarHidden} />
+      <TimerScreen />
       <CountSheet />
       {/* Окно дня: нажатие на день в календаре привычки. */}
       <DaySheet />

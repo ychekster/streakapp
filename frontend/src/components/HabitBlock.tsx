@@ -19,7 +19,7 @@
 import { memo, useMemo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
-import { groupFill, historyGoals } from "../data/derive";
+import { groupFill, historyGoals, isTimed } from "../data/derive";
 import { endBurst } from "../hooks/useToggle";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
@@ -27,6 +27,7 @@ import type { Habit } from "../types/habit";
 import { CalendarGrid } from "./CalendarGrid";
 import { CheckButton } from "./CheckButton";
 import { openCountSheet } from "./CountSheet";
+import { TimerButton } from "./TimerButton";
 import { fixedGridFill, useGridView } from "./gridLayout";
 import { YearGrid } from "./YearGrid";
 import styles from "./HabitBlock.module.css";
@@ -82,6 +83,20 @@ export const HabitBlock = memo(function HabitBlock({
           <h3 className={styles.name}>{habit.name}</h3>
           {habit.description ? <p className={styles.description}>{habit.description}</p> : null}
         </div>
+        {isTimed(habit) ? (
+          <TimerButton
+            habit={habit}
+            disabled={!interactive}
+            bonus={!habit.scheduled_today}
+            // Удержание — окно времени за день (поправить руками).
+            onLongPress={onToggle ? () => openSheet(habit.id) : undefined}
+            // Цель набрана и дальше нельзя («Сверх плана» выключен) — окно времени; иначе
+            // ▶ / ❚❚.
+            onToggle={() =>
+              habit.done_today && !habit.overtime ? openSheet(habit.id) : onToggle?.(habit.id)
+            }
+          />
+        ) : (
         <CheckButton
           done={habit.done_today}
           habitName={habit.name}
@@ -101,6 +116,7 @@ export const HabitBlock = memo(function HabitBlock({
               : onToggle?.(habit.id)
           }
         />
+        )}
       </div>
       {gridView.layout === "calendar" && day ? (
         <CalendarGrid

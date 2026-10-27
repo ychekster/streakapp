@@ -18,6 +18,10 @@ export type SyncOperation =
   /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
    *  ordinary day again. */
   | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }
+  /** A time goal's timer: started (`date` — the day its time goes to, `started_at` — ISO
+   *  moment) or taken off (`task` null). A stopped timer's time is sent before it, as a
+   *  mark with the day's seconds. */
+  | { type: "timer"; task: TaskKey | null; date?: string; started_at?: string }
   /** Create a habit; `ref` is its id on the device (a repeat is not a duplicate). */
   | { type: "create"; ref: string; habit: HabitInput }
   /** Change a habit — all form fields, as PUT /tasks/{id}. */
@@ -55,4 +59,15 @@ export interface SyncResponse {
   all_habits_position: number;
   /** Marking day: the last day of every habit's history («YYYY-MM-DD»). */
   today: string;
+  /** The running timer; null — none (no field — a server before timers). */
+  timer?: RunningTimer | null;
+}
+
+/** The user's running timer (a time goal), the same on all their devices. */
+export interface RunningTimer {
+  task: number;
+  /** The day its time goes to («YYYY-MM-DD»). */
+  date: string;
+  /** Since when (ISO, UTC). */
+  started_at: string;
 }

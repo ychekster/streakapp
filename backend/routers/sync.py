@@ -1,7 +1,7 @@
 """Синхронизация с устройством.
 
     POST /sync — применить изменения, сделанные на устройстве, и вернуть актуальное
-                 состояние: привычки, папки, настройки и день отметки
+                 состояние: привычки, папки, настройки, день отметки и идущий таймер
 
 Приложение (и Mini App, и веб-приложение) меняет привычки и настройки сразу у себя —
 без ожидания сервера и без связи, — копит изменения и отправляет их сюда пачкой (см.
@@ -24,6 +24,7 @@ from backend.services import (
     list_folders,
     list_habits,
     read_settings,
+    running_timer,
     user_today,
 )
 
@@ -51,4 +52,5 @@ async def sync(
         folders=await list_folders(repo, db_user),
         all_habits_position=await all_habits_position(repo, db_user),
         today=user_today(db_user),
+        timer=await running_timer(repo, db_user),
     )

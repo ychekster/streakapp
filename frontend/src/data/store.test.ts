@@ -449,4 +449,86 @@ describe("dataStore", () => {
     store.toggle(2);
     expect(store.getState().folders[0].habits).toEqual([1]);
   });
+
+  it("runs a timer of a time goal: its time goes to the day when stopped", async () => {
+    const timed = habit({ times_per_day: 600, goal_unit: "seconds", history_counts: [] });
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.toggle(1);
+    expect(store.getState().timer).toEqual({
+      habitId: 1,
+      date: TODAY,
+      startedAt: Date.parse(`${TODAY}T12:00:00Z`),
+    });
+    vi.setSystemTime(new Date(`${TODAY}T12:03:00Z`));
+    expect(store.timerSeconds()).toBe(180);
+    expect(store.tickTimer()).toBe(false);
+
+    store.toggle(1);
+    expect(store.getState().timer).toBeNull();
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 180, done_today: false });
+
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS);
+    // The start merged away: only the day's seconds and the timer taken off.
+    expect(syncChanges.mock.calls[1][0]).toEqual([
+      { type: "mark", task: 1, date: TODAY, done: false, count: 180 },
+      { type: "timer", task: null },
+    ]);
+  });
+
+  it("marks the day done when the timer reaches the goal, and goes on with «Сверх плана»", async () => {
+    const plain = habit({ times_per_day: 600, goal_unit: "seconds" });
+    const overtime = habit({ id: 2, name: "Чтение", times_per_day: 600, goal_unit: "seconds", overtime: true });
+    syncChanges.mockResolvedValueOnce(answer([plain, overtime]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.startTimer(1);
+    vi.setSystemTime(new Date(`${TODAY}T12:11:00Z`));
+    // Without «Сверх плана» it stops at the goal.
+    expect(store.tickTimer()).toBe(true);
+    expect(store.getState().timer).toBeNull();
+    expect(store.getState().habits[0]).toMatchObject({ today_count: 600, done_today: true });
+
+    store.startTimer(2);
+    vi.setSystemTime(new Date(`${TODAY}T12:21:30Z`));
+    expect(store.tickTimer()).toBe(true);
+    expect(store.getState().habits[1]).toMatchObject({ today_count: 630, done_today: true });
+    // Still running, from the moment the goal was banked.
+    expect(store.getState().timer).toMatchObject({ habitId: 2, startedAt: Date.now() });
+    expect(store.tickTimer()).toBe(false);
+  });
+
+  it("stops the running timer when another one starts", async () => {
+    const first = habit({ times_per_day: 600, goal_unit: "seconds" });
+    const second = habit({ id: 2, name: "Чтение", times_per_day: 600, goal_unit: "seconds" });
+    syncChanges.mockResolvedValueOnce(answer([first, second]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.startTimer(1);
+    vi.setSystemTime(new Date(`${TODAY}T12:01:00Z`));
+    store.startTimer(2);
+    expect(store.getState().habits[0].today_count).toBe(60);
+    expect(store.getState().timer?.habitId).toBe(2);
+  });
+
+  it("shows a timer started on another device", async () => {
+    const timed = habit({ times_per_day: 600, goal_unit: "seconds", today_count: 120 });
+    syncChanges.mockResolvedValueOnce({
+      ...answer([timed]),
+      timer: { task: 1, date: TODAY, started_at: `${TODAY}T11:58:00Z` },
+    });
+    const store = await freshStore();
+    store.start();
+    await settle();
+    expect(store.getState().timer?.habitId).toBe(1);
+    expect(store.timerSeconds()).toBe(240);
+  });
 });

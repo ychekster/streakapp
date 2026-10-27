@@ -51,6 +51,16 @@ export function TargetIcon() {
   );
 }
 
+/** Всего времени («Цель по времени»): секундомер. */
+export function StopwatchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle {...STROKE} cx="12" cy="13.5" r="7" />
+      <path {...STROKE} d="M12 13.5V10M10 3.5h4M12 3.5v3" />
+    </svg>
+  );
+}
+
 /** График: календарь. */
 export function ScheduleIcon() {
   return (

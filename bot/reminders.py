@@ -48,6 +48,10 @@ and the push open the app marked «from a reminder» (`from=reminder`).
 Тем же путём (push или Telegram, по тем же правилам) приходят «Отметки участников»
 совместных привычек (`backend.groups.due_group_marks`): «Бег — отметка от @anya», один раз
 за день на участника, тем, кто их включил. В ленте — group_mark_sent / group_mark_failed.
+
+И «цель достигнута» таймера «Цели по времени» (`backend.services.due_timer_goals`): «Учёба:
+45 мин — цель на сегодня выполнена», один раз на запуск таймера. В ленте — timer_goal_sent
+/ timer_goal_failed.
 """
 
 from __future__ import annotations
@@ -75,6 +79,9 @@ from bot.constants import (
     REMINDER_BUTTONS,
     REMINDER_EMOJI,
     REMINDER_TEXTS,
+    TIMER_GOAL_TEXTS,
+    TIMER_HOURS,
+    TIMER_MINUTES,
 )
 from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
@@ -84,7 +91,13 @@ from backend.groups import due_group_marks
 from backend.messaging import app_url
 from backend.models import PushSubscription
 from backend.repository import Repository, utc_now
-from backend.services import DueReminder, auto_mark_due, due_checkin_reminders, due_reminders
+from backend.services import (
+    DueReminder,
+    auto_mark_due,
+    due_checkin_reminders,
+    due_reminders,
+    due_timer_goals,
+)
 from backend.webpush import (
     PushOutcome,
     PushTarget,
@@ -178,6 +191,10 @@ async def run_reminders(
             await _send_group_marks(bot, database, pacer, keyboards, push)
         except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
             logger.exception("Group check-in notices failed")
+        try:
+            await _send_timer_goals(bot, database, pacer, keyboards, push)
+        except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
+            logger.exception("Timer goal notices failed")
         next_minute = _current_minute() + _MINUTE
         await asyncio.sleep((next_minute - datetime.now(timezone.utc)).total_seconds())
 
@@ -252,6 +269,57 @@ async def _send_group_marks(
     await _dispatch(
         bot, database, pacer, reminders, subscriptions, keyboards, push, send,
         ("group_mark_sent", "group_mark_failed"),
+    )
+
+
+def goal_text(seconds: int, language: str) -> str:
+    """Цель по времени словами: «1 ч 30 мин», «45 мин», «2 ч»."""
+    hours, minutes = divmod(round(seconds / 60), 60)
+    parts = []
+    if hours:
+        parts.append(TIMER_HOURS.get(language, TIMER_HOURS[DEFAULT_LANGUAGE]).format(hours))
+    if minutes or not hours:
+        parts.append(TIMER_MINUTES.get(language, TIMER_MINUTES[DEFAULT_LANGUAGE]).format(minutes))
+    return " ".join(parts)
+
+
+async def _send_timer_goals(
+    bot: Bot,
+    database: Database,
+    pacer: Pacer,
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+    push: PushConfig | None = None,
+    send: PushSender = send_push,
+) -> None:
+    """Прислать «цель достигнута» по таймерам, набравшим цель дня. Таймеры помечаются
+    сообщёнными до отправки (сессия закрывается до сети), как «Отметки участников»."""
+    async with database.session_factory() as session:
+        repo = Repository(session)
+        notices = await due_timer_goals(repo, utc_now())
+        subscriptions = (
+            await repo.push_subscriptions_for({item.user_id for item in notices})
+            if notices and push is not None
+            else {}
+        )
+        await session.commit()
+    if not notices:
+        return
+    reminders = [
+        DueReminder(
+            task_id=notice.task_id,
+            user_id=notice.user_id,
+            habit_name=notice.habit_name,
+            language=notice.language,
+            telegram=notice.telegram,
+            text=TIMER_GOAL_TEXTS.get(notice.language, TIMER_GOAL_TEXTS[DEFAULT_LANGUAGE]).format(
+                name=notice.habit_name, goal=goal_text(notice.goal, notice.language)
+            ),
+        )
+        for notice in notices
+    ]
+    await _dispatch(
+        bot, database, pacer, reminders, subscriptions, keyboards, push, send,
+        ("timer_goal_sent", "timer_goal_failed"),
     )
 
 

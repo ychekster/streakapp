@@ -26,6 +26,11 @@
   bottom: calc(var(--tabbar-offset) + var(--tabbar-height) + var(--undo-toast-gap));
 }
 
+/* Идёт таймер — плашка над его мини-плеером (TimerBar ставит --timer-bar-space). */
+.toast {
+  translate: 0 calc(-1 * (var(--timer-bar-space, 0px)));
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

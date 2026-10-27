@@ -288,8 +288,8 @@ describe("deriveView", () => {
     expect(result.history.slice(-2)).toEqual([true, true]);
     expect(result.history_counts?.slice(-2)).toEqual([1, 5]);
     expect(myDay(result, yesterday, TODAY)).toEqual({ done: true, count: 1 });
-    expect(goalOn(result, yesterday)).toEqual({ goal: 1, overtime: false });
-    expect(goalOn(result, TODAY)).toEqual({ goal: 3, overtime: true });
+    expect(goalOn(result, yesterday)).toEqual({ goal: 1, overtime: false, unit: "times" });
+    expect(goalOn(result, TODAY)).toEqual({ goal: 3, overtime: true, unit: "times" });
   });
 
   it("returns the server's habits as they are when nothing changed", () => {
@@ -588,6 +588,7 @@ describe("schedule history", () => {
         period_times: null,
         times_per_day: 1,
         overtime: false,
+        goal_unit: "times",
       },
     ]);
     expect(changed.current_streak).toBe(4);

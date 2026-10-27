@@ -13,6 +13,7 @@
 import { useCallback } from "react";
 
 import { hideUndo, showUndo, undoVisible } from "../components/UndoToast";
+import { isTimed } from "../data/derive";
 import { dataStore } from "../data/store";
 import { hapticImpact } from "../telegram/webapp";
 
@@ -44,7 +45,13 @@ export function endBurst(): void {
 /** Учесть нажатие на привычку `taskId` (до самой отметки). */
 function countTap(taskId: number): void {
   const habit = dataStore.getState().habits.find((item) => item.id === taskId);
-  if (!habit?.overtime || !habit.scheduled_today || habit.frozen_since !== null) {
+  // A timer («Цель по времени») is started and stopped, not counted.
+  if (
+    !habit?.overtime ||
+    isTimed(habit) ||
+    !habit.scheduled_today ||
+    habit.frozen_since !== null
+  ) {
     endBurst();
     return;
   }

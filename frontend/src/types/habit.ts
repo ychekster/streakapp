@@ -72,8 +72,12 @@ export interface Habit {
   frozen_since: string | null;
   /** Дни заморозки за те же дни, что `history` (текущая заморозка и прошедшие). */
   frozen_history: boolean[];
-  /** Сколько раз в день нужно выполнить привычку (1 — обычная привычка). */
+  /** Сколько раз в день нужно выполнить привычку (1 — обычная привычка); у «Цели по
+   *  времени» — сколько секунд. */
   times_per_day: number;
+  /** «Цель по времени»: seconds — цель и счёт дня (`today_count`, `history_counts`) в
+   *  секундах, время копит таймер; times (или нет — сохранена до таймера) — в разах. */
+  goal_unit?: GoalUnit;
   /** Сколько раз привычка выполнена в день отметки; день выполнен, когда набрано
    *  `times_per_day`. */
   today_count: number;
@@ -193,7 +197,12 @@ export interface SchedulePeriod {
   times_per_day: number;
   /** «Сверх плана» в дни этого расписания (нет у ответов до него — выключен). */
   overtime?: boolean;
+  /** В чём цель этого расписания (нет у ответов до таймера — в разах). */
+  goal_unit?: GoalUnit;
 }
+
+/** В чём цель привычки: разы или секунды («Цель по времени»). */
+export type GoalUnit = "times" | "seconds";
 
 /** Частота выполнения привычки; flexible — «Гибкий график»: N дней за период в любые дни. */
 export type FrequencyType = "daily" | "specific_days" | "every_other_day" | "monthly" | "flexible";
@@ -223,8 +232,11 @@ export interface HabitInput {
    *  у изменений, сделанных до нескольких напоминаний: тогда одно — `reminder_time`. */
   reminder_times?: string[];
   color: HabitColor;
-  /** Сколько раз в день нужно выполнить (1–MAX_TIMES_PER_DAY). */
+  /** Сколько раз в день нужно выполнить (1–MAX_TIMES_PER_DAY); у «Цели по времени» —
+   *  секунд (MIN_GOAL_SECONDS–MAX_GOAL_SECONDS). */
   times_per_day: number;
+  /** «Цель по времени» (seconds) или в разах; у групповой — только в разах. */
+  goal_unit?: GoalUnit;
   /** «Автоотметка» (экран привычки); при times_per_day > 1 не действует. */
   auto_mark: boolean;
   /** «Сверх плана»; при times_per_day = 1 не действует. */

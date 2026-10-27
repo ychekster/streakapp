@@ -21,6 +21,11 @@
  * habit keeps that id on screen for the rest of the run (`aliases`), so open screens and
  * list keys do not change. Folders (Settings → «Папки») work the same way
  * (`folderAliases`).
+ *
+ * A time goal's timer («Цель по времени») is state too: the last timer operation (or the
+ * server's `timer`). Its time is counted from the moment it started, not ticked, so it
+ * keeps going while the app is closed; stopped, the time goes to its day as a count of
+ * seconds (a mark), then the timer is taken off.
  */
 
 import { ApiRequestError, authorizationHeader, type ApiErrorCode } from "../api/client";
@@ -46,14 +51,18 @@ import { addDays, clockIn, markingDay } from "./dates";
 import {
   cleanHabitName,
   cleanNote,
+  dayMost,
   deriveFolders,
+  deriveTimer,
   deriveView,
   goalOn,
+  isTimed,
   myDay,
   reminderTimesOf,
   reuseUnchanged,
   type Operation,
   type Snapshot,
+  type TimerView,
 } from "./derive";
 
 export type DataStatus = "loading" | "ready" | "error";
@@ -78,6 +87,10 @@ export interface DataState {
   /** The last settings change the server refused; cleared when the next one starts. */
   saveError: unknown;
   rejected: RejectedChange | null;
+  /** The running timer of a time goal; null — none. */
+  timer: TimerView | null;
+  /** The marking day the habits are counted for; null — nothing loaded yet. */
+  today: string | null;
 }
 
 const SNAPSHOT_KEY = "streak:data";
@@ -92,6 +105,8 @@ const EMPTY: DataState = {
   settings: null,
   saveError: null,
   rejected: null,
+  timer: null,
+  today: null,
 };
 
 let started = false;
@@ -216,10 +231,17 @@ function keyOf(displayId: number): TaskKey {
 function rederive(): void {
   if (!snapshot) {
     viewDay = null;
-    emit({ habits: [], folders: [], allHabitsPosition: 0, settings: null });
+    emit({ habits: [], folders: [], allHabitsPosition: 0, settings: null, timer: null, today: null });
     return;
   }
   const view = deriveView(snapshot, ops, displayIdOfKey);
+  // A timer of a habit gone (deleted, its goal no longer in time) is no timer.
+  const derivedTimer = deriveTimer(snapshot, ops, displayIdOfKey);
+  const timer =
+    derivedTimer &&
+    view.habits.some((habit) => habit.id === derivedTimer.habitId && isTimed(habit))
+      ? derivedTimer
+      : null;
   viewDay = view.today;
   viewClock = clockIn(view.settings.timezone);
   const folders = deriveFolders(snapshot, ops, view.habits, displayIdOfKey, displayIdOfFolderKey);
@@ -234,6 +256,8 @@ function rederive(): void {
         : folders.folders,
     allHabitsPosition: folders.allHabitsPosition,
     settings: view.settings,
+    timer: JSON.stringify(timer) === JSON.stringify(state.timer) ? state.timer : timer,
+    today: view.today,
   });
 }
 
@@ -321,6 +345,10 @@ function enqueue(op: Operation): void {
     }
   } else if (op.type === "folder_order") {
     unsent = unsent.filter((item) => item.type !== "folder_order");
+    unsent.push(op);
+  } else if (op.type === "timer") {
+    // Only the last state of the timer matters (a stopped one's time is a mark before it).
+    unsent = unsent.filter((item) => item.type !== "timer");
     unsent.push(op);
   } else if (op.type === "settings") {
     const last = unsent[unsent.length - 1];
@@ -456,6 +484,7 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     folders: response.folders,
     all_habits_position: response.all_habits_position,
     today: response.today,
+    timer: response.timer ?? null,
   };
   keep(OPS_KEY, ops);
   keep(SNAPSHOT_KEY, snapshot);
@@ -578,6 +607,31 @@ function newRef(): string {
   }
 }
 
+/** The running timer with its habit: the seconds its day had before it started and the
+ *  goal of that day. */
+function runningTimer(): {
+  timer: TimerView;
+  habit: Habit;
+  before: number;
+  goal: ReturnType<typeof goalOn>;
+} | null {
+  const timer = state.timer;
+  const habit = timer && state.habits.find((item) => item.id === timer.habitId);
+  if (!timer || !habit || !viewDay) {
+    return null;
+  }
+  return {
+    timer,
+    habit,
+    before: myDay(habit, timer.date, viewDay).count,
+    goal: goalOn(habit, timer.date),
+  };
+}
+
+function secondsSince(startedAt: number, now: number): number {
+  return Math.max(0, Math.floor((now - startedAt) / 1000));
+}
+
 function habitById(id: number): Habit {
   const habit = state.habits.find((item) => item.id === id);
   if (!habit) {
@@ -631,7 +685,14 @@ export const dataStore = {
     if (!habit || habit.frozen_since !== null || !viewDay) {
       return;
     }
-    if (habit.times_per_day > 1) {
+    if (isTimed(habit)) {
+      // A timer still going from a past marking day is stopped there and starts anew.
+      if (state.timer?.habitId === id && state.timer.date === viewDay) {
+        dataStore.stopTimer();
+      } else {
+        dataStore.startTimer(id);
+      }
+    } else if (habit.times_per_day > 1) {
       const count = habit.overtime
         ? Math.min(habit.today_count + 1, OVERTIME_MAX_COUNT)
         : habit.done_today
@@ -691,9 +752,10 @@ export const dataStore = {
       return;
     }
     const mine = myDay(habit, date, viewDay);
-    const { goal } = goalOn(habit, date);
+    const { goal, unit } = goalOn(habit, date);
     if (goal > 1) {
-      const count = mine.done ? 0 : Math.min(mine.count + 1, goal);
+      // A time goal is filled at once.
+      const count = mine.done ? 0 : unit === "seconds" ? goal : Math.min(mine.count + 1, goal);
       enqueue({
         type: "mark",
         task: keyOf(id),
@@ -713,11 +775,12 @@ export const dataStore = {
     if (!habit || !viewDay || !dataStore.editableDay(date)) {
       return;
     }
-    const { goal, overtime } = goalOn(habit, date);
+    const day = goalOn(habit, date);
+    const { goal } = day;
     if (goal <= 1) {
       return;
     }
-    const most = overtime ? OVERTIME_MAX_COUNT : goal;
+    const most = dayMost(day);
     const count = Math.max(0, Math.min(Math.round(value), most));
     if (count === myDay(habit, date, viewDay).count) {
       return;
@@ -729,6 +792,69 @@ export const dataStore = {
       done: count >= goal,
       count,
     });
+  },
+
+  /** Start the timer of a habit with a time goal on the marking day; another running
+   *  timer is stopped first (one at a time). */
+  startTimer(id: number): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || !isTimed(habit) || habit.frozen_since !== null || !viewDay) {
+      return;
+    }
+    if (state.timer?.habitId === id && state.timer.date === viewDay) {
+      return;
+    }
+    if (state.timer) {
+      dataStore.stopTimer();
+    }
+    enqueue({ type: "timer", task: keyOf(id), date: viewDay, started_at: new Date().toISOString() });
+  },
+
+  /** Stop the running timer: its time goes to its day (up to the goal, past it only with
+   *  «Сверх плана», at most a day). */
+  stopTimer(now = Date.now()): void {
+    const running = runningTimer();
+    if (running) {
+      const { timer, habit, before } = running;
+      dataStore.setDayCount(habit.id, timer.date, before + secondsSince(timer.startedAt, now));
+    }
+    if (state.timer) {
+      enqueue({ type: "timer", task: null });
+    }
+  },
+
+  /** Seconds the running timer's day has now: kept before it started and since. */
+  timerSeconds(now = Date.now()): number {
+    const running = runningTimer();
+    return running ? running.before + secondsSince(running.timer.startedAt, now) : 0;
+  },
+
+  /** Called every second while a timer runs (and on coming back to the app). The goal
+   *  reached: the time goes to the day, so it is done at once — the timer goes on with
+   *  «Сверх плана», otherwise it stops. The most a day can have — it stops. True — the
+   *  goal was reached just now. */
+  tickTimer(now = Date.now()): boolean {
+    const running = runningTimer();
+    if (!running) {
+      return false;
+    }
+    const { timer, habit, before, goal } = running;
+    const total = before + secondsSince(timer.startedAt, now);
+    if (total >= dayMost(goal)) {
+      dataStore.stopTimer(now);
+      return before < goal.goal;
+    }
+    if (before < goal.goal && total >= goal.goal) {
+      dataStore.setDayCount(habit.id, timer.date, total);
+      enqueue({
+        type: "timer",
+        task: keyOf(habit.id),
+        date: timer.date,
+        started_at: new Date(now).toISOString(),
+      });
+      return true;
+    }
+    return false;
   },
 
   /** A note to a day of the history; empty — removed. */
@@ -787,6 +913,7 @@ export const dataStore = {
         reminder_times: reminderTimesOf(habit),
         color: habit.color,
         times_per_day: habit.times_per_day,
+        goal_unit: habit.goal_unit,
         auto_mark: on,
         overtime: habit.overtime,
       },

@@ -22,6 +22,7 @@ from backend.constants import (
     HISTORY_DAYS,
     FOLDER_HABIT_TYPES,
     MAX_FOLDERS_PER_USER,
+    MAX_GOAL_SECONDS,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
@@ -33,6 +34,7 @@ from backend.models import (
     Folder,
     FrequencyType,
     Review,
+    RunningTimer,
     Task,
     TaskSchedulePeriod,
     TaskStatus,
@@ -56,6 +58,7 @@ from backend.schemas import (
     SchedulePeriod,
     ReviewCreate,
     ReviewsResponse,
+    RunningTimerView,
     UserReview,
     SettingsResponse,
     SettingsUpdate,
@@ -71,6 +74,7 @@ from backend.schemas import (
     SyncNote,
     SyncOperation,
     SyncResult,
+    SyncTimer,
     SyncUpdate,
     TimezoneEntry,
     TimezonesResponse,
@@ -420,6 +424,7 @@ def build_habit(
             is_frozen(history_start + timedelta(days=offset)) for offset in range(HISTORY_DAYS)
         ],
         times_per_day=task.times_per_day,
+        goal_unit=task.goal_unit or "times",
         today_count=today_count,
         auto_mark=task.auto_mark,
         overtime=task.overtime,
@@ -448,6 +453,7 @@ def build_habit(
                 period_times=period.period_times,
                 times_per_day=period.times_per_day,
                 overtime=period.overtime and period.times_per_day > 1,
+                goal_unit=period.goal_unit or "times",
             )
             for period in periods
         ],
@@ -620,6 +626,8 @@ class HabitFields:
     times_per_day: int
     auto_mark: bool
     overtime: bool
+    # «Цель по времени»: seconds — times_per_day в секундах.
+    goal_unit: str = "times"
 
     @property
     def reminder_time(self) -> time | None:
@@ -654,7 +662,11 @@ async def _validate_habit_fields(
         payload.reminder_time, payload.reminder_times
     )
     color = validation.validate_color(payload.color)
-    times_per_day = validation.validate_times_per_day(payload.times_per_day)
+    goal_unit = validation.validate_goal_unit(payload.goal_unit)
+    # «Цель по времени» — только у личных привычек: таймер у каждого свой.
+    if goal_unit == "seconds" and payload.shared:
+        raise ApiError(422, "invalid_goal_unit", "У групповой привычки нет цели по времени")
+    times_per_day = validation.validate_times_per_day(payload.times_per_day, goal_unit)
 
     return HabitFields(
         name=name,
@@ -668,9 +680,10 @@ async def _validate_habit_fields(
         color=color,
         times_per_day=times_per_day,
         # Автоотметка — только у привычек «раз в день».
-        auto_mark=payload.auto_mark and times_per_day == 1,
-        # «Сверх плана» — только у привычек «несколько раз в день».
+        auto_mark=payload.auto_mark and times_per_day == 1 and goal_unit == "times",
+        # «Сверх плана» — только у привычек «несколько раз в день» (и по времени).
         overtime=payload.overtime and times_per_day > 1,
+        goal_unit=goal_unit,
     )
 
 
@@ -698,6 +711,7 @@ async def _create_task(
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
         overtime=fields.overtime,
+        goal_unit=fields.goal_unit,
         client_ref=client_ref,
     )
     await repo.log_action(user.telegram_id, "habit_created", ref_id=task.id)
@@ -730,10 +744,17 @@ async def update_habit(
         payload = payload.model_copy(update={"auto_mark": False})
     payload = await groups.restrict_update(repo, user, task, payload)
     fields = await _validate_habit_fields(repo, user, payload, task_id=task.id)
+    if (
+        fields.goal_unit == "seconds"
+        and payload.shared is None
+        and task.id in await repo.members_of_tasks([task.id])
+    ):
+        raise ApiError(422, "invalid_goal_unit", "У групповой привычки нет цели по времени")
     auto_mark_turned_on = fields.auto_mark and not task.auto_mark
     await remember_schedule(
         repo, user, task, fields.frequency_type, fields.days, fields.start_date,
         fields.times_per_day, fields.period, fields.period_times, fields.overtime,
+        fields.goal_unit,
     )
     await repo.update_task(
         task,
@@ -753,7 +774,16 @@ async def update_habit(
         times_per_day=fields.times_per_day,
         auto_mark=fields.auto_mark,
         overtime=fields.overtime,
+        goal_unit=fields.goal_unit,
     )
+    # Цель могла смениться — «цель достигнута» придёт по новой; без цели по времени
+    # таймер снимается.
+    timer = await repo.get_timer(user.telegram_id)
+    if timer is not None and timer.task_id == task.id:
+        if fields.goal_unit == "seconds":
+            await _refresh_timer_notice(repo, task, timer)
+        else:
+            await repo.delete_timer(user.telegram_id)
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
     await groups.share_owner_changes(repo, user, task)
     if payload.shared:
@@ -789,6 +819,76 @@ def goal_on(task: Task, periods: Sequence[TaskSchedulePeriod], day: date) -> tup
     return goal, overtime and goal > 1
 
 
+def unit_on(task: Task, periods: Sequence[TaskSchedulePeriod], day: date) -> str:
+    """В чём была цель в день `day`: times или seconds («Цель по времени»)."""
+    for period in periods:
+        if day < period.until:
+            return period.goal_unit
+    return task.goal_unit
+
+
+def _timer_notify_at(
+    task: Task, periods: Sequence[TaskSchedulePeriod], day: date, started_at: datetime, done: int
+) -> datetime | None:
+    """Когда таймер, идущий с `started_at`, наберёт цель дня `day` (уже набрано `done`
+    секунд); None — уже набрал."""
+    goal, _ = goal_on(task, periods, day)
+    return started_at + timedelta(seconds=goal - done) if done < goal else None
+
+
+async def _refresh_timer_notice(repo: Repository, task: Task, timer: RunningTimer) -> None:
+    """Пересчитать, когда идущий таймер наберёт цель (счёт дня или цель изменились)."""
+    periods = (await repo.get_schedule_periods([task.id]))[task.id]
+    log = await repo.get_log(task.id, timer.day)
+    done = (log.count or 0) if log is not None else 0
+    await repo.set_timer_notify_at(
+        timer, _timer_notify_at(task, periods, timer.day, timer.started_at, done)
+    )
+
+
+async def running_timer(repo: Repository, user: User) -> RunningTimerView | None:
+    """Идущий таймер пользователя (ответ /sync); у удалённой привычки — нет."""
+    timer = await repo.get_timer(user.telegram_id)
+    if timer is None or await repo.get_active_task(timer.task_id, user.telegram_id) is None:
+        return None
+    return RunningTimerView(task=timer.task_id, date=timer.day, started_at=timer.started_at)
+
+
+@dataclass(frozen=True)
+class TimerGoalNotice:
+    """«Цель достигнута»: идущий таймер набрал цель дня (бот присылает уведомление)."""
+
+    task_id: int
+    user_id: int
+    habit_name: str
+    language: str
+    telegram: bool
+    # Цель дня, в секундах.
+    goal: int
+
+
+async def due_timer_goals(repo: Repository, moment: datetime) -> list[TimerGoalNotice]:
+    """Таймеры, набравшие цель к `moment` (UTC без пояса): уведомление о каждом — одно,
+    поэтому они сразу помечаются сообщёнными (зовёт бот раз в минуту, bot/reminders.py)."""
+    notices: list[TimerGoalNotice] = []
+    for timer, task in await repo.get_timers_to_notify(moment):
+        await repo.set_timer_notify_at(timer, None)
+        if task.user.blocked_at is not None:
+            continue
+        periods = (await repo.get_schedule_periods([task.id]))[task.id]
+        notices.append(
+            TimerGoalNotice(
+                task_id=task.id,
+                user_id=task.user_id,
+                habit_name=task.name,
+                language=task.user.language,
+                telegram=task.user.telegram_notifications,
+                goal=goal_on(task, periods, timer.day)[0],
+            )
+        )
+    return notices
+
+
 def counts_by_day(task: Task, periods: Sequence[TaskSchedulePeriod]) -> bool:
     """Нужен ли счёт по дням: привычка «несколько раз в день» сейчас или в каком-то из
     прежних расписаний."""
@@ -806,10 +906,12 @@ async def remember_schedule(
     period: str | None = None,
     period_times: int | None = None,
     overtime: bool = False,
+    goal_unit: str = "times",
 ) -> None:
     """Расписание задачи меняется на это (повтор, дни, первый день, период «Гибкого
-    графика», цель или «Сверх плана») — запомнить прежнее как действовавшее до дня
-    отметки. У привычки, созданной в этот же день, прошлого нет — запоминать нечего."""
+    графика», цель, «Сверх плана» или цель по времени) — запомнить прежнее как
+    действовавшее до дня отметки. У привычки, созданной в этот же день, прошлого нет —
+    запоминать нечего."""
     changed = (
         task.frequency_type != frequency_type
         or (task.days or None) != (days or None)
@@ -818,6 +920,7 @@ async def remember_schedule(
         or task.period != period
         or task.period_times != period_times
         or (task.overtime and task.times_per_day > 1) != (overtime and times_per_day > 1)
+        or task.goal_unit != goal_unit
     )
     today = user_today(user)
     if changed and created_day(task, user) < today:
@@ -828,6 +931,7 @@ async def delete_habit(repo: Repository, user: User, task: Task) -> None:
     """Удалить привычку (мягко) и записать это в ленту. Групповая — сначала выход из
     группы (её дни в группе остаются в счёте)."""
     await groups.forget_task(repo, user, task)
+    await repo.delete_timer(user.telegram_id, task.id)
     await repo.soft_delete_task(task)
     await repo.log_action(user.telegram_id, "habit_deleted", ref_id=task.id)
 
@@ -988,6 +1092,9 @@ async def _apply_sync_op(
         # настройку выключили).
         if op.count is not None and not overtime:
             op = op.model_copy(update={"count": min(op.count, goal)})
+        # Время за день — не больше суток.
+        if op.count is not None and unit_on(task, periods, op.date) == "seconds":
+            op = op.model_copy(update={"count": min(op.count, MAX_GOAL_SECONDS)})
         # Привычка «несколько раз в день»: день выполнен, когда набрана цель того дня.
         done = op.done if op.count is None else op.count >= goal
         # Отметить можно любой день, и незапланированный тоже (и сверх цели «Гибкого
@@ -995,11 +1102,16 @@ async def _apply_sync_op(
         target = TaskStatus.done if done else TaskStatus.pending
         if log.count != op.count:
             await repo.set_log_count(log, op.count)
+            timer = await repo.get_timer(user.telegram_id)
+            if timer is not None and timer.task_id == task.id and timer.day == op.date:
+                await _refresh_timer_notice(repo, task, timer)
         if log.status != target:
             await repo.set_log_status(log, target)
             await _record_mark(repo, user, task, done)
         outcome.checked_in = outcome.checked_in or done
         return SyncResult(ok=True)
+    if isinstance(op, SyncTimer):
+        return await _apply_timer(repo, user, op)
     if isinstance(op, SyncNote):
         task = await _active_task(repo, user, op.task)
         # День — как у отметки: в пределах истории, не позже дня отметки.
@@ -1045,6 +1157,42 @@ async def _apply_sync_op(
             await delete_habit(repo, user, task)
         return SyncResult(ok=True)
     await update_settings(repo, user, op.patch)
+    return SyncResult(ok=True)
+
+
+async def _apply_timer(repo: Repository, user: User, op: SyncTimer) -> SyncResult:
+    """Запустить таймер привычки «Цель по времени» или снять (`task` null). Время
+    остановленного таймера уже пришло отметкой перед этой операцией."""
+    if op.task is None:
+        await repo.delete_timer(user.telegram_id)
+        return SyncResult(ok=True)
+    task = await _active_task(repo, user, op.task)
+    if task.goal_unit != "seconds" or op.date is None or op.started_at is None:
+        raise ApiError(422, "invalid_timer", "Таймер только у привычки с целью по времени")
+    today = user_today(user)
+    if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
+        raise ApiError(422, "invalid_date", "День вне истории привычки")
+    # Момент — UTC без пояса, как в базе; из будущего (неверные часы устройства) — сейчас.
+    started_at = min(op.started_at.astimezone(pytz.utc).replace(tzinfo=None), utc_now())
+    current = await repo.get_timer(user.telegram_id)
+    # Повтор того же запуска (ответ не дошёл): уведомление, если уже ушло, не повторяется.
+    if (
+        current is not None
+        and current.task_id == task.id
+        and current.day == op.date
+        and current.started_at == started_at
+    ):
+        return SyncResult(ok=True)
+    log = await repo.get_log(task.id, op.date)
+    done = (log.count or 0) if log is not None else 0
+    periods = (await repo.get_schedule_periods([task.id]))[task.id]
+    await repo.set_timer(
+        user.telegram_id,
+        task.id,
+        op.date,
+        started_at,
+        _timer_notify_at(task, periods, op.date, started_at, done),
+    )
     return SyncResult(ok=True)
 
 

@@ -57,6 +57,7 @@ from backend.models import (
     HabitGroupPeriod,
     PushSubscription,
     Review,
+    RunningTimer,
     Segment,
     Task,
     TaskFreeze,
@@ -678,6 +679,7 @@ class Repository:
         period: str | None = None,
         period_times: int | None = None,
         overtime: bool = False,
+        goal_unit: str = "times",
     ) -> Task:
         """Создать активную задачу. `client_ref` — id, который дало ей устройство (/sync);
         `extra_reminder_times` — напоминания после первого (`reminder_time`)."""
@@ -695,6 +697,7 @@ class Repository:
             times_per_day=times_per_day,
             auto_mark=auto_mark,
             overtime=overtime,
+            goal_unit=goal_unit,
             client_ref=client_ref,
             is_active=True,
             extra_reminders=[
@@ -721,9 +724,11 @@ class Repository:
         period: str | None = None,
         period_times: int | None = None,
         overtime: bool = False,
+        goal_unit: str = "times",
     ) -> None:
         """Заменить параметры задачи (всё, что задаётся в форме привычки)."""
         task.times_per_day = times_per_day
+        task.goal_unit = goal_unit
         task.auto_mark = auto_mark
         task.overtime = overtime
         task.name = name
@@ -1067,10 +1072,67 @@ class Repository:
                 period_times=task.period_times,
                 times_per_day=task.times_per_day,
                 overtime=task.overtime,
+                goal_unit=task.goal_unit,
             )
         )
         await self.session.flush()
         return True
+
+    # ------------------------------------------------------------------ #
+    #  Таймер («Цель по времени»)
+    # ------------------------------------------------------------------ #
+
+    async def get_timer(self, user_id: int) -> RunningTimer | None:
+        """Идущий таймер пользователя или None."""
+        return await self.session.get(RunningTimer, user_id)
+
+    async def set_timer(
+        self,
+        user_id: int,
+        task_id: int,
+        day: date,
+        started_at: datetime,
+        notify_at: datetime | None,
+    ) -> RunningTimer:
+        """Запустить таймер пользователя (прежний, если шёл, заменяется)."""
+        timer = await self.get_timer(user_id)
+        if timer is None:
+            timer = RunningTimer(user_id=user_id, task_id=task_id, day=day, started_at=started_at)
+            self.session.add(timer)
+        timer.task_id = task_id
+        timer.day = day
+        timer.started_at = started_at
+        timer.notify_at = notify_at
+        await self.session.flush()
+        return timer
+
+    async def set_timer_notify_at(self, timer: RunningTimer, notify_at: datetime | None) -> None:
+        """Когда прислать «цель достигнута» (None — не присылать)."""
+        timer.notify_at = notify_at
+        await self.session.flush()
+
+    async def delete_timer(self, user_id: int, task_id: int | None = None) -> None:
+        """Снять таймер пользователя; с `task_id` — только если он идёт у этой привычки."""
+        condition = [RunningTimer.user_id == user_id]
+        if task_id is not None:
+            condition.append(RunningTimer.task_id == task_id)
+        await self.session.execute(delete(RunningTimer).where(*condition))
+        await self.session.flush()
+
+    async def get_timers_to_notify(self, moment: datetime) -> list[tuple[RunningTimer, Task]]:
+        """Таймеры, у которых к `moment` (UTC без пояса) набралась цель, — с привычкой и
+        её владельцем (`task.user`)."""
+        result = await self.session.execute(
+            select(RunningTimer, Task)
+            .join(Task, Task.id == RunningTimer.task_id)
+            .where(
+                RunningTimer.notify_at.is_not(None),
+                RunningTimer.notify_at <= moment,
+                Task.is_active.is_(True),
+            )
+            .options(selectinload(Task.user))
+        )
+        return [(timer, task) for timer, task in result.tuples()]
 
     async def get_done_task_days(
         self, task_days: Collection[tuple[int, date]]

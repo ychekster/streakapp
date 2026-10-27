@@ -6,6 +6,9 @@
  *
  * Всё применяется сразу (`onSet`): блок лишь показывает счёт из стора, своего черновика у
  * него нет — кроме вводимого числа. Другой день или привычка — другой `key` у блока.
+ *
+ * «Цель по времени» (`timed`): счёт и цель — секунды, а на экране — минуты: «−» / «+» по
+ * минуте, вводятся минуты, быстрые «+5 … +60» минут — всегда.
  */
 
 import { useState, type KeyboardEvent } from "react";
@@ -13,10 +16,12 @@ import { useState, type KeyboardEvent } from "react";
 import { useHoldRepeat } from "../hooks/useHoldRepeat";
 import { useStrings } from "../preferences";
 import { hapticSelection } from "../telegram/webapp";
+import { duration } from "./timerFormat";
 import styles from "./CountControls.module.css";
 
-/** Быстрые прибавки. */
+/** Быстрые прибавки; у «Цели по времени» — минуты. */
 const QUICK_STEPS = [1, 5, 10, 50, 100] as const;
+const QUICK_MINUTES = [5, 10, 15, 30, 60] as const;
 
 interface CountControlsProps {
   count: number;
@@ -25,13 +30,27 @@ interface CountControlsProps {
   max: number;
   /** Быстрые прибавки (у «Сверх плана»). */
   quick: boolean;
+  /** «Цель по времени»: секунды, показанные минутами. */
+  timed?: boolean;
   /** Счёт сейчас — из стора: удержание шагает быстрее, чем перерисовывается экран. */
   current: () => number;
   onSet: (value: number) => void;
 }
 
-export function CountControls({ count, goal, max, quick, current, onSet }: CountControlsProps) {
+export function CountControls({
+  count,
+  goal,
+  max,
+  quick,
+  timed = false,
+  current,
+  onSet,
+}: CountControlsProps) {
   const strings = useStrings();
+  // Шаг «−» / «+» и единица поля: раз или минута.
+  const unit = timed ? 60 : 1;
+  const shownCount = Math.floor(count / unit);
+  const shownMax = Math.floor(max / unit);
   // Вводимое число; null — поле показывает счёт из стора.
   const [draft, setDraft] = useState<string | null>(null);
 
@@ -56,15 +75,15 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
   /** Ввод с клавиатуры: только цифры, больше предела — предел. */
   function type(text: string): void {
     let digits = text.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
-    if (Number(digits) > max) {
-      digits = String(max);
+    if (Number(digits) > shownMax) {
+      digits = String(shownMax);
     }
     setDraft(digits);
   }
 
   function commit(): void {
     if (draft !== null) {
-      onSet(Number(draft || "0"));
+      onSet(Math.min(Number(draft || "0") * unit, max));
       setDraft(null);
     }
   }
@@ -80,7 +99,7 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
         <span className={styles.progressLabels}>
           <span className={styles.percent}>{Math.round(progress * 100)}%</span>
           <span>
-            {count} / {goal}
+            {timed ? `${duration(count, strings)} / ${duration(goal, strings)}` : `${count} / ${goal}`}
           </span>
         </span>
       </div>
@@ -89,9 +108,9 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
         <button
           type="button"
           className={styles.step}
-          aria-label={strings.countSheetLess}
+          aria-label={timed ? strings.countSheetLessMinute : strings.countSheetLess}
           disabled={count <= 0}
-          {...hold(-1)}
+          {...hold(-unit)}
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
@@ -103,13 +122,13 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            aria-label={strings.countSheetValue}
-            value={draft ?? String(count)}
+            aria-label={timed ? strings.countSheetMinutes : strings.countSheetValue}
+            value={draft ?? String(shownCount)}
             // По ширине числа (цифры одной ширины — 1ch): «9 / 6» стоит по центру поля.
-            style={{ width: `${Math.max(1, (draft ?? String(count)).length)}ch` }}
+            style={{ width: `${Math.max(1, (draft ?? String(shownCount)).length)}ch` }}
             onChange={(event) => type(event.target.value)}
             onFocus={(event) => {
-              setDraft(String(count));
+              setDraft(String(shownCount));
               event.currentTarget.select();
             }}
             onBlur={commit}
@@ -120,7 +139,9 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
               }
             }}
           />
-          <span className={styles.goal}>/{" "}{goal}</span>
+          <span className={styles.goal}>
+            /{" "}{timed ? strings.durationMinutes(Math.floor(goal / 60)) : goal}
+          </span>
           <span className={`${styles.doneMark} ${done ? styles.doneMarkOn : ""}`} aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -136,9 +157,9 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
         <button
           type="button"
           className={styles.step}
-          aria-label={strings.countSheetMore}
+          aria-label={timed ? strings.countSheetMoreMinute : strings.countSheetMore}
           disabled={count >= max}
-          {...hold(1)}
+          {...hold(unit)}
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
@@ -146,16 +167,16 @@ export function CountControls({ count, goal, max, quick, current, onSet }: Count
         </button>
       </div>
 
-      {quick ? (
+      {quick || timed ? (
         <div className={styles.quick}>
-          {QUICK_STEPS.map((step) => (
+          {(timed ? QUICK_MINUTES : QUICK_STEPS).map((step) => (
             <button
               key={step}
               type="button"
               className={styles.quickButton}
-              aria-label={strings.countSheetAdd(step)}
+              aria-label={timed ? strings.countSheetAddMinutes(step) : strings.countSheetAdd(step)}
               disabled={count >= max}
-              {...hold(step)}
+              {...hold(step * unit)}
             >
               +{step}
             </button>

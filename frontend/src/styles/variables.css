@@ -118,6 +118,7 @@
      разы — дугой по обводке. */
   --check-faded-opacity: 0.35; /* бледная обводка — как у неактивной кнопки */
   --check-count-font-size: 13px; /* число внутри кружка (до двух цифр) */
+  --check-timer-icon-size: 14px; /* ▶ и ❚❚ кнопки «Цели по времени» */
   --check-wide-padding: 6px; /* «Сверх плана»: поля пилюли по бокам числа (от трёх цифр) */
   /* Окно счёта «Сверх плана» (CountSheet): карточка у низа экрана над затемнением.
      Сняты со скриншота-эталона iPhone 16 Pro (402pt). */
@@ -197,6 +198,30 @@
   --undo-toast-font-size: 14px;
   --undo-toast-action-font-size: 17px;
   --undo-toast-action-color: var(--color-accent);
+
+  /* --- Таймер «Цели по времени»: мини-плеер над навигацией (TimerBar) --- */
+  --timer-bar-height: 56px;
+  --timer-bar-gap: 10px; /* на сколько выше поднимаются экраны и плашка «Отменить» */
+  --timer-bar-padding-left: 16px;
+  --timer-bar-text-gap: 10px;
+  --timer-bar-ring-size: 24px;
+  --timer-bar-button-width: 54px; /* зона ❚❚ справа */
+  --timer-bar-icon-size: 22px;
+
+  /* --- Таймер на весь экран (TimerScreen): тёмный в обеих темах --- */
+  --timer-screen-bg: #000000;
+  --timer-screen-text: #ffffff;
+  --timer-screen-secondary: rgba(235, 235, 245, 0.6);
+  --timer-screen-track: rgba(255, 255, 255, 0.12);
+  --timer-screen-padding-top: 16px;
+  --timer-screen-padding-bottom: 24px;
+  --timer-screen-dial-max: 340px;
+  --timer-screen-ring-stroke: 2.5;
+  --timer-screen-clock-size: 64px;
+  --timer-screen-goal-gap: 10px;
+  --timer-screen-controls-gap: 12px;
+  --timer-screen-button-size: 84px;
+  --timer-screen-icon-size: 34px;
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру

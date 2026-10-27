@@ -1,0 +1,163 @@
+/* Таймер на весь экран: тёмный в обеих темах (как секундомер iOS), поверх всего —
+   навигации, плашек и окон. Сверху — отступ под вырез и панель Telegram в полноэкранном
+   режиме, снизу — под home indicator. Размеры — токены --timer-screen-*. */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(
+      var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
+        var(--app-content-safe-area-top, 0px) + var(--timer-screen-padding-top)
+    )
+    var(--space-screen-x)
+    calc(
+      var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
+        var(--timer-screen-padding-bottom)
+    );
+  background: var(--timer-screen-bg);
+  color: var(--timer-screen-text);
+  animation: screen-in var(--transition-fast) ease-out;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  text-align: center;
+}
+
+.day {
+  font-size: var(--font-size-secondary);
+  color: var(--timer-screen-secondary);
+}
+
+.name {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-habit-name);
+  font-weight: var(--font-weight-habit-name);
+}
+
+/* Кольцо по ширине экрана (не больше --timer-screen-dial-max), цифры — внутри. */
+.dial {
+  position: relative;
+  flex: 1;
+  width: min(100%, var(--timer-screen-dial-max));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.track,
+.arc {
+  fill: none;
+  stroke-width: var(--timer-screen-ring-stroke);
+}
+
+.track {
+  stroke: var(--timer-screen-track);
+}
+
+.arc {
+  stroke: rgb(var(--habit-rgb));
+  stroke-linecap: round;
+  transition: stroke-dasharray 1s linear;
+}
+
+.readout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--timer-screen-goal-gap);
+}
+
+/* Тонкие крупные цифры одной ширины — время не прыгает. */
+.clock {
+  font-size: var(--timer-screen-clock-size);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.goal {
+  font-size: var(--font-size-body);
+  color: var(--timer-screen-secondary);
+}
+
+.goalDone {
+  color: rgb(var(--habit-rgb));
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--timer-screen-controls-gap);
+}
+
+/* ▶ / ❚❚ — круг цветом привычки, на нём значок цвета галочки. */
+.main {
+  width: var(--timer-screen-button-size);
+  height: var(--timer-screen-button-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: rgb(var(--habit-rgb));
+  color: var(--color-check-icon);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.main:active {
+  transform: scale(0.94);
+}
+
+.main:disabled {
+  opacity: 0.35;
+}
+
+/* Идёт — кружок прозрачнее, значок цветом привычки. */
+.mainRunning {
+  background: rgba(var(--habit-rgb), 0.22);
+  color: rgb(var(--habit-rgb));
+}
+
+.main svg {
+  width: var(--timer-screen-icon-size);
+  height: var(--timer-screen-icon-size);
+}
+
+.collapse {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--timer-screen-secondary);
+  font: inherit;
+  font-size: var(--font-size-body);
+}

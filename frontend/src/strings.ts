@@ -259,6 +259,7 @@ const RU = {
   statCurrentStreak: "Текущая серия",
   statBestStreak: "Лучшая серия",
   statTotalDone: "Всего выполнено",
+  statTotalTime: "Всего времени",
   statStreakGoal: "Цель серии",
   goalDaily: "Ежедневно",
   goalEveryOtherDay: "Через день",
@@ -403,6 +404,25 @@ const RU = {
   // «Сверх плана»: нажатие — ещё раз, удержание — окно счёта.
   checkCountUp: (name: string, count: number, total: number) =>
     `Отметить ещё раз: ${name} (сделано ${count}, цель ${total}). Удерживайте, чтобы открыть счёт`,
+  // «Цель по времени»: кнопка ▶ запускает таймер, ❚❚ — останавливает.
+  checkTimerStart: (name: string, done: string, goal: string) =>
+    `Запустить таймер: ${name} (${done} из ${goal})`,
+  checkTimerStop: (name: string, done: string) => `Остановить таймер: ${name} (${done})`,
+
+  // --- Время «Цели по времени»: «1 ч 30 мин», «45 мин», «2 ч», «0 мин» ---
+  durationHours: (hours: number) => `${hours} ч`,
+  durationMinutes: (minutes: number) => `${minutes} мин`,
+
+  // --- Таймер: полоска над вкладками и экран на весь экран ---
+  timerOpen: (name: string) => `Открыть таймер: ${name}`,
+  timerPause: "Пауза",
+  timerResume: "Продолжить",
+  timerStart: "Старт",
+  timerCollapse: "Свернуть",
+  timerGoal: (goal: string) => `Цель — ${goal}`,
+  timerGoalDone: "Цель на сегодня выполнена",
+  timerToday: "Сегодня",
+  timerYesterday: "Вчера",
 
   // --- Окно счёта «Сверх плана» (удержание кнопки отметки) ---
   countSheetToday: "Сегодня",
@@ -414,6 +434,11 @@ const RU = {
   countSheetAdd: (step: number) => `Прибавить ${step}`,
   countSheetReset: "Сбросить",
   countSheetFill: "Заполнить день",
+  // То же у «Цели по времени»: шаги — минуты.
+  countSheetLessMinute: "Меньше на минуту",
+  countSheetMoreMinute: "Больше на минуту",
+  countSheetMinutes: "Сколько минут",
+  countSheetAddMinutes: (minutes: number) => `Прибавить ${minutes} мин`,
 
   // --- Окно дня (нажатие на день в календаре): отметка за этот день и заметка ---
   // «Пн, 14 октября».
@@ -485,6 +510,10 @@ const RU = {
   formTimesPerDay: (count: number) => `${count} ${ruTimes(count)} в день`,
   formTimesLess: "Меньше раз в день",
   formTimesMore: "Больше раз в день",
+  // «Цель по времени»: «45 мин в день», степпер −/+ по 5 минут.
+  formGoalTime: (time: string) => `${time} в день`,
+  formTimeLess: "Меньше времени",
+  formTimeMore: "Больше времени",
   formReminderHeading: "Напоминание",
   formReminderToggle: "Напоминать",
   formReminderTime: "Время",
@@ -497,6 +526,11 @@ const RU = {
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
   formOvertimeToggle: "Можно больше цели",
+  // «Цель по времени» в «Дополнительно» — только у личных привычек.
+  formTimerHeading: "Цель по времени",
+  formTimerToggle: "Таймер вместо отметки",
+  formTimerFooter:
+    "Вместо галочки — кнопка ▶: запустите таймер, и время сохранится в привычке. День выполнен, когда набрана цель. Сколько всего времени ушло, видно на экране привычки.",
   // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
   // пригласить.
   formSharedHeading: "Групповая привычка (Beta)",
@@ -783,6 +817,7 @@ const EN: Strings = {
   statCurrentStreak: "Current streak",
   statBestStreak: "Best streak",
   statTotalDone: "Total completed",
+  statTotalTime: "Total time",
   statStreakGoal: "Streak goal",
   goalDaily: "Daily",
   goalEveryOtherDay: "Every Other Day",
@@ -901,6 +936,22 @@ const EN: Strings = {
     `Mark once more: ${name} (${count} of ${total})`,
   checkCountUp: (name: string, count: number, total: number) =>
     `Mark once more: ${name} (${count} done, goal ${total}). Hold to open the count`,
+  checkTimerStart: (name: string, done: string, goal: string) =>
+    `Start the timer: ${name} (${done} of ${goal})`,
+  checkTimerStop: (name: string, done: string) => `Stop the timer: ${name} (${done})`,
+
+  durationHours: (hours: number) => `${hours} h`,
+  durationMinutes: (minutes: number) => `${minutes} min`,
+
+  timerOpen: (name: string) => `Open the timer: ${name}`,
+  timerPause: "Pause",
+  timerResume: "Resume",
+  timerStart: "Start",
+  timerCollapse: "Minimize",
+  timerGoal: (goal: string) => `Goal: ${goal}`,
+  timerGoalDone: "Today’s goal is done",
+  timerToday: "Today",
+  timerYesterday: "Yesterday",
 
   countSheetToday: "Today",
   countSheetYesterday: "Yesterday",
@@ -911,6 +962,10 @@ const EN: Strings = {
   countSheetAdd: (step: number) => `Add ${step}`,
   countSheetReset: "Reset",
   countSheetFill: "Fill the Day",
+  countSheetLessMinute: "One minute less",
+  countSheetMoreMinute: "One minute more",
+  countSheetMinutes: "Minutes done",
+  countSheetAddMinutes: (minutes: number) => `Add ${minutes} min`,
 
   daySheetDate: (weekday: string, day: number, monthOf: string) => `${weekday}, ${monthOf} ${day}`,
   daySheetMark: "Mark as Done",
@@ -968,6 +1023,9 @@ const EN: Strings = {
     count === 1 ? "Once a day" : count === 2 ? "Twice a day" : `${count} times a day`,
   formTimesLess: "Fewer times a day",
   formTimesMore: "More times a day",
+  formGoalTime: (time: string) => `${time} a day`,
+  formTimeLess: "Less time",
+  formTimeMore: "More time",
   formReminderHeading: "Reminder",
   formReminderToggle: "Remind Me",
   formReminderTime: "Time",
@@ -980,6 +1038,10 @@ const EN: Strings = {
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
   formOvertimeToggle: "Allow More Than the Goal",
+  formTimerHeading: "Time Goal",
+  formTimerToggle: "Timer Instead of a Check",
+  formTimerFooter:
+    "Instead of a check — a ▶ button: start the timer and the time is saved in the habit. A day is done once the goal is reached. The habit’s screen shows how much time it has taken in all.",
   formSharedHeading: "Group Habit (Beta)",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:

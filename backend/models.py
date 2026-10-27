@@ -257,6 +257,12 @@ class Task(Base):
     overtime: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # «Цель по времени»: times — цель в разах (обычная привычка и «несколько раз в день»),
+    # seconds — в секундах: times_per_day и TaskLog.count — секунды, время копит таймер
+    # (RunningTimer). Не бывает у групповых.
+    goal_unit: Mapped[str] = mapped_column(
+        String(8), default="times", server_default="times", nullable=False
+    )
     # Id, который дало привычке устройство, создав её без связи (POST /sync): по нему
     # повтор создания не заводит вторую привычку, а отметки новой привычки её находят.
     client_ref: Mapped[str | None] = mapped_column(
@@ -414,6 +420,28 @@ class TaskSchedulePeriod(Base):
     overtime: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # В чём была цель того расписания: times или seconds («Цель по времени»).
+    goal_unit: Mapped[str] = mapped_column(
+        String(8), default="times", server_default="times", nullable=False
+    )
+
+
+class RunningTimer(Base):
+    """Идущий таймер привычки «Цель по времени»: у пользователя — не больше одного.
+    Время с `started_at` пишется в день `day` (день старта), когда таймер останавливают:
+    устройство присылает счёт дня (SyncMark) и снятый таймер (SyncTimer). `notify_at` —
+    когда наберётся цель дня (бот пришлёт «цель достигнута»); None — уже набрана или
+    уведомление ушло."""
+
+    __tablename__ = "running_timers"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), primary_key=True
+    )
+    task_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id"), nullable=False)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    notify_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
 
 class HabitGroup(Base):
@@ -623,7 +651,9 @@ class ActivityLog(Base):
     group_unshared (снова обычная)
     (`ref_id` — его привычка), group_kicked / group_unbanned (`ref_id` — исключённый /
     убранный из чёрного списка), group_mark_sent /
-    group_mark_failed («Отметки участников», `ref_id` — привычка получателя).
+    group_mark_failed («Отметки участников», `ref_id` — привычка получателя),
+    timer_goal_sent / timer_goal_failed (таймер «Цели по времени» набрал цель, `ref_id` —
+    привычка).
 
     `user_id` без внешнего ключа — как у events: запись пишется и тогда, когда строки
     пользователя ещё нет (первое открытие).

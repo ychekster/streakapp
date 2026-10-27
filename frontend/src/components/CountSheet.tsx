@@ -10,7 +10,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import { OVERTIME_MAX_COUNT } from "../constants";
+import { dayMost, isTimed } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
 import { useStrings } from "../preferences";
@@ -88,8 +88,13 @@ export function CountSheet() {
         key={id}
         count={habit.today_count}
         goal={habit.times_per_day}
-        max={habit.overtime ? OVERTIME_MAX_COUNT : habit.times_per_day}
+        max={dayMost({
+          goal: habit.times_per_day,
+          overtime: habit.overtime === true,
+          unit: habit.goal_unit ?? "times",
+        })}
         quick={habit.overtime === true}
+        timed={isTimed(habit)}
         current={() =>
           dataStore.getState().habits.find((item) => item.id === id)?.today_count ?? 0
         }

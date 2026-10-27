@@ -1,0 +1,26 @@
+/* Кнопка «Цели по времени» — поверх стилей CheckButton (кружок, дуга, заливка). */
+
+/* Удержание открывает окно времени — без выделения и системного меню под пальцем. */
+.timer {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ▶ и ❚❚ — цветом привычки, на залитом кружке — цветом галочки. */
+.icon {
+  position: relative;
+  width: var(--check-timer-icon-size);
+  height: var(--check-timer-icon-size);
+  color: rgb(var(--habit-rgb));
+  pointer-events: none;
+}
+
+.filled .icon {
+  color: var(--color-check-icon);
+}
+
+/* Идёт таймер — обводка полным цветом, как у нажатой кнопки. */
+.timer.running {
+  border-color: rgb(var(--habit-rgb));
+}

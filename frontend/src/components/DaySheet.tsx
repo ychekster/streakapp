@@ -28,9 +28,9 @@ import {
   type TouchEvent,
 } from "react";
 
-import { NOTE_MAX_LENGTH, OVERTIME_MAX_COUNT, WEEKDAYS } from "../constants";
+import { NOTE_MAX_LENGTH, WEEKDAYS } from "../constants";
 import { addDays, markingDay, todayIn, weekdayIndex } from "../data/dates";
-import { goalOn, myDay } from "../data/derive";
+import { dayMost, goalOn, myDay } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
 import { useLanguage, useStrings } from "../preferences";
@@ -172,7 +172,8 @@ export function DaySheet() {
     const mine = myDay(habit!, on, day);
     // Всё — по настройкам того дня: цель «раз в день» и «Сверх плана» (сменили — у
     // прошлых дней прежние).
-    const { goal, overtime } = goalOn(habit!, on);
+    const dayGoal = goalOn(habit!, on);
+    const { goal, overtime, unit } = dayGoal;
     return (
       <>
         <SheetHeader day={labelOf(on)} name={habit!.name} onClose={close} />
@@ -182,8 +183,9 @@ export function DaySheet() {
             <CountControls
               count={mine.count}
               goal={goal}
-              max={overtime ? OVERTIME_MAX_COUNT : goal}
+              max={dayMost(dayGoal)}
               quick={overtime}
+              timed={unit === "seconds"}
               current={() => {
                 const now = dataStore.getState().habits.find((item) => item.id === id);
                 return now ? myDay(now, on, day).count : 0;

@@ -41,7 +41,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0035)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0036)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -124,6 +124,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Bonus marks (not due / frozen / past a flexible goal: in the grid, not in the numbers) | services.counted_days (compute_streaks, flexible_streaks, total_done); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |
 | Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onPickDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
 | «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / counted_days / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
+| «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

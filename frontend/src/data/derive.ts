@@ -8,10 +8,17 @@
  * answers, its numbers replace these — normally they are the same.
  */
 
-import { FOLDER_HABIT_TYPES, HISTORY_DAYS, WEEKDAYS } from "../constants";
+import {
+  FOLDER_HABIT_TYPES,
+  HISTORY_DAYS,
+  MAX_GOAL_SECONDS,
+  OVERTIME_MAX_COUNT,
+  WEEKDAYS,
+} from "../constants";
 import type { Folder, FolderHabitType, FolderKind } from "../types/folder";
 import type {
   FrequencyType,
+  GoalUnit,
   Habit,
   HabitGroup,
   HabitInput,
@@ -19,7 +26,7 @@ import type {
   SchedulePeriod,
 } from "../types/habit";
 import type { Settings } from "../types/settings";
-import type { FolderKey, SyncOperation, TaskKey } from "../types/sync";
+import type { FolderKey, RunningTimer, SyncOperation, TaskKey } from "../types/sync";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
@@ -42,6 +49,8 @@ export interface Snapshot {
   all_habits_position?: number;
   /** Marking day of the answer: the last day of every habit's history. */
   today: string;
+  /** The running timer; not in snapshots kept before timers: none. */
+  timer?: RunningTimer | null;
 }
 
 /** Habit name as the server stores it (validation.validate_name): control characters
@@ -247,22 +256,69 @@ export function groupFill(habit: Habit): number[] | null {
  *  (schedule.due_check_with_history). */
 export function scheduleOn(
   habit: ScheduleWithHistory,
-): (day: string) => Schedule & { times_per_day: number; overtime?: boolean } {
+): (day: string) => Schedule & { times_per_day: number; overtime?: boolean; goal_unit?: GoalUnit } {
   const periods = habit.schedule_history ?? [];
   return (day) => periods.find((period) => day < period.until) ?? habit;
 }
 
-/** The goal (times a day) and «Сверх плана» in force on a day: a past schedule's or the
- *  current (services.goal_on). A past day is marked and judged by them. */
+/** The goal (times a day, or seconds — «Цель по времени»), its unit and «Сверх плана» in
+ *  force on a day: a past schedule's or the current (services.goal_on, unit_on). A past day
+ *  is marked and judged by them. */
 export function goalOn(
   habit: ScheduleWithHistory,
   day: string,
-): { goal: number; overtime: boolean } {
+): { goal: number; overtime: boolean; unit: GoalUnit } {
   const schedule = scheduleOn(habit)(day);
   return {
     goal: schedule.times_per_day,
     overtime: (schedule.overtime ?? false) && schedule.times_per_day > 1,
+    unit: schedule.goal_unit ?? "times",
   };
+}
+
+/** The most a day can count with «Сверх плана»: times — OVERTIME_MAX_COUNT, time — a day
+ *  (services: MAX_GOAL_SECONDS). */
+export function dayMost({ goal, overtime, unit }: ReturnType<typeof goalOn>): number {
+  if (!overtime) {
+    return goal;
+  }
+  return unit === "seconds" ? MAX_GOAL_SECONDS : OVERTIME_MAX_COUNT;
+}
+
+/** Is the habit's goal in time («Цель по времени»): a timer instead of a check. */
+export function isTimed(habit: { goal_unit?: GoalUnit }): boolean {
+  return habit.goal_unit === "seconds";
+}
+
+/** The running timer (the server's, as changed on the device): which habit (the id on
+ *  screen), the day its time goes to and since when (ms). */
+export interface TimerView {
+  habitId: number;
+  date: string;
+  startedAt: number;
+}
+
+/** The timer as the screens show it: the last timer operation, else the server's. */
+export function deriveTimer(
+  snapshot: Snapshot,
+  ops: readonly Operation[],
+  displayId: (key: TaskKey) => number,
+): TimerView | null {
+  let timer: { task: TaskKey | null; date?: string; started_at?: string } | null =
+    snapshot.timer ?? null;
+  for (const op of ops) {
+    if (op.type === "timer") {
+      timer = op;
+    }
+  }
+  if (!timer || timer.task === null || !timer.date || !timer.started_at) {
+    return null;
+  }
+  const startedAt = Date.parse(timer.started_at);
+  if (Number.isNaN(startedAt)) {
+    return null;
+  }
+  return { habitId: displayId(timer.task), date: timer.date, startedAt };
 }
 
 /** Are counts kept by day (`history_counts`): done several times a day now or under a
@@ -373,11 +429,12 @@ export function countedHistory(
 /** Does a form change the schedule (repeat, days, first day, times a day or «Сверх плана») —
  *  services._schedule_changed. */
 function scheduleChanged(
-  before: Schedule & { times_per_day: number; overtime?: boolean },
-  after: Schedule & { times_per_day: number; overtime?: boolean },
+  before: Schedule & { times_per_day: number; overtime?: boolean; goal_unit?: GoalUnit },
+  after: Schedule & { times_per_day: number; overtime?: boolean; goal_unit?: GoalUnit },
 ): boolean {
   return (
     before.frequency_type !== after.frequency_type ||
+    (before.goal_unit ?? "times") !== (after.goal_unit ?? "times") ||
     before.days.join(",") !== after.days.join(",") ||
     before.start_date !== after.start_date ||
     before.times_per_day !== after.times_per_day ||
@@ -448,11 +505,13 @@ function habitFields(
   | "reminder_times"
   | "color"
   | "times_per_day"
+  | "goal_unit"
   | "auto_mark"
   | "overtime"
 > {
   // Kept on the device before "several times a day" existed: once.
   const timesPerDay = input.times_per_day ?? 1;
+  const goalUnit: GoalUnit = input.goal_unit ?? "times";
   const flexible = input.frequency_type === "flexible";
   // As the server (validate_reminder_times): in order, without repeats.
   const reminders = [...new Set(reminderTimesOf(input))].sort();
@@ -475,8 +534,9 @@ function habitFields(
     reminder_times: reminders,
     color: input.color,
     times_per_day: timesPerDay,
+    goal_unit: goalUnit,
     // As the server: auto check-off only for once-a-day habits.
-    auto_mark: (input.auto_mark ?? false) && timesPerDay === 1,
+    auto_mark: (input.auto_mark ?? false) && timesPerDay === 1 && goalUnit === "times",
     // «Сверх плана» only for habits done several times a day.
     overtime: (input.overtime ?? false) && timesPerDay > 1,
   };
@@ -1147,6 +1207,7 @@ export function deriveView(
               period_times: before.period_times,
               times_per_day: before.times_per_day,
               overtime: before.overtime === true && before.times_per_day > 1,
+              goal_unit: before.goal_unit ?? "times",
             },
           ];
         }
@@ -1180,10 +1241,14 @@ export function deriveView(
           // By the goal and «Сверх плана» of that day (services.goal_on); past the goal
           // only with «Сверх плана» (a press may have waited in the queue).
           const periods = draft.periods ?? draft.base?.schedule_history ?? [];
-          const { goal: target, overtime } = fields
+          const { goal: target, overtime, unit } = fields
             ? goalOn({ ...fields, schedule_history: periods }, op.date)
-            : { goal: 1, overtime: false };
-          const count = overtime ? op.count : Math.min(op.count, target);
+            : { goal: 1, overtime: false, unit: "times" as GoalUnit };
+          // A day's time — at most a day.
+          const count = Math.min(
+            overtime ? op.count : Math.min(op.count, target),
+            unit === "seconds" ? MAX_GOAL_SECONDS : Infinity,
+          );
           draft.counts.set(op.date, count);
           draft.marks.set(op.date, count >= target);
         }

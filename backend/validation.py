@@ -25,7 +25,10 @@ from backend.constants import (
     LANGUAGES,
     MAX_DB_INT,
     MAX_REMINDERS_PER_HABIT,
+    GOAL_UNITS,
+    MAX_GOAL_SECONDS,
     MAX_TIMES_PER_DAY,
+    MIN_GOAL_SECONDS,
     PERIOD_MAX_TIMES,
     REMINDER_TIME_FORMAT,
     REVIEW_MAX_LENGTH,
@@ -194,10 +197,22 @@ def validate_color(value: str) -> str:
     raise ApiError(422, "invalid_color", "Неизвестный цвет привычки")
 
 
-def validate_times_per_day(value: int) -> int:
-    """Проверить, сколько раз в день нужно выполнить привычку (1–MAX_TIMES_PER_DAY)."""
+def validate_times_per_day(value: int, goal_unit: str = "times") -> int:
+    """Проверить цель дня: сколько раз (1–MAX_TIMES_PER_DAY) или, у «Цели по времени»
+    (`goal_unit` seconds), сколько секунд (MIN_GOAL_SECONDS–MAX_GOAL_SECONDS)."""
+    if goal_unit == "seconds":
+        if not MIN_GOAL_SECONDS <= value <= MAX_GOAL_SECONDS:
+            raise ApiError(422, "invalid_times_per_day", "Неверная цель по времени")
+        return value
     if not 1 <= value <= MAX_TIMES_PER_DAY:
         raise ApiError(422, "invalid_times_per_day", "Неверное число раз в день")
+    return value
+
+
+def validate_goal_unit(value: str) -> str:
+    """Проверить, в чём цель привычки (GOAL_UNITS)."""
+    if value not in GOAL_UNITS:
+        raise ApiError(422, "invalid_goal_unit", "Неизвестная единица цели")
     return value
 
 

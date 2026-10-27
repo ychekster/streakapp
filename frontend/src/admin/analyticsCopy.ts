@@ -497,6 +497,8 @@ export const ANALYTICS_RU = {
     group_unbanned: "Убрал из чёрного списка",
     group_mark_sent: "Получил отметку участника",
     group_mark_failed: "Отметка участника не дошла",
+    timer_goal_sent: "Получил «цель по времени выполнена»",
+    timer_goal_failed: "«Цель по времени выполнена» не дошла",
   } as Record<string, string>,
   openFrom: {
     menu: "из меню бота",
@@ -956,6 +958,8 @@ export const ANALYTICS_EN: AnalyticsCopy = {
     group_unbanned: "Unblocked a member",
     group_mark_sent: "Got a member’s check-in",
     group_mark_failed: "Member’s check-in not delivered",
+    timer_goal_sent: "Got “time goal done”",
+    timer_goal_failed: "“Time goal done” not delivered",
   },
   openFrom: {
     menu: "from the bot menu",
