@@ -48,7 +48,7 @@ export type DaySchedule = Pick<
 export interface DayInfo {
   status: DayStatus;
   schedule: DaySchedule;
-  /** Цель «раз в день» в тот день и сейчас (отмечается по нынешней). */
+  /** Цель «раз в день» в тот день (по ней день и отмечается, goalOn) и сейчас. */
   goalThen: number;
   goalNow: number;
   /** «Гибкий график» в тот день: период и сколько в нём засчитано дней из цели. */

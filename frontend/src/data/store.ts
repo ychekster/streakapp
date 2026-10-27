@@ -682,7 +682,7 @@ export const dataStore = {
   },
 
   /** Mark or unmark a day of the history by the goal of that day (a tap in the
-   *  calendar's «Отметить»): one done several times a day counts one more up to its goal,
+   *  calendar's «Отметить дни»): one done several times a day counts one more up to its goal,
    *  and a done day starts over — with «Сверх плана» too (past the goal is set in the day
    *  window). A frozen or not due day too — a bonus mark. */
   toggleDay(id: number, date: string): void {
