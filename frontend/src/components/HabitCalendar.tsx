@@ -7,9 +7,9 @@
  *
  * Листается стрелками в шапке и свайпом влево-вправо — от месяца начала истории до месяца
  * дня отметки; открывается на нём. Свои привычки (`onTapDay`, `onHoldDay`): дни истории по
- * день отметки нажимаются: что делает тап, решает экран (HabitSummary: у «раз в день» —
- * отметить / снять, у «несколько раз в день» — окно дня), удержание открывает окно дня
- * (DaySheet).
+ * день отметки нажимаются: что делает тап, решает экран (HabitSummary: окно дня, а в
+ * режиме «Отметить» — отметка дня), удержание открывает окно дня (DaySheet). В режиме
+ * отметки (`marking`) такие дни обведены бледным цветом привычки, остальные бледнеют.
  * Без них (страница другого участника) — только просмотр.
  */
 
@@ -33,6 +33,8 @@ interface HabitCalendarProps {
   onTapDay?: (date: string) => void;
   /** Удержание дня — открыть окно дня. */
   onHoldDay?: (date: string) => void;
+  /** Режим «Отметить»: видно, какие дни отмечаются тапом. */
+  marking?: boolean;
 }
 
 function Chevron({ back }: { back: boolean }) {
@@ -48,7 +50,13 @@ function Chevron({ back }: { back: boolean }) {
   );
 }
 
-export function HabitCalendar({ habit, day, onTapDay, onHoldDay }: HabitCalendarProps) {
+export function HabitCalendar({
+  habit,
+  day,
+  onTapDay,
+  onHoldDay,
+  marking = false,
+}: HabitCalendarProps) {
   const strings = useStrings();
   const longPress = useLongPress();
   const last = monthOf(day);
@@ -88,7 +96,11 @@ export function HabitCalendar({ habit, day, onTapDay, onHoldDay }: HabitCalendar
   const days = calendarMonth(habit, month, day);
 
   return (
-    <div className={styles.calendar} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div
+      className={`${styles.calendar} ${marking ? styles.marking : ""}`}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <div className={styles.header}>
         <button
           type="button"

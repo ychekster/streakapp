@@ -133,3 +133,19 @@
 .today {
   box-shadow: inset 0 0 0 2px rgb(var(--habit-rgb));
 }
+
+/* Режим «Отметить» (HabitSummary): дни, которые отмечаются тапом, обведены бледным цветом
+   привычки (у дня отметки — своя обводка), остальные бледнеют. */
+.marking .pickable:not(.today) {
+  box-shadow: inset 0 0 0 1.5px rgba(var(--habit-rgb), 0.5);
+}
+
+.marking .day:not(.pickable) {
+  opacity: 0.35;
+}
+
+.day {
+  transition:
+    opacity var(--transition-fast),
+    box-shadow var(--transition-fast);
+}

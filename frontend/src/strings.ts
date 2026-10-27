@@ -282,6 +282,10 @@ const RU = {
   statGoalReached: "Цель выполнена",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
+  // Справа от заголовка календаря: режим, в котором тап по дню отмечает его, а не
+  // открывает окно дня.
+  calendarMark: "Отметить",
+  calendarMarkDone: "Готово",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
   groupHistoryHeading: "Последние 364 дня группы",
   groupMainHeading: "Основное группы",
@@ -787,6 +791,8 @@ const EN: Strings = {
   statForecastNone: "Forecast",
   statGoalReached: "Goal reached",
   calendarHeading: "Calendar",
+  calendarMark: "Mark",
+  calendarMarkDone: "Done",
   groupHistoryHeading: "Group’s last 364 days",
   groupMainHeading: "Group overview",
   groupCalendarHeading: "Group calendar",

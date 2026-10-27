@@ -15,7 +15,7 @@
  * дней».
  */
 
-import { useEffect, type ReactNode, type Ref } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 
 import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
 import { flexiblePeriod, periodBounds, periodQuota, yearStats } from "../data/derive";
@@ -137,6 +137,8 @@ export function HabitSummary({
   const strings = useStrings();
   const language = useLanguage();
   const markDay = useGridView().day;
+  // «Отметить» у календаря: тап по дню отмечает его, а не открывает окно дня.
+  const [marking, setMarking] = useState(false);
   // Ушли с экрана привычки («Назад») — окно её дня закрывается вместе с ним.
   useEffect(() => closeDaySheet, []);
   const days = markDay ? trackedDays(habit, markDay) : 0;
@@ -189,17 +191,33 @@ export function HabitSummary({
       </Section>
 
       {markDay ? (
-        <Section title={headings.calendar}>
+        <Section
+          title={headings.calendar}
+          action={
+            onToggle ? (
+              <button
+                type="button"
+                className={styles.markButton}
+                aria-pressed={marking}
+                onClick={() => setMarking((value) => !value)}
+              >
+                {marking ? strings.calendarMarkDone : strings.calendarMark}
+              </button>
+            ) : undefined
+          }
+        >
           <Card padded>
             <HabitCalendar
               habit={habit}
               day={markDay}
-              // Свои привычки: тап у «раз в день» — отметить / снять, у «несколько раз в
-              // день» — сразу окно дня (по цвету кружка счёт не угадать); удержание — окно.
+              marking={marking}
+              // Свои привычки: тап по дню открывает окно дня, а в режиме «Отметить»
+              // отмечает день, как кнопка в списке («раз в день» — отметить / снять,
+              // «несколько раз в день» — ещё раз до цели, выполненный — с нуля).
               onTapDay={
                 onToggle
                   ? (date) => {
-                      if (habit.times_per_day > 1) {
+                      if (!marking) {
                         openDaySheet(habit.id, date);
                         return;
                       }
@@ -208,6 +226,7 @@ export function HabitSummary({
                     }
                   : undefined
               }
+              // Окно дня — и удержанием, в любом режиме.
               onHoldDay={onToggle ? (date) => openDaySheet(habit.id, date) : undefined}
             />
           </Card>
