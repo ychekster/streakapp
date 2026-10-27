@@ -537,6 +537,44 @@ describe("dataStore", () => {
     expect(store.timerSeconds()).toBe(3900);
   });
 
+  it("stops the timer at midnight with the time up to it", async () => {
+    const timed = habit({ times_per_day: 7200, goal_unit: "seconds", history_counts: [] });
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    vi.setSystemTime(new Date(`${TODAY}T23:50:00Z`));
+    store.startTimer(1);
+    // The app was closed over midnight: only the 10 minutes up to it count.
+    vi.setSystemTime(new Date("2026-10-06T08:00:00Z"));
+    expect(store.timerSeconds()).toBe(600);
+    store.tickTimer();
+    expect(store.getState().timer).toBeNull();
+
+    // Sent at once: the start merged away, the 10 minutes go to the day it started.
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(syncChanges.mock.calls[1][0]).toEqual([
+      { type: "mark", task: 1, date: TODAY, done: false, count: 600 },
+      { type: "timer", task: null },
+    ]);
+  });
+
+  it("stops the timer when its habit is frozen", async () => {
+    const timed = habit({ times_per_day: 600, goal_unit: "seconds", history_counts: [] });
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.startTimer(1);
+    vi.setSystemTime(new Date(`${TODAY}T12:02:00Z`));
+    store.setFrozen(1, true);
+    expect(store.getState().timer).toBeNull();
+    expect(store.getState().habits[0].today_count).toBe(120);
+  });
+
   it("shows a timer started on another device", async () => {
     const timed = habit({ times_per_day: 600, goal_unit: "seconds", today_count: 120 });
     syncChanges.mockResolvedValueOnce({

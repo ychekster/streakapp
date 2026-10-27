@@ -49,6 +49,30 @@ export function weekdayIndex(day: string): number {
   return (new Date(toTime(day)).getUTCDay() + 6) % 7;
 }
 
+/** The next midnight in the IANA zone `timezone` after the moment `at` (ms) — when the
+ *  day there changes (services.timer_day_end on the server). The day is taken as 24 hours:
+ *  on a night the clocks change it is off by that hour. */
+export function nextMidnight(timezone: string | null, at: number): number {
+  const parts = (zone: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(at));
+  let list: Intl.DateTimeFormatPart[];
+  try {
+    list = parts(timezone ?? "UTC");
+  } catch {
+    list = parts("UTC");
+  }
+  const part = (type: string) => Number(list.find((item) => item.type === type)?.value ?? 0);
+  const sinceMidnight =
+    (part("hour") * 3600 + part("minute") * 60 + part("second")) * 1000 + (((at % 1000) + 1000) % 1000);
+  return at - sinceMidnight + 24 * 3600 * 1000;
+}
+
 /** Today's date in the IANA zone `timezone` (null or unknown — UTC, as the server). */
 export function todayIn(timezone: string | null, now: Date = new Date()): string {
   try {

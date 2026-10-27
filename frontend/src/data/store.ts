@@ -25,7 +25,8 @@
  * A time goal's timer («Цель по времени») is state too: the last timer operation (or the
  * server's `timer`). Its time is counted from the moment it started, not ticked, so it
  * keeps going while the app is closed; stopped, the time goes to its day as a count of
- * seconds (a mark), then the timer is taken off.
+ * seconds (a mark), then the timer is taken off. It runs only to the midnight after its
+ * start (the day changes there): then it stops by itself with the time up to midnight.
  */
 
 import { ApiRequestError, authorizationHeader, type ApiErrorCode } from "../api/client";
@@ -47,7 +48,7 @@ import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
 import { currentSessionId } from "../web/session";
-import { addDays, clockIn, markingDay } from "./dates";
+import { addDays, clockIn, markingDay, nextMidnight } from "./dates";
 import {
   cleanHabitName,
   cleanNote,
@@ -395,6 +396,14 @@ function scheduleFlush(delay: number): void {
   }
 }
 
+/** Send now (a timer reached its goal): the server learns it before it would send «цель
+ *  достигнута» (services.TIMER_NOTICE_GRACE_SECONDS). */
+function flushSoon(): void {
+  window.clearTimeout(flushTimer);
+  flushTimer = undefined;
+  scheduleFlush(0);
+}
+
 function scheduleRetry(): void {
   window.clearTimeout(retryTimer);
   const delay = SYNC_RETRY_MS[Math.min(retryCount, SYNC_RETRY_MS.length - 1)];
@@ -607,13 +616,14 @@ function newRef(): string {
   }
 }
 
-/** The running timer with its habit: the seconds its day had before it started and the
- *  goal of that day. */
+/** The running timer with its habit: the seconds its day had before it started, the
+ *  goal of that day and when it ends (the midnight after the start). */
 function runningTimer(): {
   timer: TimerView;
   habit: Habit;
   before: number;
   goal: ReturnType<typeof goalOn>;
+  end: number;
 } | null {
   const timer = state.timer;
   const habit = timer && state.habits.find((item) => item.id === timer.habitId);
@@ -625,6 +635,7 @@ function runningTimer(): {
     habit,
     before: myDay(habit, timer.date, viewDay).count,
     goal: goalOn(habit, timer.date),
+    end: nextMidnight(state.settings?.timezone ?? null, timer.startedAt),
   };
 }
 
@@ -834,8 +845,9 @@ export const dataStore = {
   stopTimer(now = Date.now()): void {
     const running = runningTimer();
     if (running) {
-      const { timer, habit, before } = running;
-      dataStore.setDayCount(habit.id, timer.date, before + secondsSince(timer.startedAt, now), true);
+      const { timer, habit, before, end } = running;
+      const at = Math.min(now, end);
+      dataStore.setDayCount(habit.id, timer.date, before + secondsSince(timer.startedAt, at), true);
     }
     if (state.timer) {
       enqueue({ type: "timer", task: null });
@@ -845,7 +857,9 @@ export const dataStore = {
   /** Seconds the running timer's day has now: kept before it started and since. */
   timerSeconds(now = Date.now()): number {
     const running = runningTimer();
-    return running ? running.before + secondsSince(running.timer.startedAt, now) : 0;
+    return running
+      ? running.before + secondsSince(running.timer.startedAt, Math.min(now, running.end))
+      : 0;
   },
 
   /** Called every second while a timer runs (and on coming back to the app). The goal
@@ -857,13 +871,16 @@ export const dataStore = {
     if (!running) {
       return false;
     }
-    const { timer, habit, before, goal } = running;
-    const total = before + secondsSince(timer.startedAt, now);
-    if (total >= dayMost(goal)) {
+    const { timer, habit, before, goal, end } = running;
+    const total = before + secondsSince(timer.startedAt, Math.min(now, end));
+    const reached = before < goal.goal && total >= goal.goal;
+    // Midnight (the day changed) or the most a day can have — it stops.
+    if (now >= end || total >= dayMost(goal)) {
       dataStore.stopTimer(now);
-      return before < goal.goal;
+      flushSoon();
+      return reached;
     }
-    if (before < goal.goal && total >= goal.goal) {
+    if (reached) {
       dataStore.setDayCount(habit.id, timer.date, total, true);
       enqueue({
         type: "timer",
@@ -871,6 +888,7 @@ export const dataStore = {
         date: timer.date,
         started_at: new Date(now).toISOString(),
       });
+      flushSoon();
       return true;
     }
     return false;
@@ -893,6 +911,10 @@ export const dataStore = {
   setFrozen(id: number, frozen: boolean): void {
     const habit = state.habits.find((item) => item.id === id);
     if (habit && (habit.frozen_since !== null) !== frozen && viewDay) {
+      // A frozen habit does not run: its timer stops, the time goes to its day.
+      if (frozen && state.timer?.habitId === id) {
+        dataStore.stopTimer();
+      }
       enqueue({ type: "freeze", task: keyOf(id), date: viewDay, frozen });
     }
   },

@@ -18,7 +18,7 @@ from backend.database import Database
 from backend.models import FrequencyType
 from backend.repository import Repository
 from backend.schemas import SyncTimer
-from backend.services import apply_sync, due_timer_goals, user_today
+from backend.services import apply_sync, due_timer_goals, timer_day_end, user_today
 
 
 def _habit(name: str = "Учёба", **fields: object) -> dict[str, object]:
@@ -192,6 +192,48 @@ def test_goal_notice_comes_once(db_url: str) -> None:
         (1, "«Учёба»: 45 мин — цель выполнена")
     ]
     assert left == []
+
+
+def test_freezing_takes_the_timer_off(client: TestClient, user: AuthUser) -> None:
+    created = _sync(client, user, {"type": "create", "ref": "t", "habit": _timed()})
+    habit_id, today = created["results"][0]["id"], created["today"]
+    now = _iso(datetime.now(timezone.utc))
+    _sync(client, user, {"type": "timer", "task": habit_id, "date": today, "started_at": now})
+    data = _sync(
+        client, user, {"type": "freeze", "task": habit_id, "date": today, "frozen": True}
+    )
+    assert data["timer"] is None
+
+
+def test_no_notice_for_a_goal_past_midnight(db_url: str) -> None:
+    """The timer stops at midnight: a goal it would reach only after that is not reached."""
+
+    async def run() -> tuple[object, object]:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_or_create_user(1, None, "Аня", language="ru")
+                task = await repo.create_task(
+                    1, "Учёба", FrequencyType.daily, times_per_day=MAX_GOAL_SECONDS,
+                    goal_unit="seconds",
+                )
+                started = datetime.now(timezone.utc) - timedelta(minutes=1)
+                await apply_sync(
+                    repo,
+                    user,
+                    [SyncTimer(type="timer", task=task.id, date=user_today(user), started_at=started)],
+                )
+                timer = await repo.get_timer(1)
+                end = timer_day_end(user, started.replace(tzinfo=None))
+                return timer.notify_at if timer else "none", end
+        finally:
+            await database.dispose()
+
+    notify_at, end = asyncio.run(run())
+    assert notify_at is None
+    assert isinstance(end, datetime) and end > datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def test_goal_text() -> None:

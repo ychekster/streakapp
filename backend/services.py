@@ -23,6 +23,7 @@ from backend.constants import (
     FOLDER_HABIT_TYPES,
     MAX_FOLDERS_PER_USER,
     MAX_DAY_SECONDS,
+    TIMER_NOTICE_GRACE_SECONDS,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
@@ -781,7 +782,7 @@ async def update_habit(
     timer = await repo.get_timer(user.telegram_id)
     if timer is not None and timer.task_id == task.id:
         if fields.goal_unit == "seconds":
-            await _refresh_timer_notice(repo, task, timer)
+            await _refresh_timer_notice(repo, user, task, timer)
         else:
             await repo.delete_timer(user.telegram_id)
     await repo.log_action(user.telegram_id, "habit_updated", ref_id=task.id)
@@ -827,22 +828,42 @@ def unit_on(task: Task, periods: Sequence[TaskSchedulePeriod], day: date) -> str
     return task.goal_unit
 
 
+def timer_day_end(user: User, started_at: datetime) -> datetime:
+    """Когда кончается день таймера, запущенного в `started_at` (UTC без пояса): ближайшая
+    полночь в поясе пользователя — дальше таймер не идёт (на устройстве он там
+    останавливается, data/store.ts)."""
+    zone = resolve_timezone(user.timezone)
+    local = pytz.utc.localize(started_at).astimezone(zone)
+    midnight = zone.localize(datetime.combine(local.date() + timedelta(days=1), time.min))
+    return midnight.astimezone(pytz.utc).replace(tzinfo=None)
+
+
 def _timer_notify_at(
-    task: Task, periods: Sequence[TaskSchedulePeriod], day: date, started_at: datetime, done: int
+    user: User,
+    task: Task,
+    periods: Sequence[TaskSchedulePeriod],
+    day: date,
+    started_at: datetime,
+    done: int,
 ) -> datetime | None:
     """Когда таймер, идущий с `started_at`, наберёт цель дня `day` (уже набрано `done`
-    секунд); None — уже набрал."""
+    секунд); None — уже набрал или не успеет до полуночи (там таймер останавливается)."""
     goal, _ = goal_on(task, periods, day)
-    return started_at + timedelta(seconds=goal - done) if done < goal else None
+    if done >= goal:
+        return None
+    reached = started_at + timedelta(seconds=goal - done)
+    return reached if reached < timer_day_end(user, started_at) else None
 
 
-async def _refresh_timer_notice(repo: Repository, task: Task, timer: RunningTimer) -> None:
+async def _refresh_timer_notice(
+    repo: Repository, user: User, task: Task, timer: RunningTimer
+) -> None:
     """Пересчитать, когда идущий таймер наберёт цель (счёт дня или цель изменились)."""
     periods = (await repo.get_schedule_periods([task.id]))[task.id]
     log = await repo.get_log(task.id, timer.day)
     done = (log.count or 0) if log is not None else 0
     await repo.set_timer_notify_at(
-        timer, _timer_notify_at(task, periods, timer.day, timer.started_at, done)
+        timer, _timer_notify_at(user, task, periods, timer.day, timer.started_at, done)
     )
 
 
@@ -868,10 +889,13 @@ class TimerGoalNotice:
 
 
 async def due_timer_goals(repo: Repository, moment: datetime) -> list[TimerGoalNotice]:
-    """Таймеры, набравшие цель к `moment` (UTC без пояса): уведомление о каждом — одно,
-    поэтому они сразу помечаются сообщёнными (зовёт бот раз в минуту, bot/reminders.py)."""
+    """Таймеры, набравшие цель к `moment` (UTC без пояса) хотя бы TIMER_NOTICE_GRACE_SECONDS
+    назад — за это время открытое приложение успевает само записать цель, и уведомления
+    тогда нет. О каждом — одно, поэтому они сразу помечаются сообщёнными (зовёт бот раз в
+    минуту, bot/reminders.py)."""
     notices: list[TimerGoalNotice] = []
-    for timer, task in await repo.get_timers_to_notify(moment):
+    since = moment - timedelta(seconds=TIMER_NOTICE_GRACE_SECONDS)
+    for timer, task in await repo.get_timers_to_notify(since):
         await repo.set_timer_notify_at(timer, None)
         if task.user.blocked_at is not None:
             continue
@@ -1104,7 +1128,7 @@ async def _apply_sync_op(
             await repo.set_log_count(log, op.count)
             timer = await repo.get_timer(user.telegram_id)
             if timer is not None and timer.task_id == task.id and timer.day == op.date:
-                await _refresh_timer_notice(repo, task, timer)
+                await _refresh_timer_notice(repo, user, task, timer)
         if log.status != target:
             await repo.set_log_status(log, target)
             await _record_mark(repo, user, task, done)
@@ -1127,6 +1151,8 @@ async def _apply_sync_op(
         if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
             raise ApiError(422, "invalid_date", "День вне истории привычки")
         if op.frozen and task.frozen_since is None:
+            # Замороженная не идёт: её таймер снимается (время устройство уже записало).
+            await repo.delete_timer(user.telegram_id, task.id)
             await repo.freeze_task(task, op.date)
             await repo.log_action(user.telegram_id, "habit_frozen", ref_id=task.id)
         elif not op.frozen and task.frozen_since is not None:
@@ -1191,7 +1217,7 @@ async def _apply_timer(repo: Repository, user: User, op: SyncTimer) -> SyncResul
         task.id,
         op.date,
         started_at,
-        _timer_notify_at(task, periods, op.date, started_at, done),
+        _timer_notify_at(user, task, periods, op.date, started_at, done),
     )
     return SyncResult(ok=True)
 
