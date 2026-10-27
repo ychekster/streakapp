@@ -82,12 +82,14 @@ const RU = {
   // «Вид сетки»: ряд настроек и его экран с картинками.
   settingsGridLayout: "Вид сетки",
   gridLayoutTitle: "Вид сетки",
-  gridLayoutNames: { rolling: "Со сдвигом", fixed: "По порядку" },
+  gridLayoutNames: { rolling: "Со сдвигом", fixed: "По порядку", calendar: "Календарь" },
   gridLayoutFooters: {
     rolling:
       "Сегодняшний день всегда в правом нижнем кружке, а с каждым новым днём сетка сдвигается влево.",
     fixed:
       "Сетка заполняется день за днём с левого верхнего кружка, а когда кружки закончатся, начинается заново.",
+    calendar:
+      "Сетка разбита по месяцам и дням недели: у каждой даты своё место, как в календаре.",
   },
   // «Папки»: ряд настроек, список папок, форма папки и выбор привычек в неё.
   settingsFolders: "Папки",
@@ -250,6 +252,8 @@ const RU = {
   openHabit: "Открыть привычку",
   // Число дней совпадает с HISTORY_DAYS (constants.ts).
   habitHistoryHeading: "Последние 364 дня",
+  // То же в «Виде сетки» «Календарь»: месяцы, а не дни (HISTORY_CALENDAR_ROWS × 4).
+  habitHistoryCalendarHeading: "Последние 8 месяцев",
   habitHistoryLabel: "История выполнения",
   habitMainHeading: "Основное",
   statCurrentStreak: "Текущая серия",
@@ -288,6 +292,7 @@ const RU = {
   calendarMarkDone: "Готово",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
   groupHistoryHeading: "Последние 364 дня группы",
+  groupHistoryCalendarHeading: "Последние 8 месяцев группы",
   groupMainHeading: "Основное группы",
   groupCalendarHeading: "Календарь группы",
   calendarPrevMonth: "Предыдущий месяц",
@@ -295,6 +300,10 @@ const RU = {
   monthNames: [
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+  ],
+  // Подписи месяцев над сеткой «Календарь».
+  monthShortNames: [
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
   ],
   // «16 октября» — для скринридеров.
   monthNamesOf: [
@@ -619,11 +628,12 @@ const EN: Strings = {
   settingsReview: "Write a Review",
   settingsGridLayout: "Grid Style",
   gridLayoutTitle: "Grid Style",
-  gridLayoutNames: { rolling: "Rolling", fixed: "In Order" },
+  gridLayoutNames: { rolling: "Rolling", fixed: "In Order", calendar: "Calendar" },
   gridLayoutFooters: {
     rolling: "Today is always the bottom-right dot, and the grid shifts left with each new day.",
     fixed:
       "The grid fills day by day from the top-left dot, and starts over once it’s full.",
+    calendar: "The grid is split into months and weekdays, so every date has its own spot, like in a calendar.",
   },
   settingsFolders: "Folders",
   foldersTitle: "Folders",
@@ -767,6 +777,7 @@ const EN: Strings = {
 
   openHabit: "Open habit",
   habitHistoryHeading: "Last 364 days",
+  habitHistoryCalendarHeading: "Last 8 months",
   habitHistoryLabel: "Completion history",
   habitMainHeading: "Overview",
   statCurrentStreak: "Current streak",
@@ -793,6 +804,7 @@ const EN: Strings = {
   calendarMark: "Mark Days",
   calendarMarkDone: "Done",
   groupHistoryHeading: "Group’s last 364 days",
+  groupHistoryCalendarHeading: "Group’s last 8 months",
   groupMainHeading: "Group overview",
   groupCalendarHeading: "Group calendar",
   calendarPrevMonth: "Previous month",
@@ -800,6 +812,9 @@ const EN: Strings = {
   monthNames: [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
+  ],
+  monthShortNames: [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ],
   monthNamesOf: [
     "January", "February", "March", "April", "May", "June",

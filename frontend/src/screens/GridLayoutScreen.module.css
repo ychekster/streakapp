@@ -38,6 +38,12 @@
   background-color: rgb(var(--habit-rgb));
 }
 
+/* «Календарь» — сетка привычки CalendarGrid как есть. */
+.calendar {
+  display: block;
+  width: 100%;
+}
+
 /* Сегодняшний день — точка в центре, как в сетке привычки (YearGrid.module.css .today). */
 .today {
   background-image: radial-gradient(

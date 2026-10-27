@@ -278,11 +278,13 @@ export function HabitScreen({
             shared
               ? {
                   history: strings.groupHistoryHeading,
+                  historyCalendar: strings.groupHistoryCalendarHeading,
                   main: strings.groupMainHeading,
                   calendar: strings.groupCalendarHeading,
                 }
               : {
                   history: strings.habitHistoryHeading,
+                  historyCalendar: strings.habitHistoryCalendarHeading,
                   main: strings.habitMainHeading,
                   calendar: strings.calendarHeading,
                 }

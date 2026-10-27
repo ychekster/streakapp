@@ -122,6 +122,7 @@ export function GroupMemberScreen({
               habit={shown}
               headings={{
                 history: strings.habitHistoryHeading,
+                historyCalendar: strings.habitHistoryCalendarHeading,
                 main: strings.habitMainHeading,
                 calendar: strings.calendarHeading,
               }}

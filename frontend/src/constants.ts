@@ -46,9 +46,13 @@ export const THEMES = ["light", "dark", "system"] as const;
 export const DEFAULT_THEME = "system";
 
 /** «Вид сетки»: "rolling" — сегодня в правом нижнем кружке, дни сдвигаются; "fixed" — с
- *  дня создания привычки от левого верхнего кружка без сдвига. Совпадают с GRID_LAYOUTS
- *  на бэкенде. */
-export const GRID_LAYOUTS = ["rolling", "fixed"] as const;
+ *  дня создания привычки от левого верхнего кружка без сдвига; "calendar" — по месяцам,
+ *  ряд — день недели, кружок — дата (components/calendarLayout.ts). Совпадают с
+ *  GRID_LAYOUTS на бэкенде. */
+export const GRID_LAYOUTS = ["rolling", "fixed", "calendar"] as const;
+
+/** «Вид сетки» calendar на экране привычки: рядов месяцев (в списке — один). */
+export const HISTORY_CALENDAR_ROWS = 2;
 
 /** Цвета (темы) привычки в порядке выбора. Значения — в CSS (`--palette-*` в
  *  styles/variables.css); ключи совпадают с HABIT_COLORS на бэкенде

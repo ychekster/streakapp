@@ -5,14 +5,18 @@
  * привычки, кружок выбора вместо кнопки отметки, под ними — сетка, на которой проходят
  * одни и те же дни с редкими пропусками (анимация: день за днём). Под каждой карточкой — что
  * делает этот вид. «Со сдвигом» — сегодня всегда в правом нижнем кружке, «По порядку» —
- * дни с левого верхнего. Выбор сохраняется сразу, как остальные настройки
+ * дни с левого верхнего, «Календарь» — последние дни до сегодняшнего по своим датам в
+ * календаре по месяцам (CalendarGrid). Выбор сохраняется сразу, как остальные настройки
  * (App → useSettings).
  */
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
+import { CalendarGrid } from "../components/CalendarGrid";
+import { localDate } from "../components/DateField";
 import { Screen } from "../components/Screen";
 import { GRID_COLUMNS, GRID_LAYOUTS } from "../constants";
+import { addDays } from "../data/dates";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { GridLayout } from "../types/settings";
@@ -96,6 +100,9 @@ function usePreviewDay(): number {
 /** Сетка: прошедшие `day` дней в раскладке `layout`, выполнены все, кроме пропущенных
  *  (MISSED); в сегодняшнем — точка. */
 function Preview({ layout, day }: { layout: GridLayout; day: number }) {
+  if (layout === "calendar") {
+    return <CalendarPreview day={day} />;
+  }
   // День картинки в каждом кружке (0 — первый); null — кружок без дня.
   const dayAt = (cell: number): number | null => {
     const index = layout === "fixed" ? cell : day - CELLS + cell;
@@ -118,6 +125,34 @@ function Preview({ layout, day }: { layout: GridLayout; day: number }) {
           />
         );
       })}
+    </span>
+  );
+}
+
+/** Сколько дней истории у картинки «Календарь»: хватает на 4 месяца сетки. */
+const CALENDAR_HISTORY = 130;
+
+/** «Календарь»: последние DAYS дней по сегодня проходят по своим датам (до них — те же
+ *  дни с пропусками по кругу); месяцы — по сегодняшний, они не сдвигаются. */
+function CalendarPreview({ day }: { day: number }) {
+  const today = useMemo(() => localDate(), []);
+  const history = useMemo(
+    () =>
+      Array.from({ length: CALENDAR_HISTORY }, (_, at) => {
+        // День картинки (0 — первый день анимации), от последнего дня истории — сегодня.
+        const index = DAYS - CALENDAR_HISTORY + at;
+        return !MISSED.has(((index % DAYS) + DAYS) % DAYS);
+      }),
+    [],
+  );
+  const shown = DAYS - day;
+  return (
+    <span className={styles.calendar} aria-hidden="true">
+      <CalendarGrid
+        history={history.slice(0, CALENDAR_HISTORY - shown)}
+        day={addDays(today, -shown)}
+        until={today}
+      />
     </span>
   );
 }

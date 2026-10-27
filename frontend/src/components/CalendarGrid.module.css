@@ -1,0 +1,67 @@
+/*
+ * Сетка «Календарь» (CalendarGrid): ряды месяцев друг под другом. Ряд — сетка 2 × 2:
+ * слева столбец дней недели, справа подписи месяцев и кружки. Кружки и подписи стоят
+ * абсолютно, по процентам ширины и высоты области (их считает calendarLayout.ts), а
+ * область держит пропорции ряда — поэтому всё растёт с шириной карточки.
+ */
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--calendar-grid-row-gap);
+  width: 100%;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--calendar-grid-label-gap);
+  row-gap: var(--calendar-grid-month-gap);
+}
+
+.months {
+  display: block;
+  position: relative;
+  height: var(--calendar-grid-label-height);
+}
+
+.month,
+.weekday {
+  position: absolute;
+  font-size: var(--calendar-grid-label-size);
+  font-weight: var(--font-weight-habit-description);
+  line-height: 1;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.month {
+  bottom: 0;
+}
+
+.weekdays {
+  display: block;
+  position: relative;
+  min-width: var(--calendar-grid-weekday-width);
+}
+
+.weekday {
+  left: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cells {
+  display: block;
+  position: relative;
+  width: 100%;
+}
+
+/* Сильнее, чем .frozen в YearGrid.module.css (там position: relative для снежинки). */
+.cells .cell {
+  position: absolute;
+}
+
+/* День месяца, который ещё не наступил, — бледнее пропуска. */
+.future {
+  opacity: 0.45;
+}

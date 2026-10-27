@@ -17,7 +17,7 @@
 
 import { useEffect, useState, type ReactNode, type Ref } from "react";
 
-import { HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
+import { HISTORY_CALENDAR_ROWS, HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
 import { flexiblePeriod, periodBounds, periodQuota, yearStats } from "../data/derive";
 import { localDate } from "./DateField";
 import { useLanguage, useStrings } from "../preferences";
@@ -115,8 +115,9 @@ function flexibleStats(
 
 interface HabitSummaryProps {
   habit: Habit;
-  /** Заголовки разделов: у групповой привычки — «…группы». */
-  headings: { history: string; main: string; calendar: string };
+  /** Заголовки разделов: у групповой привычки — «…группы»; `historyCalendar` — истории
+   *  в «Виде сетки» calendar (8 месяцев вместо 364 дней). */
+  headings: { history: string; historyCalendar: string; main: string; calendar: string };
   /** Можно ли отмечать выполнение кнопкой в карточке. */
   interactive: boolean;
   onToggle?: (taskId: number) => void;
@@ -136,7 +137,8 @@ export function HabitSummary({
 }: HabitSummaryProps) {
   const strings = useStrings();
   const language = useLanguage();
-  const markDay = useGridView().day;
+  const gridView = useGridView();
+  const markDay = gridView.day;
   // «Отметить дни» у календаря: тап по дню отмечает его, а не открывает окно дня. Только
   // у «раз в день»: у «несколько раз в день» по кружку не видно, сколько набрано, — счёт
   // ставится в окне дня.
@@ -150,13 +152,19 @@ export function HabitSummary({
   const flexible = flexibleStats(habit, markDay ?? localDate(), strings, language);
   return (
     <>
-      <Section title={headings.history} headingRef={headingRef}>
+      <Section
+        title={
+          gridView.layout === "calendar" && markDay ? headings.historyCalendar : headings.history
+        }
+        headingRef={headingRef}
+      >
         <Card padded>
           <HabitBlock
             habit={habit}
             interactive={interactive}
             gridDays={HISTORY_DAYS}
             gridColumns={HISTORY_COLUMNS}
+            calendarRows={HISTORY_CALENDAR_ROWS}
             onToggle={onToggle}
           />
         </Card>

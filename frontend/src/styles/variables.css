@@ -225,6 +225,13 @@
   --grid-gap: 2px; /* зазор между кружками */
   --grid-dot-radius: 50%; /* кружки */
   --grid-today-dot: 55%; /* точка в кружке «сегодня» в «Виде сетки» fixed (доля радиуса) */
+  /* «Вид сетки» calendar (CalendarGrid): подписи месяцев и дней недели */
+  --calendar-grid-label-size: 10px;
+  --calendar-grid-label-height: 10px; /* строка подписей месяцев */
+  --calendar-grid-month-gap: 5px; /* от подписей месяцев до кружков */
+  --calendar-grid-weekday-width: 15px; /* столбец дней недели */
+  --calendar-grid-label-gap: 4px; /* от дней недели до кружков */
+  --calendar-grid-row-gap: 10px; /* между рядами месяцев (экран привычки) */
 
   /* --- Сворачивающийся заголовок --- */
   --header-collapsed-row-height: 44px; /* высота строки заголовка, если панели Telegram нет */

@@ -12,7 +12,8 @@
  *
  * Раскладку дней в сетке задаёт «Вид сетки» (gridLayout.ts): в виде "fixed" сетка
  * показывает только дни с начала текущего «листа», остальные кружки — пустые, а в кружке
- * сегодня точка (он не в углу сетки, и иначе его не найти).
+ * сегодня точка (он не в углу сетки, и иначе его не найти). В виде "calendar" вместо
+ * сетки — календарь по месяцам и дням недели (CalendarGrid), пока известен день отметки.
  */
 
 import { memo, useMemo } from "react";
@@ -23,6 +24,7 @@ import { endBurst } from "../hooks/useToggle";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
+import { CalendarGrid } from "./CalendarGrid";
 import { CheckButton } from "./CheckButton";
 import { openCountSheet } from "./CountSheet";
 import { fixedGridFill, useGridView } from "./gridLayout";
@@ -38,6 +40,8 @@ interface HabitBlockProps {
   gridDays?: number;
   /** Кружков в ряду сетки. */
   gridColumns?: number;
+  /** Рядов месяцев в виде "calendar". */
+  calendarRows?: number;
   onToggle?: (taskId: number) => void;
   /** Открыть экран привычки по нажатию на блок. */
   onOpen?: (taskId: number) => void;
@@ -48,6 +52,7 @@ export const HabitBlock = memo(function HabitBlock({
   interactive,
   gridDays = GRID_DAYS,
   gridColumns = GRID_COLUMNS,
+  calendarRows = 1,
   onToggle,
   onOpen,
 }: HabitBlockProps) {
@@ -97,6 +102,18 @@ export const HabitBlock = memo(function HabitBlock({
           }
         />
       </div>
+      {gridView.layout === "calendar" && day ? (
+        <CalendarGrid
+          history={habit.history}
+          frozen={habit.frozen_history}
+          counts={habit.history_counts}
+          total={habit.times_per_day}
+          totals={goals ?? undefined}
+          fills={groupFill(habit) ?? undefined}
+          day={day}
+          rows={calendarRows}
+        />
+      ) : (
       <YearGrid
         history={habit.history.slice(-shown)}
         frozen={habit.frozen_history.slice(-shown)}
@@ -108,6 +125,7 @@ export const HabitBlock = memo(function HabitBlock({
         cells={gridDays}
         markToday={fill !== null}
       />
+      )}
     </article>
   );
 });

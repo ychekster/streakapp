@@ -446,7 +446,8 @@ class SettingsResponse(BaseModel):
         "rolling",
         description=(
             "«Вид серий»: rolling — сегодня в правом нижнем кружке сетки, дни сдвигаются; "
-            "fixed — с дня создания привычки от левого верхнего кружка, без сдвига"
+            "fixed — с дня создания привычки от левого верхнего кружка, без сдвига; "
+            "calendar — по месяцам, ряд — день недели, кружок — дата"
         ),
     )
     checkin_reminder_time: str | None = Field(
@@ -487,7 +488,7 @@ class SettingsUpdate(BaseModel):
     language: str | None = Field(None, description="Язык интерфейса: ru, en")
     theme: str | None = Field(None, description="Тема оформления: light, dark, system")
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
-    grid_layout: str | None = Field(None, description="Вид серий: rolling, fixed")
+    grid_layout: str | None = Field(None, description="Вид серий: rolling, fixed, calendar")
     checkin_reminder: CheckinReminderUpdate | None = Field(
         None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
     )
