@@ -442,7 +442,6 @@ const RU = {
   formCreateTitle: "Новая привычка",
   formEditTitle: "Редактирование",
   formCreateSubmit: "Добавить привычку",
-  formEditSubmit: "Сохранить",
   formCreateFailed: "Не удалось создать привычку",
   formEditFailed: "Не удалось сохранить привычку",
   formInfoHeading: "Информация",
@@ -485,10 +484,7 @@ const RU = {
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
-  formOvertimeHeading: "Сверх плана",
   formOvertimeToggle: "Можно больше цели",
-  formOvertimeFooter:
-    "Когда цель набрана, день засчитан, но отмечать можно и дальше. Зажмите кнопку отметки — откроется окно, где можно прибавить сразу много, ввести число, заполнить или сбросить день.",
   // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
   // пригласить.
   formSharedHeading: "Групповая привычка (Beta)",
@@ -927,7 +923,6 @@ const EN: Strings = {
   formCreateTitle: "New Habit",
   formEditTitle: "Edit Habit",
   formCreateSubmit: "Add Habit",
-  formEditSubmit: "Save",
   formCreateFailed: "Couldn’t create the habit",
   formEditFailed: "Couldn’t save the habit",
   formInfoHeading: "Details",
@@ -965,10 +960,7 @@ const EN: Strings = {
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
-  formOvertimeHeading: "Beyond the Goal",
   formOvertimeToggle: "Allow More Than the Goal",
-  formOvertimeFooter:
-    "Once the goal is reached the day counts, but you can keep going. Press and hold the check button to open a window where you can add a lot at once, type a number, fill or reset the day.",
   formSharedHeading: "Group Habit (Beta)",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:

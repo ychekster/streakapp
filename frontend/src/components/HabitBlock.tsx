@@ -84,7 +84,12 @@ export const HabitBlock = memo(function HabitBlock({
           countUp={habit.overtime}
           // Отмечать можно — удержание открывает окно счёта (у «Сверх плана»).
           onLongPress={onToggle ? () => openSheet(habit.id) : undefined}
-          onToggle={() => onToggle?.(habit.id)}
+          // «Сверх плана» на цели: нажатие уже не прибавляет, а открывает окно счёта.
+          onToggle={() =>
+            habit.overtime && habit.today_count >= habit.times_per_day
+              ? openSheet(habit.id)
+              : onToggle?.(habit.id)
+          }
         />
       </div>
       <YearGrid

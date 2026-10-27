@@ -436,6 +436,15 @@ export function App() {
     setEditor(null);
   }, []);
 
+  // «Назад» из формы: изменённую привычку форма сначала сохраняет (HabitFormScreen,
+  // `leave`) — тогда она уже вернулась на экран привычки (saveHabit).
+  const editorLeave = useRef<(() => boolean) | null>(null);
+  const leaveEditor = useCallback(() => {
+    if (!editorLeave.current?.()) {
+      hideEditor();
+    }
+  }, [hideEditor]);
+
   const showEditorAdvanced = useCallback(() => {
     scrollUnderAdvanced.current = window.scrollY;
     pendingScroll.current = 0;
@@ -624,7 +633,7 @@ export function App() {
       : editor
         ? editorAdvanced
           ? hideEditorAdvanced
-          : hideEditor
+          : leaveEditor
         : blockedOpen
           ? hideBlocked
           : openMember
@@ -902,6 +911,7 @@ export function App() {
           onSaved={saveHabit}
           advanced={editorAdvanced}
           onOpenAdvanced={showEditorAdvanced}
+          leaveRef={editorLeave}
         />
       );
     }

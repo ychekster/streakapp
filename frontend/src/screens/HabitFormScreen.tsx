@@ -20,14 +20,15 @@
  *    молча считается по числу дней;
  *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
  *    одного раза — кружок отметки бледный, внутри — сколько раз осталось, каждое нажатие
- *    закрашивает его часть (CheckButton);
+ *    закрашивает его часть (CheckButton). Тогда в той же карточке — переключатель «Можно
+ *    больше цели» («Сверх плана»: на цели нажатие открывает окно счёта, CountSheet);
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py). «Добавить напоминание»
  *    добавляет ещё одну строку со временем (до MAX_REMINDERS_PER_HABIT; новое — на час
  *    позже последнего), у добавленных слева красный «−» — убрать. Первое время убирается
  *    только переключателем;
  *    В веб-приложении вместо бота — уведомление. Включённое напоминание (у новой
- *    привычки или впервые у старой) при «Добавить привычку» / «Сохранить» включает
+ *    привычки — при «Добавить привычку», у старой впервые — сразу переключателем) включает
  *    уведомления: спрашивает разрешение, а если его уже не дали — окошко, как включить в
  *    настройках телефона; выключенные в настройках приложения — включает обратно
  *    (useReminderPush). Первая привычка и без напоминания спрашивает разрешение, если
@@ -37,7 +38,7 @@
  *  - «Дополнительно ›» — ряд, открывающий экран «Дополнительно» с двумя секциями ниже,
  *    нужными реже остальных. Переключатели там сразу меняют форму — нижней кнопки на
  *    экране нет, «Назад» (или свайп) возвращает в форму с ними. Привычку, как всегда,
- *    сохраняет кнопка формы. Экран рисует сама форма (её поля живут здесь), а открыт ли
+ *    сохраняет сама форма. Экран рисует сама форма (её поля живут здесь), а открыт ли
  *    он, решает App (`advanced`) — так «Назад» Telegram ведёт с него в форму;
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза ряд
@@ -54,12 +55,13 @@
  * звать друзей — «Добавить участника» там.
  *
  * Открывается кнопкой «+» (пустая) или рядом «Редактировать привычку» на экране привычки.
- * Пока экран открыт, «Закрыть» Telegram заменена на «Назад» — выйти без
- * сохранения (см. App), а сохраняет нижняя кнопка Telegram: «Добавить привычку» или
- * «Сохранить». Она неактивна, пока нет названия (или не выбран ни один день).
+ * Пока экран открыт, «Закрыть» Telegram заменена на «Назад» (см. App). Новую привычку
+ * сохраняет нижняя кнопка «Добавить привычку» — неактивна, пока нет названия (или не выбран
+ * ни один день); «Назад» — выйти без неё. У редактируемой кнопки нет: «Назад» (свайп)
+ * сохраняет изменения, если их можно сохранить, иначе выходит без них (`leave`).
  */
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 
 import { ColorPicker } from "../components/ColorPicker";
 import { DateField, localDate } from "../components/DateField";
@@ -112,6 +114,8 @@ interface HabitFormScreenProps {
   /** Открыт экран «Дополнительно» поверх формы. */
   advanced: boolean;
   onOpenAdvanced: () => void;
+  /** Сюда форма кладёт свой выход («Назад» App при редактировании): см. `leave`. */
+  leaveRef: MutableRefObject<(() => boolean) | null>;
 }
 
 export function HabitFormScreen({
@@ -121,6 +125,7 @@ export function HabitFormScreen({
   onSaved,
   advanced,
   onOpenAdvanced,
+  leaveRef,
 }: HabitFormScreenProps) {
   const meta = useMeta();
   const strings = useStrings();
@@ -170,8 +175,6 @@ export function HabitFormScreen({
   const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
   // «Сверх плана» — наоборот: помнится при одном разе, сохраняется только при нескольких.
   const [overtime, setOvertime] = useState(habit?.overtime ?? false);
-  // Участник групповой привычки его не меняет (поле владельца).
-  const showOvertime = timesPerDay > 1 && !locked;
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
@@ -213,12 +216,13 @@ export function HabitFormScreen({
     }
   }
 
-  // На «Дополнительно» нижней кнопки нет.
+  // Нижняя кнопка — только у новой привычки: изменённая сохраняется при выходе (leave). На
+  // «Дополнительно» её нет.
   useMainButton(
-    advanced
+    advanced || habit
       ? null
       : {
-          text: habit ? strings.formEditSubmit : strings.formCreateSubmit,
+          text: strings.formCreateSubmit,
           ...(valid ? mainButtonHabitColors(color) : MAIN_BUTTON_DISABLED),
           active: valid,
           progress: submitting,
@@ -271,15 +275,10 @@ export function HabitFormScreen({
     });
   }
 
-  async function submit(): Promise<void> {
-    if (!valid || submittingRef.current) {
-      return;
-    }
-    submittingRef.current = true;
-    setSubmitting(true);
-    // Web app: right from this tap (Safari needs the gesture). A reminder just turned on
-    // turns notifications on; a new habit without one only asks, unless turned off in
-    // Settings.
+  /** Web app: right from this tap (Safari needs the gesture). A reminder just turned on
+   *  turns notifications on; a new habit without one only asks, unless turned off in
+   *  Settings. */
+  function enablePush(): void {
     if (web && reminderOn && habit?.reminder_time == null) {
       void enableReminderPush().then(setPermission);
     } else if (web && (!habit || reminderOn)) {
@@ -289,7 +288,50 @@ export function HabitFormScreen({
         void subscribePush();
       }
     }
-    const input: HabitInput = {
+  }
+
+  /** Переключатель напоминания. При редактировании кнопки сохранения нет — включённое
+   *  впервые напоминание включает уведомления сразу, по этому нажатию. */
+  function switchReminder(on: boolean): void {
+    setReminderOn(on);
+    if (habit && web && on && habit.reminder_time == null) {
+      void enableReminderPush().then(setPermission);
+    }
+  }
+
+  const input = habitInput();
+  // Что было в форме при открытии: изменилось ли что-то, видно при выходе.
+  const initialInput = useRef(JSON.stringify(input));
+
+  /** Выход из формы редактирования («Назад», свайп): изменения сохраняются сами, если их
+   *  можно сохранить; нельзя (нет названия, ни одного дня) — форма закрывается без них.
+   *  true — привычка сохранена (onSaved уже вызван), иначе форму закрывает App. */
+  function leave(): boolean {
+    if (!habit || !valid || JSON.stringify(input) === initialInput.current) {
+      return false;
+    }
+    if (web && reminderOn && permission === "granted") {
+      void subscribePush();
+    }
+    try {
+      onSaved(dataStore.updateHabit(habit.id, input));
+      return true;
+    } catch (caught) {
+      // Сервер бы не принял (имя занято…): изменения не применяются — объясняем почему.
+      hapticNotification("error");
+      void showAlert({
+        okLabel: strings.alertOk,
+        title: strings.formEditFailed,
+        message: describeError(strings, caught, strings.formEditFailed),
+      });
+      return false;
+    }
+  }
+  leaveRef.current = leave;
+
+  /** Привычка, как её сохранит форма. */
+  function habitInput(): HabitInput {
+    return {
       name: name.trim(),
       description: description.trim(),
       frequency_type: frequency,
@@ -309,12 +351,22 @@ export function HabitFormScreen({
       // Только если переключатель изменили: иначе привычка такая, какая есть на сервере.
       ...(shared !== wasShared ? { shared } : {}),
     };
+  }
+
+  /** «Добавить привычку». */
+  async function submit(): Promise<void> {
+    if (habit || !valid || submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    enablePush();
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
       // the habit limit is shown in a system dialog right away.
-      onSaved(habit ? dataStore.updateHabit(habit.id, input) : dataStore.createHabit(input));
+      onSaved(dataStore.createHabit(input));
     } catch (caught) {
-      const failed = habit ? strings.formEditFailed : strings.formCreateFailed;
+      const failed = strings.formCreateFailed;
       submittingRef.current = false;
       setSubmitting(false);
       hapticNotification("error");
@@ -424,23 +476,30 @@ export function HabitFormScreen({
     </>
   );
 
-  const goalRow = (
-    <ListItem label={strings.formTimesPerDay(timesPerDay)}>
-      <Stepper
-        value={timesPerDay}
-        min={1}
-        max={MAX_TIMES_PER_DAY}
-        onChange={setTimesPerDay}
-        decreaseLabel={strings.formTimesLess}
-        increaseLabel={strings.formTimesMore}
-      />
-    </ListItem>
+  const goalRows = (
+    <>
+      <ListItem label={strings.formTimesPerDay(timesPerDay)}>
+        <Stepper
+          value={timesPerDay}
+          min={1}
+          max={MAX_TIMES_PER_DAY}
+          onChange={setTimesPerDay}
+          decreaseLabel={strings.formTimesLess}
+          increaseLabel={strings.formTimesMore}
+        />
+      </ListItem>
+      {timesPerDay > 1 ? (
+        <ListItem label={strings.formOvertimeToggle}>
+          <Switch checked={overtime} onChange={setOvertime} label={strings.formOvertimeToggle} />
+        </ListItem>
+      ) : null}
+    </>
   );
 
   const reminderRows = (
     <>
       <ListItem label={strings.formReminderToggle}>
-        <Switch checked={reminderOn} onChange={setReminderOn} label={strings.formReminderToggle} />
+        <Switch checked={reminderOn} onChange={switchReminder} label={strings.formReminderToggle} />
       </ListItem>
       {reminderOn
         ? reminders.map((reminder, index) => (
@@ -516,24 +575,6 @@ export function HabitFormScreen({
             </Section>
           ) : null}
 
-          {showOvertime ? (
-            <Section
-              variant="form"
-              title={strings.formOvertimeHeading}
-              footer={strings.formOvertimeFooter}
-            >
-              <Card>
-                <ListItem label={strings.formOvertimeToggle}>
-                  <Switch
-                    checked={overtime}
-                    onChange={setOvertime}
-                    label={strings.formOvertimeToggle}
-                  />
-                </ListItem>
-              </Card>
-            </Section>
-          ) : null}
-
           {canSwitchShared ? (
             <Section
               variant="form"
@@ -583,7 +624,7 @@ export function HabitFormScreen({
 
         <Section variant="form" title={strings.formGoalHeading}>
           <fieldset className={styles.fieldset} disabled={locked}>
-            <Card>{goalRow}</Card>
+            <Card>{goalRows}</Card>
           </fieldset>
         </Section>
 
@@ -600,7 +641,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {(timesPerDay === 1 && !shared) || showOvertime || canSwitchShared ? (
+        {(timesPerDay === 1 && !shared) || canSwitchShared ? (
           <Section variant="form">
             <Card>
               <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>
