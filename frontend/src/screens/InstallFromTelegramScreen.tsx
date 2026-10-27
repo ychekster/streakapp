@@ -32,7 +32,7 @@ export function InstallFromTelegramScreen({ src }: { src: string }) {
   );
 
   return (
-    <Screen title={strings.installTitle} withTabBar={false} enterAnimation>
+    <Screen title={strings.installTitle} withTabBar={false} enterAnimation pinnedTitle>
       <div className={styles.hero}>
         <img className={styles.icon} src="/icons/app-icon.webp" alt="" />
         <p className={styles.description}>

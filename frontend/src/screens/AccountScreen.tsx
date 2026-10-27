@@ -31,6 +31,7 @@ import { useLanguage, useStrings } from "../preferences";
 import { confirmAction, hapticNotification, showAlert } from "../telegram/webapp";
 import type { Habit } from "../types/habit";
 import { logOut, logOutOtherDevices, UnsentChangesError } from "../web/login";
+import formStyles from "./HabitFormScreen.module.css";
 import styles from "./SettingsScreen.module.css";
 
 interface AccountScreenProps {
@@ -103,8 +104,8 @@ export function AccountScreen({
   }
 
   return (
-    <Screen title={strings.accountTitle} withTabBar={false} enterAnimation>
-      <div className={styles.settings}>
+    <Screen title={strings.accountTitle} withTabBar={false} enterAnimation pinnedTitle>
+      <div className={`${styles.settings} ${formStyles.pinned}`}>
         <ListGroup footer={strings.accountFooter}>
           <ListItem icon={<PersonIcon />} iconColor="blue" label="Telegram">
             <span className={styles.value}>{label ?? ""}</span>

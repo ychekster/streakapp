@@ -651,6 +651,8 @@ interface Draft {
   notes: Map<string, string>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
+  /** Moved to the archive or out of it on the device; none — as on the server. */
+  archived?: boolean;
   /** Past schedules after a change on the device; none — as on the server. */
   periods?: SchedulePeriod[];
   /** Calendar day whose unchecked record auto check-off turned on here has forgotten
@@ -897,6 +899,7 @@ function buildHabit(
     marks.size === 0 &&
     draft.notes.size === 0 &&
     !draft.freezes &&
+    draft.archived === undefined &&
     today === snapshotToday &&
     base.id === id &&
     // Kept on the device before freezing / "several times a day" existed: counted anew.
@@ -1077,6 +1080,7 @@ function buildHabit(
     best_streak: best,
     total_done: Math.max(0, total),
     frozen_since: freezes.since,
+    archived: draft.archived ?? base?.archived ?? false,
     frozen_history: frozenHistory,
     times_per_day: fields.times_per_day,
     today_count:
@@ -1177,6 +1181,7 @@ export function deriveView(
       op.type === "update" ||
       op.type === "mark" ||
       op.type === "freeze" ||
+      op.type === "archive" ||
       op.type === "note"
     ) {
       const draft = drafts.find((item) => item.key === op.task);
@@ -1257,6 +1262,8 @@ export function deriveView(
       } else if (draft && op.type === "freeze") {
         draft.freezes ??= serverFreezes(draft.base);
         applyFreeze(draft.freezes, op, draft.base);
+      } else if (draft && op.type === "archive") {
+        draft.archived = op.archived;
       }
     } else if (op.type === "delete") {
       drafts = drafts.filter((item) => item.key !== op.task);

@@ -254,6 +254,13 @@ class Habit(BaseModel):
             "отмечать, пропуски не прерывают её серию"
         ),
     )
+    archived: bool = Field(
+        False,
+        description=(
+            "В архиве: привычка работает как обычная, но в приложении её нет в списке "
+            "привычек и папках (она в «Архиве» настроек), напоминания не приходят"
+        ),
+    )
     frozen_history: list[bool] = Field(
         default_factory=list,
         description=(
@@ -568,6 +575,15 @@ class SyncFreeze(BaseModel):
     frozen: bool
 
 
+class SyncArchive(BaseModel):
+    """Убрать привычку в архив (`archived: true`) или вернуть из него. Повтор (уже в
+    архиве / не в архиве) ничего не меняет."""
+
+    type: Literal["archive"]
+    task: TaskRef
+    archived: bool
+
+
 class SyncTimer(BaseModel):
     """Таймер привычки «Цель по времени»: запущен (`task`, `date` — день, в который
     пишется время, `started_at` — с какого момента) или снят (`task` null). Время
@@ -673,6 +689,7 @@ SyncOperation = Annotated[
     SyncMark
     | SyncNote
     | SyncFreeze
+    | SyncArchive
     | SyncTimer
     | SyncCreate
     | SyncUpdate

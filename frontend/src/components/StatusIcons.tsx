@@ -19,6 +19,7 @@ export type StatusIconName =
   | "star"
   | "send"
   | "folder"
+  | "archive"
   | "hand"
   | "spinner";
 
@@ -43,6 +44,15 @@ const GLYPHS: Record<Exclude<StatusIconName, "spinner">, Glyph[]> = {
     {
       d: "M10.5 15a2 2 0 0 1 2-2h4.4l2.4 2.6h8.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H12.5a2 2 0 0 1-2-2Z",
       stroke: 3.2,
+    },
+  ],
+  // Коробка архива (пустой «Архив») — та же, что у его ряда (SettingsIcons, квадрат 24×24),
+  // увеличенная до здешнего круга.
+  archive: [
+    {
+      d: "M4.5 4.5h15a1 1 0 0 1 1 1v2.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1zM5.5 9v8.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9M10 13h4",
+      stroke: 2.2,
+      transform: "translate(5.6 5.6) scale(1.2)",
     },
   ],
   // Поднятая ладонь (пустой «Чёрный список») — та же, что у его ряда (SettingsIcons,

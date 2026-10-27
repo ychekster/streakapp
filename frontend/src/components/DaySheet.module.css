@@ -1,65 +1,6 @@
 /* Окно дня (DaySheet): отметка за день и заметка под шапкой окна (BottomSheet). Размеры —
    токены --count-sheet-* и --day-sheet-* (variables.css); цвет привычки — --habit-rgb. */
 
-/* Что было в этот день: плитки в две колонки, как карточки «Основного» (StatCard) —
-   значок справа сверху, крупное значение и подпись внизу; на подложке кнопок окна. */
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--day-sheet-tile-gap);
-  margin-top: var(--day-sheet-info-top);
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: var(--day-sheet-tile-padding);
-  /* Скругление — как у карточек приложения (StatCard на экране привычки). */
-  border-radius: var(--radius-card);
-  background: var(--count-sheet-button-fill);
-}
-
-/* Нечётное число плиток — статус во всю ширину. */
-.tileWide {
-  grid-column: 1 / -1;
-}
-
-.tileIcon {
-  align-self: flex-end;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--day-sheet-tile-icon-size);
-  height: var(--day-sheet-tile-icon-size);
-  border-radius: var(--radius-stat-icon);
-  background-color: rgba(var(--habit-rgb), var(--habit-soft-alpha));
-  color: rgb(var(--habit-rgb));
-}
-
-.tileIcon svg {
-  width: var(--day-sheet-tile-glyph);
-  height: var(--day-sheet-tile-glyph);
-}
-
-.tileValue {
-  margin-top: auto;
-  padding-top: var(--day-sheet-tile-value-gap);
-  font-size: var(--day-sheet-tile-value-size);
-  font-weight: var(--font-weight-stat-value);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  color: var(--color-text-primary);
-  overflow-wrap: break-word;
-}
-
-.tileLabel {
-  margin-top: 3px;
-  font-size: var(--day-sheet-tile-label-size);
-  line-height: 1.25;
-  color: var(--color-text-secondary);
-}
-
 /* Счёт «несколько раз в день» — тот же блок, что в окне счёта (CountControls). */
 .count {
   display: flex;
@@ -67,7 +8,7 @@
 }
 
 /* «Раз в день»: одна кнопка во всю ширину — «Отметить выполненной» цветом привычки, у
-   выполненного дня — серая «Снять отметку» (статус — на плитке). Форма — как у нижней
+   выполненного дня — серая «Снять отметку». Форма — как у нижней
    кнопки приложения («Добавить привычку», «Сохранить» — WebChrome .main): пилюля той же
    высоты, кромка и шрифт. */
 .mark {

@@ -70,6 +70,7 @@ from backend.schemas import (
     SyncFolderDelete,
     SyncFolderOrder,
     SyncFolderUpdate,
+    SyncArchive,
     SyncFreeze,
     SyncMark,
     SyncNote,
@@ -421,6 +422,7 @@ def build_habit(
         reminder_times=[value.strftime(REMINDER_TIME_FORMAT) for value in task.reminder_times],
         color=task.color,
         frozen_since=task.frozen_since,
+        archived=task.archived_at is not None,
         frozen_history=[
             is_frozen(history_start + timedelta(days=offset)) for offset in range(HISTORY_DAYS)
         ],
@@ -1159,6 +1161,16 @@ async def _apply_sync_op(
             await repo.unfreeze_task(task, op.date)
             await repo.log_action(user.telegram_id, "habit_unfrozen", ref_id=task.id)
         return SyncResult(ok=True)
+    if isinstance(op, SyncArchive):
+        task = await _active_task(repo, user, op.task)
+        if op.archived != (task.archived_at is not None):
+            await repo.set_archived(task, utc_now() if op.archived else None)
+            await repo.log_action(
+                user.telegram_id,
+                "habit_archived" if op.archived else "habit_unarchived",
+                ref_id=task.id,
+            )
+        return SyncResult(ok=True)
     if isinstance(op, SyncCreate):
         # Повтор уже применённого создания (ответ на прошлый запрос не дошёл) — та же
         # привычка, а не вторая.
@@ -1338,8 +1350,9 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
 
     Напоминание привычки наступило, если в поясе её владельца `moment` приходится
     ровно на время напоминания. Приходит оно только в дни, на которые привычка
-    запланирована, и только пока она за этот день не отмечена выполненной. Замороженной
-    привычке и пользователю, заблокированному администратором, напоминания не приходят.
+    запланирована, и только пока она за этот день не отмечена выполненной. Замороженной и
+    архивной привычке и пользователю, заблокированному администратором, напоминания не
+    приходят.
 
     «Этот день» — всегда сегодняшний по календарю пользователя: режим «Отмечать за вчера»
     на напоминания о привычках не влияет (сегодня по расписанию — сегодня и напомнит).
@@ -1350,7 +1363,11 @@ async def due_reminders(repo: Repository, moment: datetime) -> list[DueReminder]
     """
     candidates: list[tuple[Task, date]] = []
     for task in await repo.get_active_tasks_with_reminder_at(_clock_times(moment)):
-        if task.user.blocked_at is not None or task.frozen_since is not None:
+        if (
+            task.user.blocked_at is not None
+            or task.frozen_since is not None
+            or task.archived_at is not None
+        ):
             continue
         local = moment.astimezone(resolve_timezone(task.user.timezone))
         if not any(
@@ -1393,8 +1410,8 @@ async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueR
 
     Наступило, если в поясе пользователя `moment` — ровно время напоминания, а сегодня
     (по его календарю) — один из выбранных дней недели. Приходит, только если на день
-    отметки запланирована хотя бы одна незамороженная привычка и не все такие уже
-    отмечены: иначе отмечать нечего.
+    отметки запланирована хотя бы одна незамороженная привычка не из архива и не все
+    такие уже отмечены: иначе отмечать нечего.
     """
     candidates: dict[int, tuple[User, date]] = {}
     for user in await repo.get_users_with_checkin_reminder_at(_clock_times(moment)):
@@ -1411,6 +1428,7 @@ async def due_checkin_reminders(repo: Repository, moment: datetime) -> list[DueR
         task
         for task in await repo.get_active_tasks_of(candidates)
         if task.frozen_since is None
+        and task.archived_at is None
         and (_flexible(task) or is_due_on(task, candidates[task.user_id][1]))
     ]
     open_ids = await _quota_open(

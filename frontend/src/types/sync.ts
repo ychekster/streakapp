@@ -18,6 +18,8 @@ export type SyncOperation =
   /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
    *  ordinary day again. */
   | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }
+  /** Move the habit to the archive (`archived: true`) or back out of it. */
+  | { type: "archive"; task: TaskKey; archived: boolean }
   /** A time goal's timer: started (`date` — the day its time goes to, `started_at` — ISO
    *  moment) or taken off (`task` null). A stopped timer's time is sent before it, as a
    *  mark with the day's seconds. */

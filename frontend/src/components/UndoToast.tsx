@@ -2,12 +2,14 @@
  * Плашка «Отменить» над навигацией (как «You left the channel · Undo» в Telegram): после
  * серии быстрых нажатий на кнопку отметки «Сверх плана» (hooks/useToggle.ts) — «Вода: +12»
  * и «Отменить», которое возвращает счёт, бывший до серии. Слева кружок с обратным
- * отсчётом: через UNDO_MS плашка уходит сама. Каждое новое нажатие серии обновляет число
- * и начинает отсчёт заново.
+ * отсчётом: через UNDO_MS плашка уходит сама, а раньше её можно смахнуть влево
+ * (useSwipeAway) — счёт остаётся. Каждое новое нажатие серии обновляет число и начинает
+ * отсчёт заново.
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { useSwipeAway } from "../hooks/useSwipeAway";
 import { useStrings } from "../preferences";
 import styles from "./UndoToast.module.css";
 
@@ -86,11 +88,17 @@ export function UndoToast({ aboveTabBar }: UndoToastProps) {
   const strings = useStrings();
   const current = useOffer();
   const seconds = useSecondsLeft(current?.until ?? null);
+  const swipe = useSwipeAway(hideUndo);
   if (!current) {
     return null;
   }
   return (
-    <div className={`${styles.toast} ${aboveTabBar ? styles.aboveTabBar : ""}`} role="status">
+    <div
+      className={`${styles.toast} ${aboveTabBar ? styles.aboveTabBar : ""}`}
+      role="status"
+      style={swipe.style}
+      {...swipe.handlers}
+    >
       {/* key — отсчёт заново с каждым обновлением. */}
       <span className={styles.timer} key={current.until} aria-hidden="true">
         <svg viewBox="0 0 25 25">

@@ -19,6 +19,7 @@ import { describeError } from "../errors";
 import { useLanguage, useStrings } from "../preferences";
 import { hapticNotification } from "../telegram/webapp";
 import type { UserReview } from "../types/review";
+import formStyles from "./HabitFormScreen.module.css";
 import styles from "./ReviewScreen.module.css";
 
 export function ReviewScreen() {
@@ -89,8 +90,8 @@ export function ReviewScreen() {
   }
 
   return (
-    <Screen title={strings.reviewTitle} withTabBar={false} enterAnimation>
-      <div className={styles.compose}>
+    <Screen title={strings.reviewTitle} withTabBar={false} enterAnimation pinnedTitle>
+      <div className={`${styles.compose} ${formStyles.pinned}`}>
         <Card>
           <div className={styles.composer}>
             <textarea

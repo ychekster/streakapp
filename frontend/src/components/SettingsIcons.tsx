@@ -260,3 +260,13 @@ export function FolderIcon() {
     </svg>
   );
 }
+
+/** «Архив»: коробка с крышкой и прорезью-ручкой. */
+export function ArchiveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M4.5 4.5h15a1 1 0 0 1 1 1v2.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z" />
+      <path {...STROKE} d="M5.5 9v8.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9M10 13h4" />
+    </svg>
+  );
+}

@@ -17,6 +17,8 @@
   box-shadow: var(--glass-shadow);
   color: var(--glass-icon);
   animation: bar-in var(--transition-fast) ease-out;
+  /* Вбок капсулу на паузе смахивают (useSwipeAway), вверх-вниз — прокрутка страницы. */
+  touch-action: pan-y;
 }
 
 .aboveTabBar {

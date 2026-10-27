@@ -20,6 +20,8 @@
   box-shadow: var(--glass-shadow);
   color: var(--glass-icon);
   animation: toast-in var(--transition-fast) ease-out;
+  /* Вбок плашку смахивают (useSwipeAway), вверх-вниз — прокрутка страницы. */
+  touch-action: pan-y;
 }
 
 .aboveTabBar {

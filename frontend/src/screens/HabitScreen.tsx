@@ -1,7 +1,7 @@
 /**
  * Экран привычки: сводка (HabitSummary — сетка за последние 364 дня, «Основное»,
- * календарь) и настройки привычки (редактировать, заморозить / разморозить, удалить). Весь экран окрашен в цвет
- * привычки.
+ * календарь) и настройки привычки (редактировать, заморозить / разморозить, архивировать /
+ * разархивировать, удалить). Весь экран окрашен в цвет привычки.
  *
  * Открывается нажатием на привычку в списке. Пока экран открыт, кнопка «Закрыть»
  * Telegram заменена на «Назад», а нижняя навигация скрыта (см. App). Привычка берётся
@@ -10,7 +10,11 @@
  * «Редактировать привычку» открывает форму привычки (см. HabitFormScreen). «Заморозить
  * привычку» сначала объясняет системным диалогом, что будет с привычкой, и после
  * согласия замораживает её и возвращает к списку (как удаление); «Разморозить привычку»
- * размораживает сразу, без диалога, и экран остаётся открытым. «Удалить
+ * размораживает сразу, без диалога, и экран остаётся открытым. «Архивировать привычку» —
+ * так же: диалог, после согласия привычка уходит в архив (Настройки → «Архив»), и App
+ * возвращает к списку, откуда её открыли; «Разархивировать» — сразу, экран остаётся
+ * открытым. Архивная работает как обычная (и замораживается так же, оставаясь в архиве).
+ * «Удалить
  * привычку» спрашивает подтверждение системным диалогом Telegram (на iPhone — обычный
  * алерт iOS); после удаления App возвращает к списку, а при ошибке она появляется под
  * карточкой.
@@ -39,6 +43,7 @@ import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import {
+  ArchiveIcon,
   AutoCheckIcon,
   BellIcon,
   HandIcon,
@@ -77,6 +82,8 @@ interface HabitScreenProps {
   onEdit: (habit: Habit) => void;
   /** Заморозить (`frozen: true`, App возвращает к списку) или разморозить привычку. */
   onFreeze: (taskId: number, frozen: boolean) => void;
+  /** Убрать в архив (`archived: true`, App возвращает к списку) или вернуть из него. */
+  onArchive: (taskId: number, archived: boolean) => void;
   /** Включить или выключить «Автоотметка». */
   onAutoMark: (taskId: number, on: boolean) => void;
   /** Удалить привычку и вернуться к списку; при ошибке промис отклоняется. */
@@ -95,6 +102,7 @@ export function HabitScreen({
   animateEnter,
   onEdit,
   onFreeze,
+  onArchive,
   onAutoMark,
   onDelete,
   onLinkTelegram,
@@ -139,6 +147,24 @@ export function HabitScreen({
     });
     if (confirmed) {
       onFreeze(habit.id, true);
+    }
+  }
+
+  const archived = habit.archived === true;
+
+  async function toggleArchive(): Promise<void> {
+    if (archived) {
+      onArchive(habit.id, false);
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: strings.archiveDialogTitle,
+      message: strings.archiveDialogMessage,
+      confirmLabel: strings.archiveDialogConfirm,
+      cancelLabel: strings.archiveDialogCancel,
+    });
+    if (confirmed) {
+      onArchive(habit.id, true);
     }
   }
 
@@ -323,6 +349,14 @@ export function HabitScreen({
               iconColor="lightblue"
               label={frozen ? strings.unfreezeHabit : strings.freezeHabit}
               onPress={() => void toggleFreeze()}
+            >
+              <Disclosure />
+            </ListItem>
+            <ListItem
+              icon={<ArchiveIcon />}
+              iconColor="graphite"
+              label={archived ? strings.unarchiveHabit : strings.archiveHabit}
+              onPress={() => void toggleArchive()}
             >
               <Disclosure />
             </ListItem>

@@ -104,6 +104,7 @@ import { FolderHabitsScreen } from "./screens/FolderHabitsScreen";
 import { FoldersScreen } from "./screens/FoldersScreen";
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
+import { ArchiveScreen } from "./screens/ArchiveScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
 import { PREFETCH_DELAY_MS } from "./constants";
@@ -293,6 +294,10 @@ export function App() {
   const openMember =
     openHabit?.group?.members.find((member) => member.user_id === openMemberId) ?? null;
 
+  // Архивных нет в списке привычек и в папках — они в Настройках → «Архив».
+  const listHabits = useMemo(() => habits.filter((habit) => !habit.archived), [habits]);
+  const archivedHabits = useMemo(() => habits.filter((habit) => habit.archived), [habits]);
+
   // Таблетка папок над списком: папки и «Все привычки» на своём месте. Выбранной папки
   // больше нет — первая вкладка.
   const folderTabs = useMemo(() => {
@@ -316,7 +321,7 @@ export function App() {
   const shownHabits = useMemo(() => {
     if (!activeFolder) {
       keptInFolder.current = { key: "", ids: new Set() };
-      return habits;
+      return listHabits;
     }
     const kept = keptInFolder.current;
     const key = `${tab}:${activeFolder.id}`;
@@ -324,14 +329,14 @@ export function App() {
       keptInFolder.current = { key, ids: new Set() };
     }
     const ids = keptInFolder.current.ids;
-    const shown = habits.filter(
+    const shown = listHabits.filter(
       (habit) => activeFolder.habits.includes(habit.id) || ids.has(habit.id),
     );
     if (activeFolder.kind === "unfinished") {
       shown.forEach((habit) => ids.add(habit.id));
     }
     return shown;
-  }, [habits, activeFolder, tab]);
+  }, [listHabits, activeFolder, tab]);
   const folderBar: FolderBarState | null =
     folders.length > 0
       ? {
@@ -607,6 +612,19 @@ export function App() {
         hideHabit();
       }
       dataStore.setFrozen(taskId, frozen);
+    },
+    [hideHabit],
+  );
+
+  // Убрать привычку в архив и вернуться к списку или вернуть её из архива, оставшись на
+  // экране — сразу, сервер узнает следом.
+  const archiveHabit = useCallback(
+    (taskId: number, archived: boolean) => {
+      hapticNotification("success");
+      if (archived) {
+        hideHabit();
+      }
+      dataStore.setArchived(taskId, archived);
     },
     [hideHabit],
   );
@@ -953,6 +971,7 @@ export function App() {
           animateEnter={habitEntering}
           onEdit={showEditor}
           onFreeze={freezeHabit}
+          onArchive={archiveHabit}
           onAutoMark={setAutoMark}
           onDelete={deleteOpenHabit}
           onLinkTelegram={linkTelegram}
@@ -995,11 +1014,15 @@ export function App() {
       if (settingsPage === "folders" && folderDraft && folderPicker) {
         return (
           <FolderHabitsScreen
-            habits={habits}
+            habits={listHabits}
             selected={folderDraft.habits}
             selectedTypes={folderDraft.types}
             onDone={(selected, types) => {
-              setFolderDraft({ ...folderDraft, habits: selected, types });
+              // Архивных в выборе нет, но из папки они не уходят.
+              const archived = folderDraft.habits.filter((id) =>
+                archivedHabits.some((habit) => habit.id === id),
+              );
+              setFolderDraft({ ...folderDraft, habits: [...selected, ...archived], types });
               hideFolderPicker();
             }}
           />
@@ -1029,6 +1052,16 @@ export function App() {
             onAddRecommended={addRecommendedFolder}
             swipe={settings?.folder_swipe ?? false}
             onSwipeChange={(on) => saveSettings({ folder_swipe: on })}
+          />
+        );
+      }
+      if (settingsPage === "archive") {
+        return (
+          <ArchiveScreen
+            habits={archivedHabits}
+            markYesterday={markYesterday}
+            onToggle={toggle}
+            onOpen={showHabit}
           />
         );
       }
@@ -1073,6 +1106,7 @@ export function App() {
                 : { guest: false, label: null, status: accountOffline ? "offline" : "loading" }
           }
           folderCount={folders.length}
+          archiveCount={archivedHabits.length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />

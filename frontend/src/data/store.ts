@@ -919,6 +919,14 @@ export const dataStore = {
     }
   },
 
+  /** Move the habit to the archive or back out of it. */
+  setArchived(id: number, archived: boolean): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (habit && (habit.archived === true) !== archived) {
+      enqueue({ type: "archive", task: keyOf(id), archived });
+    }
+  },
+
   /** Create a habit; throws ApiRequestError (as the server would) if it can't be. */
   createHabit(input: HabitInput): Habit {
     validateHabit(input, null);

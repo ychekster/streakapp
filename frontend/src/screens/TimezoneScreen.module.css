@@ -1,3 +1,11 @@
+/* Под заголовком по центру шапки (pinnedTitle): обёртка тянется на весь экран, чтобы
+   загрузка и ошибка (StatusMessage) стояли посередине, как без неё. */
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Ряды поясов той же высоты, что и ряды настроек. */
 .list {
   --list-row-min-height: var(--form-row-min-height);

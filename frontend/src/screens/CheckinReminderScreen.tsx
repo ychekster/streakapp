@@ -71,8 +71,8 @@ export function CheckinReminderScreen({ settings, onSave }: CheckinReminderScree
   }
 
   return (
-    <Screen title={strings.checkinReminderTitle} withTabBar={false} enterAnimation>
-      <div className={styles.settings}>
+    <Screen title={strings.checkinReminderTitle} withTabBar={false} enterAnimation pinnedTitle>
+      <div className={`${styles.settings} ${formStyles.pinned}`}>
         <ListGroup>
           <ListItem label={strings.checkinReminderToggle}>
             <Switch checked={on} onChange={toggle} label={strings.checkinReminderToggle} />

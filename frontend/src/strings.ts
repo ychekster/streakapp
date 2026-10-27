@@ -94,6 +94,12 @@ const RU = {
   // «Папки»: ряд настроек, список папок, форма папки и выбор привычек в неё.
   settingsFolders: "Папки",
   foldersTitle: "Папки",
+  // «Архив»: ряд настроек и экран архивных привычек.
+  settingsArchive: "Архив",
+  archiveTitle: "Архив",
+  archiveEmptyTitle: "В архиве пусто",
+  archiveEmptyDescription:
+    "Сюда попадают привычки, которые вы архивировали в их настройках: они работают как обычно, но не видны в списке",
   foldersDescription:
     "Вы можете создать папки с нужными привычками и переключаться между ними.",
   foldersHeading: "Папки",
@@ -287,10 +293,6 @@ const RU = {
   statGoalReached: "Цель выполнена",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
-  // Справа от заголовка календаря: режим, в котором тап по дню отмечает его, а не
-  // открывает окно дня.
-  calendarMark: "Отметить дни",
-  calendarMarkDone: "Готово",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
   groupHistoryHeading: "Последние 364 дня группы",
   groupHistoryCalendarHeading: "Последние 8 месяцев группы",
@@ -332,6 +334,14 @@ const RU = {
     "Текущая серия сохранится: пропуски не будут её прерывать, а дни заморозки отметятся в истории снежинками. Отмечать привычку и получать напоминания можно будет после разморозки.",
   freezeDialogConfirm: "Заморозить",
   freezeDialogCancel: "Отменить",
+  // Архив: ряд в настройках привычки и подтверждение.
+  archiveHabit: "Архивировать привычку",
+  unarchiveHabit: "Разархивировать привычку",
+  archiveDialogTitle: "Архивировать привычку",
+  archiveDialogMessage:
+    "Привычка пропадёт из списка и папок и будет в Настройках → Архив. Отмечать её и смотреть статистику можно и там, серия сохранится, а напоминания приходить не будут.",
+  archiveDialogConfirm: "Архивировать",
+  archiveDialogCancel: "Отменить",
   deleteHabit: "Удалить привычку",
   deleteDialogTitle: "Удалить привычку",
   deleteDialogMessage: "Вы уверены, что хотите навсегда удалить эту привычку?",
@@ -449,29 +459,6 @@ const RU = {
   daySheetNote: "Заметка к дню",
   // Подпись окна для скринридеров; свайп влево-вправо — соседний день.
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайп — соседний день`,
-  // Что было в этот день (components/dayInfo.ts).
-  dayInfoStatus: "Статус",
-  dayInfoStatuses: {
-    done: "Выполнено",
-    bonus: "Выполнено",
-    partial: "Не до конца",
-    missed: "Пропущено",
-    open: "Ещё не отмечено",
-    free: "Не отмечено",
-    frozen: "Заморожено",
-    rest: "Не запланировано",
-    before: "До начала привычки",
-  },
-  // Выполнено вне статистики (бонусная отметка) — подпись плитки статуса.
-  dayInfoNotInStats: "Не в статистике",
-  dayInfoSchedule: "График",
-  // Цель того дня (день отмечается по своей, даже если цель с тех пор сменили).
-  dayInfoTimesADay: "Раз в день",
-  dayInfoTimeADay: "Цель на день",
-  dayInfoOf: (done: number, total: number) => `${done} из ${total}`,
-  dayInfoStreakDay: "День серии",
-  dayInfoGroupDone: "Группа выполнила",
-  dayInfoGroupFill: "Сделано группой",
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
@@ -672,6 +659,11 @@ const EN: Strings = {
   },
   settingsFolders: "Folders",
   foldersTitle: "Folders",
+  settingsArchive: "Archive",
+  archiveTitle: "Archive",
+  archiveEmptyTitle: "Archive Is Empty",
+  archiveEmptyDescription:
+    "Habits you archive in their settings go here: they work as usual but don’t show in the list",
   foldersDescription: "Create folders for different groups of habits and quickly switch between them.",
   foldersHeading: "Folders",
   foldersEdit: "Edit",
@@ -837,8 +829,6 @@ const EN: Strings = {
   statForecastNone: "Forecast",
   statGoalReached: "Goal reached",
   calendarHeading: "Calendar",
-  calendarMark: "Mark Days",
-  calendarMarkDone: "Done",
   groupHistoryHeading: "Group’s last 364 days",
   groupHistoryCalendarHeading: "Group’s last 8 months",
   groupMainHeading: "Group overview",
@@ -875,6 +865,13 @@ const EN: Strings = {
     "Your current streak will be kept: missed days won’t break it, and frozen days will show as snowflakes in the history. You can check the habit off and get reminders again after unfreezing it.",
   freezeDialogConfirm: "Freeze",
   freezeDialogCancel: "Cancel",
+  archiveHabit: "Archive Habit",
+  unarchiveHabit: "Unarchive Habit",
+  archiveDialogTitle: "Archive Habit",
+  archiveDialogMessage:
+    "The habit will leave the list and folders and move to Settings → Archive. You can still check it off and see its stats there, and its streak is kept, but reminders won’t come.",
+  archiveDialogConfirm: "Archive",
+  archiveDialogCancel: "Cancel",
   deleteHabit: "Delete Habit",
   deleteDialogTitle: "Delete Habit",
   deleteDialogMessage: "Are you sure you want to permanently delete this habit?",
@@ -974,26 +971,6 @@ const EN: Strings = {
   daySheetUnmark: "Unmark",
   daySheetNote: "Note for the day",
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Swipe for the next day`,
-  dayInfoStatus: "Status",
-  dayInfoStatuses: {
-    done: "Done",
-    bonus: "Done",
-    partial: "Not finished",
-    missed: "Missed",
-    open: "Not marked yet",
-    free: "Not marked",
-    frozen: "Frozen",
-    rest: "Not scheduled",
-    before: "Before the habit began",
-  },
-  dayInfoNotInStats: "Not in stats",
-  dayInfoSchedule: "Schedule",
-  dayInfoTimesADay: "Times a day",
-  dayInfoTimeADay: "Goal for the day",
-  dayInfoOf: (done: number, total: number) => `${done} of ${total}`,
-  dayInfoStreakDay: "Day of the streak",
-  dayInfoGroupDone: "Group done",
-  dayInfoGroupFill: "Done by the group",
   undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 

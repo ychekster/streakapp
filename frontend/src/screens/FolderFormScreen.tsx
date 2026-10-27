@@ -69,6 +69,8 @@ export function FolderFormScreen({
   const valid = draft.name.trim().length > 0;
   const kind = draft.folder?.kind ?? null;
   const selected = kind ? [] : habits.filter((habit) => draft.habits.includes(habit.id));
+  // Архивных в папке не видно, но из неё они не уходят: вернутся из архива — снова в ней.
+  const shown = selected.filter((habit) => !habit.archived);
   const types = kind ? [] : draft.types;
 
   useMainButton(
@@ -178,7 +180,7 @@ export function FolderFormScreen({
                     }
                   />
                 ))}
-                {selected.map((habit) => (
+                {shown.map((habit) => (
                   <ListItem
                     key={habit.id}
                     icon={<HabitAvatar habit={habit} />}

@@ -273,6 +273,11 @@ class Task(Base):
     # заморожена, пропуски не прерывают её серию, отмечать её нельзя, напоминания не
     # приходят. Прошедшие заморозки — в TaskFreeze (их дни видны в сетке).
     frozen_since: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Архив: когда привычку убрали в архив (None — не в архиве). Архивная работает как
+    # обычная (отметки, серии, автоотметка, лимит привычек), только её нет в списке
+    # привычек и папках приложения — она в «Архиве» настроек, — и напоминания по ней не
+    # приходят. У совместной — только у этого участника (у каждого своя Task).
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -641,6 +646,7 @@ class ActivityLog(Base):
     `kind` — что случилось: start (запустил бота), app_open (открыл приложение; `detail` —
     откуда: menu, welcome, reminder, broadcast, push, link, icon),
     habit_created / habit_updated / habit_deleted / habit_frozen / habit_unfrozen,
+    habit_archived / habit_unarchived,
     checkin / uncheck (`ref_id` — привычка), auto_checkin (привычку «Отмечать
     автоматически» отметил бот),
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал

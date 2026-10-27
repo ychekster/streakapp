@@ -15,7 +15,8 @@
  *     Telegram (account setting `telegram_notifications`; turning it off asks first); in
  *     the web app «Уведомления» — push on this device (usePushToggle). Right under
  *     «Уведомления» — «Вид сетки» (how the habit grid lays out days, GridLayoutScreen)
- *     and «Папки» (habit folders, FoldersScreen; the value — how many there are).
+ *     and «Папки» (habit folders, FoldersScreen; the value — how many there are), under
+ *     them «Архив» (archived habits, ArchiveScreen; the value — how many).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
@@ -35,6 +36,7 @@ import { LanguageRow, ThemeRow } from "../components/PreferenceRows";
 import { Screen } from "../components/Screen";
 import {
   AlarmIcon,
+  ArchiveIcon,
   BellIcon,
   CalendarBackIcon,
   ClockIcon,
@@ -65,6 +67,7 @@ export type SettingsPage =
   | "checkinReminder"
   | "gridLayout"
   | "folders"
+  | "archive"
   | "review"
   | "privacy"
   | "terms"
@@ -93,6 +96,8 @@ interface SettingsScreenProps {
   account: AccountState;
   /** How many habit folders there are («Папки» row). */
   folderCount: number;
+  /** How many habits are in the archive («Архив» row). */
+  archiveCount: number;
   /** Web app: load the account again («Нет связи» row). */
   onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
@@ -107,6 +112,7 @@ export function SettingsScreen({
   install,
   account,
   folderCount,
+  archiveCount,
   onRetryAccount,
   onLinkTelegram,
 }: SettingsScreenProps) {
@@ -173,6 +179,17 @@ export function SettingsScreen({
         onPress={() => onOpen("folders")}
       >
         {folderCount > 0 ? <span className={styles.value}>{folderCount}</span> : null}
+        <Disclosure />
+      </ListItem>
+    );
+    const archiveRow = (
+      <ListItem
+        icon={<ArchiveIcon />}
+        iconColor="graphite"
+        label={strings.settingsArchive}
+        onPress={() => onOpen("archive")}
+      >
+        {archiveCount > 0 ? <span className={styles.value}>{archiveCount}</span> : null}
         <Disclosure />
       </ListItem>
     );
@@ -257,6 +274,7 @@ export function SettingsScreen({
           ) : null}
           {!web ? gridLayoutRow : null}
           {!web ? foldersRow : null}
+          {!web ? archiveRow : null}
           {web ? (
             <ListItem icon={<BellIcon />} iconColor="red" label={strings.notificationsRow}>
               <Switch checked={push.on} onChange={push.change} label={strings.notificationsRow} />
@@ -264,6 +282,7 @@ export function SettingsScreen({
           ) : null}
           {web ? gridLayoutRow : null}
           {web ? foldersRow : null}
+          {web ? archiveRow : null}
         </ListGroup>
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>

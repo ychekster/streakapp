@@ -26,6 +26,7 @@ import { useTimezoneSearch } from "../hooks/useTimezoneSearch";
 import { useTimezones } from "../hooks/useTimezones";
 import { useLanguage, useStrings } from "../preferences";
 import type { TimezoneEntry } from "../types/meta";
+import formStyles from "./HabitFormScreen.module.css";
 import styles from "./TimezoneScreen.module.css";
 
 /** «Город, Регион, Страна» (регион — только у одноимённых городов страны); у
@@ -63,14 +64,16 @@ export function TimezoneScreen({ currentZone, currentCity, onSelect }: TimezoneS
   const search = useTimezoneSearch(language, query);
 
   return (
-    <Screen title={strings.timezoneTitle} withTabBar={false} enterAnimation>
-      <SearchField
-        value={query}
-        onChange={setQuery}
-        placeholder={strings.timezoneSearch}
-        clearLabel={strings.timezoneSearchClear}
-      />
-      {query.trim() ? renderSearch() : renderCatalog()}
+    <Screen title={strings.timezoneTitle} withTabBar={false} enterAnimation pinnedTitle>
+      <div className={`${styles.page} ${formStyles.pinned}`}>
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder={strings.timezoneSearch}
+          clearLabel={strings.timezoneSearchClear}
+        />
+        {query.trim() ? renderSearch() : renderCatalog()}
+      </div>
     </Screen>
   );
 

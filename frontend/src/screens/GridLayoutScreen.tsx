@@ -24,6 +24,7 @@ import checkStyles from "../components/CheckButton.module.css";
 import habitStyles from "../components/HabitBlock.module.css";
 import listStyles from "../components/ListGroup.module.css";
 import styles from "./GridLayoutScreen.module.css";
+import formStyles from "./HabitFormScreen.module.css";
 
 /** Картинка: столько же кружков в ряду, сколько в сетке списка, четыре ряда. */
 const COLUMNS = GRID_COLUMNS;
@@ -48,8 +49,8 @@ export function GridLayoutScreen({ value, onChange }: GridLayoutScreenProps) {
   const day = usePreviewDay();
 
   return (
-    <Screen title={strings.gridLayoutTitle} withTabBar={false} enterAnimation>
-      <div role="radiogroup" aria-label={strings.gridLayoutTitle}>
+    <Screen title={strings.gridLayoutTitle} withTabBar={false} enterAnimation pinnedTitle>
+      <div className={formStyles.pinned} role="radiogroup" aria-label={strings.gridLayoutTitle}>
         {GRID_LAYOUTS.map((layout) => {
           const selected = layout === value;
           return (

@@ -100,6 +100,8 @@ def test_reminder_skips_done_unscheduled_and_deleted(db_url: str) -> None:
         await repo.soft_delete_task(deleted)
         frozen = await repo.create_task(1, "frozen", FrequencyType.daily, reminder_time=nine)
         await repo.freeze_task(frozen, today)
+        archived = await repo.create_task(1, "archived", FrequencyType.daily, reminder_time=nine)
+        await repo.set_archived(archived, MOMENT.replace(tzinfo=None))
 
     due = asyncio.run(_due(db_url, setup))
     assert [item.habit_name for item in due] == ["unmarked"]
@@ -167,6 +169,7 @@ def test_checkin_reminder_needs_its_day_time_and_something_to_mark(db_url: str) 
             (5, (nine, weekday)),        # нет запланированных привычек
             (6, (None, weekday)),        # выключено
             (7, (nine, weekday)),        # единственная привычка заморожена
+            (8, (nine, weekday)),        # единственная привычка в архиве
         ]:
             user = await repo.get_or_create_user(user_id, None, "U", language="en")
             await repo.update_settings(user, timezone="Europe/Moscow", checkin_reminder=reminder)
@@ -177,6 +180,8 @@ def test_checkin_reminder_needs_its_day_time_and_something_to_mark(db_url: str) 
         await repo.create_task(5, "other day", FrequencyType.specific_days, days=other_day)
         frozen = await repo.create_task(7, "frozen", FrequencyType.daily)
         await repo.freeze_task(frozen, today)
+        archived = await repo.create_task(8, "archived", FrequencyType.daily)
+        await repo.set_archived(archived, MOMENT.replace(tzinfo=None))
 
     due = asyncio.run(_due_checkin(db_url, setup))
     assert due == [DueReminder(task_id=None, user_id=1, habit_name=None, language="en")]

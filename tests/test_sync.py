@@ -232,6 +232,37 @@ def test_freeze_keeps_the_streak_and_marks_its_days(client: TestClient, user: Au
     assert habit["frozen_history"][-2:] == [False, False]
 
 
+def test_archive_hides_nothing_but_the_flag(client: TestClient, user: AuthUser) -> None:
+    """Архивная привычка — та же привычка: отмечается и считает серию, только с флагом
+    `archived`; повтор ничего не меняет, вернуть из архива — так же."""
+    today = _today(client, user)
+    created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})
+    habit_id = created["results"][0]["id"]
+
+    def archive(on: bool) -> dict[str, object]:
+        return {"type": "archive", "task": habit_id, "archived": on}
+
+    data = _sync(
+        client,
+        user,
+        archive(True),
+        archive(True),  # повтор — не ошибка
+        {"type": "mark", "task": habit_id, "date": today.isoformat(), "done": True},
+    )
+    assert all(result["ok"] for result in data["results"])
+    [habit] = data["habits"]
+    assert habit["archived"] is True
+    assert habit["done_today"] is True
+    assert habit["current_streak"] == 1
+
+    data = _sync(client, user, archive(False))
+    assert data["habits"][0]["archived"] is False
+    assert data["habits"][0]["current_streak"] == 1
+
+    data = _sync(client, user, {"type": "archive", "task": 999_999_999, "archived": True})
+    assert data["results"][0]["error"]["code"] == "task_not_found"
+
+
 def test_freeze_outside_the_history_is_refused(client: TestClient, user: AuthUser) -> None:
     today = _today(client, user)
     created = _sync(client, user, {"type": "create", "ref": "a", "habit": _habit()})

@@ -1015,6 +1015,11 @@ class Repository:
             note.text, note.updated_at = text, now
         await self.session.flush()
 
+    async def set_archived(self, task: Task, archived_at: datetime | None) -> None:
+        """Убрать задачу в архив (`archived_at` — когда) или вернуть из него (None)."""
+        task.archived_at = archived_at
+        await self.session.flush()
+
     async def freeze_task(self, task: Task, day: date) -> None:
         """Заморозить задачу с дня `day`. Уже замороженная остаётся как есть."""
         if task.frozen_since is None:

@@ -6,17 +6,19 @@
  * обведён.
  *
  * Листается стрелками в шапке и свайпом влево-вправо — от месяца начала истории до месяца
- * дня отметки; открывается на нём. Свои привычки (`onTapDay`, `onHoldDay`): дни истории по
- * день отметки нажимаются: что делает тап, решает экран (HabitSummary: окно дня, а в
- * режиме «Отметить дни» — отметка дня), удержание открывает окно дня (DaySheet). В режиме
- * отметки (`marking`) такие дни обведены бледным цветом привычки, остальные бледнеют.
- * Без них (страница другого участника) — только просмотр.
+ * дня отметки; открывается на нём. Свои привычки (`onTapDay`): дни истории по день
+ * отметки нажимаются, а что делает тап, решает экран (HabitSummary: отметка дня или окно
+ * дня). Без него (страница другого участника) — только просмотр.
+ *
+ * Тап — по самому касанию (pointerdown → pointerup на том же дне, палец почти не сдвинулся),
+ * а не по `click`: два быстрых тапа по соседним дням iOS склеивает в двойной и второй
+ * `click` присылает в точку первого — отмечался снова прежний день. `click` остаётся только
+ * для клавиатуры (у него `detail` 0).
  */
 
 import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
 import { WEEKDAYS } from "../constants";
-import { useLongPress } from "../hooks/useLongPress";
 import { useStrings } from "../preferences";
 import type { Habit } from "../types/habit";
 import { addMonths, calendarMonth, firstMonth, monthOf } from "./calendarDays";
@@ -25,16 +27,15 @@ import styles from "./HabitCalendar.module.css";
 /** Свайп короче — не листание. */
 const SWIPE_MIN_PX = 40;
 
+/** Палец сдвинулся дальше — не тап (свайп месяцев, прокрутка). */
+const TAP_SLOP_PX = 10;
+
 interface HabitCalendarProps {
   habit: Habit;
   /** День отметки («ГГГГ-ММ-ДД»). */
   day: string;
   /** Тап по дню («ГГГГ-ММ-ДД»). */
   onTapDay?: (date: string) => void;
-  /** Удержание дня — открыть окно дня. */
-  onHoldDay?: (date: string) => void;
-  /** Режим «Отметить дни»: видно, какие дни отмечаются тапом. */
-  marking?: boolean;
 }
 
 function Chevron({ back }: { back: boolean }) {
@@ -50,21 +51,16 @@ function Chevron({ back }: { back: boolean }) {
   );
 }
 
-export function HabitCalendar({
-  habit,
-  day,
-  onTapDay,
-  onHoldDay,
-  marking = false,
-}: HabitCalendarProps) {
+export function HabitCalendar({ habit, day, onTapDay }: HabitCalendarProps) {
   const strings = useStrings();
-  const longPress = useLongPress();
   const last = monthOf(day);
   const first = firstMonth(habit, day);
   const [picked, setPicked] = useState(last);
   // Месяц вне границ (сменился день или первый день) — ближайший из допустимых.
   const month = picked > last ? last : picked < first ? first : picked;
   const touch = useRef<{ x: number; y: number } | null>(null);
+  // Где начался тап по дню (pointerdown): pointerup на том же дне рядом — тап.
+  const press = useRef<{ date: string; x: number; y: number } | null>(null);
 
   function go(months: number): void {
     const next = addMonths(month, months);
@@ -97,7 +93,7 @@ export function HabitCalendar({
 
   return (
     <div
-      className={`${styles.calendar} ${marking ? styles.marking : ""}`}
+      className={styles.calendar}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -146,15 +142,33 @@ export function HabitCalendar({
           };
           const number = Number(cell.date.slice(8, 10));
           // Исправить можно дни истории по день отметки.
-          return onTapDay && onHoldDay && cell.date <= day && cell.state !== "unknown" ? (
+          return onTapDay && cell.date <= day && cell.state !== "unknown" ? (
             <button
               key={place}
               type="button"
               {...props}
               className={`${props.className} ${styles.pickable}`}
-              {...longPress.handlers(() => onHoldDay(cell.date))}
-              onClick={() => {
-                if (!longPress.consumeClick()) {
+              onPointerDown={(event) => {
+                press.current = { date: cell.date, x: event.clientX, y: event.clientY };
+              }}
+              onPointerUp={(event) => {
+                const start = press.current;
+                press.current = null;
+                if (
+                  start?.date === cell.date &&
+                  Math.hypot(event.clientX - start.x, event.clientY - start.y) <= TAP_SLOP_PX
+                ) {
+                  onTapDay(cell.date);
+                }
+              }}
+              onPointerCancel={() => {
+                press.current = null;
+              }}
+              // Без системного меню под пальцем.
+              onContextMenu={(event) => event.preventDefault()}
+              // Нажатие с клавиатуры (Enter, пробел) — тап мышью и пальцем уже учтён выше.
+              onClick={(event) => {
+                if (event.detail === 0) {
                   onTapDay(cell.date);
                 }
               }}

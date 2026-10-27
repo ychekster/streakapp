@@ -441,6 +441,23 @@ describe("deriveView", () => {
     expect(result.frozen_history.some(Boolean)).toBe(false);
   });
 
+  it("archives a habit and brings it back, keeping it working", () => {
+    const base = habit({ history: history([1]), current_streak: 1, best_streak: 1, total_done: 1 });
+    const archive: Operation = { type: "archive", task: 1, archived: true };
+    const [archived] = view(snapshot([base]), [
+      archive,
+      { type: "mark", task: 1, date: TODAY, done: true },
+    ]).habits;
+    expect(archived.archived).toBe(true);
+    expect(archived.current_streak).toBe(2);
+    const [back] = view(snapshot([{ ...base, archived: true }]), [
+      { type: "archive", task: 1, archived: false },
+    ]).habits;
+    expect(back.archived).toBe(false);
+    // Saved on the device before the archive: not in it.
+    expect(view(snapshot([base]), []).habits[0].archived).toBeFalsy();
+  });
+
   it("dates a habit created on the device by the calendar day, as the server", () => {
     const created: Operation = {
       type: "create",

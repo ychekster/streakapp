@@ -3,7 +3,8 @@
  * плашка «Отменить»): кружок прогресса цветом привычки, название, «12:34 / 45:00» и ❚❚
  * справа. Нажатие на капсулу открывает таймер на весь экран (TimerScreen), ❚❚ —
  * останавливает: время уходит в день, а капсула ещё LINGER_MS остаётся на паузе — с ▶
- * (запустить снова) — и только потом пропадает.
+ * (запустить снова) — и только потом пропадает. Капсулу на паузе можно смахнуть влево
+ * раньше (useSwipeAway); идущую — нет.
  *
  * Смонтирован всегда (App): пока таймер идёт, раз в секунду спрашивает стор, не набрана ли
  * цель (dataStore.tickTimer) — тогда вибрация, день выполнен сразу. Пока капсула видна,
@@ -14,6 +15,7 @@ import { useEffect, useState } from "react";
 
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
+import { useSwipeAway } from "../hooks/useSwipeAway";
 import { useSecondTick } from "../hooks/useTimer";
 import { useStrings } from "../preferences";
 import { hapticImpact, hapticNotification } from "../telegram/webapp";
@@ -54,6 +56,8 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
     return () => window.clearTimeout(hide);
   }, [stopped]);
 
+  const swipe = useSwipeAway(() => setShownId(null), stopped);
+
   const habitId = timer ? timer.habitId : shownId;
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
   const shown = habit !== undefined && !screenOpen;
@@ -88,8 +92,9 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
   return (
     <div
       className={`${styles.bar} ${aboveTabBar ? styles.aboveTabBar : ""}`}
-      style={habitColorStyle(habit.color)}
+      style={{ ...habitColorStyle(habit.color), ...swipe.style }}
       role="timer"
+      {...swipe.handlers}
     >
       <button
         type="button"
