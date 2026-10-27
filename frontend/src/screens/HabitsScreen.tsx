@@ -12,6 +12,7 @@ import { HabitsList } from "../components/HabitsList";
 import { Screen } from "../components/Screen";
 import { Skeleton } from "../components/Skeleton";
 import { StatusMessage } from "../components/StatusMessage";
+import { useTimerScreenHabit } from "../components/TimerScreen";
 import { describeError } from "../errors";
 import type { HabitsStatus } from "../hooks/useHabits";
 import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
@@ -72,7 +73,12 @@ export function HabitsScreen({
       bar.onSelect(next.key);
     }
   }, []);
-  useHorizontalSwipe(folders?.swipe && status === "ready" ? switchFolder : null);
+  // Таймер на весь экран поверх списка: свайп только сворачивает его (useSwipeBack в App),
+  // папку не листает.
+  const timerScreenOpen = useTimerScreenHabit() !== null;
+  useHorizontalSwipe(
+    folders?.swipe && status === "ready" && !timerScreenOpen ? switchFolder : null,
+  );
 
   return (
     <Screen title={strings.screenTitle}>
