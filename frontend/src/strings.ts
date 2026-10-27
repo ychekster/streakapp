@@ -467,6 +467,7 @@ const RU = {
   dayInfoSchedule: "График",
   // Цель того дня (день отмечается по своей, даже если цель с тех пор сменили).
   dayInfoTimesADay: "Раз в день",
+  dayInfoTimeADay: "Цель на день",
   dayInfoOf: (done: number, total: number) => `${done} из ${total}`,
   dayInfoStreakDay: "День серии",
   dayInfoGroupDone: "Группа выполнила",
@@ -988,6 +989,7 @@ const EN: Strings = {
   dayInfoNotInStats: "Not in stats",
   dayInfoSchedule: "Schedule",
   dayInfoTimesADay: "Times a day",
+  dayInfoTimeADay: "Goal for the day",
   dayInfoOf: (done: number, total: number) => `${done} of ${total}`,
   dayInfoStreakDay: "Day of the streak",
   dayInfoGroupDone: "Group done",

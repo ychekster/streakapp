@@ -50,7 +50,7 @@ and the push open the app marked «from a reminder» (`from=reminder`).
 за день на участника, тем, кто их включил. В ленте — group_mark_sent / group_mark_failed.
 
 И «цель достигнута» таймера «Цели по времени» (`backend.services.due_timer_goals`): «Учёба:
-45 мин — цель на сегодня выполнена», один раз на запуск таймера. В ленте — timer_goal_sent
+45 мин — цель выполнена», один раз на запуск таймера. В ленте — timer_goal_sent
 / timer_goal_failed.
 """
 

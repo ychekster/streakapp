@@ -42,7 +42,13 @@ export type DayStatus =
 /** Расписание, действовавшее в день. */
 export type DaySchedule = Pick<
   SchedulePeriod,
-  "frequency_type" | "days" | "start_date" | "period" | "period_times" | "times_per_day"
+  | "frequency_type"
+  | "days"
+  | "start_date"
+  | "period"
+  | "period_times"
+  | "times_per_day"
+  | "goal_unit"
 >;
 
 export interface DayInfo {

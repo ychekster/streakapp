@@ -46,6 +46,7 @@ import {
 } from "./BottomSheet";
 import { useRunningTimer } from "../hooks/useTimer";
 import { CountControls } from "./CountControls";
+import { duration } from "./timerFormat";
 import { dayInfo, type DayInfo, type DaySchedule, type DayStatus } from "./dayInfo";
 import { ClockIcon, PeopleIcon, SnowflakeIcon } from "./SettingsIcons";
 import {
@@ -346,12 +347,14 @@ function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings
     label: strings.dayInfoSchedule,
   });
   if (info.goalThen > 1 || info.goalNow > 1) {
+    // «Цель по времени» в тот день — время («45 мин»), а не число раз.
+    const timed = info.schedule.goal_unit === "seconds";
     tiles.push({
       key: "goal",
       icon: <TargetIcon />,
-      value: String(info.goalThen),
+      value: timed ? duration(info.goalThen, strings) : String(info.goalThen),
       // Цель того дня — без нынешней: день живёт по своим настройкам.
-      label: strings.dayInfoTimesADay,
+      label: timed ? strings.dayInfoTimeADay : strings.dayInfoTimesADay,
     });
   }
   if (info.group) {

@@ -182,8 +182,8 @@ GROUP_MARK_TEXTS: dict[str, str] = {
 # «Цель по времени»: идущий таймер набрал цель дня. {name} — название привычки, {goal} —
 # цель (TIMER_HOURS / TIMER_MINUTES).
 TIMER_GOAL_TEXTS: dict[str, str] = {
-    "ru": "«{name}»: {goal} — цель на сегодня выполнена",
-    "en": "“{name}”: {goal} — today’s goal is done",
+    "ru": "«{name}»: {goal} — цель выполнена",
+    "en": "“{name}”: {goal} — goal done",
 }
 # Цель в уведомлении: «1 ч 30 мин», «45 мин», «2 ч».
 TIMER_HOURS: dict[str, str] = {"ru": "{} ч", "en": "{} h"}
