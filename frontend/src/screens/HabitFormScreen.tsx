@@ -490,7 +490,9 @@ export function HabitFormScreen({
       </ListItem>
       {timesPerDay > 1 ? (
         <ListItem label={strings.formOvertimeToggle}>
-          <Switch checked={overtime} onChange={setOvertime} label={strings.formOvertimeToggle} />
+          <span className={styles.overtimeSwitch}>
+            <Switch checked={overtime} onChange={setOvertime} label={strings.formOvertimeToggle} />
+          </span>
         </ListItem>
       ) : null}
     </>

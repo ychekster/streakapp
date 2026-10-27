@@ -141,3 +141,10 @@
 .removeReminder[data-pressed] .minus {
   opacity: 0.6;
 }
+
+/* Переключатель «Можно больше цели» — по одной вертикали с переключателем автоотметки на
+   экране привычки (HabitScreen .autoMarkSwitch): на 2px левее остальных. */
+.overtimeSwitch {
+  display: flex;
+  margin-right: 2px;
+}
