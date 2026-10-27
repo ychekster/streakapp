@@ -137,8 +137,12 @@ export function HabitSummary({
   const strings = useStrings();
   const language = useLanguage();
   const markDay = useGridView().day;
-  // «Отметить» у календаря: тап по дню отмечает его, а не открывает окно дня.
-  const [marking, setMarking] = useState(false);
+  // «Отметить дни» у календаря: тап по дню отмечает его, а не открывает окно дня. Только
+  // у «раз в день»: у «несколько раз в день» по кружку не видно, сколько набрано, — счёт
+  // ставится в окне дня.
+  const canMark = onToggle !== undefined && habit.times_per_day === 1;
+  const [markingOn, setMarking] = useState(false);
+  const marking = markingOn && canMark;
   // Ушли с экрана привычки («Назад») — окно её дня закрывается вместе с ним.
   useEffect(() => closeDaySheet, []);
   const days = markDay ? trackedDays(habit, markDay) : 0;
@@ -194,7 +198,7 @@ export function HabitSummary({
         <Section
           title={headings.calendar}
           action={
-            onToggle ? (
+            canMark ? (
               <button
                 type="button"
                 className={styles.markButton}
@@ -211,9 +215,8 @@ export function HabitSummary({
               habit={habit}
               day={markDay}
               marking={marking}
-              // Свои привычки: тап по дню открывает окно дня, а в режиме «Отметить»
-              // отмечает день, как кнопка в списке («раз в день» — отметить / снять,
-              // «несколько раз в день» — ещё раз до цели, выполненный — с нуля).
+              // Свои привычки: тап по дню открывает окно дня, а в режиме «Отметить дни»
+              // отмечает день по цели того дня (dataStore.toggleDay).
               onTapDay={
                 onToggle
                   ? (date) => {
