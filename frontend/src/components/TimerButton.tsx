@@ -1,7 +1,9 @@
 /** Кнопка привычки «Цель по времени» вместо кнопки отметки (CheckButton): тот же кружок
- *  30px с дугой прогресса, но посередине ▶ — запустить таймер, а пока он идёт — ❚❚
- *  (остановить), и дуга растёт каждую секунду. Набрана цель — кружок залит, посередине
- *  галочка (пока таймер идёт с «Сверх плана» — ❚❚ на заливке).
+ *  30px с бледной обводкой и дугой прогресса, но посередине ▶ — запустить таймер, а пока
+ *  он идёт — ❚❚ (остановить); обводка остаётся бледной, дуга растёт каждую секунду и
+ *  плавно (как у «несколько раз в день», в том числе при правке в окне времени). Набрана
+ *  цель — кружок залит, посередине галочка; с «Сверх плана» — ▶ на заливке (таймер идёт
+ *  дальше цели, тогда ❚❚).
  *
  *  Время идущего таймера читается из стора раз в секунду (hooks/useTimer.ts): сама
  *  привычка в списке при этом не меняется — блок со всей сеткой не перерисовывается.
@@ -12,6 +14,7 @@ import { useLongPress } from "../hooks/useLongPress";
 import { useRunningTimer } from "../hooks/useTimer";
 import { useStrings } from "../preferences";
 import type { Habit } from "../types/habit";
+import { useAnimatedFraction } from "./CheckButton";
 import { duration } from "./timerFormat";
 import checkStyles from "./CheckButton.module.css";
 import styles from "./TimerButton.module.css";
@@ -49,7 +52,7 @@ export function TimerButton({
   const done = habit.done_today || seconds >= goal;
   const longPress = useLongPress();
   const holdHandlers = disabled || !onLongPress ? {} : longPress.handlers(onLongPress);
-  const fraction = done ? 0 : Math.min(seconds / goal, 1);
+  const fraction = useAnimatedFraction(done ? 0 : Math.min(seconds / goal, 1));
   return (
     <button
       type="button"
@@ -58,7 +61,6 @@ export function TimerButton({
         checkStyles.multi,
         styles.timer,
         done ? `${checkStyles.done} ${styles.filled}` : "",
-        mine ? styles.running : "",
         disabled ? checkStyles.disabled : "",
         bonus && !disabled ? checkStyles.bonus : "",
       ]
@@ -99,7 +101,7 @@ export function TimerButton({
           <rect x="6.5" y="5.5" width="3.6" height="13" rx="1.2" fill="currentColor" />
           <rect x="13.9" y="5.5" width="3.6" height="13" rx="1.2" fill="currentColor" />
         </svg>
-      ) : done ? (
+      ) : done && !habit.overtime ? (
         <svg className={checkStyles.check} viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
             d="M5 12.75l4.5 4.5L19 7.75"
@@ -110,9 +112,9 @@ export function TimerButton({
           />
         </svg>
       ) : (
-        // Треугольник чуть правее центра — так он выглядит посередине кружка.
+        // Треугольник на волосок правее центра — так он выглядит посередине кружка.
         <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8.5 5.6v12.8a1 1 0 0 0 1.5.86l10.2-6.4a1 1 0 0 0 0-1.72L10 4.74a1 1 0 0 0-1.5.86z" fill="currentColor" />
+          <path d="M7.2 5.6v12.8a1 1 0 0 0 1.5.86l10.2-6.4a1 1 0 0 0 0-1.72L8.7 4.74a1 1 0 0 0-1.5.86z" fill="currentColor" />
         </svg>
       )}
     </button>

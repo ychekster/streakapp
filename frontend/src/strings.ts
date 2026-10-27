@@ -507,6 +507,10 @@ const RU = {
   // Цель: сколько раз в день выполнить привычку («1 раз в день», «3 раза в день»,
   // «5 раз в день»), степпер −/+.
   formGoalHeading: "Цель",
+  // «По времени» — вместо галочки таймер ▶, цель — время в день.
+  formGoalType: "Тип цели",
+  formGoalByCount: "По количеству",
+  formGoalByTime: "По времени",
   formTimesPerDay: (count: number) => `${count} ${ruTimes(count)} в день`,
   formTimesLess: "Меньше раз в день",
   formTimesMore: "Больше раз в день",
@@ -526,11 +530,6 @@ const RU = {
   formAutoMarkFooter:
     "Привычка отмечается сама: без напоминания в начале дня, а с напоминанием сразу после того, как оно придёт.",
   formOvertimeToggle: "Можно больше цели",
-  // «Цель по времени» в «Дополнительно» — только у личных привычек.
-  formTimerHeading: "Цель по времени",
-  formTimerToggle: "Таймер вместо отметки",
-  formTimerFooter:
-    "Вместо галочки — кнопка ▶: запустите таймер, и время сохранится в привычке. День выполнен, когда набрана цель. Сколько всего времени ушло, видно на экране привычки.",
   // «Групповая привычка» — пока в привычке никого, кроме вас; подпись — что это и как
   // пригласить.
   formSharedHeading: "Групповая привычка (Beta)",
@@ -1019,6 +1018,9 @@ const EN: Strings = {
   dateToday: "Today",
   dateTomorrow: "Tomorrow",
   formGoalHeading: "Goal",
+  formGoalType: "Goal Type",
+  formGoalByCount: "By Count",
+  formGoalByTime: "By Time",
   formTimesPerDay: (count: number) =>
     count === 1 ? "Once a day" : count === 2 ? "Twice a day" : `${count} times a day`,
   formTimesLess: "Fewer times a day",
@@ -1038,10 +1040,6 @@ const EN: Strings = {
   formAutoMarkFooter:
     "The habit checks itself off at the start of the day, or right after its reminder if it has one.",
   formOvertimeToggle: "Allow More Than the Goal",
-  formTimerHeading: "Time Goal",
-  formTimerToggle: "Timer Instead of a Check",
-  formTimerFooter:
-    "Instead of a check — a ▶ button: start the timer and the time is saved in the habit. A day is done once the goal is reached. The habit’s screen shows how much time it has taken in all.",
   formSharedHeading: "Group Habit (Beta)",
   formSharedToggle: "Do It with Friends",
   formSharedFooter:

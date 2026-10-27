@@ -18,12 +18,14 @@
  *    сколько раз за него («3 раза в неделю», степпер −/+; у года — число вводится с
  *    цифровой клавиатуры) в любые дни. Цель больше дней короткого месяца (года) в нём
  *    молча считается по числу дней;
- *  - Цель — сколько раз в день выполнить привычку («1 раз в день», степпер −/+). Больше
- *    одного раза — кружок отметки бледный, внутри — сколько раз осталось, каждое нажатие
- *    закрашивает его часть (CheckButton). Тогда в той же карточке — переключатель «Можно
- *    больше цели» («Сверх плана»: на цели нажатие открывает окно счёта, CountSheet). С
- *    «Целью по времени» вместо раз — время в день («45 мин в день», степпер по 5 минут) и
- *    тот же переключатель;
+ *  - Цель — сначала «Тип цели»: «По количеству» или «По времени» (у групповой ряда нет —
+ *    только по количеству). По количеству — сколько раз в день выполнить привычку («1 раз
+ *    в день», степпер −/+). Больше одного раза — кружок отметки бледный, внутри — сколько
+ *    раз осталось, каждое нажатие закрашивает его часть (CheckButton). Тогда в той же
+ *    карточке — переключатель «Можно больше цели» («Сверх плана»: на цели нажатие
+ *    открывает окно счёта, CountSheet). По времени — время в день («45 мин в день»,
+ *    степпер по минуте), вместо галочки кнопка ▶ (TimerButton); больше цели можно всегда
+ *    (переключателя нет), автоотметки и «Групповой привычки» нет;
  *  - Напоминание — выключено или включено со временем: тогда в этот день и время бот
  *    пришлёт в чат «🔔 Пора выполнить «…»» (bot/reminders.py). «Добавить напоминание»
  *    добавляет ещё одну строку со временем (до MAX_REMINDERS_PER_HABIT; новое — на час
@@ -45,9 +47,6 @@
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза (и
  *    по времени) ряд пропадает; в групповой его нет;
- *  - Цель по времени — «Таймер вместо отметки»: вместо галочки кнопка ▶ (TimerButton),
- *    цель — время в день. Только у личных привычек: в групповой (и пока включён
- *    «Вести с друзьями») ряда нет, а с таймером нет «Групповой привычки»;
  *  - Групповая привычка — переключатель «Вести с друзьями» с пояснением, пока в привычке
  *    никого, кроме пользователя (новая, обычная или групповая без других): что это и как
  *    пригласить, сказано в подписи под ним. Гостю веб-приложения — предложение войти через
@@ -87,6 +86,7 @@ import {
   DEFAULT_REMINDER_TIME,
   HABIT_DESCRIPTION_MAX_LENGTH,
   GOAL_STEP_SECONDS,
+  MIN_GOAL_SECONDS,
   MAX_GOAL_SECONDS,
   MAX_REMINDERS_PER_HABIT,
   MAX_TIMES_PER_DAY,
@@ -106,7 +106,14 @@ import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
 import { hapticNotification, showAlert } from "../telegram/webapp";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
-import type { FrequencyType, Habit, HabitColor, HabitInput, Period } from "../types/habit";
+import type {
+  FrequencyType,
+  GoalUnit,
+  Habit,
+  HabitColor,
+  HabitInput,
+  Period,
+} from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import { weekdayLabel } from "../weekdayLabel";
 import styles from "./HabitFormScreen.module.css";
@@ -208,6 +215,10 @@ export function HabitFormScreen({
     { value: "every_other_day", label: strings.formEveryOtherDay },
     { value: "monthly", label: strings.formMonthly },
     { value: "flexible", label: strings.formFlexible },
+  ] as const;
+  const goalTypeOptions = [
+    { value: "times", label: strings.formGoalByCount },
+    { value: "seconds", label: strings.formGoalByTime },
   ] as const;
   const periodOptions = (["week", "month", "year"] as const).map((value) => ({
     value,
@@ -364,7 +375,8 @@ export function HabitFormScreen({
       goal_unit: timed ? "seconds" : "times",
       // У «несколько раз в день», по времени и в групповой автоотметки нет (ряд скрыт).
       auto_mark: autoMark && !timed && timesPerDay === 1 && !shared,
-      overtime: overtime && (timed || timesPerDay > 1),
+      // По времени больше цели можно всегда.
+      overtime: timed || (overtime && timesPerDay > 1),
       // Только если переключатель изменили: иначе привычка такая, какая есть на сервере.
       ...(shared !== wasShared ? { shared } : {}),
     };
@@ -495,12 +507,23 @@ export function HabitFormScreen({
 
   const goalRows = (
     <>
+      {/* В групповой цель только по количеству. */}
+      {!shared ? (
+        <ListItem label={strings.formGoalType}>
+          <MenuSelect<GoalUnit>
+            options={goalTypeOptions}
+            value={timed ? "seconds" : "times"}
+            onChange={(unit) => setTimed(unit === "seconds")}
+            label={strings.formGoalType}
+          />
+        </ListItem>
+      ) : null}
       {timed ? (
         <ListItem label={strings.formGoalTime(duration(goalSeconds, strings))}>
-          {/* Шагами по 5 минут: от 5 минут до суток. */}
+          {/* Шагами по минуте: от минуты до суток. */}
           <Stepper
             value={Math.max(1, Math.round(goalSeconds / GOAL_STEP_SECONDS))}
-            min={1}
+            min={MIN_GOAL_SECONDS / GOAL_STEP_SECONDS}
             max={MAX_GOAL_SECONDS / GOAL_STEP_SECONDS}
             onChange={(steps) => setGoalSeconds(steps * GOAL_STEP_SECONDS)}
             decreaseLabel={strings.formTimeLess}
@@ -519,7 +542,7 @@ export function HabitFormScreen({
           />
         </ListItem>
       )}
-      {timed || timesPerDay > 1 ? (
+      {!timed && timesPerDay > 1 ? (
         <ListItem label={strings.formOvertimeToggle}>
           <span className={styles.overtimeSwitch}>
             <Switch checked={overtime} onChange={setOvertime} label={strings.formOvertimeToggle} />
@@ -608,20 +631,6 @@ export function HabitFormScreen({
             </Section>
           ) : null}
 
-          {!shared ? (
-            <Section
-              variant="form"
-              title={strings.formTimerHeading}
-              footer={strings.formTimerFooter}
-            >
-              <Card>
-                <ListItem label={strings.formTimerToggle}>
-                  <Switch checked={timed} onChange={setTimed} label={strings.formTimerToggle} />
-                </ListItem>
-              </Card>
-            </Section>
-          ) : null}
-
           {canSwitchShared && !timed ? (
             <Section
               variant="form"
@@ -688,7 +697,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {!shared || canSwitchShared ? (
+        {!timed && ((timesPerDay === 1 && !shared) || canSwitchShared) ? (
           <Section variant="form">
             <Card>
               <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>

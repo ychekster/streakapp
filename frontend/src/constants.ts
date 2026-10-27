@@ -266,7 +266,7 @@ export const OVERTIME_MAX_COUNT = 999999;
 export const MIN_GOAL_SECONDS = 60;
 export const MAX_GOAL_SECONDS = 24 * 60 * 60;
 /** The form's time goal −/+ step and the goal of a habit switched to time. */
-export const GOAL_STEP_SECONDS = 5 * 60;
+export const GOAL_STEP_SECONDS = 60;
 export const DEFAULT_GOAL_SECONDS = 30 * 60;
 
 /** «Гибкий график»: periods and the most times a period can ask for — the longest such

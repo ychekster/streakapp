@@ -42,7 +42,7 @@ function easeOut(t: number): number {
 
 /** Доля, плавно догоняющая `target` за FILL_MS, когда растёт; уменьшается сразу (и
  *  всегда сразу при reduced motion). */
-function useAnimatedFraction(target: number): number {
+export function useAnimatedFraction(target: number): number {
   const [value, setValue] = useState(target);
   const current = useRef(target);
   useEffect(() => {

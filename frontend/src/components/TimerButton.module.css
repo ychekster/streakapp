@@ -19,8 +19,3 @@
 .filled .icon {
   color: var(--color-check-icon);
 }
-
-/* Идёт таймер — обводка полным цветом, как у нажатой кнопки. */
-.timer.running {
-  border-color: rgb(var(--habit-rgb));
-}
