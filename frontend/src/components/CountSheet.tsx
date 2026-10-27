@@ -1,7 +1,7 @@
 /**
- * Окно счёта привычки «Сверх плана»: открывается удержанием кнопки отметки или нажатием на
- * неё, когда цель уже набрана (HabitBlock → openCountSheet), и всплывает снизу поверх
- * экрана (BottomSheet).
+ * Окно счёта привычки «несколько раз в день»: открывается удержанием кнопки отметки или
+ * нажатием на неё, когда цель уже набрана (HabitBlock → openCountSheet), и всплывает снизу
+ * поверх экрана (BottomSheet). Выше цели и быстрые «+1 … +100» — только у «Сверх плана».
  *
  * Шапка — день отметки, название привычки и «×»; под ней счёт за день (CountControls:
  * прогресс, «−» / число / «+», быстрые «+1 … +100», «Сбросить» и «Заполнить день»). Всё
@@ -58,8 +58,8 @@ export function CountSheet() {
   // Показанная привычка: после закрытия окно ещё уезжает вниз (closing) с ней же.
   const { shown: habitId, closing, gone } = useSheetContent(useCountSheetHabit());
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
-  // Привычку удалили, заморозили, выключили ей «Сверх плана» — окну нечего показывать.
-  const usable = habit !== undefined && habit.overtime === true && habit.frozen_since === null;
+  // Привычку удалили, заморозили, сделали «раз в день» — окну нечего показывать.
+  const usable = habit !== undefined && habit.times_per_day > 1 && habit.frozen_since === null;
 
   useEffect(() => {
     if (!closing && habitId !== null && !usable) {
@@ -88,8 +88,8 @@ export function CountSheet() {
         key={id}
         count={habit.today_count}
         goal={habit.times_per_day}
-        max={OVERTIME_MAX_COUNT}
-        quick
+        max={habit.overtime ? OVERTIME_MAX_COUNT : habit.times_per_day}
+        quick={habit.overtime === true}
         current={() =>
           dataStore.getState().habits.find((item) => item.id === id)?.today_count ?? 0
         }

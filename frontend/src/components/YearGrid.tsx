@@ -32,6 +32,8 @@ interface YearGridProps {
   counts?: readonly number[];
   /** Цель на день (`times_per_day`): доля неполного дня — counts / total. */
   total?: number;
+  /** Цель каждого дня (цель меняли: у прошлых дней — своя) — вместо `total`. */
+  totals?: readonly number[];
   /** Совместная привычка: доля дня, выполненная всеми (0…1), — вместо `counts`. */
   fills?: readonly number[];
   /** Кружков в ряду. */
@@ -47,6 +49,7 @@ export function YearGrid({
   frozen = [],
   counts = [],
   total = 1,
+  totals,
   fills,
   columns = GRID_COLUMNS,
   cells = history.length,
@@ -62,10 +65,11 @@ export function YearGrid({
       aria-label={strings.habitHistoryLabel}
     >
       {history.map((done, index) => {
+        const goal = totals?.[index] ?? total;
         const part = fills
           ? (fills[index] ?? 0)
-          : total > 1
-            ? Math.min((counts[index] ?? 0) / total, 1)
+          : goal > 1
+            ? Math.min((counts[index] ?? 0) / goal, 1)
             : 0;
         if (!done && !frozen[index] && part > 0) {
           return (

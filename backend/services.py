@@ -431,7 +431,7 @@ def build_habit(
                 (day_counts or {}).get(history_start + timedelta(days=offset), 0)
                 for offset in range(HISTORY_DAYS)
             ]
-            if task.times_per_day > 1
+            if counts_by_day(task, periods)
             else []
         ),
         next_day_done=next_day_done and (group is None or group.view.others_next_day),
@@ -447,6 +447,7 @@ def build_habit(
                 period=period.period,
                 period_times=period.period_times,
                 times_per_day=period.times_per_day,
+                overtime=period.overtime and period.times_per_day > 1,
             )
             for period in periods
         ],
@@ -521,12 +522,14 @@ async def _build_habits(
     # — выключили режим, и сегодняшние отметки видны сразу, без ответа сервера.
     done = await repo.get_done_dates(task_ids, calendar)
     freezes = await repo.get_freezes(task_ids)
-    # Счёт по дням нужен только привычкам «несколько раз в день».
+    periods = await repo.get_schedule_periods(task_ids)
+    # Счёт по дням нужен только привычкам «несколько раз в день» (сейчас или раньше).
     counts = await repo.get_history_counts(
-        [task.id for task in tasks if task.times_per_day > 1], _history_start(today), calendar
+        [task.id for task in tasks if counts_by_day(task, periods[task.id])],
+        _history_start(today),
+        calendar,
     )
     ahead = await _auto_mark_ahead(repo, user, task_ids)
-    periods = await repo.get_schedule_periods(task_ids)
     notes = await repo.get_notes(task_ids, _history_start(today), today)
     members = await repo.members_of_tasks(task_ids) if with_groups else {}
     states = await groups.load_groups(repo, {member.group_id for member in members.values()})
@@ -730,7 +733,7 @@ async def update_habit(
     auto_mark_turned_on = fields.auto_mark and not task.auto_mark
     await remember_schedule(
         repo, user, task, fields.frequency_type, fields.days, fields.start_date,
-        fields.times_per_day, fields.period, fields.period_times,
+        fields.times_per_day, fields.period, fields.period_times, fields.overtime,
     )
     await repo.update_task(
         task,
@@ -775,6 +778,23 @@ async def update_habit(
     return await _built_habit(repo, user, task)
 
 
+def goal_on(task: Task, periods: Sequence[TaskSchedulePeriod], day: date) -> tuple[int, bool]:
+    """Цель «раз в день» и «Сверх плана», действовавшие в день `day` (прежнее расписание
+    или текущее)."""
+    goal, overtime = task.times_per_day, task.overtime
+    for period in periods:
+        if day < period.until:
+            goal, overtime = period.times_per_day, period.overtime
+            break
+    return goal, overtime and goal > 1
+
+
+def counts_by_day(task: Task, periods: Sequence[TaskSchedulePeriod]) -> bool:
+    """Нужен ли счёт по дням: привычка «несколько раз в день» сейчас или в каком-то из
+    прежних расписаний."""
+    return task.times_per_day > 1 or any(period.times_per_day > 1 for period in periods)
+
+
 async def remember_schedule(
     repo: Repository,
     user: User,
@@ -785,10 +805,11 @@ async def remember_schedule(
     times_per_day: int,
     period: str | None = None,
     period_times: int | None = None,
+    overtime: bool = False,
 ) -> None:
     """Расписание задачи меняется на это (повтор, дни, первый день, период «Гибкого
-    графика» или цель) — запомнить прежнее как действовавшее до дня отметки. У привычки,
-    созданной в этот же день, прошлого нет — запоминать нечего."""
+    графика», цель или «Сверх плана») — запомнить прежнее как действовавшее до дня
+    отметки. У привычки, созданной в этот же день, прошлого нет — запоминать нечего."""
     changed = (
         task.frequency_type != frequency_type
         or (task.days or None) != (days or None)
@@ -796,6 +817,7 @@ async def remember_schedule(
         or task.times_per_day != times_per_day
         or task.period != period
         or task.period_times != period_times
+        or (task.overtime and task.times_per_day > 1) != (overtime and times_per_day > 1)
     )
     today = user_today(user)
     if changed and created_day(task, user) < today:
@@ -958,12 +980,16 @@ async def _apply_sync_op(
         if not today - timedelta(days=HISTORY_DAYS) < op.date <= today:
             raise ApiError(422, "invalid_date", "День вне истории привычки")
         log = await repo.get_or_create_log(task.id, user.telegram_id, op.date)
+        # День — по цели и «Сверх плана», которые действовали в тот день (прошлое не
+        # переписывается сменой настроек).
+        periods = (await repo.get_schedule_periods([task.id]))[task.id]
+        goal, overtime = goal_on(task, periods, op.date)
         # Больше цели — только у «Сверх плана» (отметка могла ждать в очереди, пока
         # настройку выключили).
-        if op.count is not None and not task.overtime:
-            op = op.model_copy(update={"count": min(op.count, task.times_per_day)})
-        # Привычка «несколько раз в день»: день выполнен, когда набрано times_per_day.
-        done = op.done if op.count is None else op.count >= task.times_per_day
+        if op.count is not None and not overtime:
+            op = op.model_copy(update={"count": min(op.count, goal)})
+        # Привычка «несколько раз в день»: день выполнен, когда набрана цель того дня.
+        done = op.done if op.count is None else op.count >= goal
         # Отметить можно любой день, и незапланированный тоже (и сверх цели «Гибкого
         # графика»): такая отметка — бонусная, в статистику не идёт (counted_days).
         target = TaskStatus.done if done else TaskStatus.pending

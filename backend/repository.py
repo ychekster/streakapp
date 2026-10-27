@@ -1066,6 +1066,7 @@ class Repository:
                 period=task.period,
                 period_times=task.period_times,
                 times_per_day=task.times_per_day,
+                overtime=task.overtime,
             )
         )
         await self.session.flush()

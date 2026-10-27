@@ -210,6 +210,7 @@ export function isDueOn(habit: Schedule, day: string): boolean {
  *  in force (models.TaskSchedulePeriod). */
 export type ScheduleWithHistory = Schedule & {
   times_per_day: number;
+  overtime?: boolean;
   schedule_history?: readonly SchedulePeriod[];
   /** A shared habit: from this day the day is not over for someone (time zones). */
   open_from?: string | null;
@@ -246,9 +247,42 @@ export function groupFill(habit: Habit): number[] | null {
  *  (schedule.due_check_with_history). */
 export function scheduleOn(
   habit: ScheduleWithHistory,
-): (day: string) => Schedule & { times_per_day: number } {
+): (day: string) => Schedule & { times_per_day: number; overtime?: boolean } {
   const periods = habit.schedule_history ?? [];
   return (day) => periods.find((period) => day < period.until) ?? habit;
+}
+
+/** The goal (times a day) and «Сверх плана» in force on a day: a past schedule's or the
+ *  current (services.goal_on). A past day is marked and judged by them. */
+export function goalOn(
+  habit: ScheduleWithHistory,
+  day: string,
+): { goal: number; overtime: boolean } {
+  const schedule = scheduleOn(habit)(day);
+  return {
+    goal: schedule.times_per_day,
+    overtime: (schedule.overtime ?? false) && schedule.times_per_day > 1,
+  };
+}
+
+/** Are counts kept by day (`history_counts`): done several times a day now or under a
+ *  past schedule (services.counts_by_day). */
+export function countsByDay(habit: ScheduleWithHistory): boolean {
+  return (
+    habit.times_per_day > 1 || (habit.schedule_history ?? []).some((period) => period.times_per_day > 1)
+  );
+}
+
+/** Each history day's goal (old → `day`, the marking day) — the grid shades a partial day
+ *  by its own goal; null when the goal never changed (then it is `times_per_day`). */
+export function historyGoals(habit: Habit, day: string): number[] | null {
+  const periods = habit.schedule_history ?? [];
+  if (periods.every((period) => period.times_per_day === habit.times_per_day)) {
+    return null;
+  }
+  const on = scheduleOn(habit);
+  const start = addDays(day, 1 - habit.history.length);
+  return habit.history.map((_, index) => on(addDays(start, index)).times_per_day);
 }
 
 /** My mark on `date` (the day window in the calendar): done and how many times; `day` —
@@ -267,9 +301,11 @@ export function myDay(
     return { done: false, count: 0 };
   }
   const counts = habit.history_counts ?? [];
-  if (isShared(habit) || habit.times_per_day > 1) {
+  // By the goal of that day: a past day is judged by its own settings.
+  const { goal } = goalOn(habit, date);
+  if (isShared(habit) || goal > 1) {
     const count = counts[index] ?? 0;
-    return { done: count >= habit.times_per_day, count };
+    return { done: count >= goal, count };
   }
   const done = habit.history[index] ?? false;
   return { done, count: Number(done) };
@@ -334,17 +370,19 @@ export function countedHistory(
   return habit.history.map((_, index) => counted.has(addDays(first, index)));
 }
 
-/** Does a form change the schedule (repeat, days, first day or times a day) —
+/** Does a form change the schedule (repeat, days, first day, times a day or «Сверх плана») —
  *  services._schedule_changed. */
 function scheduleChanged(
-  before: Schedule & { times_per_day: number },
-  after: Schedule & { times_per_day: number },
+  before: Schedule & { times_per_day: number; overtime?: boolean },
+  after: Schedule & { times_per_day: number; overtime?: boolean },
 ): boolean {
   return (
     before.frequency_type !== after.frequency_type ||
     before.days.join(",") !== after.days.join(",") ||
     before.start_date !== after.start_date ||
     before.times_per_day !== after.times_per_day ||
+    (before.overtime === true && before.times_per_day > 1) !==
+      (after.overtime === true && after.times_per_day > 1) ||
     (before.period ?? null) !== (after.period ?? null) ||
     (before.period_times ?? null) !== (after.period_times ?? null)
   );
@@ -876,7 +914,11 @@ function buildHabit(
     return Math.min((others + myUnits(day)) / (Math.max(people, 1) * target), 1);
   };
   const fillHistory: number[] = [];
-  const severalTimes = fields.times_per_day > 1;
+  // As the server: counts by day — done several times a day now or in a past schedule.
+  const severalTimes = countsByDay({
+    ...fields,
+    schedule_history: draft.periods ?? base?.schedule_history ?? [],
+  });
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
   const historyCounts: number[] = [];
@@ -1104,6 +1146,7 @@ export function deriveView(
               period: before.period,
               period_times: before.period_times,
               times_per_day: before.times_per_day,
+              overtime: before.overtime === true && before.times_per_day > 1,
             },
           ];
         }
@@ -1134,9 +1177,13 @@ export function deriveView(
           draft.counts.set(op.date, 0);
           draft.marks.set(op.date, op.done);
         } else {
-          // Past the goal only with «Сверх плана» (a press may have waited in the queue).
-          const target = fields?.times_per_day ?? 1;
-          const count = fields?.overtime ? op.count : Math.min(op.count, target);
+          // By the goal and «Сверх плана» of that day (services.goal_on); past the goal
+          // only with «Сверх плана» (a press may have waited in the queue).
+          const periods = draft.periods ?? draft.base?.schedule_history ?? [];
+          const { goal: target, overtime } = fields
+            ? goalOn({ ...fields, schedule_history: periods }, op.date)
+            : { goal: 1, overtime: false };
+          const count = overtime ? op.count : Math.min(op.count, target);
           draft.counts.set(op.date, count);
           draft.marks.set(op.date, count >= target);
         }

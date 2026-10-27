@@ -191,6 +191,8 @@ export interface SchedulePeriod {
   period?: Period | null;
   period_times?: number | null;
   times_per_day: number;
+  /** «Сверх плана» в дни этого расписания (нет у ответов до него — выключен). */
+  overtime?: boolean;
 }
 
 /** Частота выполнения привычки; flexible — «Гибкий график»: N дней за период в любые дни. */

@@ -15,10 +15,10 @@
  * сегодня точка (он не в углу сетки, и иначе его не найти).
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 
 import { GRID_COLUMNS, GRID_DAYS } from "../constants";
-import { groupFill } from "../data/derive";
+import { groupFill, historyGoals } from "../data/derive";
 import { endBurst } from "../hooks/useToggle";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
@@ -53,8 +53,12 @@ export const HabitBlock = memo(function HabitBlock({
 }: HabitBlockProps) {
   const strings = useStrings();
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
-  const fill = fixedGridFill(useGridView(), habit, gridDays);
+  const gridView = useGridView();
+  const fill = fixedGridFill(gridView, habit, gridDays);
   const shown = fill ?? gridDays;
+  // Неполный день закрашивается по цели того дня (цель меняли — у дней своя).
+  const day = gridView.day;
+  const goals = useMemo(() => (day ? historyGoals(habit, day) : null), [habit, day]);
   return (
     <article
       className={`${styles.block} ${onOpen ? styles.openable : ""}`}
@@ -82,11 +86,12 @@ export const HabitBlock = memo(function HabitBlock({
           total={habit.times_per_day}
           count={habit.today_count}
           countUp={habit.overtime}
-          // Отмечать можно — удержание открывает окно счёта (у «Сверх плана»).
+          // Отмечать можно — удержание открывает окно счёта («несколько раз в день»).
           onLongPress={onToggle ? () => openSheet(habit.id) : undefined}
-          // «Сверх плана» на цели: нажатие уже не прибавляет, а открывает окно счёта.
+          // «Несколько раз в день» на цели: нажатие уже не прибавляет и не обнуляет день, а
+          // открывает окно счёта.
           onToggle={() =>
-            habit.overtime && habit.today_count >= habit.times_per_day
+            habit.times_per_day > 1 && habit.today_count >= habit.times_per_day
               ? openSheet(habit.id)
               : onToggle?.(habit.id)
           }
@@ -97,6 +102,7 @@ export const HabitBlock = memo(function HabitBlock({
         frozen={habit.frozen_history.slice(-shown)}
         counts={(habit.history_counts ?? []).slice(-shown)}
         total={habit.times_per_day}
+        totals={goals?.slice(-shown)}
         fills={groupFill(habit)?.slice(-shown)}
         columns={gridColumns}
         cells={gridDays}

@@ -12,9 +12,11 @@ import { addDays, markingDay, weekdayIndex } from "./dates";
 import {
   cleanHabitName,
   deriveView,
+  goalOn,
   groupFill,
   isDueOn,
   isShared,
+  myDay,
   periodBounds,
   periodQuota,
   reuseUnchanged,
@@ -268,6 +270,26 @@ describe("deriveView", () => {
     expect(view(snapshot([habit({ times_per_day: 3 })]), [mark]).habits[0].today_count).toBe(3);
     const over = view(snapshot([habit({ times_per_day: 3, overtime: true })]), [mark]).habits[0];
     expect(over).toMatchObject({ today_count: 5, done_today: true, current_streak: 1 });
+  });
+
+  it("marks a past day by the goal of that day", () => {
+    // Once a day until today, now 3 times with «Сверх плана»: yesterday counts to 1 and is
+    // done at 1; today counts to the new goal and past it.
+    const yesterday = addDays(TODAY, -1);
+    const base = habit({
+      times_per_day: 3,
+      overtime: true,
+      schedule_history: [{ until: TODAY, frequency_type: "daily", days: [], start_date: null, times_per_day: 1 }],
+    });
+    const [result] = view(snapshot([base]), [
+      { type: "mark", task: 1, date: yesterday, done: true, count: 5 },
+      { type: "mark", task: 1, date: TODAY, done: true, count: 5 },
+    ]).habits;
+    expect(result.history.slice(-2)).toEqual([true, true]);
+    expect(result.history_counts?.slice(-2)).toEqual([1, 5]);
+    expect(myDay(result, yesterday, TODAY)).toEqual({ done: true, count: 1 });
+    expect(goalOn(result, yesterday)).toEqual({ goal: 1, overtime: false });
+    expect(goalOn(result, TODAY)).toEqual({ goal: 3, overtime: true });
   });
 
   it("returns the server's habits as they are when nothing changed", () => {
@@ -559,7 +581,14 @@ describe("schedule history", () => {
     ]);
     const [changed] = result.habits;
     expect(changed.schedule_history).toEqual([
-      { until: TODAY, ...everyOtherDay, period: null, period_times: null, times_per_day: 1 },
+      {
+        until: TODAY,
+        ...everyOtherDay,
+        period: null,
+        period_times: null,
+        times_per_day: 1,
+        overtime: false,
+      },
     ]);
     expect(changed.current_streak).toBe(4);
     expect(changed.scheduled_today).toBe(false);

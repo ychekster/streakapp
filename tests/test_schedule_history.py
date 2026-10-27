@@ -11,8 +11,8 @@ from backend.database import Database
 from backend.models import FrequencyType
 from backend.repository import Repository, utc_now
 from backend.schedule import due_check_with_history
-from backend.schemas import HabitCreate
-from backend.services import compute_streaks, list_habits, update_habit, user_today
+from backend.schemas import HabitCreate, SyncMark
+from backend.services import apply_sync, compute_streaks, list_habits, update_habit, user_today
 
 SUNDAY = date(2026, 9, 27)
 MONDAY = SUNDAY - timedelta(days=6)
@@ -112,3 +112,53 @@ def test_new_habit_keeps_no_history(db_url: str) -> None:
 
     # Создана сегодня: прошлого нет — запоминать нечего.
     assert asyncio.run(run()) == 0
+
+
+def test_past_day_is_marked_by_its_own_goal(db_url: str) -> None:
+    """Цель сменили с «1 раз в день» на 3 со «Сверх плана»: прошлый день отмечается по
+    цели того дня (раз — уже выполнен, больше раза — нельзя), сегодняшний — по новой."""
+
+    async def run() -> tuple[list[int], list[bool], list[dict]]:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_or_create_user(3, None, "U", language="en")
+                task = await repo.create_task(3, "Вода", FrequencyType.daily)
+                task.created_at = utc_now() - timedelta(days=7)
+                await session.commit()
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_user(3)
+                task = await repo.get_active_task(task.id, 3)
+                await update_habit(repo, user, task, _form(times_per_day=3, overtime=True))
+                today = user_today(user)
+                await apply_sync(
+                    repo,
+                    user,
+                    [
+                        SyncMark(type="mark", task=task.id, date=today - timedelta(days=2),
+                                 done=False, count=1),
+                        SyncMark(type="mark", task=task.id, date=today - timedelta(days=1),
+                                 done=True, count=5),
+                        SyncMark(type="mark", task=task.id, date=today, done=False, count=1),
+                    ],
+                )
+                await session.commit()
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                [habit] = await list_habits(repo, await repo.get_user(3))
+                return (
+                    habit.history_counts[-3:],
+                    habit.history[-3:],
+                    [p.model_dump() for p in habit.schedule_history],
+                )
+        finally:
+            await database.dispose()
+
+    counts, history, periods = asyncio.run(run())
+    # Вчера и позавчера — цель 1 без «Сверх плана»: раз выполнен, 5 — тоже один раз.
+    assert counts == [1, 1, 1]
+    assert history == [True, True, False]
+    assert (periods[0]["times_per_day"], periods[0]["overtime"]) == (1, False)

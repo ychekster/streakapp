@@ -48,6 +48,7 @@ import {
   cleanNote,
   deriveFolders,
   deriveView,
+  goalOn,
   myDay,
   reminderTimesOf,
   reuseUnchanged,
@@ -648,11 +649,12 @@ export const dataStore = {
     }
   },
 
-  /** «Сверх плана»: set how many times the habit is done on the marking day (the count
-   *  window, an undone run of presses); below the goal the day is not done again. */
+  /** A habit done several times a day: set how many times it is done on the marking day
+   *  (the count window, an undone run of presses) — past the goal only with «Сверх
+   *  плана»; below the goal the day is not done again. */
   setCount(id: number, value: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (!habit?.overtime || habit.frozen_since !== null || !viewDay) {
+    if (!habit || habit.times_per_day <= 1 || habit.frozen_since !== null || !viewDay) {
       return;
     }
     dataStore.setDayCount(id, viewDay, value);
@@ -664,37 +666,39 @@ export const dataStore = {
   },
 
   /** Mark or unmark the habit for any day of the history (the day window in the
-   *  calendar), by the habit's current settings: a habit done several times a day is
+   *  calendar), by the settings of that day (goalOn): a habit done several times a day is
    *  filled up to its goal or cleared. A frozen or not due day — a bonus mark. */
   markDay(id: number, date: string, done: boolean): void {
     const habit = state.habits.find((item) => item.id === id);
     if (!habit || !viewDay || !dataStore.editableDay(date)) {
       return;
     }
-    if (habit.times_per_day > 1) {
-      dataStore.setDayCount(id, date, done ? habit.times_per_day : 0);
+    const { goal } = goalOn(habit, date);
+    if (goal > 1) {
+      dataStore.setDayCount(id, date, done ? goal : 0);
     } else if (myDay(habit, date, viewDay).done !== done) {
       enqueue({ type: "mark", task: keyOf(id), date, done });
     }
   },
 
-  /** Mark or unmark a day of the history by the habit's current goal (a tap on a calendar
-   *  day of a once-a-day habit): one done several times a day counts one more up to its
-   *  goal, and a done day starts over — with «Сверх плана» too (past the goal is set in the
-   *  day window). A frozen or not due day too — a bonus mark. */
+  /** Mark or unmark a day of the history by the goal of that day (a tap in the
+   *  calendar's «Отметить»): one done several times a day counts one more up to its goal,
+   *  and a done day starts over — with «Сверх плана» too (past the goal is set in the day
+   *  window). A frozen or not due day too — a bonus mark. */
   toggleDay(id: number, date: string): void {
     const habit = state.habits.find((item) => item.id === id);
     if (!habit || !viewDay || !dataStore.editableDay(date)) {
       return;
     }
     const mine = myDay(habit, date, viewDay);
-    if (habit.times_per_day > 1) {
-      const count = mine.done ? 0 : Math.min(mine.count + 1, habit.times_per_day);
+    const { goal } = goalOn(habit, date);
+    if (goal > 1) {
+      const count = mine.done ? 0 : Math.min(mine.count + 1, goal);
       enqueue({
         type: "mark",
         task: keyOf(id),
         date,
-        done: count >= habit.times_per_day,
+        done: count >= goal,
         count,
       });
     } else {
@@ -703,13 +707,17 @@ export const dataStore = {
   },
 
   /** How many times the habit «несколько раз в день» is done on a day of the history: up
-   *  to the current goal, past it only with «Сверх плана». */
+   *  to the goal of that day, past it only with its «Сверх плана» (goalOn). */
   setDayCount(id: number, date: string, value: number): void {
     const habit = state.habits.find((item) => item.id === id);
-    if (!habit || habit.times_per_day <= 1 || !viewDay || !dataStore.editableDay(date)) {
+    if (!habit || !viewDay || !dataStore.editableDay(date)) {
       return;
     }
-    const most = habit.overtime ? OVERTIME_MAX_COUNT : habit.times_per_day;
+    const { goal, overtime } = goalOn(habit, date);
+    if (goal <= 1) {
+      return;
+    }
+    const most = overtime ? OVERTIME_MAX_COUNT : goal;
     const count = Math.max(0, Math.min(Math.round(value), most));
     if (count === myDay(habit, date, viewDay).count) {
       return;
@@ -718,7 +726,7 @@ export const dataStore = {
       type: "mark",
       task: keyOf(id),
       date,
-      done: count >= habit.times_per_day,
+      done: count >= goal,
       count,
     });
   },

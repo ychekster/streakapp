@@ -48,6 +48,7 @@ class SchedulePeriod(BaseModel):
     period: Literal["week", "month", "year"] | None = None
     period_times: int | None = None
     times_per_day: int = 1
+    overtime: bool = Field(False, description="«Сверх плана» в дни этого расписания")
 
 
 class GroupMember(BaseModel):

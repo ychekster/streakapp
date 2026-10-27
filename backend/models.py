@@ -410,6 +410,10 @@ class TaskSchedulePeriod(Base):
     times_per_day: Mapped[int] = mapped_column(
         Integer, default=1, server_default="1", nullable=False
     )
+    # «Сверх плана» того расписания: можно ли было в его дни отметить больше цели.
+    overtime: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
 
 class HabitGroup(Base):

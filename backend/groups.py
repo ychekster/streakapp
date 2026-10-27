@@ -373,7 +373,7 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
     автоотметка выключается."""
     await services.remember_schedule(
         repo, user, task, source.frequency_type, source.days, source.start_date,
-        source.times_per_day, source.period, source.period_times,
+        source.times_per_day, source.period, source.period_times, source.overtime,
     )
     await repo.set_task_shared_fields(
         task,

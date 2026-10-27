@@ -6,10 +6,10 @@
  * Шапка — день, название привычки и «×». Под ней — что было в этот день (dayInfo.ts),
  * плитками, как карточки «Основного» на экране привычки: статус, график и цель того дня,
  * счёт периода «Гибкого графика», день серии, у совместной — сколько сделала группа. Ниже
- * отметка по текущим настройкам привычки (сам день календаря отмечают тапом — окно
- * открывается удержанием, HabitCalendar):
- * у «раз в день» — одна кнопка (отметить / снять), у «несколько раз в день» — счёт за день
- * (CountControls, до текущей цели; быстрые прибавки — у «Сверх плана»). В совместной —
+ * отметка по настройкам того дня (goalOn: цель и «Сверх плана», сменили — у прошлых дней
+ * прежние): у «раз в день» — одна кнопка (отметить / снять), у «несколько раз в день» —
+ * счёт за день (CountControls, до цели того дня; выше и быстрые прибавки — у «Сверх
+ * плана»). В совместной —
  * моя часть. Не запланированный в тот день (или замороженный) — тоже можно: отметка
  * бонусная, в числах её нет (data/derive.ts, countedDays). Ниже — заметка к дню (пока
  * скрыта, SHOW_NOTE): сохраняется, когда поле теряет фокус, при смене дня и при закрытии.
@@ -30,7 +30,7 @@ import {
 
 import { NOTE_MAX_LENGTH, OVERTIME_MAX_COUNT, WEEKDAYS } from "../constants";
 import { addDays, markingDay, todayIn, weekdayIndex } from "../data/dates";
-import { myDay } from "../data/derive";
+import { goalOn, myDay } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
 import { useLanguage, useStrings } from "../preferences";
@@ -138,7 +138,6 @@ export function DaySheet() {
   const id = habit.id;
   const day = markingDay(settings.timezone, settings.mark_yesterday);
   const today = todayIn(settings.timezone);
-  const multi = habit.times_per_day > 1;
 
   /** Записать вводимую заметку (если её меняли). */
   function saveNote(): void {
@@ -171,17 +170,20 @@ export function DaySheet() {
   /** Карточка дня `on`: шапка, отметка и заметка `noteText`. */
   function card(on: string, noteText: string) {
     const mine = myDay(habit!, on, day);
+    // Всё — по настройкам того дня: цель «раз в день» и «Сверх плана» (сменили — у
+    // прошлых дней прежние).
+    const { goal, overtime } = goalOn(habit!, on);
     return (
       <>
         <SheetHeader day={labelOf(on)} name={habit!.name} onClose={close} />
         <DayTiles info={dayInfo(habit!, on, day)} strings={strings} language={language} />
-        {multi ? (
+        {goal > 1 ? (
           <div className={styles.count}>
             <CountControls
               count={mine.count}
-              goal={habit!.times_per_day}
-              max={habit!.overtime ? OVERTIME_MAX_COUNT : habit!.times_per_day}
-              quick={habit!.overtime === true}
+              goal={goal}
+              max={overtime ? OVERTIME_MAX_COUNT : goal}
+              quick={overtime}
               current={() => {
                 const now = dataStore.getState().habits.find((item) => item.id === id);
                 return now ? myDay(now, on, day).count : 0;
@@ -342,10 +344,8 @@ function DayTiles({ info, strings, language }: { info: DayInfo; strings: Strings
       key: "goal",
       icon: <TargetIcon />,
       value: String(info.goalThen),
-      label:
-        info.goalThen === info.goalNow
-          ? strings.dayInfoTimesADay
-          : strings.dayInfoTimesADayNow(info.goalNow),
+      // Цель того дня — без нынешней: день живёт по своим настройкам.
+      label: strings.dayInfoTimesADay,
     });
   }
   if (info.group) {
