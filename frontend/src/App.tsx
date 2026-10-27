@@ -60,7 +60,7 @@ import { loadMeta, loadTimezones } from "./api/meta";
 import { loadReviews } from "./api/reviews";
 import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "./components/CollapsingHeader";
-import { CountSheet } from "./components/CountSheet";
+import { closeCountSheet, CountSheet, useCountSheetHabit } from "./components/CountSheet";
 import { DaySheet } from "./components/DaySheet";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
@@ -629,13 +629,17 @@ export function App() {
   const tabBarHidden = editor !== null || openHabit !== undefined || settingsPage !== null;
 
   const timerScreenOpen = useTimerScreenHabit() !== null;
+  const countSheetOpen = useCountSheetHabit() !== null;
 
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
     adminMode
       ? null
       : timerScreenOpen
-        ? closeTimerScreen
+        ? // Окно времени поверх таймера — сначала оно.
+          countSheetOpen
+          ? closeCountSheet
+          : closeTimerScreen
         : editor
         ? editorAdvanced
           ? hideEditorAdvanced
@@ -855,11 +859,13 @@ export function App() {
   }, []);
 
   // Тема применяется до отрисовки: токены тёмной темы — в styles/variables.css. Фон и
-  // шапка Telegram перекрашиваются в цвет фона новой темы.
+  // шапка Telegram перекрашиваются в цвет фона новой темы. Таймер на весь экран всегда
+  // тёмный: пока он открыт, тёмное всё (под ним приложения не видно) — и окно времени
+  // поверх него, и полоса под часами.
   useLayoutEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.theme = timerScreenOpen ? "dark" : theme;
     setTelegramColors(readBackgroundColor());
-  }, [theme]);
+  }, [theme, timerScreenOpen]);
 
   useEffect(() => {
     document.documentElement.lang = language;

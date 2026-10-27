@@ -19,20 +19,25 @@
       var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) +
         var(--timer-screen-padding-bottom)
     );
-  background: var(--color-background);
+  background: var(--timer-screen-bg);
   color: var(--color-text-primary);
+}
+
+/* Фон сразу непрозрачный (под ним приложение уже перекрашено в тёмное), проявляется
+   только содержимое. */
+.screen > * {
   animation: screen-in var(--transition-fast) ease-out;
 }
 
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(12px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen {
+  .screen > * {
     animation: none;
   }
 }
@@ -119,8 +124,9 @@
 }
 
 .bell {
-  width: var(--timer-screen-bell-size);
-  height: var(--timer-screen-bell-size);
+  flex-shrink: 0;
+  width: var(--timer-screen-bell-width);
+  height: var(--timer-screen-bell-height);
 }
 
 /* Крупные тонкие цифры одной ширины — время не прыгает. */
@@ -162,8 +168,12 @@
   opacity: 0.35;
 }
 
+/* Карточка — своего цвета (на белом фоне светлой темы — серая, как в «Таймере»), без
+   тени. */
 .info {
   margin-top: var(--timer-screen-card-top);
+  --color-card: var(--timer-screen-card);
+  --shadow-card: none;
 }
 
 /* Значение справа в строке — серым, как в «Настройках». */

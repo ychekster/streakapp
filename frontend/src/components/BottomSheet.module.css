@@ -19,6 +19,11 @@
   justify-content: flex-end;
 }
 
+/* Окно времени поверх таймера на весь экран (TimerScreen, z-index 60). */
+:global(:root[data-timer-screen]) .layer {
+  z-index: 65;
+}
+
 .backdrop {
   position: absolute;
   inset: 0;

@@ -213,12 +213,17 @@
   --timer-screen-padding-top: 8px;
   --timer-screen-padding-bottom: 12px;
   --timer-screen-margin-x: 20px; /* кольцо, кнопки и карточка — от краёв экрана */
-  --timer-screen-button-fill: var(--color-fill); /* ✎ и дорожка кольца */
+  /* Всегда тёмный (App включает тёмную тему, пока он открыт): чёрный фон, карточка
+     #1c1c1e — как «Таймер» iPhone. */
+  --timer-screen-bg: #000000;
+  --timer-screen-card: #1c1c1e;
+  --timer-screen-button-fill: rgba(118, 118, 128, 0.24); /* ✎ и дорожка кольца */
   --timer-screen-dial-gap: 20px; /* над и под кольцом */
   --timer-screen-ring-stroke: 2; /* в координатах кольца 100×100: 7pt при 361pt */
   --timer-screen-caption-size: 17px; /* 🔔 22:20 и «Цель — 45 мин» */
-  --timer-screen-bell-size: 15px;
-  --timer-screen-bell-gap: 6px;
+  --timer-screen-bell-width: 14px; /* 🔔 перед временем цели */
+  --timer-screen-bell-height: 16px;
+  --timer-screen-bell-gap: 7px;
   --timer-screen-clock-size: 96px;
   --timer-screen-clock-size-fluid: 23vw;
   --timer-screen-clock-gap-top: 14px;

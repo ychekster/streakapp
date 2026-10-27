@@ -22,6 +22,13 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
+/* Timer on the whole screen (TimerScreen, z-index 60, always dark — App switches the
+   theme): the strip stays the topmost box at the sampled point, so the status bar takes
+   the dark page color, as it does when the theme is switched in Settings. */
+:global(:root[data-timer-screen]) .topEdge {
+  z-index: 62;
+}
+
 /* Back button: an iOS 26 glass circle centred on the top control row
    (--app-content-safe-area-top, set for web mode in variables.css). */
 .back {
