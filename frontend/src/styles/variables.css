@@ -225,15 +225,17 @@
   --timer-screen-bell-height: 16px;
   --timer-screen-bell-gap: 7px;
   /* Внутри кольца всё — в долях его размера (cqw / cqh, кольцо — контейнер), со
-     скриншотов «Таймера» (кольцо 361pt): цифры «09:49» — 25.5% ширины, 🔔 время цели —
-     на 25% высоты выше центра, цель — на 24.1% ниже, при любом размере цифр. */
-  --timer-screen-clock-size: 25.5cqw;
+     скриншотов «Таймера» (кольцо 361pt): у «09:49» высота цифр — 21.2% кольца, то есть
+     шрифт 29.6% (цифры SF Pro — 0.715 кегля), 🔔 время цели — на 25% высоты выше центра,
+     цель — на 24.1% ниже, при любом размере цифр. */
+  --timer-screen-clock-size: 28.8cqw;
+  --timer-screen-clock-lift: 0.8cqh; /* цифры чуть выше центра кольца */
   --timer-screen-above-offset: 25cqh;
   --timer-screen-below-offset: 24.1cqh;
   /* Пять и шесть цифр («4:59:54», «23:59:54») — доля размера четырёх, по высоте цифр со
-     скриншотов «Таймера»: 61.5 и 53.3pt при 76.6pt у «09:49». */
-  --timer-screen-clock-scale-five: 0.8;
-  --timer-screen-clock-scale-six: 0.7;
+     скриншотов «Таймера»: 17.0% и 14.8% кольца при 21.2% у «09:49». */
+  --timer-screen-clock-scale-five: 0.804;
+  --timer-screen-clock-scale-six: 0.696;
   --timer-screen-button-size: 72px;
   --timer-screen-icon-size: 28px;
   --timer-screen-main-alpha: 0.22; /* ▶ / ❚❚ — на оттенке цвета привычки */

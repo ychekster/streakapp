@@ -146,6 +146,7 @@
 /* Крупные тонкие цифры одной ширины — время не прыгает. */
 .clock {
   font-size: calc(var(--timer-screen-clock-size) * var(--clock-scale, 1));
+  transform: translateY(calc(-1 * var(--timer-screen-clock-lift)));
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
