@@ -769,8 +769,11 @@ export const dataStore = {
   },
 
   /** How many times the habit «несколько раз в день» is done on a day of the history: up
-   *  to the goal of that day, past it only with its «Сверх плана» (goalOn). */
-  setDayCount(id: number, date: string, value: number): void {
+   *  to the goal of that day, past it only with its «Сверх плана» (goalOn). A time goal
+   *  with its timer running on that day (the count and day windows): `value` is the day's
+   *  time with the running part, so the timer starts over from it — it keeps running.
+   *  `fromTimer` — the timer itself puts its time in (stopTimer, tickTimer). */
+  setDayCount(id: number, date: string, value: number, fromTimer = false): void {
     const habit = state.habits.find((item) => item.id === id);
     if (!habit || !viewDay || !dataStore.editableDay(date)) {
       return;
@@ -782,16 +785,32 @@ export const dataStore = {
     }
     const most = dayMost(day);
     const count = Math.max(0, Math.min(Math.round(value), most));
-    if (count === myDay(habit, date, viewDay).count) {
-      return;
+    const restart =
+      !fromTimer && state.timer?.habitId === id && state.timer.date === date;
+    if (count !== myDay(habit, date, viewDay).count) {
+      enqueue({
+        type: "mark",
+        task: keyOf(id),
+        date,
+        done: count >= goal,
+        count,
+      });
     }
-    enqueue({
-      type: "mark",
-      task: keyOf(id),
-      date,
-      done: count >= goal,
-      count,
-    });
+    if (restart) {
+      enqueue({ type: "timer", task: keyOf(id), date, started_at: new Date().toISOString() });
+    }
+  },
+
+  /** The day's count as the windows show it: with a running timer of that habit and day —
+   *  its time now (timerSeconds). */
+  liveCount(id: number, date: string): number {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || !viewDay) {
+      return 0;
+    }
+    return state.timer?.habitId === id && state.timer.date === date
+      ? dataStore.timerSeconds()
+      : myDay(habit, date, viewDay).count;
   },
 
   /** Start the timer of a habit with a time goal on the marking day; another running
@@ -816,7 +835,7 @@ export const dataStore = {
     const running = runningTimer();
     if (running) {
       const { timer, habit, before } = running;
-      dataStore.setDayCount(habit.id, timer.date, before + secondsSince(timer.startedAt, now));
+      dataStore.setDayCount(habit.id, timer.date, before + secondsSince(timer.startedAt, now), true);
     }
     if (state.timer) {
       enqueue({ type: "timer", task: null });
@@ -845,7 +864,7 @@ export const dataStore = {
       return before < goal.goal;
     }
     if (before < goal.goal && total >= goal.goal) {
-      dataStore.setDayCount(habit.id, timer.date, total);
+      dataStore.setDayCount(habit.id, timer.date, total, true);
       enqueue({
         type: "timer",
         task: keyOf(habit.id),

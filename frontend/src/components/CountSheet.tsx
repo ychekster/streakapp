@@ -13,6 +13,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { dayMost, isTimed } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
+import { useRunningTimer } from "../hooks/useTimer";
 import { useStrings } from "../preferences";
 import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
@@ -58,6 +59,8 @@ export function CountSheet() {
   // Показанная привычка: после закрытия окно ещё уезжает вниз (closing) с ней же.
   const { shown: habitId, closing, gone } = useSheetContent(useCountSheetHabit());
   const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
+  // Идёт таймер этой привычки — время дня вместе с натиканным (как на таймере).
+  const running = useRunningTimer();
   // Привычку удалили, заморозили, сделали «раз в день» — окну нечего показывать.
   const usable = habit !== undefined && habit.times_per_day > 1 && habit.frozen_since === null;
 
@@ -71,6 +74,8 @@ export function CountSheet() {
     return null;
   }
   const id = habit.id;
+  const live =
+    running !== null && running.timer.habitId === id ? running.seconds : habit.today_count;
   return (
     <BottomSheet
       closing={closing}
@@ -86,7 +91,7 @@ export function CountSheet() {
       />
       <CountControls
         key={id}
-        count={habit.today_count}
+        count={live}
         goal={habit.times_per_day}
         max={dayMost({
           goal: habit.times_per_day,
@@ -95,9 +100,10 @@ export function CountSheet() {
         })}
         quick={habit.overtime === true}
         timed={isTimed(habit)}
-        current={() =>
-          dataStore.getState().habits.find((item) => item.id === id)?.today_count ?? 0
-        }
+        current={() => {
+          const day = dataStore.getState().today;
+          return day ? dataStore.liveCount(id, day) : 0;
+        }}
         onSet={(value) => dataStore.setCount(id, value)}
       />
     </BottomSheet>

@@ -44,6 +44,7 @@ import {
   type LeavingCard,
   type SheetTurn,
 } from "./BottomSheet";
+import { useRunningTimer } from "../hooks/useTimer";
 import { CountControls } from "./CountControls";
 import { dayInfo, type DayInfo, type DaySchedule, type DayStatus } from "./dayInfo";
 import { ClockIcon, PeopleIcon, SnowflakeIcon } from "./SettingsIcons";
@@ -116,6 +117,8 @@ export function DaySheet() {
   const [note, setNote] = useState<string | null>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const habit = shown ? habits.find((item) => item.id === shown.habitId) : undefined;
+  // Идёт таймер этой привычки в этот день — время дня вместе с натиканным (как на таймере).
+  const running = useRunningTimer();
 
   useEffect(() => {
     if (shown) {
@@ -181,15 +184,16 @@ export function DaySheet() {
         {goal > 1 ? (
           <div className={styles.count}>
             <CountControls
-              count={mine.count}
+              count={
+                running !== null && running.timer.habitId === id && running.timer.date === on
+                  ? running.seconds
+                  : mine.count
+              }
               goal={goal}
               max={dayMost(dayGoal)}
               quick={overtime}
               timed={unit === "seconds"}
-              current={() => {
-                const now = dataStore.getState().habits.find((item) => item.id === id);
-                return now ? myDay(now, on, day).count : 0;
-              }}
+              current={() => dataStore.liveCount(id, on)}
               onSet={(value) => dataStore.setDayCount(id, on, value)}
             />
           </div>

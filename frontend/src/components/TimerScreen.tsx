@@ -113,6 +113,10 @@ export function TimerScreen() {
       ? strings.streakDaysValue(habit.current_streak)
       : strings.streakInPeriods[period](habit.current_streak);
   const left = goal - seconds;
+  // Больше цифр — цифры мельче, как в «Таймере» iPhone: «09:49», «4:59:54», «23:59:54».
+  const shownClock = clock(seconds);
+  const digits = shownClock.replace(/\D/g, "").length;
+  const clockSize = digits >= 6 ? styles.clockSix : digits === 5 ? styles.clockFive : "";
   return (
     <div
       className={styles.screen}
@@ -149,8 +153,8 @@ export function TimerScreen() {
                 strings.timerLeft(duration(left, strings))
               )}
             </span>
-            <span className={styles.clock} role="timer">
-              {clock(seconds)}
+            <span className={`${styles.clock} ${clockSize}`} role="timer">
+              {shownClock}
             </span>
             <span className={styles.goal}>{strings.timerGoal(duration(goal, strings))}</span>
           </div>

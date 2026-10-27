@@ -519,6 +519,24 @@ describe("dataStore", () => {
     expect(store.getState().timer?.habitId).toBe(2);
   });
 
+  it("edits the day's time with the timer running: from what the timer shows, it goes on", async () => {
+    const timed = habit({ times_per_day: 4800, goal_unit: "seconds", today_count: 3600 });
+    syncChanges.mockResolvedValueOnce(answer([timed]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    store.startTimer(1);
+    vi.setSystemTime(new Date(`${TODAY}T12:03:00Z`));
+    // The window shows the timer's time, not only the banked hour.
+    expect(store.liveCount(1, TODAY)).toBe(3780);
+    store.setCount(1, store.liveCount(1, TODAY) + 60);
+    expect(store.getState().habits[0].today_count).toBe(3840);
+    expect(store.getState().timer).toMatchObject({ habitId: 1, startedAt: Date.now() });
+    vi.setSystemTime(new Date(`${TODAY}T12:04:00Z`));
+    expect(store.timerSeconds()).toBe(3900);
+  });
+
   it("shows a timer started on another device", async () => {
     const timed = habit({ times_per_day: 600, goal_unit: "seconds", today_count: 120 });
     syncChanges.mockResolvedValueOnce({
