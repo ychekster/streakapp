@@ -423,7 +423,7 @@ const RU = {
   timerHabitRow: "Привычка",
   streakDaysValue: (count: number) => `${count} ${ruDays(count)}`,
   timerGoal: (goal: string) => `Цель — ${goal}`,
-  timerGoalDone: "Цель на сегодня выполнена",
+  timerGoalDone: "Цель выполнена",
 
   // --- Окно счёта «Сверх плана» (удержание кнопки отметки) ---
   countSheetToday: "Сегодня",
@@ -952,7 +952,7 @@ const EN: Strings = {
   timerHabitRow: "Habit",
   streakDaysValue: (count: number) => `${count} ${count === 1 ? "day" : "days"}`,
   timerGoal: (goal: string) => `Goal: ${goal}`,
-  timerGoalDone: "Today’s goal is done",
+  timerGoalDone: "Goal done",
 
   countSheetToday: "Today",
   countSheetYesterday: "Yesterday",

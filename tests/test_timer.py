@@ -13,7 +13,7 @@ from bot import reminders as bot_reminders
 from bot.pacing import Pacer
 from tests.conftest import AuthUser
 from tests.fake_telegram import FakeTelegram
-from backend.constants import MAX_GOAL_SECONDS
+from backend.constants import MAX_DAY_SECONDS, MAX_GOAL_SECONDS
 from backend.database import Database
 from backend.models import FrequencyType
 from backend.repository import Repository
@@ -100,7 +100,7 @@ def test_overtime_time_stops_at_a_day(client: TestClient, user: AuthUser) -> Non
         user,
         {"type": "mark", "task": habit_id, "date": today, "done": True, "count": 999999},
     )
-    assert data["habits"][0]["today_count"] == MAX_GOAL_SECONDS
+    assert data["habits"][0]["today_count"] == MAX_DAY_SECONDS
 
 
 def test_timer_only_for_a_time_goal(client: TestClient, user: AuthUser) -> None:

@@ -22,7 +22,7 @@ from backend.constants import (
     HISTORY_DAYS,
     FOLDER_HABIT_TYPES,
     MAX_FOLDERS_PER_USER,
-    MAX_GOAL_SECONDS,
+    MAX_DAY_SECONDS,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
     REMINDER_TIME_FORMAT,
@@ -1092,9 +1092,9 @@ async def _apply_sync_op(
         # настройку выключили).
         if op.count is not None and not overtime:
             op = op.model_copy(update={"count": min(op.count, goal)})
-        # Время за день — не больше суток.
+        # Время за день — не больше 23:59:59.
         if op.count is not None and unit_on(task, periods, op.date) == "seconds":
-            op = op.model_copy(update={"count": min(op.count, MAX_GOAL_SECONDS)})
+            op = op.model_copy(update={"count": min(op.count, MAX_DAY_SECONDS)})
         # Привычка «несколько раз в день»: день выполнен, когда набрана цель того дня.
         done = op.done if op.count is None else op.count >= goal
         # Отметить можно любой день, и незапланированный тоже (и сверх цели «Гибкого

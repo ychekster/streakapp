@@ -11,7 +11,7 @@
 import {
   FOLDER_HABIT_TYPES,
   HISTORY_DAYS,
-  MAX_GOAL_SECONDS,
+  MAX_DAY_SECONDS,
   OVERTIME_MAX_COUNT,
   WEEKDAYS,
 } from "../constants";
@@ -277,12 +277,12 @@ export function goalOn(
 }
 
 /** The most a day can count with «Сверх плана»: times — OVERTIME_MAX_COUNT, time — a day
- *  (services: MAX_GOAL_SECONDS). */
+ *  (services: MAX_DAY_SECONDS, 23:59:59). */
 export function dayMost({ goal, overtime, unit }: ReturnType<typeof goalOn>): number {
   if (!overtime) {
     return goal;
   }
-  return unit === "seconds" ? MAX_GOAL_SECONDS : OVERTIME_MAX_COUNT;
+  return unit === "seconds" ? MAX_DAY_SECONDS : OVERTIME_MAX_COUNT;
 }
 
 /** Is the habit's goal in time («Цель по времени»): a timer instead of a check. */
@@ -1244,10 +1244,10 @@ export function deriveView(
           const { goal: target, overtime, unit } = fields
             ? goalOn({ ...fields, schedule_history: periods }, op.date)
             : { goal: 1, overtime: false, unit: "times" as GoalUnit };
-          // A day's time — at most a day.
+          // A day's time — at most 23:59:59.
           const count = Math.min(
             overtime ? op.count : Math.min(op.count, target),
-            unit === "seconds" ? MAX_GOAL_SECONDS : Infinity,
+            unit === "seconds" ? MAX_DAY_SECONDS : Infinity,
           );
           draft.counts.set(op.date, count);
           draft.marks.set(op.date, count >= target);

@@ -73,11 +73,12 @@ MAX_TIMES_PER_DAY = 96
 OVERTIME_MAX_COUNT = 999999
 
 # «Цель по времени» (Task.goal_unit = seconds): цель и счёт дня — в секундах, цель — от
-# минуты до суток, и счёт за день (с «Сверх плана» тоже) — не больше суток. Совпадают с
-# MIN_GOAL_SECONDS / MAX_GOAL_SECONDS во фронтенде.
+# минуты до 23 ч 59 мин (целые минуты), а счёт за день (с «Сверх плана» тоже) — не больше
+# 23:59:59. Совпадают с MIN_GOAL_SECONDS / MAX_GOAL_SECONDS / MAX_DAY_SECONDS во фронтенде.
 GOAL_UNITS: tuple[str, ...] = ("times", "seconds")
 MIN_GOAL_SECONDS = 60
-MAX_GOAL_SECONDS = 24 * 60 * 60
+MAX_GOAL_SECONDS = 23 * 60 * 60 + 59 * 60
+MAX_DAY_SECONDS = 24 * 60 * 60 - 1
 
 # «Гибкий график» (частота flexible): периоды и сколько раз за период можно поставить
 # целью — не больше дней самого длинного такого периода; совпадает с PERIOD_MAX_TIMES во

@@ -260,11 +260,12 @@ export const MAX_TIMES_PER_DAY = 96;
  *  (OVERTIME_MAX_COUNT on the backend). */
 export const OVERTIME_MAX_COUNT = 999999;
 
-/** «Цель по времени»: the goal is a minute to a day, and a day's time (with «Сверх плана»
- *  too) is at most a day — in seconds (MIN_GOAL_SECONDS / MAX_GOAL_SECONDS on the
- *  backend). */
+/** «Цель по времени»: the goal is a minute to 23 h 59 min (whole minutes), and a day's time
+ *  (with «Сверх плана» too) is at most 23:59:59 — in seconds (MIN_GOAL_SECONDS /
+ *  MAX_GOAL_SECONDS / MAX_DAY_SECONDS on the backend). */
 export const MIN_GOAL_SECONDS = 60;
-export const MAX_GOAL_SECONDS = 24 * 60 * 60;
+export const MAX_GOAL_SECONDS = 23 * 60 * 60 + 59 * 60;
+export const MAX_DAY_SECONDS = 24 * 60 * 60 - 1;
 /** The form's time goal −/+ step and the goal of a habit switched to time. */
 export const GOAL_STEP_SECONDS = 60;
 export const DEFAULT_GOAL_SECONDS = 30 * 60;
