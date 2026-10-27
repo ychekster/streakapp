@@ -540,6 +540,7 @@ class Repository:
         его группы переходят к вступившему раньше всех (без участников — удаляются)."""
         await self.forget_group_member(telegram_id)
         for model in (
+            RunningTimer,
             DayNote,
             TaskLog,
             TaskFreeze,
@@ -2122,8 +2123,9 @@ class Repository:
         target re-read from the database.
 
         Nothing is lost: habits, check-ins, folders (after the target's), reviews, activity
-        days, logins, web sessions, push subscriptions and funnel events all move (habit
-        names may repeat, so they move as they are). Settings stay the target's; what the target lacks (time zone, first check-in) is taken
+        days, logins, web sessions, push subscriptions, funnel events and a running timer
+        (unless the target has one) all move (habit names may repeat, so they move as they
+        are). Settings stay the target's; what the target lacks (time zone, first check-in) is taken
         from the source.
         """
         source_id, target_id = source.telegram_id, target.telegram_id
@@ -2186,6 +2188,15 @@ class Repository:
             .execution_options(synchronize_session=False)
         )
         await self.session.execute(delete(CheckinDay).where(CheckinDay.user_id == source_id))
+        # One running timer per user: the source's moves only if the target has none.
+        if await self.get_timer(target_id) is None:
+            await self.session.execute(
+                update(RunningTimer)
+                .where(RunningTimer.user_id == source_id)
+                .values(user_id=target_id)
+                .execution_options(synchronize_session=False)
+            )
+        await self.session.execute(delete(RunningTimer).where(RunningTimer.user_id == source_id))
         await self.session.execute(delete(User).where(User.telegram_id == source_id))
         # Bulk updates bypass the identity map: drop stale objects, re-read the target.
         self.session.expunge_all()

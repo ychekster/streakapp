@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -381,7 +381,7 @@ def test_user_habits(client: TestClient, user: AuthUser, admin: AuthUser) -> Non
     ).json()["habit"]
     client.post(f"/tasks/{daily['id']}/toggle", headers=user.headers)
     # День недели, на который привычка заведомо не запланирована (пояс по умолчанию — UTC).
-    tomorrow = WEEKDAYS[(date.today() + timedelta(days=1)).weekday()]
+    tomorrow = WEEKDAYS[(datetime.now(timezone.utc).date() + timedelta(days=1)).weekday()]
     client.post(
         "/tasks",
         json={"name": "Зал", "frequency_type": "specific_days", "days": [tomorrow]},
@@ -439,9 +439,32 @@ def test_delete_user(client: TestClient, user: AuthUser, admin: AuthUser) -> Non
     ).json()["habit"]
     client.post(f"/tasks/{habit['id']}/toggle", headers=user.headers)
     client.post("/reviews", json={"text": "пока"}, headers=user.headers)
+    # Идущий таймер «Цели по времени» уходит вместе с аккаунтом.
+    timed = client.post(
+        "/sync",
+        json={"ops": [{"type": "create", "ref": "t", "habit": {
+            "name": "Учёба", "frequency_type": "daily", "times_per_day": 600,
+            "goal_unit": "seconds",
+        }}]},
+        headers=user.headers,
+    ).json()
+    started = datetime.now(timezone.utc).isoformat()
+    timer = client.post(
+        "/sync",
+        json={"ops": [{"type": "timer", "task": timed["results"][0]["id"],
+                       "date": timed["today"], "started_at": started}]},
+        headers=user.headers,
+    ).json()
+    assert timer["timer"] is not None
 
     assert client.delete(f"/admin/users/{user.id}", headers=admin.headers).status_code == 204
     assert client.get(f"/admin/users/{user.id}", headers=admin.headers).status_code == 404
+    database = make_url(os.environ["DATABASE_URL"]).database
+    with sqlite3.connect(database) as connection:
+        left = connection.execute(
+            "SELECT COUNT(*) FROM running_timers WHERE user_id = ?", (user.id,)
+        ).fetchone()
+    assert left == (0,)
     # Открыв приложение снова, пользователь начинает с чистого листа.
     assert client.get("/tasks", headers=user.headers).json()["habits"] == []
 

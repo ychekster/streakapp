@@ -81,9 +81,9 @@ def test_habit_lifecycle(client: TestClient, user: AuthUser) -> None:
 
 
 def test_every_other_day_habit(client: TestClient, user: AuthUser) -> None:
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    today = date.today()  # пояс не выбран — UTC; тест не идёт ровно в полночь
+    today = datetime.now(timezone.utc).date()  # пояс не выбран — сервер считает день по UTC
     created = client.post(
         "/tasks",
         json=_habit(frequency_type="every_other_day", start_date=today.isoformat()),
@@ -145,9 +145,9 @@ def test_several_reminders(client: TestClient, user: AuthUser) -> None:
 
 
 def test_monthly_habit(client: TestClient, user: AuthUser) -> None:
-    from datetime import date
+    from datetime import datetime, timezone
 
-    today = date.today()  # пояс не выбран — UTC
+    today = datetime.now(timezone.utc).date()  # пояс не выбран — UTC
     created = client.post(
         "/tasks",
         json=_habit(frequency_type="monthly", start_date=today.isoformat()),

@@ -51,6 +51,8 @@ export type ApiErrorCode =
   | "invalid_note"
   | "invalid_reminder_time"
   | "invalid_times_per_day"
+  | "invalid_goal_unit"
+  | "invalid_timer"
   | "invalid_color"
   | "invalid_timezone"
   | "invalid_language"

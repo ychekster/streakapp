@@ -406,6 +406,33 @@ def test_guest_with_habits_merges_into_the_existing_account(
     ]
 
 
+def test_a_guest_running_timer_moves_into_the_account(
+    client: TestClient, user: AuthUser
+) -> None:
+    guest = _guest(client)
+    created = client.post(
+        "/sync",
+        json={"ops": [{"type": "create", "ref": "t", "habit": {
+            "name": "Учёба", "frequency_type": "daily", "times_per_day": 600,
+            "goal_unit": "seconds",
+        }}]},
+        headers=guest,
+    ).json()
+    habit_id = created["results"][0]["id"]
+    started = datetime.now(timezone.utc).isoformat()
+    client.post(
+        "/sync",
+        json={"ops": [{"type": "timer", "task": habit_id, "date": created["today"],
+                       "started_at": started}]},
+        headers=guest,
+    )
+
+    result = _bot_login(client, guest, user)
+    session = _bearer(result["session"]["token"])
+    timer = client.post("/sync", json={"ops": []}, headers=session).json()["timer"]
+    assert timer is not None and timer["task"] == habit_id
+
+
 def test_telegram_web_login_checks_the_hash(client: TestClient) -> None:
     guest = _guest(client)
     telegram_user = new_user()
