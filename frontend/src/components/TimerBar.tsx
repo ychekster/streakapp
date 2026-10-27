@@ -2,14 +2,15 @@
  * Мини-плеер идущего таймера «Цели по времени»: стеклянная капсула над навигацией (как
  * плашка «Отменить»): кружок прогресса цветом привычки, название, «12:34 / 45:00» и ❚❚
  * справа. Нажатие на капсулу открывает таймер на весь экран (TimerScreen), ❚❚ —
- * останавливает: время уходит в день, капсула пропадает.
+ * останавливает: время уходит в день, а капсула ещё LINGER_MS остаётся на паузе — с ▶
+ * (запустить снова) — и только потом пропадает.
  *
  * Смонтирован всегда (App): пока таймер идёт, раз в секунду спрашивает стор, не набрана ли
  * цель (dataStore.tickTimer) — тогда вибрация, день выполнен сразу. Пока капсула видна,
  * на <html> стоит --timer-bar-space: экраны и плашка «Отменить» поднимаются над ней.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
@@ -24,6 +25,8 @@ import styles from "./TimerBar.module.css";
 /** Кружок прогресса (координаты 24×24). */
 const RADIUS = 10;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+/** Сколько остановленный таймер ещё висит на паузе (мс). */
+const LINGER_MS = 5000;
 
 interface TimerBarProps {
   /** Навигация видна — капсула над ней; иначе — у нижнего края. */
@@ -35,7 +38,28 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
   const { timer, habits } = useAppData();
   const now = useSecondTick(timer !== null);
   const screenOpen = useTimerScreenHabit() !== null;
-  const habit = timer ? habits.find((item) => item.id === timer.habitId) : undefined;
+
+  // Таймер остановили — его привычка ещё LINGER_MS на паузе; запустили любой — сразу он.
+  const lastHabit = useRef<number | null>(null);
+  const [paused, setPaused] = useState<number | null>(null);
+  useEffect(() => {
+    if (timer) {
+      lastHabit.current = timer.habitId;
+      setPaused(null);
+      return undefined;
+    }
+    const stopped = lastHabit.current;
+    lastHabit.current = null;
+    if (stopped === null) {
+      return undefined;
+    }
+    setPaused(stopped);
+    const hide = window.setTimeout(() => setPaused(null), LINGER_MS);
+    return () => window.clearTimeout(hide);
+  }, [timer]);
+
+  const habitId = timer ? timer.habitId : paused;
+  const habit = habitId === null ? undefined : habits.find((item) => item.id === habitId);
   const shown = habit !== undefined && !screenOpen;
 
   // Цель набрана — время уходит в день сразу (и при возврате в приложение).
@@ -56,12 +80,15 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
     };
   }, [shown]);
 
-  if (!timer || !habit || !shown) {
+  if (!habit || !shown) {
     return null;
   }
-  const seconds = dataStore.timerSeconds(now);
+  const running = timer !== null;
+  const seconds = running ? dataStore.timerSeconds(now) : habit.today_count;
   const goal = habit.times_per_day;
   const fraction = Math.min(seconds / goal, 1);
+  // На паузе ▶ — если дальше можно (не набрана цель или «Сверх плана»).
+  const canResume = seconds < goal || habit.overtime === true;
   return (
     <div
       className={`${styles.bar} ${aboveTabBar ? styles.aboveTabBar : ""}`}
@@ -91,20 +118,41 @@ export function TimerBar({ aboveTabBar }: TimerBarProps) {
           <span className={styles.goal}> / {clock(goal)}</span>
         </span>
       </button>
-      <button
-        type="button"
-        className={styles.pause}
-        aria-label={strings.timerPause}
-        onClick={() => {
-          hapticImpact("light");
-          dataStore.stopTimer();
-        }}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="6" y="5" width="4" height="14" rx="1.3" fill="currentColor" />
-          <rect x="14" y="5" width="4" height="14" rx="1.3" fill="currentColor" />
-        </svg>
-      </button>
+      {running ? (
+        <button
+          type="button"
+          className={styles.pause}
+          aria-label={strings.timerPause}
+          onClick={() => {
+            hapticImpact("light");
+            dataStore.stopTimer();
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="1.3" fill="currentColor" />
+            <rect x="14" y="5" width="4" height="14" rx="1.3" fill="currentColor" />
+          </svg>
+        </button>
+      ) : canResume ? (
+        <button
+          type="button"
+          className={styles.pause}
+          aria-label={strings.timerResume}
+          onClick={() => {
+            hapticImpact("light");
+            dataStore.startTimer(habit.id);
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M7 4.9v14.2a1.1 1.1 0 0 0 1.68.93l11.1-7.1a1.1 1.1 0 0 0 0-1.86L8.68 3.97A1.1 1.1 0 0 0 7 4.9z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      ) : (
+        <span className={styles.pauseSpace} aria-hidden="true" />
+      )}
     </div>
   );
 }

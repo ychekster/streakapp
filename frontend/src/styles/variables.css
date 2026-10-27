@@ -208,20 +208,22 @@
   --timer-bar-button-width: 54px; /* зона ❚❚ справа */
   --timer-bar-icon-size: 22px;
 
-  /* --- Таймер на весь экран (TimerScreen): тёмный в обеих темах --- */
-  --timer-screen-bg: #000000;
-  --timer-screen-text: #ffffff;
-  --timer-screen-secondary: rgba(235, 235, 245, 0.6);
-  --timer-screen-track: rgba(255, 255, 255, 0.12);
+  /* --- Таймер на весь экран (TimerScreen): цвета темы приложения --- */
   --timer-screen-padding-top: 16px;
-  --timer-screen-padding-bottom: 24px;
-  --timer-screen-dial-max: 340px;
-  --timer-screen-ring-stroke: 2.5;
-  --timer-screen-clock-size: 64px;
+  --timer-screen-padding-bottom: 16px;
+  --timer-screen-gap: 20px; /* между шапкой, карточкой и кнопками */
+  --timer-screen-top-gap: 8px;
+  --timer-screen-name-size: 22px;
+  --timer-screen-card-padding: 24px;
+  --timer-screen-dial-max: 320px;
+  --timer-screen-ring-stroke: 5; /* в координатах кольца 100×100 */
+  --timer-screen-clock-size: 60px;
   --timer-screen-goal-gap: 10px;
-  --timer-screen-controls-gap: 12px;
-  --timer-screen-button-size: 84px;
-  --timer-screen-icon-size: 34px;
+  --timer-screen-controls-gap: 10px;
+  --timer-screen-button-height: 54px;
+  --timer-screen-button-font-size: 17px;
+  --timer-screen-button-icon-gap: 8px;
+  --timer-screen-icon-size: 20px;
   /* Участники совместной привычки (GroupMembers) — как блок аккаунтов в настройках
      Telegram (сняты со скриншота iPhone, 402pt): ряд 52, фото 31 в 14 от края карточки,
      имя в 14 от фото; «+» у «Добавить участника» — как у «Новая привычка», по центру
@@ -351,6 +353,7 @@
   --space-stat-gap: 10px; /* между карточками показателей */
   --stat-icon-size: 40px; /* плашка иконки */
   --stat-icon-glyph: 24px; /* сама иконка */
+  --stat-inline-padding-y: 12px; /* низкая карточка «Всего времени»: значение и иконка в ряд */
   --radius-stat-icon: 10px;
   --font-size-stat-value: 24px;
   /* На узких экранах значение уменьшается вместе с шириной карточки, чтобы «Ежедневно»

@@ -82,6 +82,34 @@ export function trackedDays(habit: Habit, day: string): number {
   return Math.max(count, habit.total_done);
 }
 
+/**
+ * «Цель по времени», знаменатель «7 мин / 1 ч 40 мин»: сколько времени было запланировано —
+ * цели тех же дней, что в trackedDays, но только дней истории (время старше неё неизвестно)
+ * и только с целью по времени (у дней с целью в разах — прежнее расписание — времени нет).
+ * День отметки — по расписанию (время в нём уже идёт), а не только выполненный.
+ */
+export function plannedSeconds(habit: Habit, day: string): number {
+  const start = startOf(habit, day);
+  if (start === null) {
+    return 0;
+  }
+  const goal = (date: string): number => {
+    const { goal: seconds, unit } = goalOn(habit, date);
+    return unit === "seconds" ? seconds : 0;
+  };
+  const { history, frozen_history: frozen } = habit;
+  const historyStart = addDays(day, 1 - history.length);
+  const counted = countedHistory(habit, day);
+  let total = habit.next_day_done ? goal(addDays(day, 1)) : 0;
+  for (let date = start < historyStart ? historyStart : start; date <= day; date = addDays(date, 1)) {
+    const index = daysBetween(historyStart, date);
+    if (counted[index] || (!frozen[index] && isDueOnDay(habit, date))) {
+      total += goal(date);
+    }
+  }
+  return total;
+}
+
 /** Месяц «ГГГГ-ММ» дня. */
 export function monthOf(day: string): string {
   return day.slice(0, 7);

@@ -1,4 +1,5 @@
-/** Карточка показателя привычки: иконка в плашке справа сверху, крупное значение и подпись. */
+/** Карточка показателя привычки: иконка в плашке справа сверху, крупное значение и подпись.
+ *  `inline` — низкая: значение с подписью слева, иконка напротив, справа. */
 
 import type { ReactNode } from "react";
 
@@ -8,14 +9,29 @@ interface StatCardProps {
   icon: ReactNode;
   value: string | number;
   label: string;
+  inline?: boolean;
 }
 
-export function StatCard({ icon, value, label }: StatCardProps) {
+export function StatCard({ icon, value, label, inline = false }: StatCardProps) {
+  const iconBadge = (
+    <span className={styles.icon} aria-hidden="true">
+      {icon}
+    </span>
+  );
+  if (inline) {
+    return (
+      <div className={`${styles.card} ${styles.inline}`}>
+        <div className={styles.text}>
+          <p className={styles.value}>{value}</p>
+          <p className={styles.label}>{label}</p>
+        </div>
+        {iconBadge}
+      </div>
+    );
+  }
   return (
     <div className={styles.card}>
-      <span className={styles.icon} aria-hidden="true">
-        {icon}
-      </span>
+      {iconBadge}
       <p className={styles.value}>{value}</p>
       <p className={styles.label}>{label}</p>
     </div>

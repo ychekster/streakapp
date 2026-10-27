@@ -1,13 +1,14 @@
 /**
- * Таймер «Цели по времени» на весь экран: тёмный фон в обеих темах, посередине — тонкое
- * кольцо цветом привычки (доля цели) и крупные цифры «12:34», над ними — название, под
- * ними — цель («Цель — 45 мин» или «Цель на сегодня выполнена»). Внизу — большая круглая
- * кнопка ▶ / ❚❚ и «Свернуть». Пока экран открыт, экран телефона не гаснет (Wake Lock,
- * hooks/useTimer.ts), если устройство это умеет.
+ * Таймер «Цели по времени» на весь экран — в стиле приложения (фон, карточка и кнопки
+ * темы, цвет привычки): сверху чип дня («Сегодня») и название, посередине белая карточка
+ * с кольцом цветом привычки (доля цели) и крупными цифрами «12:34», под ними — цель
+ * («Цель — 45 мин» или «Цель на сегодня выполнена»). Внизу две широкие кнопки: «Пауза» /
+ * «Продолжить» / «Старт» цветом привычки и серая «Свернуть». Пока экран открыт, экран
+ * телефона не гаснет (Wake Lock, hooks/useTimer.ts), если устройство это умеет.
  *
  * Открывается нажатием на мини-плеер (TimerBar) для его привычки; на паузе остаётся
- * открытым (время дня — из стора), ▶ запускает снова. «Назад» Telegram (и свайп) —
- * свернуть (App). Одно окно на всё приложение, как окно счёта (CountSheet).
+ * открытым (время дня — из стора), «Продолжить» запускает снова. «Назад» Telegram (и
+ * свайп) — свернуть (App). Одно окно на всё приложение, как окно счёта (CountSheet).
  */
 
 import { useEffect, useSyncExternalStore } from "react";
@@ -55,7 +56,7 @@ export function useTimerScreenHabit(): number | null {
 }
 
 /** Кольцо (координаты 100×100). */
-const RADIUS = 46;
+const RADIUS = 45;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function TimerScreen() {
@@ -84,6 +85,7 @@ export function TimerScreen() {
   const fraction = Math.min(seconds / goal, 1);
   // Дальше цели без «Сверх плана» таймер не идёт.
   const canStart = !reached || habit.overtime === true;
+  const mainLabel = running ? strings.timerPause : seconds > 0 ? strings.timerResume : strings.timerStart;
   return (
     <div
       className={styles.screen}
@@ -99,27 +101,29 @@ export function TimerScreen() {
         <h2 className={styles.name}>{habit.name}</h2>
       </div>
 
-      <div className={styles.dial}>
-        <svg className={styles.ring} viewBox="0 0 100 100" aria-hidden="true">
-          <circle className={styles.track} cx="50" cy="50" r={RADIUS} />
-          {fraction > 0.001 ? (
-            <circle
-              className={styles.arc}
-              cx="50"
-              cy="50"
-              r={RADIUS}
-              transform="rotate(-90 50 50)"
-              strokeDasharray={`${fraction * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-            />
-          ) : null}
-        </svg>
-        <div className={styles.readout}>
-          <span className={styles.clock} role="timer">
-            {clock(seconds)}
-          </span>
-          <span className={`${styles.goal} ${reached ? styles.goalDone : ""}`}>
-            {reached ? strings.timerGoalDone : strings.timerGoal(duration(goal, strings))}
-          </span>
+      <div className={styles.card}>
+        <div className={styles.dial}>
+          <svg className={styles.ring} viewBox="0 0 100 100" aria-hidden="true">
+            <circle className={styles.track} cx="50" cy="50" r={RADIUS} />
+            {fraction > 0.001 ? (
+              <circle
+                className={styles.arc}
+                cx="50"
+                cy="50"
+                r={RADIUS}
+                transform="rotate(-90 50 50)"
+                strokeDasharray={`${fraction * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              />
+            ) : null}
+          </svg>
+          <div className={styles.readout}>
+            <span className={styles.clock} role="timer">
+              {clock(seconds)}
+            </span>
+            <span className={`${styles.goal} ${reached ? styles.goalDone : ""}`}>
+              {reached ? strings.timerGoalDone : strings.timerGoal(duration(goal, strings))}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -128,7 +132,6 @@ export function TimerScreen() {
           type="button"
           className={`${styles.main} ${running ? styles.mainRunning : ""}`}
           disabled={!running && !canStart}
-          aria-label={running ? strings.timerPause : seconds > 0 ? strings.timerResume : strings.timerStart}
           onClick={() => {
             hapticImpact("medium");
             if (running) {
@@ -146,13 +149,23 @@ export function TimerScreen() {
           ) : (
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
-                d="M8 4.9v14.2a1.1 1.1 0 0 0 1.68.93l11.1-7.1a1.1 1.1 0 0 0 0-1.86L9.68 3.97A1.1 1.1 0 0 0 8 4.9z"
+                d="M7 4.9v14.2a1.1 1.1 0 0 0 1.68.93l11.1-7.1a1.1 1.1 0 0 0 0-1.86L8.68 3.97A1.1 1.1 0 0 0 7 4.9z"
                 fill="currentColor"
               />
             </svg>
           )}
+          {mainLabel}
         </button>
         <button type="button" className={styles.collapse} onClick={closeTimerScreen}>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M6 9.5l6 6 6-6"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           {strings.timerCollapse}
         </button>
       </div>

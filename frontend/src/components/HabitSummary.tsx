@@ -2,7 +2,8 @@
  * Сводка привычки — общая часть экрана привычки (HabitScreen) и страницы участника
  * групповой привычки (GroupMemberScreen): карточка с сеткой за последние 364 дня,
  * «Основное» (текущая и лучшая серии, всего выполнено — «18/25»: из скольких дней с первого
- * дня привычки, цель серии; у «Цели по времени» — ещё «Всего времени» за дни истории) и
+ * дня привычки, цель серии; у «Цели по времени» — ещё низкая карточка «Всего времени» за
+ * дни истории: «7 мин / 1 ч 40 мин», из скольких запланированных) и
  * календарь по месяцам (HabitCalendar).
  *
  * «Гибкий график» — свои карточки (flexibleStats): у недели и месяца серии в периодах
@@ -26,7 +27,7 @@ import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import type { Habit } from "../types/habit";
 import { weekdayLabel } from "../weekdayLabel";
-import { trackedDays } from "./calendarDays";
+import { plannedSeconds, trackedDays } from "./calendarDays";
 import { useGridView } from "./gridLayout";
 import { HabitBlock } from "./HabitBlock";
 import { dataStore } from "../data/store";
@@ -51,6 +52,13 @@ export function totalSeconds(habit: Habit, lastDay: string): number {
       goalOn(habit, addDays(first, index)).unit === "seconds" ? sum + count : sum,
     0,
   );
+}
+
+/** «Всего времени»: «7 мин / 1 ч 40 мин» — набрано из запланированного (как «18 / 25»). */
+function timeStat(habit: Habit, day: string, strings: Strings): string {
+  const done = duration(totalSeconds(habit, day), strings);
+  const planned = plannedSeconds(habit, day);
+  return planned > 0 ? `${done} / ${duration(planned, strings)}` : done;
 }
 
 function formatStreakGoal(habit: Habit, strings: Strings): string {
@@ -216,8 +224,9 @@ export function HabitSummary({
           {isTimed(habit) && markDay ? (
             <div className={styles.wide}>
               <StatCard
+                inline
                 icon={<StopwatchIcon />}
-                value={duration(totalSeconds(habit, markDay), strings)}
+                value={timeStat(habit, markDay, strings)}
                 label={strings.statTotalTime}
               />
             </div>

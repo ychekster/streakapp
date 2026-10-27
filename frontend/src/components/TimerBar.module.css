@@ -107,3 +107,9 @@
   width: var(--timer-bar-icon-size);
   height: var(--timer-bar-icon-size);
 }
+
+/* Цель набрана и дальше нельзя — справа просто отступ, как слева. */
+.pauseSpace {
+  flex-shrink: 0;
+  width: var(--timer-bar-padding-left);
+}

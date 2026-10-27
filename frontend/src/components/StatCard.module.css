@@ -38,6 +38,33 @@
   overflow-wrap: break-word;
 }
 
+/* Низкая карточка: значение с подписью слева, иконка напротив — по центру по высоте. */
+.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-row-gap);
+  padding-top: var(--stat-inline-padding-y);
+  padding-bottom: var(--stat-inline-padding-y);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline .icon {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.inline .value {
+  padding-top: 0;
+}
+
+.inline .label {
+  margin-top: 2px;
+}
+
 .label {
   margin-top: 4px;
   font-size: var(--font-size-body);
