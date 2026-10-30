@@ -368,5 +368,16 @@ EVENT_RATE_LIMIT: tuple[int, float] = (60, 2.0)
 ADDRESS_RATE_LIMIT: tuple[int, float] = (120, 4.0)
 # Test notifications per account (POST /web/push/test sends one push per device).
 PUSH_TEST_RATE_LIMIT: tuple[int, float] = (3, 0.05)
+# «Экспорт данных» / «Импорт данных» (Settings, routers/userdata.py): the file's format
+# and version (a file of a newer version is not taken), exports sent by the bot and
+# imports per account, the largest import body (the only path besides
+# BROADCAST_UPLOAD_PATH allowed past MAX_REQUEST_BODY_BYTES) and the most rows (marks,
+# notes, freezes, past schedules) of one habit in a file.
+EXPORT_FORMAT = "knot-export"
+EXPORT_VERSION = 1
+USER_DATA_RATE_LIMIT: tuple[int, float] = (5, 0.05)
+IMPORT_PATH = "/import"
+IMPORT_MAX_BYTES = 10 * 1024 * 1024
+IMPORT_MAX_ROWS = 20_000
 # Push subscriptions (devices) per account; a new one beyond this replaces the oldest.
 MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10

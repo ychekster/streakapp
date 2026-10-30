@@ -127,6 +127,28 @@ export function StarIcon() {
   );
 }
 
+/** «Экспорт данных»: стрелка вверх из лотка. */
+export function ExportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M12 15V4" />
+      <path {...STROKE} d="M8 8l4-4 4 4" />
+      <path {...STROKE} d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+    </svg>
+  );
+}
+
+/** «Импорт данных»: стрелка вниз в лоток. */
+export function ImportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M12 4v11" />
+      <path {...STROKE} d="M8 11l4 4 4-4" />
+      <path {...STROKE} d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+    </svg>
+  );
+}
+
 /** Политика конфиденциальности: щит. */
 export function ShieldIcon() {
   return (

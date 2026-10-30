@@ -22,6 +22,26 @@ function ruTimes(count: number): string {
   return ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "раза" : "раз";
 }
 
+/** «1 привычка», «2 привычки», «5 привычек». */
+function ruHabits(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (ones === 1 && tens !== 11) {
+    return `${count} привычка`;
+  }
+  return `${count} ${ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "привычки" : "привычек"}`;
+}
+
+/** «1 папка», «2 папки», «5 папок». */
+function ruFolders(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (ones === 1 && tens !== 11) {
+    return `${count} папка`;
+  }
+  return `${count} ${ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "папки" : "папок"}`;
+}
+
 function ruDays(count: number): string {
   const tens = count % 100;
   const ones = count % 10;
@@ -96,6 +116,26 @@ const RU = {
   foldersTitle: "Папки",
   // «Архив»: ряд настроек и экран архивных привычек.
   settingsArchive: "Архив",
+  // «Экспорт данных» / «Импорт данных» (data/userData.ts).
+  settingsExport: "Экспорт данных",
+  settingsImport: "Импорт данных",
+  settingsDataFooter:
+    "Сохраните привычки, отметки, заметки, папки и настройки в файл. На другом аккаунте или устройстве загрузите его через «Импорт данных», и привычки добавятся к текущим.",
+  exportShareTitle: "Мои данные Knot",
+  exportSentTitle: "Файл в чате с ботом",
+  exportSentMessage:
+    "Сохраните его или перешлите себе на другой аккаунт. Загрузить данные — Настройки → «Импорт данных».",
+  exportFailed: "Не удалось выгрузить данные. Попробуйте ещё раз.",
+  importConfirmTitle: "Импортировать данные?",
+  importConfirmMessage: (habits: number, folders: number) =>
+    `Добавится ${ruHabits(habits)}${folders > 0 ? ` и ${ruFolders(folders)}` : ""} — текущие останутся. Настройки заменятся настройками из файла.`,
+  importConfirm: "Импортировать",
+  importCancel: "Отмена",
+  importDoneTitle: "Данные загружены",
+  importDoneMessage: (habits: number, folders: number) =>
+    `Добавлено: ${ruHabits(habits)}${folders > 0 ? `, ${ruFolders(folders)}` : ""}.`,
+  importFailed: "Не удалось импортировать данные. Попробуйте ещё раз.",
+  importBadFile: "Этот файл не подходит. Выберите файл, сохранённый через «Экспорт данных».",
   archiveTitle: "Архив",
   archiveEmptyTitle: "В архиве пусто",
   archiveEmptyDescription:
@@ -573,6 +613,8 @@ const RU = {
     folder_not_found: "Папка не найдена. Возможно, её уже удалили",
     invalid_folder_name: "Введите название папки",
     rate_limited: "Слишком много действий подряд. Подождите пару секунд",
+    export_chat_unavailable: "Откройте чат с ботом и нажмите «Старт» — файл придёт туда.",
+    invalid_import_file: "Этот файл не подходит. Выберите файл, сохранённый через «Экспорт данных».",
     invalid_name: "Введите название привычки",
     invalid_description: "Описание слишком длинное",
     invalid_days: "Выберите хотя бы один день недели",
@@ -660,6 +702,25 @@ const EN: Strings = {
   settingsFolders: "Folders",
   foldersTitle: "Folders",
   settingsArchive: "Archive",
+  settingsExport: "Export Data",
+  settingsImport: "Import Data",
+  settingsDataFooter:
+    "Save your habits, check-ins, notes, folders and settings to a file. Load it on another account or device with “Import Data”, and the habits are added to your current ones.",
+  exportShareTitle: "My Knot data",
+  exportSentTitle: "File Sent to the Bot Chat",
+  exportSentMessage:
+    "Save it or forward it to your other account. To load the data: Settings → “Import Data”.",
+  exportFailed: "Couldn’t export your data. Please try again.",
+  importConfirmTitle: "Import Data?",
+  importConfirmMessage: (habits: number, folders: number) =>
+    `${habits} ${habits === 1 ? "habit" : "habits"}${folders > 0 ? ` and ${folders} ${folders === 1 ? "folder" : "folders"}` : ""} will be added — your current ones stay. Settings will be replaced with the ones from the file.`,
+  importConfirm: "Import",
+  importCancel: "Cancel",
+  importDoneTitle: "Data Imported",
+  importDoneMessage: (habits: number, folders: number) =>
+    `Added ${habits} ${habits === 1 ? "habit" : "habits"}${folders > 0 ? ` and ${folders} ${folders === 1 ? "folder" : "folders"}` : ""}.`,
+  importFailed: "Couldn’t import the data. Please try again.",
+  importBadFile: "This file won’t work. Choose a file saved with “Export Data”.",
   archiveTitle: "Archive",
   archiveEmptyTitle: "Archive Is Empty",
   archiveEmptyDescription:
@@ -1066,6 +1127,8 @@ const EN: Strings = {
     folder_not_found: "Folder not found. It may have been deleted",
     invalid_folder_name: "Enter a folder name",
     rate_limited: "Too many actions in a row. Wait a couple of seconds",
+    export_chat_unavailable: "Open the chat with the bot and tap “Start” — the file will arrive there.",
+    invalid_import_file: "This file won’t work. Choose a file saved with “Export Data”.",
     invalid_name: "Enter a habit name",
     invalid_description: "The description is too long",
     invalid_days: "Choose at least one day of the week",

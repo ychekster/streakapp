@@ -41,6 +41,8 @@ export type ApiErrorCode =
   | "folder_not_found"
   | "invalid_folder_name"
   | "rate_limited"
+  | "export_chat_unavailable"
+  | "invalid_import_file"
   | "invalid_name"
   | "invalid_description"
   | "invalid_days"

@@ -15,10 +15,14 @@ from backend.constants import (
     ACTIVATION_WINDOW_MAX_DAYS,
     CLIENT_REF_MAX_LENGTH,
     DEFAULT_HABIT_COLOR,
+    EXPORT_FORMAT,
+    EXPORT_VERSION,
     HABIT_DESCRIPTION_MAX_LENGTH,
     HISTORY_DAYS,
+    IMPORT_MAX_ROWS,
     MAX_DB_INT,
     NOTE_MAX_LENGTH,
+    MAX_FOLDERS_PER_USER,
     MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
     MAX_GOAL_SECONDS,
@@ -1570,3 +1574,134 @@ class FunnelResponse(BaseModel):
     since: date
     until: date
     steps: list[FunnelRow]
+
+
+# --------------------------------------------------------------------------- #
+#  «Экспорт данных» / «Импорт данных» (backend/userdata.py)
+# --------------------------------------------------------------------------- #
+# The file is this model as JSON. Import reads the same model; fields marked «export
+# only» are what we know about the user and are not imported. Values are checked on
+# import like the habit form's (userdata.py), so the types here are loose.
+
+
+class ExportMark(BaseModel):
+    """A day of a habit with a mark: done, or how many times (seconds for a time goal)
+    without reaching the goal."""
+
+    date: date
+    done: bool
+    count: int | None = Field(None, ge=0, le=MAX_DB_INT)
+    marked_at: UtcDateTime | None = None
+
+
+class ExportFreeze(BaseModel):
+    """A past freeze: from `start` to `end` (not including it)."""
+
+    start: date
+    end: date
+
+
+class ExportNote(BaseModel):
+    date: date
+    text: str = Field(..., max_length=NOTE_MAX_LENGTH * 2)
+
+
+class ExportShared(BaseModel):
+    """Export only: the habit is shared (imported as an ordinary one)."""
+
+    is_owner: bool
+    members: int
+
+
+class ExportHabit(BaseModel):
+    """A habit with everything about it. `id` links it with folders inside the file."""
+
+    id: int
+    name: str
+    description: str | None = None
+    color: str = DEFAULT_HABIT_COLOR
+    frequency_type: str = "daily"
+    days: list[str] = Field(default_factory=list, max_length=7)
+    start_date: date | None = None
+    period: str | None = None
+    period_times: int | None = None
+    times_per_day: int = 1
+    goal_unit: str = "times"
+    auto_mark: bool = False
+    overtime: bool = False
+    reminder_times: list[str] = Field(default_factory=list, max_length=MAX_REMINDERS_PER_HABIT)
+    created_at: UtcDateTime | None = None
+    frozen_since: date | None = None
+    archived_at: UtcDateTime | None = None
+    freezes: list[ExportFreeze] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+    schedule_history: list[SchedulePeriod] = Field(
+        default_factory=list, max_length=IMPORT_MAX_ROWS
+    )
+    marks: list[ExportMark] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+    notes: list[ExportNote] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+    shared: ExportShared | None = None
+
+
+class ExportFolder(BaseModel):
+    """A folder: its habits are `ExportHabit.id`s of this file."""
+
+    name: str
+    kind: str | None = None
+    habit_types: list[str] = Field(default_factory=list, max_length=8)
+    habits: list[int] = Field(default_factory=list, max_length=MAX_HABITS_PER_USER)
+
+
+class ExportSettings(BaseModel):
+    """Settings; a missing value is left as it is on import."""
+
+    timezone: str | None = None
+    timezone_city: int | None = None
+    language: str | None = None
+    theme: str | None = None
+    grid_layout: str | None = None
+    mark_yesterday: bool | None = None
+    checkin_reminder_time: str | None = None
+    checkin_reminder_days: list[str] = Field(default_factory=list, max_length=7)
+    telegram_notifications: bool | None = None
+    folder_swipe: bool | None = None
+
+
+class ExportAccount(BaseModel):
+    """Export only: the account."""
+
+    id: int
+    username: str | None = None
+    first_name: str | None = None
+    created_at: UtcDateTime | None = None
+    first_checkin_at: UtcDateTime | None = None
+    signup_platform: str | None = None
+
+
+class ExportReview(BaseModel):
+    """Export only: a review and the reply to it."""
+
+    text: str
+    created_at: UtcDateTime
+    reply_text: str | None = None
+    replied_at: UtcDateTime | None = None
+
+
+class DataExport(BaseModel):
+    """The «Экспорт данных» file (GET /export) and the body of POST /import."""
+
+    format: Literal["knot-export"] = Field(..., description=f"Всегда «{EXPORT_FORMAT}»")
+    version: int = Field(EXPORT_VERSION, ge=1)
+    exported_at: UtcDateTime | None = None
+    account: ExportAccount | None = None
+    settings: ExportSettings | None = None
+    habits: list[ExportHabit] = Field(default_factory=list, max_length=MAX_HABITS_PER_USER)
+    folders: list[ExportFolder] = Field(default_factory=list, max_length=MAX_FOLDERS_PER_USER)
+    all_habits_position: int = Field(0, ge=0, le=MAX_FOLDERS_PER_USER)
+    reviews: list[ExportReview] = Field(default_factory=list)
+
+
+class ImportResult(BaseModel):
+    """Answer of POST /import: how many habits and folders were added."""
+
+    habits: int
+    folders: int

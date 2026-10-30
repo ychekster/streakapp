@@ -1,5 +1,5 @@
 """Сообщения бота, которые отправляет сам API: личное сообщение и ответ на отзыв из
-админ-панели, копия рассылки её автору. Здесь же — кнопка под рассылкой: её ставят и
+админ-панели, копия рассылки её автору, файл «Экспорта данных» самому пользователю. Здесь же — кнопка под рассылкой: её ставят и
 копия автору, и бот, рассылающий остальным (bot/broadcasts.py).
 
 Они уходят сразу, в запросе администратора, — и он тут же видит результат: сообщение
@@ -30,6 +30,7 @@ from aiogram.exceptions import (
     TelegramRetryAfter,
 )
 from aiogram.types import (
+    BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InputFile,
@@ -202,6 +203,23 @@ async def send_text(bot: Bot, chat_id: int, text: str) -> Undelivered | None:
     if chat_id < 0:  # аккаунт только веб-приложения: в Telegram это был бы id группы
         return "chat_not_found"
     result = await _send(lambda: bot.send_message(chat_id=chat_id, text=text))
+    return result if isinstance(result, str) else None
+
+
+async def send_document(
+    bot: Bot, chat_id: int, file_name: str, content: bytes, caption: str
+) -> Undelivered | None:
+    """Файл с подписью (как есть, без разметки) в личный чат. None — доставлено."""
+    if chat_id < 0:  # аккаунт только веб-приложения: в Telegram это был бы id группы
+        return "chat_not_found"
+    result = await _send(
+        lambda: bot.send_document(
+            chat_id=chat_id,
+            document=BufferedInputFile(content, filename=file_name),
+            caption=caption or None,
+            request_timeout=_UPLOAD_TIMEOUT_SECONDS,
+        )
+    )
     return result if isinstance(result, str) else None
 
 

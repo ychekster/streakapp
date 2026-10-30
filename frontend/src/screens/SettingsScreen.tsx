@@ -18,6 +18,9 @@
  *     and «Папки» (habit folders, FoldersScreen; the value — how many there are), under
  *     them «Архив» (archived habits, ArchiveScreen; the value — how many).
  *  2. «Отмечать за вчера» — переключатель и пояснение под карточкой.
+ *  2a. «Экспорт данных» и «Импорт данных» — файл со всем о пользователе и загрузка такого
+ *     файла (data/userData.ts; файл загружается заранее, когда открываются настройки).
+ *     Пояснение под карточкой.
  *  3. «Написать отзыв» — открывает экран с полем для отзыва (см. ReviewScreen);
  *     политика конфиденциальности и условия использования — открывают документы.
  *  4. «Админ-панель» — только у администраторов: переключает приложение в режим
@@ -27,6 +30,8 @@
  * применяется сразу и уходит на сервер, а если сервер его не принял — откатывается,
  * и App показывает ошибку окошком.
  */
+
+import { useEffect } from "react";
 
 import { AttentionBadge } from "../components/AttentionBadge";
 import { Disclosure } from "../components/Disclosure";
@@ -42,7 +47,9 @@ import {
   ClockIcon,
   DocumentIcon,
   DotsGridIcon,
+  ExportIcon,
   FolderIcon,
+  ImportIcon,
   InstallIcon,
   PersonIcon,
   ShieldIcon,
@@ -51,6 +58,7 @@ import {
 } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
 import { Switch } from "../components/Switch";
+import { exportData, importFromFile, prefetchExport } from "../data/userData";
 import { describeError } from "../errors";
 import type { HandoffLink } from "../hooks/useHandoffLink";
 import { usePushToggle } from "../hooks/usePushToggle";
@@ -120,6 +128,8 @@ export function SettingsScreen({
   const { settings, status, error, reload } = state;
   const web = usePlatform() === "web";
   const push = usePushToggle(web);
+  // The export file is ready by the tap: the share sheet opens only right on it.
+  useEffect(prefetchExport, []);
 
   return <Screen title={strings.settingsTitle}>{renderContent()}</Screen>;
 
@@ -296,6 +306,25 @@ export function SettingsScreen({
               onChange={(markYesterday) => onSave({ mark_yesterday: markYesterday })}
               label={strings.settingsMarkYesterday}
             />
+          </ListItem>
+        </ListGroup>
+
+        <ListGroup footer={strings.settingsDataFooter}>
+          <ListItem
+            icon={<ExportIcon />}
+            iconColor="blue"
+            label={strings.settingsExport}
+            onPress={() => void exportData(strings)}
+          >
+            <Disclosure />
+          </ListItem>
+          <ListItem
+            icon={<ImportIcon />}
+            iconColor="green"
+            label={strings.settingsImport}
+            onPress={() => importFromFile(strings)}
+          >
+            <Disclosure />
           </ListItem>
         </ListGroup>
 

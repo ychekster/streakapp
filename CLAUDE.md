@@ -19,6 +19,7 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
                     auth (web logins), web (push, events)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
+  userdata.py       «Экспорт данных» / «Импорт данных»: everything about the user as one JSON file
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
                     overview.py, completion.py, people.py (people behind a number), profile.py,
@@ -126,6 +127,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onPickDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
 | «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / counted_days / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
 | «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
+| Export / import of all user data (JSON file; import adds habits, shared → ordinary, takes settings) | backend/userdata.py, routers/userdata.py, schemas.DataExport, repository get_task_logs / add_task_history; frontend data/userData.ts, api/userdata.ts, SettingsScreen |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

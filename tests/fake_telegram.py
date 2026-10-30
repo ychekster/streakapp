@@ -77,6 +77,14 @@ class FakeTelegram:
         self.sent.append(Sent("video", chat_id, caption, await self._content(video), extra))
         return SimpleNamespace(photo=None, video=SimpleNamespace(file_id="video-id"))
 
+    async def send_document(
+        self, chat_id: int, document: Any, caption: str | None = None, **extra: Any
+    ) -> SimpleNamespace:
+        self._check(chat_id, extra)
+        extra["filename"] = document.filename
+        self.sent.append(Sent("document", chat_id, caption, await self._content(document), extra))
+        return SimpleNamespace(photo=None, video=None)
+
     async def get_user_profile_photos(self, user_id: int, limit: int = 100) -> SimpleNamespace:
         self.photo_requests += 1
         if user_id not in self.profile_photos:

@@ -35,10 +35,13 @@ from backend.constants import (
     EVENT_RATE_LIMIT,
     GUEST_RATE_LIMIT,
     GZIP_MIN_BYTES,
+    IMPORT_MAX_BYTES,
+    IMPORT_PATH,
     MAX_REQUEST_BODY_BYTES,
     PUSH_TEST_RATE_LIMIT,
     SEED_ADMIN_IDS,
     SLOW_REQUEST_SECONDS,
+    USER_DATA_RATE_LIMIT,
 )
 from backend.database import Database
 from backend.errors import error_response, register_error_handlers
@@ -54,6 +57,7 @@ from backend.routers import (
     settings as settings_router,
     sync,
     tasks,
+    userdata,
     web,
 )
 from backend.timezones import warm_up as warm_up_timezones
@@ -99,6 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.event_limiter = RateLimiter(*EVENT_RATE_LIMIT)
     app.state.address_limiter = RateLimiter(*ADDRESS_RATE_LIMIT)
     app.state.push_test_limiter = RateLimiter(*PUSH_TEST_RATE_LIMIT)
+    app.state.user_data_limiter = RateLimiter(*USER_DATA_RATE_LIMIT)
     app.state.database = Database(
         settings.database_url,
         pool_size=settings.db_pool_size,
@@ -143,7 +148,10 @@ def create_app() -> FastAPI:
     app.add_middleware(
         BodySizeLimitMiddleware,
         max_bytes=MAX_REQUEST_BODY_BYTES,
-        path_limits={BROADCAST_UPLOAD_PATH: BROADCAST_UPLOAD_MAX_BYTES},
+        path_limits={
+            BROADCAST_UPLOAD_PATH: BROADCAST_UPLOAD_MAX_BYTES,
+            IMPORT_PATH: IMPORT_MAX_BYTES,
+        },
     )
     # Large answers (the time zone catalog, a year of habits) go compressed — several
     # times smaller on a slow connection. nginx leaves an already compressed answer as is.
@@ -168,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(auth.router)
     app.include_router(web.router)
+    app.include_router(userdata.router)
 
     @app.get("/health", tags=["meta"], response_model=None)
     async def health(request: Request) -> dict[str, str] | JSONResponse:

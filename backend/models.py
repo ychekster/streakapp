@@ -650,7 +650,8 @@ class ActivityLog(Base):
     checkin / uncheck (`ref_id` — привычка), auto_checkin (привычку «Отмечать
     автоматически» отметил бот),
     settings (`detail` — что изменил), push_on / push_off / push_gone, linked (привязал
-    вход), review, bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
+    вход), review, data_export / data_import («Экспорт данных» / «Импорт данных»; `detail` —
+    сколько добавлено), bot_blocked / bot_unblocked, reminder_sent / reminder_failed (`detail` —
     telegram или push, `ref_id` — привычка; без неё — «Пора отметить привычки»),
     broadcast_sent / broadcast_failed (`ref_id` — рассылка);
     групповые привычки: group_created (сделал привычку групповой), group_joined, group_left,

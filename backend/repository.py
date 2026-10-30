@@ -20,6 +20,7 @@ from sqlalchemy import (
     delete,
     exists,
     func,
+    insert,
     not_,
     or_,
     select,
@@ -1083,6 +1084,69 @@ class Repository:
         )
         await self.session.flush()
         return True
+
+    # ------------------------------------------------------------------ #
+    #  «Экспорт данных» / «Импорт данных» (userdata.py)
+    # ------------------------------------------------------------------ #
+
+    async def get_task_logs(self, task_ids: Collection[int]) -> dict[int, list[TaskLog]]:
+        """Все записи задач по дням: id задачи → записи по возрастанию дня."""
+        logs: dict[int, list[TaskLog]] = {task_id: [] for task_id in task_ids}
+        for batch in _batches(logs):
+            result = await self.session.scalars(
+                select(TaskLog)
+                .where(TaskLog.task_id.in_(batch))
+                .order_by(TaskLog.scheduled_date)
+            )
+            for log in result:
+                logs[log.task_id].append(log)
+        return logs
+
+    async def add_task_history(
+        self,
+        task: Task,
+        *,
+        created_at: datetime | None,
+        frozen_since: date | None,
+        archived_at: datetime | None,
+        logs: Sequence[tuple[date, TaskStatus, int | None, datetime | None]],
+        freezes: Sequence[tuple[date, date]],
+        notes: Sequence[tuple[date, str]],
+        periods: Sequence[Mapping[str, Any]],
+        now: datetime,
+    ) -> None:
+        """Прошлое новой задачи из файла импорта: день создания, заморозка, архив, отметки
+        (день, статус, счёт, когда отмечена), прошедшие заморозки, заметки и прежние
+        расписания (поля TaskSchedulePeriod) — одной вставкой на таблицу."""
+        if created_at is not None:
+            task.created_at = created_at
+        task.frozen_since = frozen_since
+        task.archived_at = archived_at
+        owner = {"task_id": task.id, "user_id": task.user_id}
+        if logs:
+            await self.session.execute(
+                insert(TaskLog),
+                [
+                    {**owner, "scheduled_date": day, "status": status, "count": count,
+                     "marked_at": marked_at, "created_at": now}
+                    for day, status, count, marked_at in logs
+                ],
+            )
+        if freezes:
+            await self.session.execute(
+                insert(TaskFreeze),
+                [{**owner, "start_date": start, "end_date": end} for start, end in freezes],
+            )
+        if notes:
+            await self.session.execute(
+                insert(DayNote),
+                [{**owner, "day": day, "text": text, "updated_at": now} for day, text in notes],
+            )
+        if periods:
+            await self.session.execute(
+                insert(TaskSchedulePeriod), [{**owner, **period} for period in periods]
+            )
+        await self.session.flush()
 
     # ------------------------------------------------------------------ #
     #  Таймер («Цель по времени»)
