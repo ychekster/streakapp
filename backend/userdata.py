@@ -29,7 +29,9 @@ from backend.constants import (
     FOLDER_KINDS,
     HABIT_NAME_MAX_LENGTH,
     MAX_FOLDERS_PER_USER,
+    MAX_DAY_SECONDS,
     MAX_HABITS_PER_USER,
+    OVERTIME_MAX_COUNT,
     REMINDER_TIME_FORMAT,
     WEEKDAYS,
 )
@@ -268,6 +270,16 @@ def _schedule_rows(habit: ExportHabit, today: date) -> list[dict[str, Any]]:
     return list(rows.values())
 
 
+def _count_cap(periods: list[dict[str, Any]], unit: str, day: date) -> int:
+    """Наибольший счёт дня (как в /sync): время — не больше 23:59:59, разы — до
+    OVERTIME_MAX_COUNT. Единица — того расписания, что действовало в тот день."""
+    for period in periods:
+        if day < period["until"]:
+            unit = period["goal_unit"]
+            break
+    return MAX_DAY_SECONDS if unit == "seconds" else OVERTIME_MAX_COUNT
+
+
 async def _import_habit(
     repo: Repository, user: User, habit: ExportHabit, taken: set[str], today: date, now: datetime
 ) -> Task:
@@ -308,11 +320,17 @@ async def _import_habit(
     )
 
     last_day = today + timedelta(days=1)
+    periods = _schedule_rows(habit, today)
     marks: dict[date, tuple[date, TaskStatus, int | None, datetime | None]] = {}
     for mark in habit.marks:
         if _FIRST_MARK_DAY <= mark.date <= last_day and (mark.done or mark.count):
             status = TaskStatus.done if mark.done else TaskStatus.pending
-            marks[mark.date] = (mark.date, status, mark.count, _naive_utc(mark.marked_at))
+            count = (
+                min(mark.count, _count_cap(periods, unit, mark.date))
+                if mark.count is not None
+                else None
+            )
+            marks[mark.date] = (mark.date, status, count, _naive_utc(mark.marked_at))
     notes: dict[date, str] = {}
     for note in habit.notes:
         try:
@@ -338,7 +356,7 @@ async def _import_habit(
         logs=sorted(marks.values()),
         freezes=freezes,
         notes=sorted(notes.items()),
-        periods=_schedule_rows(habit, today),
+        periods=periods,
         now=now,
     )
     return task
@@ -415,11 +433,14 @@ async def import_data(repo: Repository, user: User, data: DataExport) -> ImportR
             name = validation.validate_folder_name(folder.name)
         except ApiError:
             continue
+        # Повтор в файле — одна привычка в папке один раз.
+        refs = [ref for ref in dict.fromkeys(folder.habits) if ref in created]
+        types = [item for item in dict.fromkeys(folder.habit_types) if item in FOLDER_HABIT_TYPES]
         await repo.create_folder(
             user.telegram_id,
             name,
-            [] if kind else [created[ref].id for ref in folder.habits if ref in created],
-            [] if kind else [item for item in folder.habit_types if item in FOLDER_HABIT_TYPES],
+            [] if kind else [created[ref].id for ref in refs],
+            [] if kind else types,
             None,
             kind=kind,
         )

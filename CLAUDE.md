@@ -14,10 +14,11 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   models.py         SQLAlchemy models (all tables)      repository.py  ALL DB access
   services.py       habits, streaks, toggle, settings, due reminders
   groups.py         shared habits: invite/join/leave/kick, the group's day, owner's fields
+  photos.py         shared habits: members' Telegram photos (fetched by the API, cached by version)
   schemas.py        API contract (mirrored by frontend/src/types/*)
   dependencies.py   auth (tma initData | Bearer web session), DB session, current user
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
-                    auth (web logins), web (push, events)
+                    auth (web logins), web (push, events), groups, userdata (export/import)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
   userdata.py       «Экспорт данных» / «Импорт данных»: everything about the user as one JSON file
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
@@ -26,9 +27,10 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
                     names.py, service.py (entry for routers)
   auth.py (initData signature)  database.py (engine, sessions)  sources.py  clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
-bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
+bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids),
+                    profiles.py (shared habits: members' names and photos)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py,
-                    group_invite.py (/start join_<code>); profiles.py (members' names)
+                    group_invite.py (/start join_<code>)
 frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
   src/App.tsx       app shell: tabs, screen stack, BackButton/MainButton, admin mode (lazy)
@@ -82,6 +84,9 @@ are historical names — keep them; renaming breaks the server `.env` and client
 - Run everything from the repo root (SQLite path in `DATABASE_URL` is relative).
 - Match surrounding code: comment density, naming; older modules are commented in
   Russian, newer (PWA) ones in English — follow the file you are in.
+- **CLAUDE.md and AGENTS.md (for Codex) are the same text** — only the first line differs.
+  A change to one goes into the other too; keep the layout, «latest» migration and the
+  table below in step with the code.
 
 ## Commands (Windows, Git Bash)
 

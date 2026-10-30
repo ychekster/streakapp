@@ -49,16 +49,18 @@ SQLite / PostgreSQL
 | Авторизация | `backend/auth.py`, `backend/webauth.py` | Подпись `initData` (HMAC-SHA256); вход через сайт Telegram |
 | Аккаунты веб-приложения | `backend/accounts.py` | Гости, веб-сессии, одноразовые коды, привязка и объединение аккаунтов |
 | Зависимости | `backend/dependencies.py` | DI: сессия + репозиторий, вызывающий (Telegram или веб-сессия), запись в БД |
-| Роутеры | `backend/routers/*` | HTTP-эндпоинты `/sync`, `/tasks`, `/settings`, `/meta`, `/reviews`, `/admin/*`, `/auth/*`, `/web/*`, `/events` |
+| Роутеры | `backend/routers/*` | HTTP-эндпоинты `/sync`, `/tasks`, `/settings`, `/meta`, `/reviews`, `/groups/*`, `/export`, `/import`, `/admin/*`, `/auth/*`, `/web/*`, `/events` |
 | Сервисы | `backend/services.py` | История выполнения, создание/изменение привычки, отметка, настройки, отзывы, наступившие напоминания |
+| Совместные привычки | `backend/groups.py`, `backend/photos.py` | Приглашение, вступление, выход, день группы, поля владельца; фото участников |
+| Экспорт / импорт | `backend/userdata.py` | Всё о пользователе одним JSON-файлом и загрузка такого файла (привычки добавляются к текущим) |
 | Админ-панель | `backend/admin.py`, `backend/analytics/` | Пользователи, отзывы, администраторы, рассылки; аналитика |
-| Сообщения из API | `backend/messaging.py` | Личное сообщение, ответ на отзыв и копия рассылки — через Bot API сразу в запросе |
+| Сообщения из API | `backend/messaging.py` | Личное сообщение, ответ на отзыв, копия рассылки и файл экспорта — через Bot API сразу в запросе |
 | Валидация | `backend/validation.py` | Проверка названия, частоты, времени напоминания, цвета, часового пояса, языка, темы |
 | Часовые пояса | `backend/timezones.py` | Каталог поясов, поиск города, разбор `UTC±N`, подписи на языке интерфейса |
 | Справочник городов | `backend/cities.py`, `backend/data/cities.tsv.gz` | ~64 тыс. городов GeoNames с зонами и названиями; поиск по названию |
 | Репозиторий | `backend/repository.py` | Единственная точка доступа к БД |
 | Web Push и воронка | `backend/webpush.py`, `backend/funnel.py` | Отправка push (VAPID); события и отчёт воронки установки |
-| Модели | `backend/models.py` | ORM-схема (User, Task, TaskReminder, TaskLog, TaskFreeze, Folder, Admin, Review, UserActivity, CheckinDay, ActivityLog, Segment, AppConfig, Broadcast, WebSession, AuthCode, PushSubscription, Event) |
+| Модели | `backend/models.py` | ORM-схема (User, Task, TaskReminder, TaskLog, TaskFreeze, DayNote, TaskSchedulePeriod, RunningTimer, HabitGroup, HabitGroupMember, HabitGroupPeriod, HabitGroupMark, Folder, Admin, Review, UserActivity, CheckinDay, ActivityLog, Segment, AppConfig, Broadcast, WebSession, AuthCode, PushSubscription, Event) |
 | Миграции | `alembic/` | Версионирование схемы |
 
 ## Ключевые решения

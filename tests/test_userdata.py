@@ -9,7 +9,12 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.constants import EXPORT_VERSION, MAX_HABITS_PER_USER
+from backend.constants import (
+    EXPORT_VERSION,
+    MAX_DAY_SECONDS,
+    MAX_HABITS_PER_USER,
+    OVERTIME_MAX_COUNT,
+)
 from tests.conftest import AuthUser, new_user
 from tests.fake_telegram import FakeTelegram
 from tests.test_sync import _sync, _today
@@ -124,6 +129,28 @@ def test_import_respects_the_habit_limit(client: TestClient, user: AuthUser) -> 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "habit_limit"
     assert len(_sync(client, user)["habits"]) == 1
+
+
+def test_import_caps_counts_and_repeats(client: TestClient, user: AuthUser) -> None:
+    """A file edited by hand: a day's time over 23:59:59, a count over the most, a habit
+    listed twice in a folder — taken as /sync would take them."""
+    yesterday = (_today(client, user) - timedelta(days=1)).isoformat()
+    data = {
+        "format": "knot-export",
+        "habits": [
+            {"id": 1, "name": "Чтение", "goal_unit": "seconds", "times_per_day": 600,
+             "marks": [{"date": yesterday, "done": True, "count": 10**6}]},
+            {"id": 2, "name": "Вода", "times_per_day": 3, "overtime": True,
+             "marks": [{"date": yesterday, "done": True, "count": 10**9}]},
+        ],
+        "folders": [{"name": "Дом", "habits": [1, 1, 2]}],
+    }
+    assert _import(client, user, data) == {"habits": 2, "folders": 1}
+    habits = {habit["name"]: habit for habit in _export(client, user)["habits"]}
+    assert habits["Чтение"]["marks"][0]["count"] == MAX_DAY_SECONDS
+    assert habits["Вода"]["marks"][0]["count"] == OVERTIME_MAX_COUNT
+    [folder] = _sync(client, user)["folders"]
+    assert folder["habits"] == [habits["Чтение"]["id"], habits["Вода"]["id"]]
 
 
 @pytest.mark.parametrize(

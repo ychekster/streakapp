@@ -13,19 +13,24 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   config.py         Settings from the root .env (pydantic-settings)
   models.py         SQLAlchemy models (all tables)      repository.py  ALL DB access
   services.py       habits, streaks, toggle, settings, due reminders
+  groups.py         shared habits: invite/join/leave/kick, the group's day, owner's fields
+  photos.py         shared habits: members' Telegram photos (fetched by the API, cached by version)
   schemas.py        API contract (mirrored by frontend/src/types/*)
   dependencies.py   auth (tma initData | Bearer web session), DB session, current user
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
-                    auth (web logins), web (push, events)
+                    auth (web logins), web (push, events), groups, userdata (export/import)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
+  userdata.py       «Экспорт данных» / «Импорт данных»: everything about the user as one JSON file
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
                     overview.py, completion.py, people.py (people behind a number), profile.py,
                     names.py, service.py (entry for routers)
   auth.py (initData signature)  database.py (engine, sessions)  sources.py  clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
-bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids)
-  handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py
+bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids),
+                    profiles.py (shared habits: members' names and photos)
+  handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py,
+                    group_invite.py (/start join_<code>)
 frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
   src/App.tsx       app shell: tabs, screen stack, BackButton/MainButton, admin mode (lazy)
@@ -39,7 +44,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0024)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0037)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -79,6 +84,9 @@ are historical names — keep them; renaming breaks the server `.env` and client
 - Run everything from the repo root (SQLite path in `DATABASE_URL` is relative).
 - Match surrounding code: comment density, naming; older modules are commented in
   Russian, newer (PWA) ones in English — follow the file you are in.
+- **CLAUDE.md and AGENTS.md (for Codex) are the same text** — only the first line differs.
+  A change to one goes into the other too; keep the layout, «latest» migration and the
+  table below in step with the code.
 
 ## Commands (Windows, Git Bash)
 
@@ -116,7 +124,15 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |
 | Install page / funnel | frontend/src/landing/, src/web/analytics.ts; backend/funnel.py, scripts/funnel.py |
 | Bot texts / emoji | bot/constants.py, bot/emoji.py |
+| Archive (hidden from the list and folders, works as usual, no reminders) | models.Task.archived_at, SyncArchive (services.apply_sync), due_reminders; frontend store setArchived, derive.ts (archived), App `listHabits` / `archivedHabits`, screens/ArchiveScreen.tsx, HabitScreen |
 | Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx |
+| Shared habits | models.HabitGroup*, backend/groups.py, routers/groups.py, bot/handlers/group_invite.py, bot/profiles.py, reminders (group marks); frontend data/groups.ts, api/groups.ts, derive.ts (isShared, groupProgress), components/GroupMembers.tsx, CheckButton (group), screens/HabitScreen.tsx |
+| Schedule history (a past day keeps its schedule, goal, «Сверх плана») | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule / goal_on; frontend derive.ts (scheduleOn, goalOn, isDueOnDay) |
+| Bonus marks (not due / frozen / past a flexible goal: in the grid, not in the numbers) | services.counted_days (compute_streaks, flexible_streaks, total_done); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |
+| Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onPickDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
+| «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / counted_days / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
+| «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
+| Export / import of all user data (JSON file; import adds habits, shared → ordinary, takes settings) | backend/userdata.py, routers/userdata.py, schemas.DataExport, repository get_task_logs / add_task_history; frontend data/userData.ts, api/userdata.ts, SettingsScreen |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change
