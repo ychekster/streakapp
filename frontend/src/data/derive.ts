@@ -1061,10 +1061,15 @@ function buildHabit(
     }
   }
 
-  // A shared habit: my part (the button) — the history has the group's days.
+  // A shared habit: my part (the button) — the history has the group's days. Another
+  // marking day («Отмечать за вчера» switched): my part of it from the server's counts.
   const myDoneToday =
     marks.get(today) ??
-    (group ? (base && today === snapshotToday ? base.done_today : false) : undefined);
+    (group
+      ? base && today === snapshotToday
+        ? base.done_today
+        : myUnits(today) >= target
+      : undefined);
   const doneToday = myDoneToday ?? history[history.length - 1];
   return {
     id,

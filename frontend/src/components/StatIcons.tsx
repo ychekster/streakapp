@@ -61,6 +61,16 @@ export function StopwatchIcon() {
   );
 }
 
+/** Всего повторений (несколько раз в день): стрелки по кругу. */
+export function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M5 11a7 7 0 0 1 12.2-4.7L19 8M19 4v4h-4" />
+      <path {...STROKE} d="M19 13a7 7 0 0 1-12.2 4.7L5 16M5 20v-4h4" />
+    </svg>
+  );
+}
+
 /** График: календарь. */
 export function ScheduleIcon() {
   return (

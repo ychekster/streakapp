@@ -11,8 +11,8 @@
  */
 
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "../data/dates";
-import { countedHistory, goalOn, groupFill, isDueOnDay } from "../data/derive";
-import type { Habit } from "../types/habit";
+import { countedHistory, goalOn, groupFill, isDueOnDay, myDay } from "../data/derive";
+import type { GoalUnit, Habit } from "../types/habit";
 import { firstDay } from "./gridLayout";
 
 /** Что было в день:
@@ -83,19 +83,20 @@ export function trackedDays(habit: Habit, day: string): number {
 }
 
 /**
- * «Цель по времени», знаменатель «24 / 100 мин»: сколько времени было запланировано —
- * цели тех же дней, что в trackedDays, но только дней истории (время старше неё неизвестно)
- * и только с целью по времени (у дней с целью в разах — прежнее расписание — времени нет).
- * День отметки — по расписанию (время в нём уже идёт), а не только выполненный.
+ * Знаменатель «24 / 100 мин» («Цель по времени», `unit` seconds) и «14 / 20» (несколько раз
+ * в день, times): сколько было запланировано — цели тех же дней, что в trackedDays, но
+ * только дней истории (счёт старше неё неизвестен) и только с целью в `unit` (дни с другой
+ * целью — прежнее расписание — не в счёт). День отметки — по расписанию (он уже идёт), а не
+ * только выполненный.
  */
-export function plannedSeconds(habit: Habit, day: string): number {
+export function plannedTotal(habit: Habit, day: string, unit: GoalUnit): number {
   const start = startOf(habit, day);
   if (start === null) {
     return 0;
   }
   const goal = (date: string): number => {
-    const { goal: seconds, unit } = goalOn(habit, date);
-    return unit === "seconds" ? seconds : 0;
+    const target = goalOn(habit, date);
+    return target.unit === unit ? target.goal : 0;
   };
   const { history, frozen_history: frozen } = habit;
   const historyStart = addDays(day, 1 - history.length);
@@ -108,6 +109,28 @@ export function plannedSeconds(habit: Habit, day: string): number {
     }
   }
   return total;
+}
+
+/**
+ * Несколько раз в день, числитель «14 / 20»: сколько раз выполнена за дни истории (`day` —
+ * день отметки, её последний), без дней с целью по времени, и за день после него, если он
+ * выполнен (как в plannedTotal). Выполненный день — не меньше цели (отметка без счёта),
+ * со «Сверх плана» — и всё сверх неё. У совместной — моя часть.
+ */
+export function totalTimes(habit: Habit, day: string): number {
+  let sum = 0;
+  for (let date = addDays(day, 1 - habit.history.length); date <= day; date = addDays(date, 1)) {
+    const { goal, unit } = goalOn(habit, date);
+    if (unit === "times") {
+      const mine = myDay(habit, date, day);
+      sum += Math.max(mine.count, mine.done ? goal : 0);
+    }
+  }
+  const next = goalOn(habit, addDays(day, 1));
+  if (habit.next_day_done && next.unit === "times") {
+    sum += Math.max(habit.next_day_count ?? 0, next.goal);
+  }
+  return sum;
 }
 
 /** Месяц «ГГГГ-ММ» дня. */

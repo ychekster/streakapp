@@ -5,7 +5,14 @@ import { describe, expect, it } from "vitest";
 import { HISTORY_DAYS } from "../constants";
 import { daysBetween } from "../data/dates";
 import type { Habit } from "../types/habit";
-import { addMonths, calendarMonth, firstMonth, trackedDays } from "./calendarDays";
+import {
+  addMonths,
+  calendarMonth,
+  firstMonth,
+  plannedTotal,
+  totalTimes,
+  trackedDays,
+} from "./calendarDays";
 
 /** A habit with history up to the marking day `day`: the days `marks` done, `frozen`
  *  frozen; the first of them comes from the server as `started_on`, as in the API. */
@@ -159,6 +166,25 @@ describe("schedule history", () => {
     expect(states["11"]).toBe("missed");
     // 01..09: 01, 03, 05, 07, 09 due; 10, 11 daily (the marking day 12 is not over).
     expect(trackedDays(item, day)).toBe(7);
+  });
+});
+
+describe("times a day", () => {
+  it("counts times done out of times planned", () => {
+    // 4 times a day from 6 October: 2, 3, 4, 4, and once on the marking day (the 10th).
+    const day = "2026-10-10";
+    const counts = Array<number>(HISTORY_DAYS).fill(0);
+    counts.splice(HISTORY_DAYS - 5, 5, 2, 3, 4, 4, 1);
+    const water = habit(day, ["2026-10-08", "2026-10-09"], {
+      times_per_day: 4,
+      history_counts: counts,
+      today_count: 1,
+      started_on: "2026-10-06",
+    });
+    expect(totalTimes(water, day)).toBe(14);
+    // 5 days × 4: the marking day counts by the schedule, it is not over.
+    expect(plannedTotal(water, day, "times")).toBe(20);
+    expect(plannedTotal(water, day, "seconds")).toBe(0);
   });
 });
 

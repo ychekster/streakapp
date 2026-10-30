@@ -443,7 +443,13 @@ def build_habit(
             else []
         ),
         next_day_done=next_day_done and (group is None or group.view.others_next_day),
-        next_day_count=(day_counts or {}).get(today + timedelta(days=1), 0),
+        # Совместная — моя часть (как history_counts): по ней приложение знает мою отметку
+        # за календарный сегодня, когда режим выключили.
+        next_day_count=(
+            group.my_next_day
+            if group is not None
+            else (day_counts or {}).get(today + timedelta(days=1), 0)
+        ),
         created_on=created_on,
         started_on=started_day(task, done_dates, freezes, today),
         schedule_history=[

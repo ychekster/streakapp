@@ -704,6 +704,25 @@ describe("shared habit", () => {
     expect(presses[2].history[HISTORY_DAYS - 1]).toBe(false);
   });
 
+  it("keeps my part when «Отмечать за вчера» is switched, before the server answers", () => {
+    // I did it today and yesterday, the friend did neither: no group days.
+    const mine = Array<number>(HISTORY_DAYS).fill(0);
+    mine[HISTORY_DAYS - 1] = 1;
+    mine[HISTORY_DAYS - 2] = 1;
+    const shared = habit({ done_today: true, history_counts: mine, group: group(history([]), [member({})]) });
+    const on = view(snapshot([shared]), [{ type: "settings", patch: { mark_yesterday: true } }]);
+    expect(on.habits[0].done_today).toBe(true);
+    // Switched off: the answer (yesterday mode) tells today's part in next_day_count.
+    const yesterdayMode = snapshot(
+      [{ ...shared, history_counts: mine.slice(1).concat(0), next_day_count: 1 }],
+      { mark_yesterday: true },
+      addDays(TODAY, -1),
+    );
+    const off = view(yesterdayMode, [{ type: "settings", patch: { mark_yesterday: false } }]);
+    expect(off.habits[0].done_today).toBe(true);
+    expect(off.habits[0].history[HISTORY_DAYS - 1]).toBe(false);
+  });
+
   it("stays shared while alone, my days are the group's", () => {
     const alone = habit({ group: group(history([]), []) });
     expect(isShared(alone)).toBe(true);

@@ -161,6 +161,8 @@ class ViewerGroup:
     open_from: date
     # Моя часть по дням истории (выполненный день — цель).
     my_units: list[int]
+    # Моя часть за день после `today` (календарный сегодня в режиме «Отмечать за вчера»).
+    my_next_day: int = 0
     # «Гибкий график»: набрали ли цель за период остальные (services.OthersReached).
     others_reached: Callable[[date, date, int], bool] | None = None
 
@@ -349,6 +351,7 @@ def viewer_part(state: GroupState, task_id: int, today: date) -> ViewerGroup | N
         others_done=others_done,
         open_from=view.open_from or today,
         my_units=mine,
+        my_next_day=me.count_on(today + timedelta(days=1), target),
         others_reached=others_reached,
     )
 

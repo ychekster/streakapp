@@ -199,6 +199,18 @@ def test_invite_join_and_the_shared_day(client: TestClient, user: AuthUser) -> N
         assert (habit["current_streak"], habit["total_done"]) == (1, 1)
 
 
+def test_mark_yesterday_answer_carries_my_part_of_today(client: TestClient, user: AuthUser) -> None:
+    # Моя часть за календарный сегодня — в next_day_count (день группы ещё не выполнен):
+    # выключили «Отмечать за вчера» — приложение сразу видит мою отметку.
+    task_id, _, code = _shared(client, user)
+    _join(new_user(), code)
+    today = _today(client, user)
+    _mark(client, user, task_id, today)
+    data = _sync(client, user, {"type": "settings", "patch": {"mark_yesterday": True}})
+    habit = next(item for item in data["habits"] if item["id"] == task_id)
+    assert (habit["next_day_done"], habit["next_day_count"]) == (False, 1)
+
+
 def test_shared_fields_belong_to_the_owner(client: TestClient, user: AuthUser) -> None:
     owner_task, _, code = _shared(client, user, "Чтение")
     friend = new_user()

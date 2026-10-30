@@ -3,7 +3,8 @@
  * групповой привычки (GroupMemberScreen): карточка с сеткой за последние 364 дня,
  * «Основное» (текущая и лучшая серии, всего выполнено — «18/25»: из скольких дней с первого
  * дня привычки, цель серии; у «Цели по времени» — ещё низкая карточка «Всего времени» за
- * дни истории: «24 / 100 мин», из скольких запланированных) и
+ * дни истории: «24 / 100 мин», из скольких запланированных; у «несколько раз в день» —
+ * такая же «Всего повторений»: «14 / 20») и
  * календарь по месяцам (HabitCalendar).
  *
  * «Гибкий график» — свои карточки (flexibleStats): у недели и месяца серии в периодах
@@ -27,7 +28,7 @@ import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import type { Habit } from "../types/habit";
 import { weekdayLabel } from "../weekdayLabel";
-import { plannedSeconds, trackedDays } from "./calendarDays";
+import { plannedTotal, totalTimes, trackedDays } from "./calendarDays";
 import { useGridView } from "./gridLayout";
 import { HabitBlock } from "./HabitBlock";
 import { dataStore } from "../data/store";
@@ -36,7 +37,14 @@ import { closeDaySheet, openDaySheet } from "./DaySheet";
 import { HabitCalendar } from "./HabitCalendar";
 import { Card, Section } from "./Section";
 import { StatCard } from "./StatCard";
-import { CompletedIcon, FlameIcon, StopwatchIcon, TargetIcon, TrophyIcon } from "./StatIcons";
+import {
+  CompletedIcon,
+  FlameIcon,
+  RepeatIcon,
+  StopwatchIcon,
+  TargetIcon,
+  TrophyIcon,
+} from "./StatIcons";
 import styles from "./HabitSummary.module.css";
 
 /** Подпись цели серии: «Ежедневно», «Через день», «Каждый месяц», «Будние дни»,
@@ -57,8 +65,15 @@ export function totalSeconds(habit: Habit, lastDay: string): number {
  *  минутах, и часы тоже («1000 / 2000 мин»). */
 function timeStat(habit: Habit, day: string, strings: Strings): string {
   const done = Math.floor(totalSeconds(habit, day) / 60);
-  const planned = Math.floor(plannedSeconds(habit, day) / 60);
+  const planned = Math.floor(plannedTotal(habit, day, "seconds") / 60);
   return planned > 0 ? `${done} / ${strings.durationMinutes(planned)}` : strings.durationMinutes(done);
+}
+
+/** «Всего повторений»: «14 / 20» — выполнено из запланированного (как «18 / 25»). */
+function timesStat(habit: Habit, day: string): string {
+  const done = totalTimes(habit, day);
+  const planned = plannedTotal(habit, day, "times");
+  return planned > 0 ? `${done} / ${planned}` : String(done);
 }
 
 function formatStreakGoal(habit: Habit, strings: Strings): string {
@@ -222,6 +237,16 @@ export function HabitSummary({
                 icon={<StopwatchIcon />}
                 value={timeStat(habit, markDay, strings)}
                 label={strings.statTotalTime}
+              />
+            </div>
+          ) : null}
+          {!isTimed(habit) && habit.times_per_day > 1 && markDay ? (
+            <div className={styles.wide}>
+              <StatCard
+                inline
+                icon={<RepeatIcon />}
+                value={timesStat(habit, markDay)}
+                label={strings.statTotalTimes}
               />
             </div>
           ) : null}
