@@ -13,6 +13,10 @@
  * нужно, чтобы успеть к 31 декабря, сколько сделано на этой неделе и прогноз — к какому
  * дню цель будет набрана в нынешнем темпе (не успевает — сколько выйдет к концу года).
  *
+ * На экране привычки (`onOpenStats`) вместо «Всего времени» / «Всего повторений» —
+ * кнопка «Статистика» у любой привычки: эти карточки — на экране статистики
+ * (HabitStatsScreen). Страница участника группы — без неё, как раньше.
+ *
  * День отметки — последний день истории — из «Вида сетки» (GridViewContext): у страницы
  * участника это его день. Неизвестен (ещё нет настроек) — без календаря и без «из скольких
  * дней».
@@ -38,6 +42,7 @@ import { HabitCalendar } from "./HabitCalendar";
 import { Card, Section } from "./Section";
 import { StatCard } from "./StatCard";
 import {
+  ChartIcon,
   CompletedIcon,
   FlameIcon,
   RepeatIcon,
@@ -63,14 +68,14 @@ export function totalSeconds(habit: Habit, lastDay: string): number {
 
 /** «Всего времени»: «24 / 100 мин» — набрано из запланированного (как «18 / 25»), всегда в
  *  минутах, и часы тоже («1000 / 2000 мин»). */
-function timeStat(habit: Habit, day: string, strings: Strings): string {
+export function timeStat(habit: Habit, day: string, strings: Strings): string {
   const done = Math.floor(totalSeconds(habit, day) / 60);
   const planned = Math.floor(plannedTotal(habit, day, "seconds") / 60);
   return planned > 0 ? `${done} / ${strings.durationMinutes(planned)}` : strings.durationMinutes(done);
 }
 
 /** «Всего повторений»: «14 / 20» — выполнено из запланированного (как «18 / 25»). */
-function timesStat(habit: Habit, day: string): string {
+export function timesStat(habit: Habit, day: string): string {
   const done = totalTimes(habit, day);
   const planned = plannedTotal(habit, day, "times");
   return planned > 0 ? `${done} / ${planned}` : String(done);
@@ -96,7 +101,7 @@ interface Stat {
 }
 
 /** «14 дек.» / «Dec 14» — день «ГГГГ-ММ-ДД». */
-function shortDate(day: string, language: string): string {
+export function shortDate(day: string, language: string): string {
   const [year, month, date] = day.split("-").map(Number);
   const format = new Intl.DateTimeFormat(language, {
     day: "numeric",
@@ -161,6 +166,8 @@ interface HabitSummaryProps {
   onToggle?: (taskId: number) => void;
   /** Подзаголовок истории — якорь заголовка в шапке (когда он первый на экране). */
   headingRef?: Ref<HTMLHeadingElement>;
+  /** Открыть экран статистики (экран привычки). */
+  onOpenStats?: () => void;
   /** Под последней карточкой (кнопка «Исключить участника»). */
   children?: ReactNode;
 }
@@ -171,6 +178,7 @@ export function HabitSummary({
   interactive,
   onToggle,
   headingRef,
+  onOpenStats,
   children,
 }: HabitSummaryProps) {
   const strings = useStrings();
@@ -230,7 +238,23 @@ export function HabitSummary({
               />
             </>
           )}
-          {isTimed(habit) && markDay ? (
+          {onOpenStats ? (
+            <button type="button" className={styles.statsButton} onClick={onOpenStats}>
+              <span className={styles.statsIcon} aria-hidden="true">
+                <ChartIcon />
+              </span>
+              <span className={styles.statsLabel}>{strings.statsOpen}</span>
+              <svg className={styles.chevron} viewBox="0 0 8 14" fill="none" aria-hidden="true">
+                <path
+                  d="M1.5 1.5L6.5 7l-5 5.5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
+          {!onOpenStats && isTimed(habit) && markDay ? (
             <div className={styles.wide}>
               <StatCard
                 inline
@@ -240,7 +264,7 @@ export function HabitSummary({
               />
             </div>
           ) : null}
-          {!isTimed(habit) && habit.times_per_day > 1 && markDay ? (
+          {!onOpenStats && !isTimed(habit) && habit.times_per_day > 1 && markDay ? (
             <div className={styles.wide}>
               <StatCard
                 inline

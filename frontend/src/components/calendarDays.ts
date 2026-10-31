@@ -40,7 +40,7 @@ export interface CalendarDay {
 }
 
 /** Первый день привычки или null — ни отметок, ни заморозок. */
-function startOf(habit: Habit, day: string): string | null {
+export function startOf(habit: Habit, day: string): string | null {
   const first = firstDay(habit, habit.created_on ?? day, day);
   if (first < day) {
     return first;
@@ -161,8 +161,8 @@ function partOf(habit: Habit, index: number, date: string): number {
   return total > 1 ? Math.min((habit.history_counts?.[index] ?? 0) / total, 1) : 0;
 }
 
-/** Что было в день `date`; `day` — день отметки. */
-function stateOf(habit: Habit, date: string, day: string, start: string | null): CalendarDayState {
+/** Что было в день `date`; `day` — день отметки, `start` — первый день привычки (startOf). */
+export function stateOf(habit: Habit, date: string, day: string, start: string | null): CalendarDayState {
   const total = habit.times_per_day;
   if (date > day) {
     // День после дня отметки — календарный сегодня в режиме «Отмечать за вчера».

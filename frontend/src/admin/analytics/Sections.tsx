@@ -9,7 +9,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { ChartCard, type ChartTable } from "../components/ChartCard";
-import { LineChart } from "../components/LineChart";
+import { LineChart } from "../../components/charts/LineChart";
 import { WebFunnelSection } from "../components/WebFunnelSection";
 import { ListItem } from "../../components/ListItem";
 import { Card } from "../../components/Section";

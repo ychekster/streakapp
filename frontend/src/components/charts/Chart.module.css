@@ -1,0 +1,185 @@
+/*
+ * Графики (линия, столбики, круг): данные — единственное яркое на графике: линии делений
+ * и оси — тонкие и бледные, подписи — цветами текста; цвет ряда — цвет секции
+ * (--habit-rgb). Экран статистики привычки и аналитика админ-панели.
+ */
+
+/* Контейнер графика задаёт высоту (включая подписи оси X) — внутри карточки нет своей
+   прокрутки. Фокус с клавиатуры — обводкой акцента. */
+.chart {
+  position: relative;
+  width: 100%;
+  border-radius: 6px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chart:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.grid,
+.axis,
+.crosshair {
+  stroke-width: 1px;
+  shape-rendering: crispEdges;
+}
+
+.grid {
+  stroke: var(--chart-grid);
+}
+
+.axis {
+  stroke: var(--chart-axis);
+}
+
+.crosshair {
+  stroke: var(--chart-crosshair);
+}
+
+.tick {
+  font-family: var(--font-family);
+  font-size: var(--font-size-chart-tick);
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-text-secondary);
+}
+
+.line {
+  fill: none;
+  stroke: rgb(var(--habit-rgb));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.area {
+  fill: rgba(var(--habit-rgb), var(--chart-area-alpha));
+}
+
+/* Точка значения с кольцом цвета карточки: видна поверх линии. */
+.dot {
+  fill: rgb(var(--habit-rgb));
+  stroke: var(--color-card);
+}
+
+/* Невидимая зона касания поверх графика: вертикальная прокрутка страницы — браузеру,
+   горизонтальное движение пальца — выбору дня. */
+.hit {
+  fill: transparent;
+  touch-action: pan-y;
+  cursor: crosshair;
+  outline: none;
+}
+
+/* --- Столбики --- */
+
+.bar {
+  fill: rgb(var(--habit-rgb));
+  transition: opacity var(--transition-fast);
+}
+
+/* Пока выбран столбик, остальные приглушены. */
+.bar[data-dim] {
+  opacity: var(--chart-dim-alpha);
+}
+
+/* Значение над выбранным столбиком. */
+.barValue {
+  font-family: var(--font-family);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-text-primary);
+}
+
+/* --- Круг --- */
+
+.pie {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-card-padding);
+}
+
+.pie svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-body);
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}
+
+.legendLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Сколько дней и доля — двумя колонками с выровненными цифрами. */
+.legendValue,
+.legendShare {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.legendShare {
+  min-width: 3.2em;
+  color: var(--color-text-secondary);
+}
+
+.swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Цвета частей — насыщенные и разные, не оттенки цвета привычки: так круг читается
+   с одного взгляда. */
+.done {
+  --slice: rgb(var(--palette-green));
+}
+
+.partial {
+  --slice: rgb(var(--palette-orange));
+}
+
+.missed {
+  --slice: rgb(var(--palette-red));
+}
+
+.frozen {
+  --slice: rgb(var(--palette-lightblue));
+}
+
+.done,
+.partial,
+.missed,
+.frozen {
+  stroke: var(--slice);
+  background-color: var(--slice);
+}
+
+.slice {
+  fill: none;
+}

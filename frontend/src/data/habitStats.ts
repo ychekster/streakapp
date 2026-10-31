@@ -1,0 +1,245 @@
+/**
+ * The habit's statistics screen (screens/HabitStatsScreen.tsx): what its tiles and charts
+ * show, counted on the device from the habit's history — the last HISTORY_DAYS days, the
+ * last of them the marking day `day`. Days before the habit's first day
+ * (calendarDays.startOf) and older than the history are left out.
+ *
+ * What is measured depends on the kind of habit (statsKind):
+ *  - time («Цель по времени») — seconds a day (minutes on screen), days with a goal in
+ *    times (a past schedule) count 0;
+ *  - times (several times a day) — reps a day, as «Всего повторений» (totalTimes);
+ *  - check (once a day) — completion: counted days of the days it was due and not frozen,
+ *    as «Всего выполнено» counts them (trackedDays): the marking day is due only once done;
+ *  - flexible («Гибкий график») — marks, any day.
+ */
+
+import { startOf, stateOf } from "../components/calendarDays";
+import type { Habit } from "../types/habit";
+import { addDays, daysBetween, daysInMonth, weekdayIndex } from "./dates";
+import { countedHistory, flexiblePeriod, goalOn, isDueOnDay, isTimed, myDay } from "./derive";
+
+export type StatsKind = "time" | "times" | "check" | "flexible";
+export type StatsRange = "week" | "month" | "year";
+
+export function statsKind(habit: Habit): StatsKind {
+  if (flexiblePeriod(habit) !== null) {
+    return "flexible";
+  }
+  if (isTimed(habit)) {
+    return "time";
+  }
+  return habit.times_per_day > 1 ? "times" : "check";
+}
+
+/** The history as the counts read it. */
+interface Days {
+  habit: Habit;
+  day: string;
+  kind: StatsKind;
+  /** The history's first day. */
+  first: string;
+  /** The habit's first day (startOf), null — nothing marked yet. */
+  start: string | null;
+  counted: boolean[];
+}
+
+function daysOf(habit: Habit, day: string): Days {
+  return {
+    habit,
+    day,
+    kind: statsKind(habit),
+    first: addDays(day, 1 - habit.history.length),
+    start: startOf(habit, day),
+    counted: countedHistory(habit, day),
+  };
+}
+
+/** Is `date` a known day of the habit: from its first day (and the history's) to `day`. */
+function known(days: Days, date: string): boolean {
+  return days.start !== null && date >= days.start && date >= days.first && date <= days.day;
+}
+
+/** What a known day brought: seconds (time), reps (times) or a mark (check, flexible). */
+function amountOn(days: Days, date: string): number {
+  const { habit, day, kind } = days;
+  if (kind === "time" || kind === "times") {
+    const { goal, unit } = goalOn(habit, date);
+    if (unit !== (kind === "time" ? "seconds" : "times")) {
+      return 0;
+    }
+    const mine = myDay(habit, date, day);
+    return kind === "time" ? mine.count : Math.max(mine.count, mine.done ? goal : 0);
+  }
+  return habit.history[daysBetween(days.first, date)] ? 1 : 0;
+}
+
+/** Was a known day due (as trackedDays): counted, or past, due and not frozen. */
+function dueOn(days: Days, date: string): boolean {
+  const index = daysBetween(days.first, date);
+  return (
+    days.counted[index] ||
+    (date < days.day && !days.habit.frozen_history[index] && isDueOnDay(days.habit, date))
+  );
+}
+
+/** Sums over the known days from `from` to `to`. */
+export interface Totals {
+  /** Seconds (time), reps (times) or marks (check, flexible). */
+  amount: number;
+  /** Days that brought anything. */
+  activeDays: number;
+  /** Counted days and due days — completion is done / due. */
+  done: number;
+  due: number;
+  /** Any known day in the range. */
+  any: boolean;
+}
+
+function totals(days: Days, from: string, to: string): Totals {
+  const sum: Totals = { amount: 0, activeDays: 0, done: 0, due: 0, any: false };
+  for (let date = from; date <= to; date = addDays(date, 1)) {
+    if (!known(days, date)) {
+      continue;
+    }
+    sum.any = true;
+    const amount = amountOn(days, date);
+    sum.amount += amount;
+    sum.activeDays += amount > 0 ? 1 : 0;
+    if (dueOn(days, date)) {
+      sum.due += 1;
+      sum.done += days.counted[daysBetween(days.first, date)] ? 1 : 0;
+    }
+  }
+  return sum;
+}
+
+/** This month so far and the same days of the last one: the 1st to `day`'s date (a shorter
+ *  last month — all its days). No last month — the habit began after its 1st. */
+export function monthTotals(habit: Habit, day: string): { current: Totals; previous: Totals | null } {
+  const days = daysOf(habit, day);
+  const from = `${day.slice(0, 8)}01`;
+  const elapsed = daysBetween(from, day) + 1;
+  const previousFrom = `${addDays(from, -1).slice(0, 8)}01`;
+  const previousTo = addDays(previousFrom, Math.min(elapsed, daysInMonth(previousFrom)) - 1);
+  const began = days.start !== null && days.start <= previousFrom && days.first <= previousFrom;
+  return {
+    current: totals(days, from, day),
+    previous: began ? totals(days, previousFrom, previousTo) : null,
+  };
+}
+
+/** All the known days. */
+export function allTotals(habit: Habit, day: string): Totals {
+  const days = daysOf(habit, day);
+  return totals(days, days.first, day);
+}
+
+/** The day that brought the most (time, times) or null — none brought anything. */
+export function bestDay(habit: Habit, day: string): { amount: number; date: string } | null {
+  const days = daysOf(habit, day);
+  let best: { amount: number; date: string } | null = null;
+  for (let date = days.first; date <= day; date = addDays(date, 1)) {
+    if (!known(days, date)) {
+      continue;
+    }
+    const amount = amountOn(days, date);
+    if (amount > 0 && (best === null || amount > best.amount)) {
+      best = { amount, date };
+    }
+  }
+  return best;
+}
+
+/** How many days the habit has been going (from its first day to `day`), 0 — not begun. */
+export function daysGoing(habit: Habit, day: string): number {
+  const start = startOf(habit, day);
+  return start === null ? 0 : daysBetween(start, day) + 1;
+}
+
+/**
+ * The line chart: one point per day for a week (7) and a month (30), per week for a year
+ * (52 weeks back from `day`); null — no known day under the point.
+ *  - time — minutes a day (a week's for a year), times — reps the same way;
+ *  - check — completion (%) over the 7 days ending on the point: a day is 0 or 100, so
+ *    a line by days would only jump between them;
+ *  - flexible — marks over the 7 days ending on the point.
+ */
+export interface Trend {
+  values: (number | null)[];
+  /** The point's last day. */
+  dates: string[];
+}
+
+export function trend(habit: Habit, day: string, range: StatsRange): Trend {
+  const days = daysOf(habit, day);
+  const { kind } = days;
+  const points = range === "week" ? 7 : range === "month" ? 30 : 52;
+  const step = range === "year" ? 7 : 1;
+  const span = kind === "time" || kind === "times" ? step : 7;
+  const dates = Array.from({ length: points }, (_, index) => addDays(day, (index + 1 - points) * step));
+  const values = dates.map((end) => {
+    const sum = totals(days, addDays(end, 1 - span), end);
+    if (!sum.any) {
+      return null;
+    }
+    if (kind === "check") {
+      return sum.due > 0 ? Math.round((sum.done / sum.due) * 100) : null;
+    }
+    return kind === "time" ? Math.floor(sum.amount / 60) : sum.amount;
+  });
+  return { values, dates };
+}
+
+/** Each weekday (Monday first): completion (%) — counted days of the due ones; flexible —
+ *  the share of all marks made on it. Null — no due day (no mark) on that weekday. */
+export function weekdayRates(habit: Habit, day: string): (number | null)[] {
+  const days = daysOf(habit, day);
+  const done = Array<number>(7).fill(0);
+  const due = Array<number>(7).fill(0);
+  for (let date = days.first; date <= day; date = addDays(date, 1)) {
+    if (!known(days, date)) {
+      continue;
+    }
+    const weekday = weekdayIndex(date);
+    if (days.kind === "flexible") {
+      done[weekday] += amountOn(days, date);
+    } else if (dueOn(days, date)) {
+      due[weekday] += 1;
+      done[weekday] += days.counted[daysBetween(days.first, date)] ? 1 : 0;
+    }
+  }
+  if (days.kind === "flexible") {
+    const marks = done.reduce((sum, count) => sum + count, 0);
+    return done.map((count) => (marks > 0 ? Math.round((count / marks) * 100) : null));
+  }
+  return done.map((count, weekday) =>
+    due[weekday] > 0 ? Math.round((count / due[weekday]) * 100) : null,
+  );
+}
+
+/** The pie: the habit's days by what they were (as in the calendar). Days off schedule
+ *  only when marked; the marking day only once done or frozen — it is not over yet. */
+export interface DayBreakdown {
+  done: number;
+  partial: number;
+  missed: number;
+  frozen: number;
+}
+
+export function dayBreakdown(habit: Habit, day: string): DayBreakdown {
+  const days = daysOf(habit, day);
+  const breakdown: DayBreakdown = { done: 0, partial: 0, missed: 0, frozen: 0 };
+  for (let date = days.first; date <= day; date = addDays(date, 1)) {
+    if (!known(days, date)) {
+      continue;
+    }
+    const state = stateOf(habit, date, day, days.start);
+    if (date === day && state !== "done" && state !== "frozen") {
+      continue;
+    }
+    if (state === "done" || state === "partial" || state === "missed" || state === "frozen") {
+      breakdown[state] += 1;
+    }
+  }
+  return breakdown;
+}

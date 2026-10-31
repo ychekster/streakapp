@@ -1,7 +1,5 @@
 /*
- * Графики аналитики: карточка с подписью, значением и графиком; линии.
- * Данные — единственное яркое на графике: линии делений и оси — тонкие и бледные,
- * подписи — цветами текста; цвет ряда — цвет секции (--habit-rgb).
+ * Карточка графика аналитики: подпись, значение и график (сам график — components/charts).
  */
 
 /* --- Карточка --- */
@@ -98,77 +96,4 @@
 .table td,
 .table thead th:last-child {
   text-align: right;
-}
-
-/* --- Линии и столбики --- */
-
-/* Контейнер графика задаёт высоту (включая подписи оси X) — внутри карточки нет своей
-   прокрутки. Фокус с клавиатуры — обводкой акцента. */
-.chart {
-  position: relative;
-  width: 100%;
-  border-radius: 6px;
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.chart:focus-visible {
-  box-shadow: 0 0 0 2px var(--color-accent);
-}
-
-.chart svg {
-  display: block;
-  overflow: visible;
-}
-
-.grid,
-.axis,
-.crosshair {
-  stroke-width: 1px;
-  shape-rendering: crispEdges;
-}
-
-.grid {
-  stroke: var(--chart-grid);
-}
-
-.axis {
-  stroke: var(--chart-axis);
-}
-
-.crosshair {
-  stroke: var(--chart-crosshair);
-}
-
-.tick {
-  font-family: var(--font-family);
-  font-size: var(--font-size-chart-tick);
-  font-variant-numeric: tabular-nums;
-  fill: var(--color-text-secondary);
-}
-
-.line {
-  fill: none;
-  stroke: rgb(var(--habit-rgb));
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.area {
-  fill: rgba(var(--habit-rgb), var(--chart-area-alpha));
-}
-
-/* Точка значения с кольцом цвета карточки: видна поверх линии. */
-.dot {
-  fill: rgb(var(--habit-rgb));
-  stroke: var(--color-card);
-}
-
-/* Невидимая зона касания поверх графика: вертикальная прокрутка страницы — браузеру,
-   горизонтальное движение пальца — выбору дня. */
-.hit {
-  fill: transparent;
-  touch-action: pan-y;
-  cursor: crosshair;
-  outline: none;
 }

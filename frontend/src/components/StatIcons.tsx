@@ -98,3 +98,13 @@ export function RestIcon() {
     </svg>
   );
 }
+
+/** Статистика, среднее за день: линия графика над осью. */
+export function ChartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M4 4.5V19.5H20" />
+      <path {...STROKE} d="M7.5 15l3.5-4 3 2.5 4.5-6" />
+    </svg>
+  );
+}

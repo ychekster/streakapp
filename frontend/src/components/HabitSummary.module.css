@@ -9,3 +9,59 @@
   grid-column: 1 / -1;
 }
 
+
+/* «Статистика» — во всю ширину под карточками, вид карточки показателя: открывает экран
+   статистики привычки. */
+.statsButton {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-row-gap);
+  width: 100%;
+  padding: var(--stat-inline-padding-y) var(--space-card-padding);
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  font-weight: 600;
+  text-align: left;
+  color: var(--color-text-primary);
+  background-color: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.statsButton[data-pressed] {
+  background-image: linear-gradient(var(--color-row-press), var(--color-row-press));
+}
+
+.statsIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--stat-icon-size);
+  height: var(--stat-icon-size);
+  border-radius: var(--radius-stat-icon);
+  background-color: rgba(var(--habit-rgb), var(--habit-soft-alpha));
+  color: rgb(var(--habit-rgb));
+}
+
+.statsIcon svg {
+  width: var(--stat-icon-glyph);
+  height: var(--stat-icon-glyph);
+}
+
+.statsLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: 9px;
+  height: 16px;
+  color: var(--color-text-secondary);
+}
+
+.chevron path {
+  stroke-width: 2.4;
+}

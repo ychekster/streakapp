@@ -1,0 +1,297 @@
+/**
+ * Экран статистики привычки — открывается кнопкой «Статистика» в «Основном» экрана
+ * привычки. Всё считается на устройстве из истории привычки (data/habitStats.ts), по дню
+ * отметки из «Вида сетки». Текста — минимум: заголовки разделов и подписи цифр.
+ *
+ *  - «Этот месяц» — одна карточка с цифрами и стрелкой к тем же дням прошлого месяца
+ *    (StatDelta): у «Цели по времени» и «несколько раз в день» — минуты (повторения) и в
+ *    среднем за день с отметкой, у остальных — выполнено и выполнение (%; у «Гибкого
+ *    графика» — только выполнено);
+ *  - «За всё время» (время, повторения) — «Всего» («24 / 100 мин», переехало сюда из
+ *    «Основного») и рекорд за день;
+ *  - «Динамика» — линейный график за неделю, месяц или год (капсулы над ним); над ним
+ *    значение последней точки, палец на графике — значение и дата выбранной;
+ *  - «По дням недели» — столбики выполнения (палец — значение над столбиком);
+ *  - «Дни привычки» — круг: выполнено, частично, пропущено, заморожено (у «Гибкого
+ *    графика» нет пропусков — круга нет).
+ * Дни недели и круг — только когда привычке хотя бы MIN_DAYS дней: раньше в них нечего
+ * читать.
+ */
+
+import { useMemo, useRef, useState, type ReactNode } from "react";
+
+import { BarChart } from "../components/charts/BarChart";
+import { LineChart } from "../components/charts/LineChart";
+import { PieChart, type PieSlice } from "../components/charts/PieChart";
+import { localDate } from "../components/DateField";
+import { useGridView } from "../components/gridLayout";
+import { shortDate, timesStat, timeStat } from "../components/HabitSummary";
+import { Screen } from "../components/Screen";
+import { Card, Section } from "../components/Section";
+import { StatDelta } from "../components/StatDelta";
+import { WEEKDAYS } from "../constants";
+import {
+  bestDay,
+  dayBreakdown,
+  daysGoing,
+  monthTotals,
+  statsKind,
+  trend,
+  weekdayRates,
+  type StatsKind,
+  type StatsRange,
+  type Totals,
+} from "../data/habitStats";
+import { useLanguage, useStrings } from "../preferences";
+import type { Strings } from "../strings";
+import { habitColorStyle } from "../theme";
+import type { Habit } from "../types/habit";
+import habitStyles from "./HabitScreen.module.css";
+import styles from "./HabitStatsScreen.module.css";
+
+/** С какого дня привычки показываются дни недели и круг. */
+const MIN_DAYS = 14;
+
+const RANGES: StatsRange[] = ["week", "month", "year"];
+
+/** Значение графика или карточки: минуты, повторения, отметки или %. */
+function formatValue(kind: StatsKind, value: number, strings: Strings): string {
+  if (kind === "time") {
+    return strings.durationMinutes(value);
+  }
+  return kind === "check" ? `${value}%` : String(value);
+}
+
+/** Минуты из секунд (time) или как есть. */
+function amountOf(kind: StatsKind, amount: number): number {
+  return kind === "time" ? Math.floor(amount / 60) : amount;
+}
+
+/** Среднее за день с отметкой, null — таких дней нет. */
+function averageOf(kind: StatsKind, totals: Totals): number | null {
+  return totals.activeDays > 0 ? Math.round(amountOf(kind, totals.amount) / totals.activeDays) : null;
+}
+
+/** Выполнение (%), null — не было дней по расписанию. */
+function rateOf(totals: Totals): number | null {
+  return totals.due > 0 ? Math.round((totals.done / totals.due) * 100) : null;
+}
+
+interface Figure {
+  value: string | number;
+  label: string;
+  delta?: ReactNode;
+}
+
+/** Карточка из цифр в ряд, через тонкий разделитель: значение (и стрелка), под ним подпись. */
+function Figures({ items }: { items: Figure[] }) {
+  return (
+    <div className={styles.figures}>
+      {items.map((item) => (
+        <div key={item.label} className={styles.figure}>
+          <p className={styles.figureValue}>
+            {item.value}
+            {item.delta}
+          </p>
+          <p className={styles.figureLabel}>{item.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface HabitStatsScreenProps {
+  habit: Habit;
+}
+
+export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
+  const strings = useStrings();
+  const language = useLanguage();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // День отметки ещё неизвестен (нет настроек) — сегодня на устройстве.
+  const day = useGridView().day ?? localDate();
+  const kind = statsKind(habit);
+  const [range, setRange] = useState<StatsRange>("month");
+  const [point, setPoint] = useState<number | null>(null);
+  const [weekday, setWeekday] = useState<number | null>(null);
+
+  const month = useMemo(() => monthTotals(habit, day), [habit, day]);
+  const best = useMemo(() => bestDay(habit, day), [habit, day]);
+  const line = useMemo(() => trend(habit, day, range), [habit, day, range]);
+  const rates = useMemo(() => weekdayRates(habit, day), [habit, day]);
+  const breakdown = useMemo(() => dayBreakdown(habit, day), [habit, day]);
+  const enough = daysGoing(habit, day) >= MIN_DAYS;
+  const { current, previous } = month;
+  const counts = kind === "time" || kind === "times";
+
+  const monthFigures: Figure[] = counts
+    ? [
+        {
+          value: formatValue(kind, amountOf(kind, current.amount), strings),
+          label: kind === "time" ? strings.statsMinutes : strings.statsTimes,
+          delta: (
+            <StatDelta
+              current={amountOf(kind, current.amount)}
+              previous={previous ? amountOf(kind, previous.amount) : null}
+              kind="count"
+            />
+          ),
+        },
+        {
+          value: formatValue(kind, averageOf(kind, current) ?? 0, strings),
+          label: strings.statsAverage,
+          delta: (
+            <StatDelta
+              current={averageOf(kind, current) ?? 0}
+              previous={previous ? averageOf(kind, previous) : null}
+              kind="count"
+            />
+          ),
+        },
+      ]
+    : [
+        {
+          value: current.amount,
+          label: strings.statsDone,
+          delta: <StatDelta current={current.amount} previous={previous?.amount ?? null} kind="count" />,
+        },
+        ...(kind === "check"
+          ? [
+              {
+                value: rateOf(current) === null ? "—" : `${rateOf(current)}%`,
+                label: strings.statsRate,
+                delta:
+                  rateOf(current) === null ? null : (
+                    <StatDelta
+                      current={rateOf(current) ?? 0}
+                      previous={previous ? rateOf(previous) : null}
+                      kind="rate"
+                    />
+                  ),
+              },
+            ]
+          : []),
+      ];
+
+  const labels = line.dates.map((date) => shortDate(date, language));
+  let lastKnown: number | null = null;
+  line.values.forEach((value, index) => {
+    if (value !== null) {
+      lastKnown = index;
+    }
+  });
+  const shownPoint = point ?? lastKnown;
+  const shownValue = shownPoint === null ? null : line.values[shownPoint];
+
+  const slices: PieSlice[] = (["done", "partial", "missed", "frozen"] as const).map((tone) => ({
+    key: tone,
+    label: strings.statsSlices[tone],
+    value: breakdown[tone],
+    tone,
+  }));
+
+  return (
+    <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
+      <div className={habitStyles.enter} style={habitColorStyle(habit.color)}>
+        <Section title={strings.statsMonthHeading} headingRef={headingRef}>
+          <Card>
+            <Figures items={monthFigures} />
+          </Card>
+        </Section>
+
+        {counts ? (
+          <Section title={strings.statsAllTimeHeading}>
+            <Card>
+              <Figures
+                items={[
+                  {
+                    value: kind === "time" ? timeStat(habit, day, strings) : timesStat(habit, day),
+                    label: strings.statsTotal,
+                  },
+                  {
+                    value: best ? formatValue(kind, amountOf(kind, best.amount), strings) : "—",
+                    label: best
+                      ? strings.statsBestDayOn(shortDate(best.date, language))
+                      : strings.statsBestDay,
+                  },
+                ]}
+              />
+            </Card>
+          </Section>
+        ) : null}
+
+        <Section title={strings.statsTrendHeading}>
+          <Card padded>
+            <div className={styles.chartCard}>
+              <div className={styles.pills} role="group" aria-label={strings.statsTrendHeading}>
+                {RANGES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={styles.pill}
+                    aria-pressed={option === range}
+                    onClick={() => {
+                      setRange(option);
+                      setPoint(null);
+                    }}
+                  >
+                    {strings.statsRanges[option]}
+                  </button>
+                ))}
+              </div>
+              <p className={styles.chartValue}>
+                {shownValue === null ? "—" : formatValue(kind, shownValue, strings)}
+                {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
+              </p>
+              <LineChart
+                values={line.values}
+                labels={labels}
+                max={kind === "check" ? 100 : undefined}
+                tickCount={kind === "check" ? 2 : 3}
+                formatTick={(value) => (kind === "check" ? `${value}%` : String(value))}
+                partialLast
+                selected={point}
+                onSelect={setPoint}
+                label={strings.statsTrendHeading}
+              />
+            </div>
+          </Card>
+        </Section>
+
+        <Section title={strings.statsWeekdaysHeading}>
+          <Card padded>
+            <div className={styles.chartCard}>
+              {enough ? (
+                <BarChart
+                  values={rates}
+                  labels={WEEKDAYS.map((key) => strings.weekdays[key].short)}
+                  max={100}
+                  formatTick={(value) => `${value}%`}
+                  selected={weekday}
+                  onSelect={setWeekday}
+                  label={strings.statsWeekdaysHeading}
+                />
+              ) : (
+                <p className={styles.tooEarly}>{strings.statsTooEarly}</p>
+              )}
+            </div>
+          </Card>
+        </Section>
+
+        {kind !== "flexible" ? (
+          <Section title={strings.statsDaysHeading}>
+            <Card padded>
+              <div className={styles.chartCard}>
+                {enough ? (
+                  <PieChart slices={slices} label={strings.statsDaysHeading} />
+                ) : (
+                  <p className={styles.tooEarly}>{strings.statsTooEarly}</p>
+                )}
+              </div>
+            </Card>
+          </Section>
+        ) : null}
+      </div>
+    </Screen>
+  );
+}

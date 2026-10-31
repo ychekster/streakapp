@@ -92,6 +92,7 @@ import { AccountScreen } from "./screens/AccountScreen";
 import { HabitFormScreen } from "./screens/HabitFormScreen";
 import { InstallFromTelegramScreen } from "./screens/InstallFromTelegramScreen";
 import { HabitScreen } from "./screens/HabitScreen";
+import { HabitStatsScreen } from "./screens/HabitStatsScreen";
 import { GroupBlockedScreen } from "./screens/GroupBlockedScreen";
 import { GroupMemberScreen } from "./screens/GroupMemberScreen";
 import { HabitsScreen } from "./screens/HabitsScreen";
@@ -224,6 +225,8 @@ export function App() {
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);
   // «Чёрный список» групповой привычки поверх экрана привычки (владелец).
   const [blockedOpen, setBlockedOpen] = useState(false);
+  // Экран статистики поверх экрана привычки (кнопка «Статистика»).
+  const [statsOpen, setStatsOpen] = useState(false);
   // Экран привычки въезжает при открытии из списка, но не при возврате из формы.
   const [habitEntering, setHabitEntering] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(
@@ -254,6 +257,7 @@ export function App() {
   const scrollUnderHabit = useRef(0);
   const scrollUnderMember = useRef(0);
   const scrollUnderBlocked = useRef(0);
+  const scrollUnderStats = useRef(0);
   const scrollUnderEditor = useRef(0);
   const scrollUnderAdvanced = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
@@ -378,6 +382,7 @@ export function App() {
     setHabitEntering(true);
     setOpenMemberId(null);
     setBlockedOpen(false);
+    setStatsOpen(false);
     setOpenHabitId(taskId);
   }, []);
 
@@ -386,6 +391,7 @@ export function App() {
     pendingBack.current = true;
     setOpenMemberId(null);
     setBlockedOpen(false);
+    setStatsOpen(false);
     setOpenHabitId(null);
   }, []);
 
@@ -406,6 +412,19 @@ export function App() {
       hideMember();
     }
   }, [openMemberId, openMember, hideMember]);
+
+  const showStats = useCallback(() => {
+    scrollUnderStats.current = window.scrollY;
+    pendingScroll.current = 0;
+    setStatsOpen(true);
+  }, []);
+
+  const hideStats = useCallback(() => {
+    pendingScroll.current = scrollUnderStats.current;
+    pendingBack.current = true;
+    setHabitEntering(false);
+    setStatsOpen(false);
+  }, []);
 
   const showBlocked = useCallback(() => {
     scrollUnderBlocked.current = window.scrollY;
@@ -664,6 +683,8 @@ export function App() {
           : leaveEditor
         : blockedOpen
           ? hideBlocked
+          : statsOpen && openHabit
+          ? hideStats
           : openMember
           ? hideMember
           : openHabit
@@ -950,6 +971,9 @@ export function App() {
         <GroupBlockedScreen habit={openHabit} group={blockedGroup} onLinkTelegram={linkTelegram} />
       );
     }
+    if (openHabit && statsOpen) {
+      return <HabitStatsScreen habit={openHabit} />;
+    }
     if (openHabit?.group && openMember) {
       return (
         <GroupMemberScreen
@@ -977,6 +1001,7 @@ export function App() {
           onLinkTelegram={linkTelegram}
           onOpenMember={showMember}
           onOpenBlocked={showBlocked}
+          onOpenStats={showStats}
         />
       );
     }

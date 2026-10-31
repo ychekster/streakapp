@@ -1,0 +1,102 @@
+/* Цифры в ряд внутри одной карточки, между ними — тонкая вертикальная линия. */
+.figures {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.figure {
+  position: relative;
+  min-width: 0;
+  padding: var(--space-card-padding);
+}
+
+.figure + .figure::before {
+  content: "";
+  position: absolute;
+  top: var(--space-card-padding);
+  bottom: var(--space-card-padding);
+  left: 0;
+  width: 1px;
+  background-color: var(--color-separator);
+}
+
+/* Значение и стрелка — на одной строке (узко — стрелка переносится под значение). */
+.figureValue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  font-size: min(var(--font-size-stat-value), var(--font-size-stat-value-fluid));
+  font-weight: var(--font-weight-stat-value);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.figureLabel {
+  margin-top: 4px;
+  font-size: var(--font-size-secondary);
+  line-height: 1.25;
+  color: var(--color-text-secondary);
+}
+
+/* Содержимое карточки графика: у Card padded отступы только по бокам. */
+.chartCard {
+  padding: var(--space-card-padding) 0;
+}
+
+/* Неделя / Месяц / Год — сегменты на серой подложке, выбранный — карточкой. */
+.pills {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: var(--space-row-gap);
+  border-radius: 9px;
+  background-color: var(--color-fill);
+}
+
+.pill {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.pill[aria-pressed="true"] {
+  background-color: var(--color-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Значение последней (или выбранной) точки крупно; у выбранной — её дата рядом. */
+.chartValue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: var(--space-row-gap);
+  font-size: var(--font-size-chart-value);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.chartDate {
+  font-size: var(--font-size-secondary);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-text-secondary);
+}
+
+.tooEarly {
+  font-size: var(--font-size-body);
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}

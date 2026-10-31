@@ -94,6 +94,8 @@ interface HabitScreenProps {
   onOpenMember: (member: GroupMember) => void;
   /** «Чёрный список» (владелец). */
   onOpenBlocked: () => void;
+  /** Экран статистики привычки. */
+  onOpenStats: () => void;
 }
 
 export function HabitScreen({
@@ -108,6 +110,7 @@ export function HabitScreen({
   onLinkTelegram,
   onOpenMember,
   onOpenBlocked,
+  onOpenStats,
 }: HabitScreenProps) {
   const strings = useStrings();
   // Первый подзаголовок: когда он уходит под кнопки Telegram, в шапке появляется название.
@@ -318,6 +321,7 @@ export function HabitScreen({
           interactive={!frozen}
           onToggle={onToggle}
           headingRef={shared && group ? undefined : headingRef}
+          onOpenStats={onOpenStats}
         />
 
         <Section title={strings.habitSettingsHeading}>
