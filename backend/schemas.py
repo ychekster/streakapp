@@ -177,7 +177,8 @@ class Habit(BaseModel):
         ...,
         description=(
             "Запланирована ли задача на день отметки (по частоте/дням недели). "
-            "True — задачу можно отмечать; False — только просмотр прогресса."
+            "False — отметить тоже можно, но отметка бонусная: в `history` и `total_done` "
+            "есть, в сериях — нет."
         ),
     )
     frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly", "flexible"] = Field(

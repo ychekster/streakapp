@@ -373,10 +373,11 @@ export function isDueOnDay(habit: ScheduleWithHistory, day: string): boolean {
 }
 
 /**
- * Done days from `from` to `to` that count in the numbers (services.counted_days): due by
+ * Done days from `from` to `to` that count in the streaks (services.counted_days): due by
  * the schedule in force that day and not frozen; for «Гибкий график» — the first days of
  * a period, up to its goal (a period begun before `from` — from its days since). The
- * other marks are bonus ones: in the grid and the calendar, not in the numbers.
+ * other marks are bonus ones: in the grid, the calendar and «Всего выполнено», not in the
+ * streaks or the period count.
  */
 export function countedDays(
   schedule: ScheduleWithHistory,

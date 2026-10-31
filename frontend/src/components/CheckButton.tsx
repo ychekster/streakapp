@@ -13,7 +13,7 @@
  *  влево в пилюлю (шире с каждой цифрой).
  *
  *  Не запланирована на день отметки (`bonus`): отмечать можно, но отметка бонусная — в
- *  числах её нет (data/derive.ts, countedDays), поэтому кнопка бледная.
+ *  сериях её нет (data/derive.ts, countedDays), поэтому кнопка бледная.
  */
 
 import { useEffect, useRef, useState } from "react";
