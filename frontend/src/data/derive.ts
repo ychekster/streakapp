@@ -1008,23 +1008,24 @@ function buildHabit(
   const baseSchedule = base
     ? { ...habitFields(base), schedule_history: base.schedule_history ?? [], open_from: openFrom }
     : null;
-  const baseFrozenOn = (day: string): boolean => {
-    const index = baseFrozenHistory.length - 1 - daysBetween(day, snapshotToday);
-    return index >= 0 && index < baseFrozenHistory.length && baseFrozenHistory[index];
-  };
-
-  // «Всего выполнено» — counted days only (countedDays, bonus marks aside): the server's
-  // count, with the days it knows (its history, up to its day) counted anew as they are
-  // here. Older days are as it says.
+  // «Всего выполнено» — every done day, bonus marks too: the server's count, with the days
+  // it knows (its history, up to its day) counted anew as they are here. Older days are as
+  // it says.
   const from = addDays(today < snapshotToday ? today : snapshotToday, 1 - HISTORY_DAYS);
   const doneHere = (day: string): boolean => {
     const mark = marks.get(day);
     return mark === undefined ? baseDone(day) : shownMark(day, mark);
   };
-  let total = countedDays(schedule, from, today, doneHere, frozenOn).size;
-  if (base && baseSchedule) {
-    total +=
-      base.total_done - countedDays(baseSchedule, from, snapshotToday, baseDone, baseFrozenOn).size;
+  const doneDays = (last: string, done: (day: string) => boolean): number => {
+    let count = 0;
+    for (let day = from; day <= last; day = addDays(day, 1)) {
+      count += done(day) ? 1 : 0;
+    }
+    return count;
+  };
+  let total = doneDays(today, doneHere);
+  if (base) {
+    total += base.total_done - doneDays(snapshotToday, baseDone);
   }
 
   const counted = countedHistory({ ...schedule, history, frozen_history: frozenHistory }, today);

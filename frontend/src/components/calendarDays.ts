@@ -6,8 +6,8 @@
  * отметка или первый день заморозки). Дни — из `history` (последние HISTORY_DAYS, последний
  * — день отметки): календарь листается по всей истории (любой её день можно исправить в
  * окне дня, DaySheet), а дни старше неё в счёт дней идут по расписанию. Бонусная отметка
- * (не по расписанию того дня, data/derive.ts countedDays) в календаре — как обычная, но в
- * «18/25» не идёт.
+ * (не по расписанию того дня, data/derive.ts countedDays) в календаре — как обычная; в
+ * «18/25» она в числителе (сколько раз выполнена), но не в знаменателе.
  */
 
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "../data/dates";
@@ -58,12 +58,13 @@ function startOf(habit: Habit, day: string): string | null {
  * Сколько дней привычка шла — знаменатель «18/25»: дни с первого дня по день отметки, в
  * которые она была запланирована и не заморожена, и выполненные в них (бонусные отметки —
  * нет). День отметки — только выполненный (он ещё не закончился), как и день после него в
- * режиме «Отмечать за вчера». Не меньше `total_done`. `day` — день отметки.
+ * режиме «Отмечать за вчера». Бонусные отметки в `total_done` есть, поэтому числитель
+ * может быть больше («7 / 5»). `day` — день отметки.
  */
 export function trackedDays(habit: Habit, day: string): number {
   const start = startOf(habit, day);
   if (start === null) {
-    return habit.total_done;
+    return 0;
   }
   const { history, frozen_history: frozen } = habit;
   const historyStart = addDays(day, 1 - history.length);
@@ -79,7 +80,7 @@ export function trackedDays(habit: Habit, day: string): number {
       count += 1;
     }
   }
-  return Math.max(count, habit.total_done);
+  return count;
 }
 
 /**

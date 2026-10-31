@@ -119,12 +119,12 @@ def test_quota_closes_the_period(client: TestClient, user: AuthUser) -> None:
     assert habit["scheduled_today"] is True and habit["period_done"] == 1
     assert (habit["current_streak"], habit["prior_streak"]) == (1, 0)
     # Другой день того же года — сверх цели, но отмечается: в периоде засчитан более
-    # ранний день, сегодняшний стал бонусным (в сетке есть, в числах — нет).
+    # ранний день, сегодняшний стал бонусным (в сетке и во «всего выполнено», в серии — нет).
     data = _sync(client, user, mark(today - timedelta(days=1)))
     assert data["results"][0]["ok"] is True
     habit = data["habits"][0]
     assert habit["history"][-2:] == [True, True]
-    assert (habit["total_done"], habit["period_done"], habit["current_streak"]) == (1, 1, 1)
+    assert (habit["total_done"], habit["period_done"], habit["current_streak"]) == (2, 1, 1)
     assert habit["scheduled_today"] is False and habit["done_today"] is True
     # Сняли вчерашнюю — сегодняшняя засчитана снова.
     data = _sync(client, user, mark(today - timedelta(days=1), False))
@@ -154,7 +154,7 @@ def test_quota_counts_the_first_days_of_a_period(client: TestClient, user: AuthU
     assert data["results"][0]["ok"] is True
     [habit] = data["habits"]
     assert habit["done_today"] is True and habit["scheduled_today"] is False
-    assert (habit["total_done"], habit["period_done"]) == (1, 1)
+    assert (habit["total_done"], habit["period_done"]) == (2, 1)
 
 
 def test_flexible_form_is_validated(client: TestClient, user: AuthUser) -> None:

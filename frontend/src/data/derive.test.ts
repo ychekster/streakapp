@@ -349,7 +349,7 @@ describe("deriveView", () => {
     expect(result.current_streak).toBe(3);
   });
 
-  it("shows a bonus mark off the schedule without counting it", () => {
+  it("shows a bonus mark off the schedule: in the total, not in the streaks", () => {
     // Mon and Fri; Monday (today) done. Sunday (yesterday) is not due: a bonus mark.
     const base = habit({
       frequency_type: "specific_days",
@@ -364,7 +364,7 @@ describe("deriveView", () => {
       { type: "mark", task: 1, date: addDays(TODAY, -1), done: true },
     ]).habits;
     expect(result.history.slice(-2)).toEqual([true, true]);
-    expect([result.current_streak, result.best_streak, result.total_done]).toEqual([2, 2, 2]);
+    expect([result.current_streak, result.best_streak, result.total_done]).toEqual([2, 2, 3]);
   });
 
   it("fixes a missed past day: the runs join up", () => {
@@ -870,7 +870,7 @@ describe("flexible schedule", () => {
       { type: "mark", task: 1, date: addDays(TODAY, -3), done: true },
     ]).habits;
     expect(result.history.slice(-4)).toEqual([true, false, false, true]);
-    expect([result.period_done, result.total_done, result.current_streak]).toEqual([1, 1, 1]);
+    expect([result.period_done, result.total_done, result.current_streak]).toEqual([1, 2, 1]);
     expect(result.done_today).toBe(true);
     expect(result.scheduled_today).toBe(false);
   });

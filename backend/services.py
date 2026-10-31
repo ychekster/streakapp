@@ -361,7 +361,7 @@ def build_habit(
         if group is None or flexible
         else {day for day in done_dates if group.others_done(day)}
     )
-    # Дни в статистике: без бонусных (не по расписанию того дня, заморожены, сверх цели).
+    # Дни в сериях и счёте периода: без бонусных (не по расписанию того дня, заморожены, сверх цели).
     counted = counted_days(task, shown, is_frozen, periods)
     streaks = (
         flexible_streaks(
@@ -413,7 +413,8 @@ def build_habit(
         history=build_history(shown, today),
         current_streak=current_streak,
         best_streak=best_streak,
-        total_done=len(counted),
+        # «Всего выполнено» — все отметки, и бонусные: сколько раз сделана, а не по плану.
+        total_done=len(shown),
         reminder_time=(
             task.reminder_time.strftime(REMINDER_TIME_FORMAT)
             if task.reminder_time is not None

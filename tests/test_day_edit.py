@@ -48,17 +48,17 @@ def test_unscheduled_day_is_a_bonus(client: TestClient, user: AuthUser) -> None:
     )
     habit = _sync(client, user, _mark(task_id, yesterday))["habits"][0]
     assert (habit["current_streak"], habit["total_done"]) == (1, 1)
-    # Сегодня не по графику: отметка есть в сетке, но не в числах.
+    # Сегодня не по графику: отметка в сетке и во «всего выполнено», но не в сериях.
     habit = _sync(client, user, _mark(task_id, today))["habits"][0]
     assert habit["scheduled_today"] is False and habit["done_today"] is True
     assert habit["history"][-1] is True
-    assert (habit["current_streak"], habit["best_streak"], habit["total_done"]) == (1, 1, 1)
+    assert (habit["current_streak"], habit["best_streak"], habit["total_done"]) == (1, 1, 2)
     # Бонусные дни между запланированными серию не рвут: неделю назад — тоже по графику.
     week_ago = yesterday - timedelta(days=7)
     habit = _sync(
         client, user, _mark(task_id, week_ago), _mark(task_id, week_ago + timedelta(days=1))
     )["habits"][0]
-    assert (habit["current_streak"], habit["total_done"]) == (2, 2)
+    assert (habit["current_streak"], habit["total_done"]) == (2, 4)
 
 
 def test_past_day_is_judged_by_its_own_schedule() -> None:
