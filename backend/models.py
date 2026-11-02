@@ -605,6 +605,8 @@ class TodoFolder(Base):
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Рекомендуемый список (constants.TODO_FOLDER_KINDS) — наполняется сам; None — свой.
     kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Цвет списка (как у привычки): кружок отметки его задач; None — серый.
+    color: Mapped[str | None] = mapped_column(String(HABIT_COLOR_MAX_LENGTH), nullable=True)
     # Id, который дало папке устройство (/sync, todo_folder_create): повтор — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True

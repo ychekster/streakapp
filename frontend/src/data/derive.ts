@@ -20,6 +20,7 @@ import type {
   FrequencyType,
   GoalUnit,
   Habit,
+  HabitColor,
   HabitGroup,
   HabitInput,
   Period,
@@ -1510,9 +1511,17 @@ export function deriveTodos(
   displayTodo: (key: TodoKey) => number,
   displayFolder: (key: TodoFolderKey) => number,
 ): TodosView {
-  let folders: { key: TodoFolderKey; name: string; kind: TodoFolderKind | null }[] = (
-    snapshot.todo_folders ?? []
-  ).map((folder) => ({ key: folder.id, name: folder.name, kind: folder.kind ?? null }));
+  let folders: {
+    key: TodoFolderKey;
+    name: string;
+    kind: TodoFolderKind | null;
+    color: HabitColor | null;
+  }[] = (snapshot.todo_folders ?? []).map((folder) => ({
+    key: folder.id,
+    name: folder.name,
+    kind: folder.kind ?? null,
+    color: folder.color ?? null,
+  }));
   let todos: {
     key: TodoKey;
     text: string;
@@ -1573,11 +1582,18 @@ export function deriveTodos(
       todos = todos.filter((todo) => todo.key !== op.key);
     } else if (op.type === "todo_folder_create") {
       if (!folders.some((folder) => folder.key === op.ref)) {
-        folders.push({ key: op.ref, name: cleanHabitName(op.name), kind: op.kind ?? null });
+        folders.push({
+          key: op.ref,
+          name: cleanHabitName(op.name),
+          kind: op.kind ?? null,
+          color: op.color ?? null,
+        });
       }
     } else if (op.type === "todo_folder_update") {
       folders = folders.map((folder) =>
-        folder.key === op.key ? { ...folder, name: cleanHabitName(op.name) } : folder,
+        folder.key === op.key
+          ? { ...folder, name: cleanHabitName(op.name), color: op.color ?? folder.color }
+          : folder,
       );
     } else if (op.type === "todo_folder_delete") {
       const index = folders.findIndex((folder) => folder.key === op.key);
@@ -1617,6 +1633,7 @@ export function deriveTodos(
       id: displayFolder(folder.key),
       name: folder.name,
       kind: folder.kind,
+      color: folder.color,
     })),
     allPosition: Math.min(position, folders.length),
   };

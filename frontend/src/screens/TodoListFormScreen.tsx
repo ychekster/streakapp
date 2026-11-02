@@ -3,23 +3,27 @@
  * «Списки») или существующего (нажатие на список там же): «Название списка» — оно же
  * вкладка над задачами; у рекомендуемого под названием пояснение, какие задачи в него
  * попадают; у существующего внизу «Удалить список» (с подтверждением, задачи остаются во
- * «Все задачи»). Как форма папки привычек (FolderFormScreen), только без выбора привычек.
+ * «Все задачи»). Как форма папки привычек (FolderFormScreen), только без выбора привычек,
+ * зато с «Темой» — цветом списка (как у привычки): кружок отметки его задач этого цвета.
+ * У рекомендуемого темы нет — в нём задачи разных списков, каждая своего цвета.
  * Сохраняет нижняя кнопка; «Назад» закрывает форму без сохранения.
  */
 
 import { useRef, useState, type KeyboardEvent } from "react";
 
+import { ColorPicker } from "../components/ColorPicker";
 import { DestructiveButton } from "../components/DestructiveButton";
 import { ListItem } from "../components/ListItem";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
-import { FOLDER_NAME_MAX_LENGTH } from "../constants";
+import { DEFAULT_HABIT_COLOR, FOLDER_NAME_MAX_LENGTH } from "../constants";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useMainButton } from "../hooks/useMainButton";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticNotification } from "../telegram/webapp";
 import { MAIN_BUTTON_ACCENT, MAIN_BUTTON_DISABLED } from "../theme";
+import type { HabitColor } from "../types/habit";
 import type { TodoFolder } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
 
@@ -37,6 +41,10 @@ export function TodoListFormScreen({ list, onDone }: TodoListFormScreenProps) {
   const errorRef = useRef<HTMLParagraphElement>(null);
   const valid = name.trim().length > 0;
   const kind = list?.kind ?? null;
+  // У списка, созданного без цвета, тема не выбрана: сохранится, только если её выбрать.
+  const [color, setColor] = useState<HabitColor | null>(
+    list ? (list.color ?? null) : DEFAULT_HABIT_COLOR,
+  );
 
   useMainButton(
     {
@@ -54,9 +62,9 @@ export function TodoListFormScreen({ list, onDone }: TodoListFormScreenProps) {
     }
     try {
       if (list) {
-        dataStore.renameTodoFolder(list.id, name.trim());
+        dataStore.renameTodoFolder(list.id, name.trim(), color ?? undefined);
       } else {
-        dataStore.createTodoFolder(name.trim());
+        dataStore.createTodoFolder(name.trim(), undefined, color ?? undefined);
       }
       hapticNotification("success");
       onDone();
@@ -113,6 +121,18 @@ export function TodoListFormScreen({ list, onDone }: TodoListFormScreenProps) {
             </ListItem>
           </Card>
         </Section>
+
+        {kind ? null : (
+          <Section variant="form" title={strings.formThemeHeading}>
+            <Card>
+              <ColorPicker
+                value={color ?? DEFAULT_HABIT_COLOR}
+                onChange={setColor}
+                label={strings.formThemeHeading}
+              />
+            </Card>
+          </Section>
+        )}
 
         {error ? (
           <p ref={errorRef} className={formStyles.error} role="alert">

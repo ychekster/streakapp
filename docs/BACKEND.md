@@ -484,6 +484,10 @@ NULL у открытой, `client_ref`) и `users.show_todos` (настройк�
 `all_todos_position`). Без неё API не прочитает
 пользователя.
 
+Миграция `0041` — цвет списка задач: `todo_folders.color` (как у привычки, `invalid_color`;
+NULL — серый). В `todo_folder_create` / `todo_folder_update` — `color`, в ответе и экспорте —
+`todo_folders[].color`. Без неё `/sync` не ответит.
+
 > Перед миграцией сделайте копию базы: `python scripts/backup_db.py` (база в режиме
 > WAL — простое копирование файла на работающих процессах может потерять последние
 > изменения).

@@ -1124,7 +1124,7 @@ async def _apply_folder_op(
 async def list_todo_folders(repo: Repository, user: User) -> list[TodoFolderView]:
     """Папки задач (бета) по порядку."""
     return [
-        TodoFolderView(id=folder.id, name=folder.name, kind=folder.kind)
+        TodoFolderView(id=folder.id, name=folder.name, kind=folder.kind, color=folder.color)
         for folder in await repo.get_todo_folders(user.telegram_id)
     ]
 
@@ -1285,13 +1285,17 @@ async def _apply_todo_op(
             item.kind == op.kind for item in await repo.get_todo_folders(uid)
         ):
             raise ApiError(409, "todo_folder_kind_taken", "Такой список уже есть")
-        folder = await repo.create_todo_folder(uid, name, op.ref, kind=op.kind)
+        color = validation.validate_color(op.color) if op.color is not None else None
+        folder = await repo.create_todo_folder(uid, name, op.ref, kind=op.kind, color=color)
         return SyncResult(ok=True, id=folder.id)
     if isinstance(op, SyncTodoFolderUpdate):
         folder = await _todo_folder_by_ref(repo, user, op.key)
         if folder is None:
             raise ApiError(404, "folder_not_found", "Папка не найдена")
         await repo.rename_todo_folder(folder, validation.validate_folder_name(op.name))
+        if op.color is not None:
+            folder.color = validation.validate_color(op.color)
+            await repo.session.flush()
         return SyncResult(ok=True)
     if isinstance(op, SyncTodoFolderDelete):
         folder = await _todo_folder_by_ref(repo, user, op.key)

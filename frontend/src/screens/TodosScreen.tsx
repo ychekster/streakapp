@@ -1,11 +1,12 @@
 /**
  * Вкладка «Задачи» (бета; включается в Настройки → «Задачи (Beta)»): разовые дела, не
- * привычки — блокнот по сферам жизни. Сверху таблетка списков (TodoFolderBar: «Все задачи»,
- * списки, заготовка «Новый список»). Список:
+ * привычки — блокнот по сферам жизни. Сверху таблетка списков (TodoFolderBar: «Все задачи»
+ * и списки; сами списки заводятся в настройках). Список:
  *  - «Все задачи»: сначала задачи без списка, потом списки с заголовками, по порядку;
  *  - список: его задачи; рекомендуемый (`kind`) — подходящие задачи всех списков
- *    («Сегодня» — на сегодня и просроченные, «Запланированные» — с датой, «Без даты»), а
- *    новая задача в «Сегодня» и «Запланированных» — на сегодня;
+ *    («Сегодня» — без даты, на сегодня и просроченные: задача без даты висит, пока не
+ *    сделана; «Запланированные» — с датой, новая в них — на сегодня; «Без даты»);
+ *  - кружок задачи — цвета её списка (задачи без списка — серые);
  * задачи на будущие дни — внизу, в блоке «Не запланированы на сегодня» (по дню и времени,
  * как у привычек); в свой день они поднимаются наверх, к остальным. В конце — блок
  * «Выполненные» (последние отмеченные — выше). Просроченная остаётся наверху с красной
@@ -141,8 +142,13 @@ export function TodosScreen() {
       done: checked,
     };
   }, [todos, todoFolders, shownFolder, kind, today]);
-  // Новая задача в «Сегодня» и «Запланированных» — на сегодня (иначе её там не было бы).
-  const newDate = kind === "today" || kind === "scheduled" ? today : undefined;
+  // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
+  const newDate = kind === "scheduled" ? today : undefined;
+  // Цвет задачи — цвет её списка.
+  const colorOf = useMemo(
+    () => new Map(todoFolders.map((item) => [item.id, item.color ?? null])),
+    [todoFolders],
+  );
 
   const fail = (error: unknown): void => {
     void showAlert({
@@ -172,15 +178,6 @@ export function TodosScreen() {
       openTodoSheet(dataStore.createTodo(text, targetFolder, newDate));
     } catch (error) {
       fail(error);
-    }
-  };
-
-  const createFolder = (name: string): number | null => {
-    try {
-      return dataStore.createTodoFolder(name);
-    } catch (error) {
-      fail(error);
-      return null;
     }
   };
 
@@ -217,7 +214,6 @@ export function TodosScreen() {
             hapticImpact("light");
             setActive(id);
           }}
-          onCreate={createFolder}
           onRename={(id, name) => {
             try {
               dataStore.renameTodoFolder(id, name);
@@ -252,6 +248,7 @@ export function TodosScreen() {
                     }}
                     startEditing
                     checkRight={checksRight}
+                    color={targetFolder === null ? null : (colorOf.get(targetFolder) ?? null)}
                     onToggle={() => undefined}
                     onEdit={(text) => saveDraft(draft, text)}
                     onDelete={() => closeDraft(draft)}
@@ -296,6 +293,7 @@ export function TodosScreen() {
         onEdit={(text) => dataStore.updateTodo(todo.id, { text })}
         onDelete={() => dataStore.deleteTodo(todo.id)}
         checkRight={checksRight}
+        color={todo.folder === null ? null : (colorOf.get(todo.folder) ?? null)}
         onOpenDetails={(text) => {
           if (text !== todo.text) {
             dataStore.updateTodo(todo.id, { text });
@@ -311,7 +309,8 @@ export function TodosScreen() {
 function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
   const date = todo.due_date ?? null;
   if (kind === "today") {
-    return date !== null && date <= today;
+    // Без даты — тоже на сегодня: висит, пока не сделана.
+    return date === null || date <= today;
   }
   return kind === "scheduled" ? date !== null : date === null;
 }

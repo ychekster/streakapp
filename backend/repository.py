@@ -703,7 +703,12 @@ class Repository:
         return result.scalar_one_or_none()
 
     async def create_todo_folder(
-        self, user_id: int, name: str, client_ref: str | None, kind: str | None = None
+        self,
+        user_id: int,
+        name: str,
+        client_ref: str | None,
+        kind: str | None = None,
+        color: str | None = None,
     ) -> TodoFolder:
         """Создать папку задач последней в ряду; `kind` — рекомендуемая."""
         last = await self.session.scalar(
@@ -715,6 +720,7 @@ class Repository:
             position=0 if last is None else last + 1,
             client_ref=client_ref,
             kind=kind,
+            color=color,
         )
         self.session.add(folder)
         await self.session.flush()

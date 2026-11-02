@@ -1,9 +1,11 @@
 /**
  * Задачи (бета): строка задачи. Кружок слева — отметить выполненной (выполненная уходит в
  * блок «Выполненные» внизу) или вернуть; нажатие на текст — править его прямо в строке
- * (Enter — сохранить, пустой текст — удалить); свайп влево открывает красную кнопку
- * «Удалить» (свайп вправо или нажатие строки закрывает её). Новая задача (карандаш) —
- * пустая строка, сразу в правке (`startEditing`).
+ * (Enter — сохранить, пустой текст — удалить); свайп влево от правого края строки (полоса
+ * EDGE_WIDTH) открывает красную кнопку «Удалить» (свайп вправо или нажатие строки
+ * закрывает её). Свайп по остальной строке — экрану: «Переключение свайпом» листает
+ * списки. Новая задача (карандаш) — пустая строка, сразу в правке (`startEditing`).
+ * Задача списка с цветом — кружок его цвета (`color`); без списка — серый.
  *
  * Пока задачу пишут, справа в строке иконка календаря: сохранить текст и открыть окно
  * даты и напоминания (TodoSheet). Задача с датой — подпись под текстом («Завтра в 15:00»),
@@ -18,6 +20,8 @@ import type { Strings } from "../strings";
 import type { Language } from "../types/settings";
 import { localDate } from "./DateField";
 import { hapticImpact } from "../telegram/webapp";
+import { habitColorStyle } from "../theme";
+import type { HabitColor } from "../types/habit";
 import type { Todo } from "../types/todo";
 import styles from "./TodoRow.module.css";
 
@@ -26,6 +30,8 @@ const DELETE_WIDTH = 88;
 const OPEN_AT = DELETE_WIDTH / 2;
 /** Сдвиг пальца, после которого это свайп, а не нажатие (px). */
 const SWIPE_SLOP = 8;
+/** Полоса у правого края строки, с которой свайп открывает «Удалить» (px). */
+const EDGE_WIDTH = 28;
 
 interface TodoRowProps {
   todo: Todo;
@@ -38,6 +44,8 @@ interface TodoRowProps {
   onOpenDetails: (text: string) => void;
   /** «Галочки справа» (настройки задач): кружок у правого края. */
   checkRight?: boolean;
+  /** Цвет списка задачи: кружок его цвета; null — серый. */
+  color?: HabitColor | null;
 }
 
 /** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
@@ -66,6 +74,7 @@ export function TodoRow({
   startEditing = false,
   onOpenDetails,
   checkRight = false,
+  color = null,
 }: TodoRowProps) {
   const strings = useStrings();
   const language = useLanguage();
@@ -98,6 +107,11 @@ export function TodoRow({
     }
   }, [editing]);
 
+  const startEdit = (): void => {
+    setDraft(todo.text);
+    setEditing(true);
+  };
+
   const finishEdit = (): void => {
     if (handled.current) {
       handled.current = false;
@@ -113,10 +127,13 @@ export function TodoRow({
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
-    if (editing) {
+    moved.current = false;
+    // Открыть «Удалить» — только от правого края; открытую закрывает свайп откуда угодно.
+    const right = event.currentTarget.getBoundingClientRect().right;
+    if (editing || (!open && right - event.clientX > EDGE_WIDTH)) {
+      swipe.current = null;
       return;
     }
-    moved.current = false;
     swipe.current = { x: event.clientX, y: event.clientY, from: open ? -DELETE_WIDTH : 0, moving: false };
   };
 
@@ -160,7 +177,11 @@ export function TodoRow({
   const shift = swipe.current?.moving ? offset : open ? -DELETE_WIDTH : 0;
 
   return (
-    <div className={styles.row} data-todo={todo.id}>
+    <div
+      className={`${styles.row} ${color ? styles.colored : ""}`}
+      style={color ? habitColorStyle(color) : undefined}
+      data-todo={todo.id}
+    >
       <button
         type="button"
         className={styles.delete}
@@ -176,6 +197,7 @@ export function TodoRow({
           styles.content,
           swipe.current?.moving ? styles.dragging : "",
           checkRight ? styles.checkRight : "",
+          open ? styles.open : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -232,10 +254,7 @@ export function TodoRow({
           <button
             type="button"
             className={`${styles.text} ${done ? styles.doneText : ""}`}
-            onClick={() => {
-              setDraft(todo.text);
-              setEditing(true);
-            }}
+            onClick={startEdit}
           >
             {todo.text}
           </button>
@@ -279,6 +298,16 @@ export function TodoRow({
             </svg>
           </button>
         ) : null}
+        {editing ? null : (
+          // Полоса у правого края: с неё свайп открывает «Удалить» (экран её свайп не
+          // листает); нажатие — как по тому, что под ней.
+          <span
+            className={styles.edge}
+            style={{ width: EDGE_WIDTH }}
+            aria-hidden="true"
+            onClick={() => (checkRight ? onToggle() : startEdit())}
+          />
+        )}
       </div>
     </div>
   );

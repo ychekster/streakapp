@@ -39,9 +39,25 @@
   min-height: var(--list-row-min-height);
   padding: 0 var(--space-card-padding) 0 var(--list-row-icon-inset);
   background-color: var(--color-card);
-  /* Вертикальная прокрутка — браузеру, горизонтальный свайп — строке. */
-  touch-action: pan-y;
   transition: transform 0.22s ease;
+}
+
+/* Полоса у правого края: свайп с неё — строке (открыть «Удалить»), вертикальная прокрутка
+   — браузеру; touch-action pan-y — и знак экрану, что этот свайп не его
+   (useHorizontalSwipe). */
+.edge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Открытая «Удалить»: свайп по всей строке закрывает её и не листает списки. */
+.open {
+  touch-action: pan-y;
 }
 
 .dragging {
@@ -100,6 +116,15 @@
 .checked {
   border-color: var(--color-accent);
   background-color: var(--color-accent);
+}
+
+/* Задача списка с цветом: кружок и галочка — цвета списка. */
+.colored .check {
+  border-color: rgb(var(--habit-rgb));
+}
+
+.colored .checked {
+  background-color: rgb(var(--habit-rgb));
 }
 
 .check svg {

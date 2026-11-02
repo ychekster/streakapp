@@ -2,6 +2,7 @@
  *  One-off tasks in folders, not tied to habits. */
 
 import type { TODO_FOLDER_KINDS } from "../constants";
+import type { HabitColor } from "./habit";
 
 /** A recommended todo list: it fills itself (TODO_FOLDER_KINDS). */
 export type TodoFolderKind = (typeof TODO_FOLDER_KINDS)[number];
@@ -12,6 +13,8 @@ export interface TodoFolder {
   name: string;
   /** A recommended list; null — the user's own. Not in lists kept before kinds. */
   kind?: TodoFolderKind | null;
+  /** The list's color (as a habit's): its todos' checkmarks; null — gray. */
+  color?: HabitColor | null;
 }
 
 export interface Todo {

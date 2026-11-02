@@ -41,7 +41,9 @@ def test_todo_in_offline_folder_is_created_once(client: TestClient, user: AuthUs
     first = _sync(client, user, *ops)
     assert all(result["ok"] for result in first["results"])
     folder_id = first["results"][0]["id"]
-    assert first["todo_folders"] == [{"id": folder_id, "name": "Учёба", "kind": None}]
+    assert first["todo_folders"] == [
+        {"id": folder_id, "name": "Учёба", "kind": None, "color": None}
+    ]
     todos = first["todos"]
     assert [(todo["text"], todo["folder"], todo["done_at"]) for todo in todos] == [
         ("Сдать лабу", folder_id, None),
@@ -313,3 +315,20 @@ def test_all_todos_place_among_lists(client: TestClient, user: AuthUser) -> None
     # A list before «All tasks» is deleted — it moves into its place.
     data = _sync(client, user, {"type": "todo_folder_delete", "key": "b"})
     assert data["all_todos_position"] == 0
+
+
+def test_todo_list_color(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "todo_folder_create", "ref": "a", "name": "Работа", "color": "green"},
+        {"type": "todo_folder_create", "ref": "b", "name": "Дом"},
+        {"type": "todo_folder_update", "key": "b", "name": "Дом", "color": "#AABBCC"},
+        {"type": "todo_folder_update", "key": "a", "name": "Работа и деньги"},
+        {"type": "todo_folder_create", "ref": "c", "name": "Ой", "color": "плохой"},
+    )
+    assert [(item["name"], item["color"]) for item in data["todo_folders"]] == [
+        ("Работа и деньги", "green"),
+        ("Дом", "#aabbcc"),
+    ]
+    assert data["results"][4]["error"]["code"] == "invalid_color"

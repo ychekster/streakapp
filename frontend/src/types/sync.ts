@@ -1,7 +1,7 @@
 /** POST /sync — mirrors the Sync* schemas in backend/schemas.py. */
 
 import type { Folder, FolderInput } from "./folder";
-import type { Habit, HabitInput } from "./habit";
+import type { Habit, HabitColor, HabitInput } from "./habit";
 import type { Settings, SettingsUpdate } from "./settings";
 import type { Todo, TodoFolder, TodoFolderKind } from "./todo";
 
@@ -65,8 +65,15 @@ export type SyncOperation =
   /** Delete a todo (one already gone is not an error). */
   | { type: "todo_delete"; key: TodoKey }
   /** Create a todo folder (last in the row). */
-  | { type: "todo_folder_create"; ref: string; name: string; kind?: TodoFolderKind | null }
-  | { type: "todo_folder_update"; key: TodoFolderKey; name: string }
+  | {
+      type: "todo_folder_create";
+      ref: string;
+      name: string;
+      kind?: TodoFolderKind | null;
+      color?: HabitColor | null;
+    }
+  /** Rename a todo list; `color` — a new color (not sent — the old one). */
+  | { type: "todo_folder_update"; key: TodoFolderKey; name: string; color?: HabitColor }
   /** Delete a todo folder; its todos stay, without a folder. */
   | { type: "todo_folder_delete"; key: TodoFolderKey }
   /** The order of the todo lists; null — where «Все задачи» stands; ones not named go last. */

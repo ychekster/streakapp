@@ -757,6 +757,7 @@ class SyncTodoFolderCreate(BaseModel):
     kind: Literal["today", "scheduled", "undated"] | None = Field(
         None, description="Рекомендуемый список (TODO_FOLDER_KINDS): наполняется сам"
     )
+    color: str | None = Field(None, description="Цвет списка (как у привычки); null — серый")
 
 
 class SyncTodoFolderUpdate(BaseModel):
@@ -765,6 +766,7 @@ class SyncTodoFolderUpdate(BaseModel):
     type: Literal["todo_folder_update"]
     key: TodoFolderRef
     name: str
+    color: str | None = Field(None, description="Новый цвет; не передан — прежний")
 
 
 class SyncTodoFolderDelete(BaseModel):
@@ -884,6 +886,7 @@ class TodoFolderView(BaseModel):
     id: int
     name: str
     kind: str | None = Field(None, description="Рекомендуемый список или null")
+    color: str | None = Field(None, description="Цвет списка; null — серый")
 
 
 class TodoView(BaseModel):
@@ -1784,6 +1787,7 @@ class ExportTodoFolder(BaseModel):
     id: int
     name: str
     kind: str | None = None
+    color: str | None = None
 
 
 class ExportTodo(BaseModel):

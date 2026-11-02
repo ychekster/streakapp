@@ -178,7 +178,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
         for review in await repo.user_reviews(user.telegram_id)
     ]
     todo_folders = [
-        ExportTodoFolder(id=folder.id, name=folder.name, kind=folder.kind)
+        ExportTodoFolder(id=folder.id, name=folder.name, kind=folder.kind, color=folder.color)
         for folder in await repo.get_todo_folders(user.telegram_id)
     ]
     todos = [
@@ -449,7 +449,13 @@ async def _import_todos(repo: Repository, user: User, data: DataExport, now: dat
         kind = folder.kind if folder.kind in TODO_FOLDER_KINDS else None
         if kind is not None and kind in kinds:
             continue
-        created = await repo.create_todo_folder(user.telegram_id, name, None, kind=kind)
+        try:
+            color = validation.validate_color(folder.color) if folder.color else None
+        except ApiError:
+            color = None
+        created = await repo.create_todo_folder(
+            user.telegram_id, name, None, kind=kind, color=color
+        )
         folder_ids[folder.id] = created.id
         if kind is not None:
             kinds.add(kind)

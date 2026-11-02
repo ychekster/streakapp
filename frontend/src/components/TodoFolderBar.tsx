@@ -1,13 +1,10 @@
 /**
  * Задачи (бета): списки над задачами — та же таблетка, что у папок привычек (FolderBar:
- * стили, подложка, прокрутка), с тремя отличиями:
- *  - последней стоит вкладка-заготовка «Новый список»: нажал — в ней курсор, ввёл
- *    название, Enter — список создан и выбран, а заготовка снова в конце ряда;
+ * стили, подложка, прокрутка), с двумя отличиями (сами списки заводятся в настройках):
  *  - нажатие уже выбранного списка делает его название полем: Enter — переименовать,
  *    пустое — спросить и удалить (задачи из него остаются без списка);
  *  - вкладку можно перетащить: подержать (как кнопку таймера, LONG_PRESS_MS) и вести вбок.
- *    «Все задачи» тоже — её место среди списков хранится (как «Все привычки»); правее
- *    заготовки вкладки не уходят.
+ *    «Все задачи» тоже — её место среди списков хранится (как «Все привычки»).
  */
 
 import {
@@ -19,7 +16,7 @@ import {
   type PointerEvent,
 } from "react";
 
-import { FOLDER_NAME_MAX_LENGTH, MAX_TODO_FOLDERS_PER_USER } from "../constants";
+import { FOLDER_NAME_MAX_LENGTH } from "../constants";
 import { LONG_PRESS_MS } from "../hooks/useLongPress";
 import { useStrings } from "../preferences";
 import { hapticImpact } from "../telegram/webapp";
@@ -38,8 +35,6 @@ interface TodoFolderBarProps {
   /** Выбранный список; null — «Все задачи». */
   active: number | null;
   onSelect: (id: number | null) => void;
-  /** Создать список; его id или null — не создан. */
-  onCreate: (name: string) => number | null;
   onRename: (id: number, name: string) => void;
   /** Название стёрли: спросить и удалить. */
   onDelete: (id: number) => void;
@@ -61,15 +56,14 @@ export function TodoFolderBar({
   allPosition,
   active,
   onSelect,
-  onCreate,
   onRename,
   onDelete,
   onReorder,
 }: TodoFolderBarProps) {
   const strings = useStrings();
   const trackRef = useRef<HTMLDivElement>(null);
-  // Какая вкладка — поле: "new" — заготовка, число — переименование списка.
-  const [editing, setEditing] = useState<"new" | number | null>(null);
+  // Какой список переименовывают (его вкладка — поле).
+  const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [drag, setDrag] = useState<Drag | null>(null);
   const hold = useRef<{ timer: number; x: number; y: number; index: number } | null>(null);
@@ -109,19 +103,14 @@ export function TodoFolderBar({
 
   useEffect(() => () => window.clearTimeout(hold.current?.timer), []);
 
-  const startEdit = (target: "new" | number, value: string): void => {
+  const startEdit = (target: number, value: string): void => {
     setEditing(target);
     setDraft(value);
   };
 
   const finishEdit = (): void => {
     const name = draft.trim();
-    if (editing === "new") {
-      const id = name !== "" ? onCreate(name) : null;
-      if (id !== null) {
-        onSelect(id);
-      }
-    } else if (editing !== null) {
+    if (editing !== null) {
       const folder = folders.find((item) => item.id === editing);
       if (folder && name === "") {
         onDelete(folder.id);
@@ -203,7 +192,7 @@ export function TodoFolderBar({
     const first = drag.boxes[0];
     const last = drag.boxes[drag.boxes.length - 1];
     const box = drag.boxes[drag.index];
-    // Не левее первой вкладки и не правее последней (за ней заготовка).
+    // Не левее первой вкладки и не правее последней.
     const dx = Math.min(
       Math.max(event.clientX - drag.startX, first.left - box.left),
       last.left + last.width - (box.left + box.width),
@@ -327,19 +316,6 @@ export function TodoFolderBar({
             </button>
           );
         })}
-        {folders.length < MAX_TODO_FOLDERS_PER_USER ? (
-          editing === "new" ? (
-            <div className={`${styles.tab} ${extra.newFolder}`}>{field(strings.todosNewFolder)}</div>
-          ) : (
-            <button
-              type="button"
-              className={`${styles.tab} ${extra.newFolder}`}
-              onClick={() => startEdit("new", "")}
-            >
-              {strings.todosNewFolder}
-            </button>
-          )
-        ) : null}
       </div>
     </div>
   );

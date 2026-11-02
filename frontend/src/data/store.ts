@@ -47,7 +47,7 @@ import {
 import { isTelegram } from "../platform";
 import { getTelegramUserId } from "../telegram/webapp";
 import type { Folder, FolderHabitType, FolderInput, FolderKind } from "../types/folder";
-import type { Habit, HabitInput } from "../types/habit";
+import type { Habit, HabitColor, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type {
   FolderKey,
@@ -457,10 +457,15 @@ function enqueue(op: Operation): void {
     );
     if (created >= 0) {
       const create = unsent[created] as Extract<Operation, { type: "todo_folder_create" }>;
-      unsent[created] = { ...create, name: op.name };
+      unsent[created] = { ...create, name: op.name, color: op.color ?? create.color };
     } else {
+      const earlier = unsent.find(
+        (item): item is Extract<Operation, { type: "todo_folder_update" }> =>
+          item.type === "todo_folder_update" && item.key === op.key,
+      );
       unsent = unsent.filter((item) => !(item.type === "todo_folder_update" && item.key === op.key));
-      unsent.push(op);
+      // A color picked before stays when only the name changes.
+      unsent.push(earlier?.color && !op.color ? { ...op, color: earlier.color } : op);
     }
   } else if (op.type === "todo_folder_delete") {
     const createdHere = unsent.some(
@@ -1241,19 +1246,26 @@ export const dataStore = {
 
   /** Create a todo folder last in the row (`kind` — a recommended list); returns its id
    *  on screen. */
-  createTodoFolder(name: string, kind?: TodoFolderKind): number {
+  createTodoFolder(name: string, kind?: TodoFolderKind, color?: HabitColor): number {
     validateFolderName(name);
     if (state.todoFolders.length >= MAX_TODO_FOLDERS_PER_USER) {
       throw new ApiRequestError(409, "todo_folder_limit", "");
     }
     const ref = newRef();
-    enqueue({ type: "todo_folder_create", ref, name, ...(kind ? { kind } : {}) });
+    enqueue({
+      type: "todo_folder_create",
+      ref,
+      name,
+      ...(kind ? { kind } : {}),
+      ...(color ? { color } : {}),
+    });
     return tempIdOf(ref);
   },
 
-  renameTodoFolder(id: number, name: string): void {
+  /** Rename a todo list and, if given, change its color. */
+  renameTodoFolder(id: number, name: string, color?: HabitColor): void {
     validateFolderName(name);
-    enqueue({ type: "todo_folder_update", key: keyOf(id), name });
+    enqueue({ type: "todo_folder_update", key: keyOf(id), name, ...(color ? { color } : {}) });
   },
 
   /** Delete a todo folder; its todos stay, without a folder. */

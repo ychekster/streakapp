@@ -129,7 +129,6 @@ const RU = {
   todosLater: "Не запланированы на сегодня",
   todosTitle: "Задачи",
   todosAll: "Все задачи",
-  todosNewFolder: "Новый список",
   todosDone: "Выполненные",
   todosDelete: "Удалить",
   todosCheck: "Отметить выполненной",
@@ -162,7 +161,8 @@ const RU = {
     undated: "Задачи без даты",
   },
   todoListKindFooter: {
-    today: "Задачи попадают в этот список сами: все на сегодня. Новая задача в нём — на сегодня.",
+    today:
+      "Задачи попадают в этот список сами: на сегодня и без даты (такая висит здесь, пока не сделана).",
     scheduled:
       "Задачи попадают в этот список сами: все, у которых есть дата. Новая задача в нём — на сегодня.",
     undated: "Задачи попадают в этот список сами: все без даты.",
@@ -807,7 +807,6 @@ const EN: Strings = {
   todosLater: "Not scheduled for today",
   todosTitle: "Tasks",
   todosAll: "All Tasks",
-  todosNewFolder: "New List",
   todosDone: "Done",
   todosDelete: "Delete",
   todosCheck: "Mark as done",
@@ -837,7 +836,8 @@ const EN: Strings = {
     undated: "Tasks without a date",
   },
   todoListKindFooter: {
-    today: "Tasks get into this list by themselves: all for today. A new task here is for today.",
+    today:
+      "Tasks get into this list by themselves: for today and without a date (such a task stays here until done).",
     scheduled: "Tasks get into this list by themselves: all with a date. A new task here is for today.",
     undated: "Tasks get into this list by themselves: all without a date.",
   },
