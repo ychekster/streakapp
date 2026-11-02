@@ -21,6 +21,7 @@ from backend.routers.tasks import record_checkin, record_first_habit
 from backend.schemas import SyncRequest, SyncResponse
 from backend.services import (
     all_habits_position,
+    all_todos_position,
     apply_sync,
     list_folders,
     list_habits,
@@ -58,4 +59,5 @@ async def sync(
         timer=await running_timer(repo, db_user),
         todos=await list_todos(repo, db_user),
         todo_folders=await list_todo_folders(repo, db_user),
+        all_todos_position=await all_todos_position(repo, db_user),
     )

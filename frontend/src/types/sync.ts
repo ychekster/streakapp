@@ -3,7 +3,7 @@
 import type { Folder, FolderInput } from "./folder";
 import type { Habit, HabitInput } from "./habit";
 import type { Settings, SettingsUpdate } from "./settings";
-import type { Todo, TodoFolder } from "./todo";
+import type { Todo, TodoFolder, TodoFolderKind } from "./todo";
 
 /** A habit in an operation: its id on the server, or the device's id (`ref`) for a
  *  habit the device created — the server finds it by that too. */
@@ -65,12 +65,12 @@ export type SyncOperation =
   /** Delete a todo (one already gone is not an error). */
   | { type: "todo_delete"; key: TodoKey }
   /** Create a todo folder (last in the row). */
-  | { type: "todo_folder_create"; ref: string; name: string }
+  | { type: "todo_folder_create"; ref: string; name: string; kind?: TodoFolderKind | null }
   | { type: "todo_folder_update"; key: TodoFolderKey; name: string }
   /** Delete a todo folder; its todos stay, without a folder. */
   | { type: "todo_folder_delete"; key: TodoFolderKey }
-  /** The order of the todo folders; ones not named go last. */
-  | { type: "todo_folder_order"; order: TodoFolderKey[] };
+  /** The order of the todo lists; null — where «Все задачи» stands; ones not named go last. */
+  | { type: "todo_folder_order"; order: (TodoFolderKey | null)[] };
 
 /** A folder in an operation: its id on the server or the device's id (`ref`). */
 export type FolderKey = number | string;
@@ -101,6 +101,8 @@ export interface SyncResponse {
   /** Todos (beta) and their folders; no field — a server before todos. */
   todos?: Todo[];
   todo_folders?: TodoFolder[];
+  /** Where «Все задачи» stands among the todo lists. */
+  all_todos_position?: number;
 }
 
 /** The user's running timer (a time goal), the same on all their devices. */

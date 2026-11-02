@@ -34,7 +34,7 @@ import type {
   TodoFolderKey,
   TodoKey,
 } from "../types/sync";
-import type { Todo, TodoFolder } from "../types/todo";
+import type { Todo, TodoFolder, TodoFolderKind } from "../types/todo";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
@@ -66,6 +66,7 @@ export interface Snapshot {
   /** Todos (beta) and their folders; not in snapshots kept before todos: none. */
   todos?: Todo[];
   todo_folders?: TodoFolder[];
+  all_todos_position?: number;
 }
 
 /** Habit name as the server stores it (validation.validate_name): control characters
@@ -489,6 +490,12 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   }
   if (patch.show_todos !== undefined) {
     next.show_todos = patch.show_todos;
+  }
+  if (patch.todo_folder_swipe !== undefined) {
+    next.todo_folder_swipe = patch.todo_folder_swipe;
+  }
+  if (patch.todo_checks_right !== undefined) {
+    next.todo_checks_right = patch.todo_checks_right;
   }
   if (patch.checkin_reminder !== undefined) {
     next.checkin_reminder_time = patch.checkin_reminder.time;
@@ -1487,6 +1494,8 @@ export interface TodosView {
   /** In the order they were added; checked ones have `done_at`. */
   todos: Todo[];
   folders: TodoFolder[];
+  /** Where «Все задачи» stands among the lists (how many lists are before it). */
+  allPosition: number;
 }
 
 /**
@@ -1501,9 +1510,9 @@ export function deriveTodos(
   displayTodo: (key: TodoKey) => number,
   displayFolder: (key: TodoFolderKey) => number,
 ): TodosView {
-  let folders: { key: TodoFolderKey; name: string }[] = (snapshot.todo_folders ?? []).map(
-    (folder) => ({ key: folder.id, name: folder.name }),
-  );
+  let folders: { key: TodoFolderKey; name: string; kind: TodoFolderKind | null }[] = (
+    snapshot.todo_folders ?? []
+  ).map((folder) => ({ key: folder.id, name: folder.name, kind: folder.kind ?? null }));
   let todos: {
     key: TodoKey;
     text: string;
@@ -1518,6 +1527,7 @@ export function deriveTodos(
     due_date: todo.due_date ?? null,
     remind_time: todo.remind_time ?? null,
   }));
+  let position = snapshot.all_todos_position ?? 0;
   const folderOf = (key: TodoFolderKey | null | undefined): TodoFolderKey | null =>
     key !== null && key !== undefined && folders.some((folder) => folder.key === key) ? key : null;
   const now = new Date().toISOString();
@@ -1563,18 +1573,28 @@ export function deriveTodos(
       todos = todos.filter((todo) => todo.key !== op.key);
     } else if (op.type === "todo_folder_create") {
       if (!folders.some((folder) => folder.key === op.ref)) {
-        folders.push({ key: op.ref, name: cleanHabitName(op.name) });
+        folders.push({ key: op.ref, name: cleanHabitName(op.name), kind: op.kind ?? null });
       }
     } else if (op.type === "todo_folder_update") {
       folders = folders.map((folder) =>
         folder.key === op.key ? { ...folder, name: cleanHabitName(op.name) } : folder,
       );
     } else if (op.type === "todo_folder_delete") {
+      const index = folders.findIndex((folder) => folder.key === op.key);
+      // It stood before «Все задачи»: that one moves into its place.
+      if (index >= 0 && index < position) {
+        position -= 1;
+      }
       folders = folders.filter((folder) => folder.key !== op.key);
       todos = todos.map((todo) => (todo.folder === op.key ? { ...todo, folder: null } : todo));
     } else if (op.type === "todo_folder_order") {
       const ordered: typeof folders = [];
+      position = 0;
       for (const key of op.order) {
+        if (key === null) {
+          position = ordered.length;
+          continue;
+        }
         const folder = folders.find((item) => item.key === key);
         if (folder && !ordered.includes(folder)) {
           ordered.push(folder);
@@ -1593,6 +1613,11 @@ export function deriveTodos(
       due_date: todo.due_date,
       remind_time: todo.remind_time,
     })),
-    folders: folders.map((folder) => ({ id: displayFolder(folder.key), name: folder.name })),
+    folders: folders.map((folder) => ({
+      id: displayFolder(folder.key),
+      name: folder.name,
+      kind: folder.kind,
+    })),
+    allPosition: Math.min(position, folders.length),
   };
 }

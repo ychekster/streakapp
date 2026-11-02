@@ -36,6 +36,8 @@ interface TodoRowProps {
   startEditing?: boolean;
   /** Иконка календаря: сохранить текст (непустой) и открыть окно даты и напоминания. */
   onOpenDetails: (text: string) => void;
+  /** «Галочки справа» (настройки задач): кружок у правого края. */
+  checkRight?: boolean;
 }
 
 /** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
@@ -63,6 +65,7 @@ export function TodoRow({
   onDelete,
   startEditing = false,
   onOpenDetails,
+  checkRight = false,
 }: TodoRowProps) {
   const strings = useStrings();
   const language = useLanguage();
@@ -169,7 +172,13 @@ export function TodoRow({
         {strings.todosDelete}
       </button>
       <div
-        className={`${styles.content} ${swipe.current?.moving ? styles.dragging : ""}`}
+        className={[
+          styles.content,
+          swipe.current?.moving ? styles.dragging : "",
+          checkRight ? styles.checkRight : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={shift ? { transform: `translateX(${shift}px)` } : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

@@ -103,11 +103,15 @@ import { CheckinReminderScreen } from "./screens/CheckinReminderScreen";
 import { GridLayoutScreen } from "./screens/GridLayoutScreen";
 import { FolderFormScreen, type FolderDraft } from "./screens/FolderFormScreen";
 import { FolderHabitsScreen } from "./screens/FolderHabitsScreen";
-import { FoldersScreen } from "./screens/FoldersScreen";
+import { FoldersScreen, HABIT_FOLDERS, habitFoldersTexts } from "./screens/FoldersScreen";
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
 import { startNewTodo, TodosScreen } from "./screens/TodosScreen";
+import { TodoListFormScreen } from "./screens/TodoListFormScreen";
+import { ChecklistIcon } from "./components/SettingsIcons";
+import { MAX_TODO_FOLDERS_PER_USER, TODO_FOLDER_KINDS } from "./constants";
+import type { TodoFolder, TodoFolderKind } from "./types/todo";
 import { closeTodoSheet, TodoSheet, useTodoSheetTodo } from "./components/TodoSheet";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
@@ -207,7 +211,8 @@ export function App() {
   const { habits, status, error, reload, refresh } = useHabits();
   const settingsState = useSettings();
   const { settings, save } = settingsState;
-  const { rejected, folders, allHabitsPosition } = useAppData();
+  const { rejected, folders, allHabitsPosition, todos, todoFolders, todoAllPosition } =
+    useAppData();
   // «Задачи (бета)»: вкладка «Задачи» перед «Привычками», приложение открывается на ней.
   const showTodos = settings?.show_todos ?? false;
   const typing = useTextFieldFocused();
@@ -264,6 +269,8 @@ export function App() {
   );
   // Форма папки (Настройки → «Папки») и выбор привычек в неё поверх формы.
   const [folderDraft, setFolderDraft] = useState<FolderDraft | null>(null);
+  // Задачи: форма списка поверх «Списков» (настройки → «Задачи (Beta)»); list null — новый.
+  const [todoListForm, setTodoListForm] = useState<{ list: TodoFolder | null } | null>(null);
   const [folderPicker, setFolderPicker] = useState(false);
   // Выбранная вкладка таблетки папок: "all" или id папки; null — первая.
   const [folderTab, setFolderTab] = useState<string | null>(null);
@@ -546,6 +553,17 @@ export function App() {
     setFolderDraft(null);
   }, []);
 
+  const showTodoListForm = useCallback((list: TodoFolder | null) => {
+    pendingScroll.current = 0;
+    setTodoListForm({ list });
+  }, []);
+
+  const hideTodoListForm = useCallback(() => {
+    pendingScroll.current = 0;
+    pendingBack.current = true;
+    setTodoListForm(null);
+  }, []);
+
   const showFolderPicker = useCallback(() => {
     scrollUnderFolderPicker.current = window.scrollY;
     pendingScroll.current = 0;
@@ -643,6 +661,20 @@ export function App() {
   }
 
   // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.
+  function addRecommendedTodoList(kind: TodoFolderKind): void {
+    try {
+      dataStore.createTodoFolder(strings.todoListKindNames[kind], kind);
+      hapticNotification("success");
+    } catch (error) {
+      hapticNotification("error");
+      void showAlert({
+        okLabel: strings.alertOk,
+        title: strings.todoListSaveFailed,
+        message: describeError(strings, error, strings.todoListSaveFailed),
+      });
+    }
+  }
+
   function addRecommendedFolder(kind: FolderKind): void {
     try {
       dataStore.createFolder(strings.folderKindNames[kind], [], kind);
@@ -731,9 +763,11 @@ export function App() {
             ? hideFolderPicker
             : folderDraft
               ? hideFolderForm
-              : settingsPage
-                ? hideSettingsPage
-                : null,
+              : todoListForm
+                ? hideTodoListForm
+                : settingsPage
+                  ? hideSettingsPage
+                  : null,
   );
 
   // Пояс не выбран (новый пользователь, до этого считалось по UTC) — ставим пояс
@@ -880,6 +914,7 @@ export function App() {
         setTab("habits");
         setSettingsPage(null);
         setFolderDraft(null);
+        setTodoListForm(null);
         setFolderPicker(false);
         showHabit(id);
         if (fromTab) {
@@ -1115,6 +1150,57 @@ export function App() {
             onAddRecommended={addRecommendedFolder}
             swipe={settings?.folder_swipe ?? false}
             onSwipeChange={(on) => saveSettings({ folder_swipe: on })}
+            countOf={(folder) => folder.habits.length}
+            texts={habitFoldersTexts(strings)}
+            kinds={HABIT_FOLDERS.kinds}
+            max={HABIT_FOLDERS.max}
+          />
+        );
+      }
+      if (settingsPage === "todoLists" && todoListForm) {
+        return (
+          <TodoListFormScreen
+            key={todoListForm.list?.id ?? "new"}
+            list={todoListForm.list}
+            onDone={hideTodoListForm}
+          />
+        );
+      }
+      if (settingsPage === "todoLists") {
+        return (
+          <FoldersScreen
+            folders={todoFolders}
+            allHabitsPosition={todoAllPosition}
+            onCreate={() => showTodoListForm(null)}
+            onOpen={showTodoListForm}
+            onDelete={(list) => dataStore.deleteTodoFolder(list.id)}
+            onReorder={(order) => dataStore.orderTodoFolders(order)}
+            onAddRecommended={addRecommendedTodoList}
+            swipe={settings?.todo_folder_swipe ?? false}
+            onSwipeChange={(on) => saveSettings({ todo_folder_swipe: on })}
+            countOf={(list) => todos.filter((todo) => todo.folder === list.id).length}
+            texts={{
+              title: strings.todoSettingsLists,
+              description: strings.todoListsDescription,
+              heading: strings.todoSettingsLists,
+              create: strings.todoListsCreate,
+              all: strings.todosAll,
+              footer: strings.todoListsFooter,
+              limitFooter: strings.todoListsLimitFooter,
+              recommendedHeading: strings.todoListsRecommendedHeading,
+              kindNames: strings.todoListKindNames,
+              kindDescriptions: strings.todoListKindDescriptions,
+              swipe: strings.foldersSwipe,
+              swipeFooter: strings.todoListsSwipeFooter,
+              remove: strings.todoListRemove,
+              deleteTitle: strings.todoListDeleteTitle,
+              deleteMessage: strings.todoListDeleteMessage,
+              count: strings.folderHabitCount,
+            }}
+            kinds={TODO_FOLDER_KINDS}
+            max={MAX_TODO_FOLDERS_PER_USER}
+            icon={<ChecklistIcon />}
+            iconColor="orange"
           />
         );
       }
@@ -1170,6 +1256,7 @@ export function App() {
           }
           folderCount={folders.length}
           archiveCount={archivedHabits.length}
+          todoListCount={todoFolders.length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />

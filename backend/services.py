@@ -1030,6 +1030,11 @@ async def list_folders(repo: Repository, user: User) -> list[FolderView]:
     return views
 
 
+async def all_todos_position(repo: Repository, user: User) -> int:
+    """Место «Все задачи» среди списков задач — не дальше последнего."""
+    return min(user.all_todos_position, len(await repo.get_todo_folders(user.telegram_id)))
+
+
 async def all_habits_position(repo: Repository, user: User) -> int:
     """Место папки «Все привычки» среди папок — не дальше последней."""
     return min(user.all_habits_position, len(await repo.get_folders(user.telegram_id)))
@@ -1119,7 +1124,7 @@ async def _apply_folder_op(
 async def list_todo_folders(repo: Repository, user: User) -> list[TodoFolderView]:
     """Папки задач (бета) по порядку."""
     return [
-        TodoFolderView(id=folder.id, name=folder.name)
+        TodoFolderView(id=folder.id, name=folder.name, kind=folder.kind)
         for folder in await repo.get_todo_folders(user.telegram_id)
     ]
 
@@ -1276,7 +1281,11 @@ async def _apply_todo_op(
                 f"Можно завести не больше {MAX_TODO_FOLDERS_PER_USER} папок",
             )
         name = validation.validate_folder_name(op.name)
-        folder = await repo.create_todo_folder(uid, name, op.ref)
+        if op.kind is not None and any(
+            item.kind == op.kind for item in await repo.get_todo_folders(uid)
+        ):
+            raise ApiError(409, "todo_folder_kind_taken", "Такой список уже есть")
+        folder = await repo.create_todo_folder(uid, name, op.ref, kind=op.kind)
         return SyncResult(ok=True, id=folder.id)
     if isinstance(op, SyncTodoFolderUpdate):
         folder = await _todo_folder_by_ref(repo, user, op.key)
@@ -1287,17 +1296,25 @@ async def _apply_todo_op(
     if isinstance(op, SyncTodoFolderDelete):
         folder = await _todo_folder_by_ref(repo, user, op.key)
         if folder is not None:
+            # Список стоял перед «Все задачи» — та сдвигается на его место.
+            if (await repo.get_todo_folders(uid)).index(folder) < user.all_todos_position:
+                user.all_todos_position -= 1
             await repo.delete_todo_folder(folder)
         return SyncResult(ok=True)
-    # Порядок: названные папки — как названы, остальные — за ними в прежнем порядке.
+    # Порядок: названные списки — как названы, остальные — за ними в прежнем порядке;
+    # «Все задачи» — на месте null (нет его — первой).
     folders = await repo.get_todo_folders(uid)
     ordered: list[TodoFolder] = []
+    all_position = 0
     for ref in op.order:
+        if ref is None:
+            all_position = len(ordered)
+            continue
         folder = await _todo_folder_by_ref(repo, user, ref)
         if folder is not None and folder not in ordered:
             ordered.append(folder)
     ordered += [folder for folder in folders if folder not in ordered]
-    await repo.set_todo_folder_order(ordered)
+    await repo.set_todo_folder_order(user, ordered, all_position)
     return SyncResult(ok=True)
 
 
@@ -1691,6 +1708,8 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         telegram_notifications=user.telegram_notifications,
         folder_swipe=user.folder_swipe,
         show_todos=user.show_todos,
+        todo_folder_swipe=user.todo_folder_swipe,
+        todo_checks_right=user.todo_checks_right,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
             if user.checkin_reminder_time is not None
@@ -1751,6 +1770,8 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         telegram_notifications=payload.telegram_notifications,
         folder_swipe=payload.folder_swipe,
         show_todos=payload.show_todos,
+        todo_folder_swipe=payload.todo_folder_swipe,
+        todo_checks_right=payload.todo_checks_right,
     )
     if timezone is not None:
         # Новый пояс — напоминания задач приходят в то же время уже по нему.

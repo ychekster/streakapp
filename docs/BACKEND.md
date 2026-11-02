@@ -476,6 +476,14 @@ NULL у открытой, `client_ref`) и `users.show_todos` (настройк�
 отправки — NULL, у прошедшего момента — NULL сразу, при смене пояса пересчитывается. В
 `/sync` и экспорте — `due_date` / `remind_time`. Без неё `/sync` не ответит.
 
+Миграция `0040` — списки задач: `todo_folders.kind` (рекомендуемый список `today` /
+`scheduled` / `undated`, наполняется на устройстве; один каждого вида —
+`409 todo_folder_kind_taken`; в `todo_folder_create` — `kind`), `users.todo_folder_swipe` и
+`users.todo_checks_right` (настройки задач в `/settings` и `/sync`), `users.all_todos_position`
+(место «Все задачи» среди списков: `null` в `todo_folder_order`, в ответе `/sync` —
+`all_todos_position`). Без неё API не прочитает
+пользователя.
+
 > Перед миграцией сделайте копию базы: `python scripts/backup_db.py` (база в режиме
 > WAL — простое копирование файла на работающих процессах может потерять последние
 > изменения).

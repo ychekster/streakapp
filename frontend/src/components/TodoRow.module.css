@@ -48,6 +48,29 @@
   transition: none;
 }
 
+/* «Галочки справа»: текст от поля карточки, кружок — у правого края (порядок — CSS), линия
+   между строками — от начала текста. */
+.checkRight {
+  padding: 0 var(--list-row-icon-inset) 0 var(--space-card-padding);
+}
+
+.checkRight .body {
+  order: 1;
+}
+
+.checkRight .details {
+  order: 2;
+  margin-right: 0;
+}
+
+.checkRight .check {
+  order: 3;
+}
+
+.row + .row .checkRight::before {
+  left: var(--space-card-padding);
+}
+
 /* Кружок отметки: пустой — обводка, выполненная — залит акцентом с галочкой. */
 .check {
   flex: none;

@@ -41,6 +41,10 @@ export interface Settings {
   /** «Задачи (бета)»: вкладка «Задачи» перед «Привычками», приложение открывается на ней.
    *  Нет в настройках, сохранённых на устройстве до неё: выключено. */
   show_todos?: boolean;
+  /** Задачи: «Переключение свайпом» между списками и «Галочки справа». Нет в настройках,
+   *  сохранённых на устройстве до них: выключены. */
+  todo_folder_swipe?: boolean;
+  todo_checks_right?: boolean;
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
 }
@@ -59,6 +63,8 @@ export interface SettingsUpdate {
   telegram_notifications?: boolean;
   folder_swipe?: boolean;
   show_todos?: boolean;
+  todo_folder_swipe?: boolean;
+  todo_checks_right?: boolean;
 }
 
 export interface CheckinReminder {

@@ -50,6 +50,7 @@ import {
   DotsGridIcon,
   ExportIcon,
   FolderIcon,
+  HandIcon,
   ImportIcon,
   InstallIcon,
   PersonIcon,
@@ -77,6 +78,7 @@ export type SettingsPage =
   | "gridLayout"
   | "folders"
   | "archive"
+  | "todoLists"
   | "review"
   | "privacy"
   | "terms"
@@ -107,6 +109,8 @@ interface SettingsScreenProps {
   folderCount: number;
   /** How many habits are in the archive («Архив» row). */
   archiveCount: number;
+  /** How many todo lists there are («Списки» row of «Задачи (Beta)»). */
+  todoListCount: number;
   /** Web app: load the account again («Нет связи» row). */
   onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
@@ -122,6 +126,7 @@ export function SettingsScreen({
   account,
   folderCount,
   archiveCount,
+  todoListCount,
   onRetryAccount,
   onLinkTelegram,
 }: SettingsScreenProps) {
@@ -204,18 +209,39 @@ export function SettingsScreen({
         <Disclosure />
       </ListItem>
     );
-    const todosRow = (
-      <ListItem
-        icon={<ChecklistIcon />}
-        iconColor="orange"
-        label={strings.settingsTodos}
-      >
-        <Switch
-          checked={settings?.show_todos ?? false}
-          onChange={(on) => onSave({ show_todos: on })}
-          label={strings.settingsTodos}
-        />
-      </ListItem>
+    // «Задачи (Beta)» — своя группа: переключатель, а при включённых задачах в ней же
+    // «Списки» и «Галочки справа».
+    const showTodos = settings.show_todos ?? false;
+    const todosGroup = (
+      <ListGroup footer={showTodos ? undefined : strings.todoSettingsShowFooter}>
+        <ListItem icon={<ChecklistIcon />} iconColor="orange" label={strings.settingsTodos}>
+          <Switch
+            checked={showTodos}
+            onChange={(on) => onSave({ show_todos: on })}
+            label={strings.settingsTodos}
+          />
+        </ListItem>
+        {showTodos ? (
+          <>
+            <ListItem
+              icon={<FolderIcon />}
+              iconColor="orange"
+              label={strings.todoSettingsLists}
+              onPress={() => onOpen("todoLists")}
+            >
+              {todoListCount > 0 ? <span className={styles.value}>{todoListCount}</span> : null}
+              <Disclosure />
+            </ListItem>
+            <ListItem icon={<HandIcon />} iconColor="orange" label={strings.todoSettingsChecksRight}>
+              <Switch
+                checked={settings.todo_checks_right ?? false}
+                onChange={(on) => onSave({ todo_checks_right: on })}
+                label={strings.todoSettingsChecksRight}
+              />
+            </ListItem>
+          </>
+        ) : null}
+      </ListGroup>
     );
 
     return (
@@ -299,7 +325,6 @@ export function SettingsScreen({
           {!web ? gridLayoutRow : null}
           {!web ? foldersRow : null}
           {!web ? archiveRow : null}
-          {!web ? todosRow : null}
           {web ? (
             <ListItem icon={<BellIcon />} iconColor="red" label={strings.notificationsRow}>
               <Switch checked={push.on} onChange={push.change} label={strings.notificationsRow} />
@@ -308,8 +333,9 @@ export function SettingsScreen({
           {web ? gridLayoutRow : null}
           {web ? foldersRow : null}
           {web ? archiveRow : null}
-          {web ? todosRow : null}
         </ListGroup>
+
+        {todosGroup}
 
         <ListGroup footer={strings.settingsMarkYesterdayFooter}>
           <ListItem

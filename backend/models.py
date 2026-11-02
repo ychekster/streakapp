@@ -145,6 +145,17 @@ class User(Base):
     show_todos: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Настройки задач: «Переключение свайпом» между списками и «Галочки справа».
+    todo_folder_swipe: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    todo_checks_right: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    # Место «Все задачи» среди списков задач (TodoFolder.position): сколько списков перед ней.
+    all_todos_position: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     # Фото профиля в Telegram (backend/photos.py) — для участников совместных привычек:
     # версия (file_unique_id, меняется вместе с фото), file_id, чтобы скачать, и когда его
     # сверяли с Telegram. photo_id NULL — фото нет или ещё не проверяли.
@@ -580,7 +591,8 @@ class Folder(Base):
 class TodoFolder(Base):
     """Папка задач (бета; настройки → «Задачи»): вкладка в таблетке над списком задач.
 
-    Порядок — `position`; вкладка «Все задачи» не хранится, она всегда первая.
+    Порядок — `position`; вкладка «Все задачи» не хранится, её место —
+    `User.all_todos_position`.
     """
 
     __tablename__ = "todo_folders"
@@ -591,6 +603,8 @@ class TodoFolder(Base):
     )
     name: Mapped[str] = mapped_column(String(FOLDER_NAME_MAX_LENGTH), nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Рекомендуемый список (constants.TODO_FOLDER_KINDS) — наполняется сам; None — свой.
+    kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Id, который дало папке устройство (/sync, todo_folder_create): повтор — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True

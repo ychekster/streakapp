@@ -1,12 +1,13 @@
 /**
- * Задачи (бета): папки над списком задач — та же таблетка, что у папок привычек
- * (FolderBar: стили, подложка, прокрутка), с тремя отличиями:
- *  - последней стоит вкладка-заготовка «Новая папка»: нажал — в ней курсор, ввёл название,
- *    Enter — папка создана и выбрана, а заготовка снова в конце ряда;
- *  - нажатие уже выбранной папки делает её название полем: Enter — переименовать, пустое —
- *    спросить и удалить (задачи из неё остаются без папки);
- *  - папку можно перетащить: подержать (как кнопку таймера, LONG_PRESS_MS) и вести вбок.
- *    Дальше «Все задачи» и заготовки она не уходит.
+ * Задачи (бета): списки над задачами — та же таблетка, что у папок привычек (FolderBar:
+ * стили, подложка, прокрутка), с тремя отличиями:
+ *  - последней стоит вкладка-заготовка «Новый список»: нажал — в ней курсор, ввёл
+ *    название, Enter — список создан и выбран, а заготовка снова в конце ряда;
+ *  - нажатие уже выбранного списка делает его название полем: Enter — переименовать,
+ *    пустое — спросить и удалить (задачи из него остаются без списка);
+ *  - вкладку можно перетащить: подержать (как кнопку таймера, LONG_PRESS_MS) и вести вбок.
+ *    «Все задачи» тоже — её место среди списков хранится (как «Все привычки»); правее
+ *    заготовки вкладки не уходят.
  */
 
 import {
@@ -32,28 +33,32 @@ const HOLD_SLOP = 8;
 
 interface TodoFolderBarProps {
   folders: readonly TodoFolder[];
-  /** Выбранная папка; null — «Все задачи». */
+  /** Место «Все задачи» среди списков. */
+  allPosition: number;
+  /** Выбранный список; null — «Все задачи». */
   active: number | null;
   onSelect: (id: number | null) => void;
-  /** Создать папку; её id или null — не создана. */
+  /** Создать список; его id или null — не создан. */
   onCreate: (name: string) => number | null;
   onRename: (id: number, name: string) => void;
   /** Название стёрли: спросить и удалить. */
   onDelete: (id: number) => void;
-  onReorder: (ids: number[]) => void;
+  /** Новый порядок: id списков, null — «Все задачи». */
+  onReorder: (order: (number | null)[]) => void;
 }
 
-/** Перетаскивание папки: какая, откуда и куда сдвинута. */
+/** Перетаскивание вкладки: какая, откуда и куда сдвинута. */
 interface Drag {
   index: number;
   startX: number;
   dx: number;
-  /** Края папок на ленте в начале перетаскивания. */
+  /** Края вкладок на ленте в начале перетаскивания. */
   boxes: { left: number; width: number }[];
 }
 
 export function TodoFolderBar({
   folders,
+  allPosition,
   active,
   onSelect,
   onCreate,
@@ -63,7 +68,7 @@ export function TodoFolderBar({
 }: TodoFolderBarProps) {
   const strings = useStrings();
   const trackRef = useRef<HTMLDivElement>(null);
-  // Какая вкладка — поле: "new" — заготовка, число — переименование папки.
+  // Какая вкладка — поле: "new" — заготовка, число — переименование списка.
   const [editing, setEditing] = useState<"new" | number | null>(null);
   const [draft, setDraft] = useState("");
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -71,14 +76,20 @@ export function TodoFolderBar({
   // Долгое нажатие сработало — следующий click не выбор вкладки.
   const swallowClick = useRef(false);
 
-  const activeIndex = active === null ? 0 : folders.findIndex((folder) => folder.id === active) + 1;
+  // Вкладки по порядку: списки и «Все задачи» (null) на своём месте.
+  const rows: (TodoFolder | null)[] = [...folders];
+  rows.splice(Math.min(allPosition, folders.length), 0, null);
+  const activeIndex = Math.max(
+    0,
+    rows.findIndex((row) => (row?.id ?? null) === active),
+  );
   const { thumbStyle, animated } = useFolderThumb(
     trackRef,
-    Math.max(0, activeIndex),
-    folders.map((folder) => folder.name).join("\u0000") + String(editing) + draft,
+    activeIndex,
+    rows.map((row) => row?.name ?? "").join("\u0000") + String(editing) + draft,
   );
 
-  // Пока папку тащат, лента не прокручивается пальцем. Обработчик (не пассивный) стоит с
+  // Пока вкладку тащат, лента не прокручивается пальцем. Обработчик (не пассивный) стоит с
   // самого начала: добавленный посреди касания, он бы не остановил прокрутку на iPhone.
   const dragging = useRef(false);
   dragging.current = drag !== null;
@@ -141,7 +152,7 @@ export function TodoFolderBar({
     hold.current = null;
   };
 
-  const onFolderPointerDown = (event: PointerEvent<HTMLElement>, index: number): void => {
+  const onTabPointerDown = (event: PointerEvent<HTMLElement>, index: number): void => {
     if (editing !== null || event.button !== 0) {
       return;
     }
@@ -178,7 +189,7 @@ export function TodoFolderBar({
     };
   };
 
-  const onFolderPointerMove = (event: PointerEvent<HTMLElement>): void => {
+  const onTabPointerMove = (event: PointerEvent<HTMLElement>): void => {
     const pending = hold.current;
     if (pending) {
       if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > HOLD_SLOP) {
@@ -192,19 +203,18 @@ export function TodoFolderBar({
     const first = drag.boxes[0];
     const last = drag.boxes[drag.boxes.length - 1];
     const box = drag.boxes[drag.index];
-    // Не левее первой папки (за ней «Все задачи») и не правее последней (за ней заготовка).
+    // Не левее первой вкладки и не правее последней (за ней заготовка).
     const dx = Math.min(
       Math.max(event.clientX - drag.startX, first.left - box.left),
       last.left + last.width - (box.left + box.width),
     );
-    const target = targetIndex({ ...drag, dx });
-    if (target !== targetIndex(drag)) {
+    if (targetIndex({ ...drag, dx }) !== targetIndex(drag)) {
       hapticImpact("light");
     }
     setDrag({ ...drag, dx });
   };
 
-  const onFolderPointerUp = (): void => {
+  const onTabPointerUp = (): void => {
     cancelHold();
     if (!drag) {
       return;
@@ -212,14 +222,14 @@ export function TodoFolderBar({
     const target = targetIndex(drag);
     setDrag(null);
     if (target !== drag.index) {
-      const ids = folders.map((folder) => folder.id);
-      const [moved] = ids.splice(drag.index, 1);
-      ids.splice(target, 0, moved);
-      onReorder(ids);
+      const order = rows.map((row) => row?.id ?? null);
+      const [moved] = order.splice(drag.index, 1);
+      order.splice(target, 0, moved);
+      onReorder(order);
     }
   };
 
-  /** Сдвиг папки `index` во время перетаскивания: тащимая — за пальцем, соседи
+  /** Сдвиг вкладки `index` во время перетаскивания: тащимая — за пальцем, соседи
    *  расступаются на её ширину. */
   const shiftOf = (index: number): number => {
     if (!drag) {
@@ -239,7 +249,7 @@ export function TodoFolderBar({
     return 0;
   };
 
-  const activeShift = active === null ? 0 : shiftOf(activeIndex - 1);
+  const activeShift = shiftOf(activeIndex);
   const thumb: CSSProperties | undefined = thumbStyle
     ? { ...thumbStyle, transform: activeShift ? `translateX(${activeShift}px)` : undefined }
     : undefined;
@@ -271,22 +281,14 @@ export function TodoFolderBar({
             aria-hidden="true"
           />
         ) : null}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={active === null}
-          className={styles.tab}
-          onClick={() => onSelect(null)}
-        >
-          {strings.todosAll}
-        </button>
-        {folders.map((folder, index) => {
-          const selected = folder.id === active;
+        {rows.map((folder, index) => {
+          const id = folder?.id ?? null;
+          const selected = id === active;
           const shift = shiftOf(index);
           const style: CSSProperties | undefined = shift
             ? { transform: `translateX(${shift}px)` }
             : undefined;
-          if (editing === folder.id) {
+          if (folder && editing === folder.id) {
             return (
               <div key={folder.id} role="tab" aria-selected className={styles.tab} data-folder>
                 {field(folder.name)}
@@ -295,7 +297,7 @@ export function TodoFolderBar({
           }
           return (
             <button
-              key={folder.id}
+              key={id ?? "all"}
               type="button"
               role="tab"
               aria-selected={selected}
@@ -304,24 +306,24 @@ export function TodoFolderBar({
               }`}
               style={style}
               data-folder
-              onPointerDown={(event) => onFolderPointerDown(event, index)}
-              onPointerMove={onFolderPointerMove}
-              onPointerUp={onFolderPointerUp}
-              onPointerCancel={onFolderPointerUp}
+              onPointerDown={(event) => onTabPointerDown(event, index)}
+              onPointerMove={onTabPointerMove}
+              onPointerUp={onTabPointerUp}
+              onPointerCancel={onTabPointerUp}
               onContextMenu={(event) => event.preventDefault()}
               onClick={() => {
                 if (swallowClick.current) {
                   swallowClick.current = false;
                   return;
                 }
-                if (selected) {
+                if (folder && selected) {
                   startEdit(folder.id, folder.name);
                 } else {
-                  onSelect(folder.id);
+                  onSelect(id);
                 }
               }}
             >
-              {folder.name}
+              {folder ? folder.name : strings.todosAll}
             </button>
           );
         })}
@@ -343,7 +345,7 @@ export function TodoFolderBar({
   );
 }
 
-/** Куда встанет тащимая папка: по её середине среди середин остальных. */
+/** Куда встанет тащимая вкладка: по её середине среди середин остальных. */
 function targetIndex(drag: Drag): number {
   const box = drag.boxes[drag.index];
   const center = box.left + box.width / 2 + drag.dx;

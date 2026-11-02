@@ -397,7 +397,7 @@ describe("dataStore", () => {
     store.createTodo("Сдать лабу", folder);
     store.createTodo("Хлеб", null);
     const [lab, bread] = store.getState().todos;
-    expect(store.getState().todoFolders).toEqual([{ id: folder, name: "Учёба" }]);
+    expect(store.getState().todoFolders).toEqual([{ id: folder, name: "Учёба", kind: null }]);
     expect([lab.text, lab.folder, bread.text, bread.folder]).toEqual(["Сдать лабу", folder, "Хлеб", null]);
 
     // Edited before sending: created with the new text; checked — a change of its own.

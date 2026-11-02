@@ -18,9 +18,20 @@
  * ряд переставляют. «Создать папку» сдвигается вправо вместе с названиями, и линии между
  * рядами начинаются от текста — «−» стоят без линий. «Готово» выключает правку. Всё
  * сохраняется сразу, как остальные изменения (data/store.ts).
+ *
+ * Тот же экран — «Списки» задач (бета; настройки → «Задачи (Beta)» → «Списки»): тексты,
+ * виды рекомендуемых, предел и значок свои (`texts`, `kinds`, `max`, `icon`); «Все
+ * задачи» стоит среди списков так же, как «Все привычки».
  */
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 
 import { Disclosure } from "../components/Disclosure";
 import { ListItem } from "../components/ListItem";
@@ -30,27 +41,93 @@ import { FolderIcon } from "../components/SettingsIcons";
 import { Switch } from "../components/Switch";
 import { FOLDER_KINDS, MAX_FOLDERS_PER_USER } from "../constants";
 import { useStrings } from "../preferences";
+import type { Strings } from "../strings";
 import { confirmAction, hapticImpact, hapticNotification } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
-import type { Folder, FolderKind } from "../types/folder";
+import type { FolderKind } from "../types/folder";
+import type { HabitColor } from "../types/habit";
 import rowStyles from "../components/ListItem.module.css";
 import styles from "./FoldersScreen.module.css";
 
-interface FoldersScreenProps {
-  folders: Folder[];
+/** Папка в ряду: у привычек — Folder, у задач — список. */
+interface FolderLike<K extends string> {
+  id: number;
+  name: string;
+  kind?: K | null;
+}
+
+/** Тексты экрана: у папок привычек и у списков задач свои. */
+export interface FoldersTexts<K extends string> {
+  title: string;
+  description: string;
+  heading: string;
+  create: string;
+  /** Ряд «Все привычки» / «Все задачи». */
+  all: string;
+  footer: string;
+  limitFooter: string;
+  recommendedHeading: string;
+  kindNames: Record<K, string>;
+  kindDescriptions: Record<K, string>;
+  swipe: string;
+  swipeFooter: string;
+  remove: (name: string) => string;
+  deleteTitle: string;
+  deleteMessage: (name: string) => string;
+  /** Подпись справа у папки: сколько в ней. */
+  count: (count: number) => string;
+}
+
+/** Тексты экрана папок привычек. */
+export function habitFoldersTexts(strings: Strings): FoldersTexts<FolderKind> {
+  return {
+    title: strings.foldersTitle,
+    description: strings.foldersDescription,
+    heading: strings.foldersHeading,
+    create: strings.foldersCreate,
+    all: strings.foldersAll,
+    footer: strings.foldersFooter,
+    limitFooter: strings.foldersLimitFooter,
+    recommendedHeading: strings.foldersRecommendedHeading,
+    kindNames: strings.folderKindNames,
+    kindDescriptions: strings.folderKindDescriptions,
+    swipe: strings.foldersSwipe,
+    swipeFooter: strings.foldersSwipeFooter,
+    remove: strings.folderRemove,
+    deleteTitle: strings.folderDeleteTitle,
+    deleteMessage: strings.folderDeleteMessage,
+    count: strings.folderHabitCount,
+  };
+}
+
+interface FoldersScreenProps<K extends string, F extends FolderLike<K>> {
+  folders: F[];
   /** Место «Все привычки» среди папок. */
   allHabitsPosition: number;
   onCreate: () => void;
-  onOpen: (folder: Folder) => void;
-  onDelete: (folder: Folder) => void;
+  onOpen: (folder: F) => void;
+  onDelete: (folder: F) => void;
   /** Новый порядок: id папок, null — «Все привычки». */
   onReorder: (order: (number | null)[]) => void;
   /** Добавить рекомендуемую папку. */
-  onAddRecommended: (kind: FolderKind) => void;
+  onAddRecommended: (kind: K) => void;
   /** «Переключение свайпом». */
   swipe: boolean;
   onSwipeChange: (on: boolean) => void;
+  /** Сколько в папке (подпись справа). */
+  countOf: (folder: F) => number;
+  texts: FoldersTexts<K>;
+  /** Виды рекомендуемых папок. */
+  kinds: readonly K[];
+  /** Сколько папок можно завести. */
+  max: number;
+  /** Значок над пояснением и его цвет. */
+  icon?: ReactNode;
+  iconColor?: HabitColor;
 }
+
+/** Экран папок привычек: значения по умолчанию для общего экрана. */
+export const HABIT_FOLDERS = { kinds: FOLDER_KINDS, max: MAX_FOLDERS_PER_USER };
 
 /** Перетаскиваемый ряд: какой, на сколько сдвинут пальцем и куда встанет. */
 interface Drag {
@@ -59,7 +136,7 @@ interface Drag {
   target: number;
 }
 
-export function FoldersScreen({
+export function FoldersScreen<K extends string, F extends FolderLike<K>>({
   folders,
   allHabitsPosition,
   onCreate,
@@ -69,7 +146,13 @@ export function FoldersScreen({
   onAddRecommended,
   swipe,
   onSwipeChange,
-}: FoldersScreenProps) {
+  countOf,
+  texts,
+  kinds,
+  max,
+  icon = <FolderIcon />,
+  iconColor = "blue",
+}: FoldersScreenProps<K, F>) {
   const strings = useStrings();
   const [editing, setEditing] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -78,12 +161,12 @@ export function FoldersScreen({
   const start = useRef<{ y: number; index: number; height: number } | null>(null);
 
   // Ряды по порядку: папки и «Все привычки» (null) на своём месте.
-  const rows: (Folder | null)[] = [...folders];
+  const rows: (F | null)[] = [...folders];
   rows.splice(Math.min(allHabitsPosition, folders.length), 0, null);
-  const canCreate = folders.length < MAX_FOLDERS_PER_USER;
+  const canCreate = folders.length < max;
   // Рекомендуемые — те, которых ещё нет среди папок (и пока можно создать папку).
   const recommended = canCreate
-    ? FOLDER_KINDS.filter((kind) => !folders.some((folder) => folder.kind === kind))
+    ? kinds.filter((kind) => !folders.some((folder) => folder.kind === kind))
     : [];
 
   // Папок не осталось — правке нечего делать.
@@ -101,10 +184,10 @@ export function FoldersScreen({
     return undefined;
   }, [settling]);
 
-  async function remove(folder: Folder): Promise<void> {
+  async function remove(folder: F): Promise<void> {
     const confirmed = await confirmAction({
-      title: strings.folderDeleteTitle,
-      message: strings.folderDeleteMessage(folder.name),
+      title: texts.deleteTitle,
+      message: texts.deleteMessage(folder.name),
       confirmLabel: strings.folderDeleteConfirm,
       cancelLabel: strings.folderDeleteCancel,
       destructive: true,
@@ -177,18 +260,18 @@ export function FoldersScreen({
   const rowHeight = start.current?.height ?? 0;
 
   return (
-    <Screen title={strings.foldersTitle} withTabBar={false} enterAnimation pinnedTitle>
+    <Screen title={texts.title} withTabBar={false} enterAnimation pinnedTitle>
       <div className={styles.intro}>
-        <span className={styles.introIcon} style={habitColorStyle("blue")} aria-hidden="true">
-          <FolderIcon />
+        <span className={styles.introIcon} style={habitColorStyle(iconColor)} aria-hidden="true">
+          {icon}
         </span>
-        <p className={styles.introText}>{strings.foldersDescription}</p>
+        <p className={styles.introText}>{texts.description}</p>
       </div>
 
       <div className={styles.list}>
         <Section
           variant="form"
-          title={strings.foldersHeading}
+          title={texts.heading}
           action={
             folders.length > 0 ? (
               <button
@@ -202,9 +285,9 @@ export function FoldersScreen({
           }
           footer={
             !canCreate
-              ? strings.foldersLimitFooter
+              ? texts.limitFooter
               : folders.length > 0
-                ? strings.foldersFooter
+                ? texts.footer
                 : undefined
           }
         >
@@ -226,11 +309,11 @@ export function FoldersScreen({
               <span
                 className={`${rowStyles.label} ${styles.name} ${!canCreate ? styles.dimmed : ""}`}
               >
-                {strings.foldersCreate}
+                {texts.create}
               </span>
             </button>
             {rows.map((folder, index) => {
-              const name = folder ? folder.name : strings.foldersAll;
+              const name = folder ? folder.name : texts.all;
               const className = [
                 rowStyles.row,
                 styles.row,
@@ -248,7 +331,7 @@ export function FoldersScreen({
                       <button
                         type="button"
                         className={styles.remove}
-                        aria-label={strings.folderRemove(folder.name)}
+                        aria-label={texts.remove(folder.name)}
                         onClick={() => void remove(folder)}
                       >
                         <span className={styles.minus} />
@@ -273,7 +356,7 @@ export function FoldersScreen({
                       </span>
                     ) : folder ? (
                       <>
-                        <span>{strings.folderHabitCount(folder.habits.length)}</span>
+                        <span>{texts.count(countOf(folder))}</span>
                         <Disclosure />
                       </>
                     ) : null}
@@ -306,14 +389,14 @@ export function FoldersScreen({
         </Section>
 
         {recommended.length > 0 ? (
-          <Section variant="form" title={strings.foldersRecommendedHeading}>
+          <Section variant="form" title={texts.recommendedHeading}>
             <Card>
               {recommended.map((kind) => (
                 <div key={kind} className={`${rowStyles.row} ${styles.recommended}`}>
                   <span className={styles.recommendedText}>
-                    <span className={styles.recommendedName}>{strings.folderKindNames[kind]}</span>
+                    <span className={styles.recommendedName}>{texts.kindNames[kind]}</span>
                     <span className={styles.recommendedDescription}>
-                      {strings.folderKindDescriptions[kind]}
+                      {texts.kindDescriptions[kind]}
                     </span>
                   </span>
                   <button
@@ -330,10 +413,10 @@ export function FoldersScreen({
         ) : null}
 
         <div className={styles.swipe}>
-          <Section variant="form" footer={strings.foldersSwipeFooter}>
+          <Section variant="form" footer={texts.swipeFooter}>
             <Card>
-              <ListItem label={strings.foldersSwipe}>
-                <Switch checked={swipe} onChange={onSwipeChange} label={strings.foldersSwipe} />
+              <ListItem label={texts.swipe}>
+                <Switch checked={swipe} onChange={onSwipeChange} label={texts.swipe} />
               </ListItem>
             </Card>
           </Section>

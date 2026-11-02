@@ -1,9 +1,11 @@
 /**
- * Вкладка «Задачи» (бета; включается в настройках «Задачи (бета)»): разовые дела, не
- * привычки — блокнот по сферам жизни. Сверху таблетка папок (TodoFolderBar: «Все задачи»,
- * папки, заготовка «Новая папка»). Список:
- *  - «Все задачи»: сначала задачи без папки, потом папки с заголовками, по порядку папок;
- *  - папка: её задачи;
+ * Вкладка «Задачи» (бета; включается в Настройки → «Задачи (Beta)»): разовые дела, не
+ * привычки — блокнот по сферам жизни. Сверху таблетка списков (TodoFolderBar: «Все задачи»,
+ * списки, заготовка «Новый список»). Список:
+ *  - «Все задачи»: сначала задачи без списка, потом списки с заголовками, по порядку;
+ *  - список: его задачи; рекомендуемый (`kind`) — подходящие задачи всех списков
+ *    («Сегодня» — на сегодня и просроченные, «Запланированные» — с датой, «Без даты»), а
+ *    новая задача в «Сегодня» и «Запланированных» — на сегодня;
  * задачи на будущие дни — внизу, в блоке «Не запланированы на сегодня» (по дню и времени,
  * как у привычек); в свой день они поднимаются наверх, к остальным. В конце — блок
  * «Выполненные» (последние отмеченные — выше). Просроченная остаётся наверху с красной
@@ -15,9 +17,12 @@
  * даты и напоминания (TodoSheet). Заголовок — крупный, как у
  * «Привычек»; подзаголовки групп — как «Не запланированы на сегодня». С привычками не
  * связаны. Данные — на устройстве, на сервер уходят через /sync (store.ts).
+ *
+ * Настройки задач: «Переключение свайпом» (свайп по экрану мимо задач — соседний список;
+ * по самой задаче свайп открывает «Удалить») и «Галочки справа».
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
@@ -29,9 +34,10 @@ import { closeTodoSheet, openTodoSheet } from "../components/TodoSheet";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useAppData } from "../hooks/useAppData";
+import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
 import { useStrings } from "../preferences";
 import { confirmAction, hapticImpact, showAlert } from "../telegram/webapp";
-import type { Todo } from "../types/todo";
+import type { Todo, TodoFolderKind } from "../types/todo";
 import styles from "./TodosScreen.module.css";
 
 // Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
@@ -51,7 +57,8 @@ export function startNewTodo(): void {
 
 export function TodosScreen() {
   const strings = useStrings();
-  const { todos, todoFolders } = useAppData();
+  const { todos, todoFolders, todoAllPosition, settings } = useAppData();
+  const checksRight = settings?.todo_checks_right ?? false;
   const [active, setActive] = useState<number | null>(null);
   // Новая задача, которую сейчас пишут (ещё не сохранена): номер её строки.
   const [draft, setDraft] = useState<number | null>(null);
@@ -73,11 +80,31 @@ export function TodosScreen() {
   // Выбранной папки больше нет (удалили на другом устройстве) — «Все задачи».
   const folder = active === null ? null : (todoFolders.find((item) => item.id === active) ?? null);
   const shownFolder = folder?.id ?? null;
+  const kind = folder?.kind ?? null;
+  // Список, куда встаёт новая задача: свой — он, рекомендуемый и «Все задачи» — без списка.
+  const targetFolder = kind ? null : shownFolder;
+
+  // «Переключение свайпом»: свайп влево — следующий список, вправо — предыдущий.
+  const order = useRef<(number | null)[]>([]);
+  order.current = todoFolders.map((item) => item.id as number | null);
+  order.current.splice(Math.min(todoAllPosition, todoFolders.length), 0, null);
+  const shownRef = useRef(shownFolder);
+  shownRef.current = shownFolder;
+  const switchList = useCallback((direction: SwipeDirection) => {
+    const index = order.current.indexOf(shownRef.current);
+    const next = order.current[index + (direction === "left" ? 1 : -1)];
+    if (index !== -1 && next !== undefined) {
+      hapticImpact("light");
+      setActive(next);
+    }
+  }, []);
+  useHorizontalSwipe(settings?.todo_folder_swipe && draft === null ? switchList : null);
 
   // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
   const today = localDate();
   const { groups, later, done } = useMemo(() => {
-    const inView = (todo: Todo): boolean => shownFolder === null || todo.folder === shownFolder;
+    const inView = (todo: Todo): boolean =>
+      kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
     const pending = todos.filter((todo) => todo.done_at === null && inView(todo));
     const open = pending.filter((todo) => !isLater(todo));
@@ -91,7 +118,8 @@ export function TodosScreen() {
     const checked = todos
       .filter((todo) => todo.done_at !== null && inView(todo))
       .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
-    const known = new Set(todoFolders.map((item) => item.id));
+    const own = todoFolders.filter((item) => !item.kind);
+    const known = new Set(own.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
     // Первая группа — та, куда встаёт новая задача: выбранная папка или «без папки».
     const sections: { key: string; title?: string; todos: Todo[]; target?: boolean }[] = [];
@@ -99,7 +127,7 @@ export function TodosScreen() {
       sections.push({ key: "folder", todos: open, target: true });
     } else {
       sections.push({ key: "none", todos: loose, target: true });
-      for (const item of todoFolders) {
+      for (const item of own) {
         sections.push({
           key: String(item.id),
           title: item.name,
@@ -112,7 +140,9 @@ export function TodosScreen() {
       later: upcoming,
       done: checked,
     };
-  }, [todos, todoFolders, shownFolder, today]);
+  }, [todos, todoFolders, shownFolder, kind, today]);
+  // Новая задача в «Сегодня» и «Запланированных» — на сегодня (иначе её там не было бы).
+  const newDate = kind === "today" || kind === "scheduled" ? today : undefined;
 
   const fail = (error: unknown): void => {
     void showAlert({
@@ -129,7 +159,7 @@ export function TodosScreen() {
   const saveDraft = (key: number, text: string): void => {
     closeDraft(key);
     try {
-      dataStore.createTodo(text, shownFolder);
+      dataStore.createTodo(text, targetFolder, newDate);
     } catch (error) {
       fail(error);
     }
@@ -139,7 +169,7 @@ export function TodosScreen() {
   const draftDetails = (key: number, text: string): void => {
     closeDraft(key);
     try {
-      openTodoSheet(dataStore.createTodo(text, shownFolder));
+      openTodoSheet(dataStore.createTodo(text, targetFolder, newDate));
     } catch (error) {
       fail(error);
     }
@@ -181,6 +211,7 @@ export function TodosScreen() {
       <div className={styles.todos}>
         <TodoFolderBar
           folders={todoFolders}
+          allPosition={todoAllPosition}
           active={shownFolder}
           onSelect={(id) => {
             hapticImpact("light");
@@ -215,11 +246,12 @@ export function TodosScreen() {
                     todo={{
                       id: 0,
                       text: "",
-                      folder: shownFolder,
+                      folder: targetFolder,
                       done_at: null,
                       created_at: "",
                     }}
                     startEditing
+                    checkRight={checksRight}
                     onToggle={() => undefined}
                     onEdit={(text) => saveDraft(draft, text)}
                     onDelete={() => closeDraft(draft)}
@@ -263,6 +295,7 @@ export function TodosScreen() {
         }}
         onEdit={(text) => dataStore.updateTodo(todo.id, { text })}
         onDelete={() => dataStore.deleteTodo(todo.id)}
+        checkRight={checksRight}
         onOpenDetails={(text) => {
           if (text !== todo.text) {
             dataStore.updateTodo(todo.id, { text });
@@ -272,4 +305,13 @@ export function TodosScreen() {
       />
     );
   }
+}
+
+/** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
+function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
+  const date = todo.due_date ?? null;
+  if (kind === "today") {
+    return date !== null && date <= today;
+  }
+  return kind === "scheduled" ? date !== null : date === null;
 }

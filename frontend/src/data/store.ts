@@ -57,7 +57,7 @@ import type {
   TodoFolderKey,
   TodoKey,
 } from "../types/sync";
-import type { Todo, TodoFolder } from "../types/todo";
+import type { Todo, TodoFolder, TodoFolderKind } from "../types/todo";
 import { currentSessionId } from "../web/session";
 import { addDays, clockIn, markingDay, nextMidnight } from "./dates";
 import {
@@ -107,6 +107,8 @@ export interface DataState {
   /** Todos (beta; Settings → «Задачи») in the order they were added, and their folders. */
   todos: Todo[];
   todoFolders: TodoFolder[];
+  /** Where the «Все задачи» tab stands among the todo lists. */
+  todoAllPosition: number;
 }
 
 const SNAPSHOT_KEY = "streak:data";
@@ -125,6 +127,7 @@ const EMPTY: DataState = {
   today: null,
   todos: [],
   todoFolders: [],
+  todoAllPosition: 0,
 };
 
 let started = false;
@@ -268,6 +271,7 @@ function rederive(): void {
       today: null,
       todos: [],
       todoFolders: [],
+      todoAllPosition: 0,
     });
     return;
   }
@@ -301,6 +305,7 @@ function rederive(): void {
       JSON.stringify(todos.folders) === JSON.stringify(state.todoFolders)
         ? state.todoFolders
         : todos.folders,
+    todoAllPosition: todos.allPosition,
   });
 }
 
@@ -639,7 +644,7 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
       return [{ ...op, key: serverKey(op.key) }];
     }
     if (op.type === "todo_folder_order") {
-      return [{ ...op, order: op.order.map(serverKey) }];
+      return [{ ...op, order: op.order.map((key) => (key === null ? null : serverKey(key))) }];
     }
     if (!("task" in op) || typeof op.task !== "string") {
       return [op];
@@ -659,6 +664,7 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     timer: response.timer ?? null,
     todos: response.todos ?? [],
     todo_folders: response.todo_folders ?? [],
+    all_todos_position: response.all_todos_position ?? 0,
   };
   keep(OPS_KEY, ops);
   keep(SNAPSHOT_KEY, snapshot);
@@ -1193,7 +1199,7 @@ export const dataStore = {
 
   /** Add a todo at the end of the list, in a folder (id on screen) or none (null); throws
    *  ApiRequestError (as the server would) if it can't be. Returns its id on screen. */
-  createTodo(text: string, folderId: number | null): number {
+  createTodo(text: string, folderId: number | null, dueDate?: string): number {
     if (cleanHabitName(text) === "") {
       throw new ApiRequestError(422, "invalid_todo", "");
     }
@@ -1206,6 +1212,7 @@ export const dataStore = {
       ref,
       text,
       folder: folderId === null ? null : keyOf(folderId),
+      ...(dueDate ? { due_date: dueDate } : {}),
       at: new Date().toISOString(),
     });
     return tempIdOf(ref);
@@ -1232,14 +1239,15 @@ export const dataStore = {
     enqueue({ type: "todo_delete", key: keyOf(id) });
   },
 
-  /** Create a todo folder last in the row; returns its id on screen. */
-  createTodoFolder(name: string): number {
+  /** Create a todo folder last in the row (`kind` — a recommended list); returns its id
+   *  on screen. */
+  createTodoFolder(name: string, kind?: TodoFolderKind): number {
     validateFolderName(name);
     if (state.todoFolders.length >= MAX_TODO_FOLDERS_PER_USER) {
       throw new ApiRequestError(409, "todo_folder_limit", "");
     }
     const ref = newRef();
-    enqueue({ type: "todo_folder_create", ref, name });
+    enqueue({ type: "todo_folder_create", ref, name, ...(kind ? { kind } : {}) });
     return tempIdOf(ref);
   },
 
@@ -1253,9 +1261,9 @@ export const dataStore = {
     enqueue({ type: "todo_folder_delete", key: keyOf(id) });
   },
 
-  /** Put the todo folders (ids on screen) in this order. */
-  orderTodoFolders(order: number[]): void {
-    enqueue({ type: "todo_folder_order", order: order.map(keyOf) });
+  /** Put the todo lists (ids on screen) in this order; null — where «Все задачи» goes. */
+  orderTodoFolders(order: (number | null)[]): void {
+    enqueue({ type: "todo_folder_order", order: order.map((id) => (id === null ? null : keyOf(id))) });
   },
 
   /** Change settings; `preview` — how it looks until the server answers; `silent` — not

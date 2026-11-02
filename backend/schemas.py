@@ -514,6 +514,10 @@ class SettingsResponse(BaseModel):
     show_todos: bool = Field(
         False, description="«Показывать задачи» (бета): вкладка «Задачи», приложение — на ней"
     )
+    todo_folder_swipe: bool = Field(
+        False, description="Задачи: свайп по списку задач — соседний список"
+    )
+    todo_checks_right: bool = Field(False, description="Задачи: кружок отметки справа")
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -545,6 +549,8 @@ class SettingsUpdate(BaseModel):
     )
     folder_swipe: bool | None = Field(None, description="Переключение папок свайпом")
     show_todos: bool | None = Field(None, description="Вкладка «Задачи» (бета)")
+    todo_folder_swipe: bool | None = Field(None, description="Задачи: переключение свайпом")
+    todo_checks_right: bool | None = Field(None, description="Задачи: галочки справа")
 
 
 # --------------------------------------------------------------------------- #
@@ -748,6 +754,9 @@ class SyncTodoFolderCreate(BaseModel):
     type: Literal["todo_folder_create"]
     ref: ClientRef
     name: str
+    kind: Literal["today", "scheduled", "undated"] | None = Field(
+        None, description="Рекомендуемый список (TODO_FOLDER_KINDS): наполняется сам"
+    )
 
 
 class SyncTodoFolderUpdate(BaseModel):
@@ -766,10 +775,11 @@ class SyncTodoFolderDelete(BaseModel):
 
 
 class SyncTodoFolderOrder(BaseModel):
-    """Порядок папок задач; папки, которых нет в списке, встают в конец."""
+    """Порядок списков задач; null — место «Все задачи». Списки, которых нет в порядке,
+    встают в конец."""
 
     type: Literal["todo_folder_order"]
-    order: list[TodoFolderRef] = Field(..., max_length=SYNC_MAX_OPS)
+    order: list[TodoFolderRef | None] = Field(..., max_length=SYNC_MAX_OPS)
 
 
 SyncOperation = Annotated[
@@ -873,6 +883,7 @@ class TodoFolderView(BaseModel):
 
     id: int
     name: str
+    kind: str | None = Field(None, description="Рекомендуемый список или null")
 
 
 class TodoView(BaseModel):
@@ -908,6 +919,9 @@ class SyncResponse(BaseModel):
     todos: list[TodoView] = Field(default_factory=list, description="Задачи (бета)")
     todo_folders: list[TodoFolderView] = Field(
         default_factory=list, description="Папки задач по порядку"
+    )
+    all_todos_position: int = Field(
+        0, description="Место «Все задачи» среди списков (сколько списков перед ней)"
     )
     today: date = Field(
         ..., description="День отметки — последний день `history` каждой привычки"
@@ -1769,6 +1783,7 @@ class ExportTodoFolder(BaseModel):
 
     id: int
     name: str
+    kind: str | None = None
 
 
 class ExportTodo(BaseModel):
@@ -1796,6 +1811,8 @@ class ExportSettings(BaseModel):
     telegram_notifications: bool | None = None
     folder_swipe: bool | None = None
     show_todos: bool | None = None
+    todo_folder_swipe: bool | None = None
+    todo_checks_right: bool | None = None
 
 
 class ExportAccount(BaseModel):

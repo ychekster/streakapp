@@ -426,6 +426,8 @@ class Repository:
         telegram_notifications: bool | None = None,
         folder_swipe: bool | None = None,
         show_todos: bool | None = None,
+        todo_folder_swipe: bool | None = None,
+        todo_checks_right: bool | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
         меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
@@ -449,6 +451,10 @@ class Repository:
             user.folder_swipe = folder_swipe
         if show_todos is not None:
             user.show_todos = show_todos
+        if todo_folder_swipe is not None:
+            user.todo_folder_swipe = todo_folder_swipe
+        if todo_checks_right is not None:
+            user.todo_checks_right = todo_checks_right
         await self.session.flush()
 
     async def touch_user(
@@ -697,9 +703,9 @@ class Repository:
         return result.scalar_one_or_none()
 
     async def create_todo_folder(
-        self, user_id: int, name: str, client_ref: str | None
+        self, user_id: int, name: str, client_ref: str | None, kind: str | None = None
     ) -> TodoFolder:
-        """Создать папку задач последней в ряду."""
+        """Создать папку задач последней в ряду; `kind` — рекомендуемая."""
         last = await self.session.scalar(
             select(func.max(TodoFolder.position)).where(TodoFolder.user_id == user_id)
         )
@@ -708,6 +714,7 @@ class Repository:
             name=name,
             position=0 if last is None else last + 1,
             client_ref=client_ref,
+            kind=kind,
         )
         self.session.add(folder)
         await self.session.flush()
@@ -728,9 +735,14 @@ class Repository:
         await self.session.delete(folder)
         await self.session.flush()
 
-    async def set_todo_folder_order(self, folders: Sequence[TodoFolder]) -> None:
+    async def set_todo_folder_order(
+        self, user: User, folders: Sequence[TodoFolder], all_todos_position: int
+    ) -> None:
+        """Поставить списки в порядке `folders`, а «Все задачи» — на место
+        `all_todos_position` среди них."""
         for position, folder in enumerate(folders):
             folder.position = position
+        user.all_todos_position = all_todos_position
         await self.session.flush()
 
     async def get_todos(self, user_id: int) -> list[Todo]:
@@ -2296,6 +2308,9 @@ class Repository:
             all_habits_position=source.all_habits_position,
             folder_swipe=source.folder_swipe,
             show_todos=source.show_todos,
+            todo_folder_swipe=source.todo_folder_swipe,
+            todo_checks_right=source.todo_checks_right,
+            all_todos_position=source.all_todos_position,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
             telegram_seen_at=source.telegram_seen_at,

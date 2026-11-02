@@ -1,10 +1,17 @@
 /** Todos (beta; Settings → «Задачи») — mirror TodoView / TodoFolderView in backend/schemas.py.
  *  One-off tasks in folders, not tied to habits. */
 
+import type { TODO_FOLDER_KINDS } from "../constants";
+
+/** A recommended todo list: it fills itself (TODO_FOLDER_KINDS). */
+export type TodoFolderKind = (typeof TODO_FOLDER_KINDS)[number];
+
 /** A todo folder: a tab above the todo list. «Все задачи» is not stored, it is always first. */
 export interface TodoFolder {
   id: number;
   name: string;
+  /** A recommended list; null — the user's own. Not in lists kept before kinds. */
+  kind?: TodoFolderKind | null;
 }
 
 export interface Todo {

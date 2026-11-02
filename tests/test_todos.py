@@ -41,7 +41,7 @@ def test_todo_in_offline_folder_is_created_once(client: TestClient, user: AuthUs
     first = _sync(client, user, *ops)
     assert all(result["ok"] for result in first["results"])
     folder_id = first["results"][0]["id"]
-    assert first["todo_folders"] == [{"id": folder_id, "name": "Учёба"}]
+    assert first["todo_folders"] == [{"id": folder_id, "name": "Учёба", "kind": None}]
     todos = first["todos"]
     assert [(todo["text"], todo["folder"], todo["done_at"]) for todo in todos] == [
         ("Сдать лабу", folder_id, None),
@@ -275,3 +275,41 @@ def test_todo_push_opens_the_app() -> None:
     payload = bot_reminders.push_payload(reminder, "https://example.com")
     assert payload["title"] == "Банк"
     assert payload["tag"] == "todo-7"
+
+
+def test_recommended_todo_list_keeps_its_kind_once(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "todo_folder_create", "ref": "a", "name": "Сегодня", "kind": "today"},
+        {"type": "todo_folder_create", "ref": "b", "name": "Снова", "kind": "today"},
+        {"type": "todo_folder_create", "ref": "c", "name": "Дом"},
+    )
+    assert data["results"][1]["error"]["code"] == "todo_folder_kind_taken"
+    assert [(item["name"], item["kind"]) for item in data["todo_folders"]] == [
+        ("Сегодня", "today"),
+        ("Дом", None),
+    ]
+
+
+def test_todo_settings_are_off_by_default(client: TestClient, user: AuthUser) -> None:
+    settings = _sync(client, user)["settings"]
+    assert (settings["todo_folder_swipe"], settings["todo_checks_right"]) == (False, False)
+    patch = {"todo_folder_swipe": True, "todo_checks_right": True}
+    settings = _sync(client, user, {"type": "settings", "patch": patch})["settings"]
+    assert (settings["todo_folder_swipe"], settings["todo_checks_right"]) == (True, True)
+
+
+def test_all_todos_place_among_lists(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "todo_folder_create", "ref": "a", "name": "Работа"},
+        {"type": "todo_folder_create", "ref": "b", "name": "Дом"},
+        {"type": "todo_folder_order", "order": ["b", None, "a"]},
+    )
+    assert [item["name"] for item in data["todo_folders"]] == ["Дом", "Работа"]
+    assert data["all_todos_position"] == 1
+    # A list before «All tasks» is deleted — it moves into its place.
+    data = _sync(client, user, {"type": "todo_folder_delete", "key": "b"})
+    assert data["all_todos_position"] == 0

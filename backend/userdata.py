@@ -32,6 +32,7 @@ from backend.constants import (
     MAX_DAY_SECONDS,
     MAX_HABITS_PER_USER,
     MAX_TODO_FOLDERS_PER_USER,
+    TODO_FOLDER_KINDS,
     MAX_TODOS_PER_USER,
     OVERTIME_MAX_COUNT,
     REMINDER_TIME_FORMAT,
@@ -177,7 +178,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
         for review in await repo.user_reviews(user.telegram_id)
     ]
     todo_folders = [
-        ExportTodoFolder(id=folder.id, name=folder.name)
+        ExportTodoFolder(id=folder.id, name=folder.name, kind=folder.kind)
         for folder in await repo.get_todo_folders(user.telegram_id)
     ]
     todos = [
@@ -216,6 +217,8 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             telegram_notifications=user.telegram_notifications,
             folder_swipe=user.folder_swipe,
             show_todos=user.show_todos,
+            todo_folder_swipe=user.todo_folder_swipe,
+            todo_checks_right=user.todo_checks_right,
         ),
         habits=habits,
         todo_folders=todo_folders,
@@ -421,6 +424,8 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
         telegram_notifications=settings.telegram_notifications,
         folder_swipe=settings.folder_swipe,
         show_todos=settings.show_todos,
+        todo_folder_swipe=settings.todo_folder_swipe,
+        todo_checks_right=settings.todo_checks_right,
     )
 
 
@@ -428,7 +433,9 @@ async def _import_todos(repo: Repository, user: User, data: DataExport, now: dat
     """Добавить задачи (бета) и их папки из файла к текущим — сколько задач добавлено.
     Сверх лимитов и с пустым текстом — пропускаются; задача из пропущенной папки — без
     папки."""
-    folder_count = len(await repo.get_todo_folders(user.telegram_id))
+    existing = await repo.get_todo_folders(user.telegram_id)
+    folder_count = len(existing)
+    kinds = {folder.kind for folder in existing if folder.kind}
     folder_ids: dict[int, int] = {}
     for folder in data.todo_folders:
         if folder_count >= MAX_TODO_FOLDERS_PER_USER:
@@ -439,7 +446,13 @@ async def _import_todos(repo: Repository, user: User, data: DataExport, now: dat
             name = validation.validate_folder_name(folder.name)
         except ApiError:
             continue
-        folder_ids[folder.id] = (await repo.create_todo_folder(user.telegram_id, name, None)).id
+        kind = folder.kind if folder.kind in TODO_FOLDER_KINDS else None
+        if kind is not None and kind in kinds:
+            continue
+        created = await repo.create_todo_folder(user.telegram_id, name, None, kind=kind)
+        folder_ids[folder.id] = created.id
+        if kind is not None:
+            kinds.add(kind)
         folder_count += 1
     room = MAX_TODOS_PER_USER - await repo.count_todos(user.telegram_id)
     added = 0
