@@ -26,8 +26,6 @@ interface ScreenProps {
    * прокрутки (иначе transform анимации на миг уводил бы фиксированную шапку).
    */
   enterAnimation?: boolean;
-  /** Экран прокручивается внутри этого элемента, а не страницей (см. CollapsingHeader). */
-  scrollerRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }
 
@@ -37,7 +35,6 @@ export function Screen({
   pinnedTitle = false,
   withTabBar = true,
   enterAnimation = false,
-  scrollerRef,
   children,
 }: ScreenProps) {
   const [entering, setEntering] = useState(enterAnimation);
@@ -77,12 +74,7 @@ export function Screen({
     .join(" ");
   return (
     <main className={className}>
-      <CollapsingHeader
-        title={title}
-        anchorRef={titleAnchorRef}
-        pinned={pinnedTitle}
-        scroller={scrollerRef}
-      />
+      <CollapsingHeader title={title} anchorRef={titleAnchorRef} pinned={pinnedTitle} />
       {/* Контент в отдельной обёртке (заголовки — вне её): при прокрутке он уходит под
           подложку шапки. См. Screen.module.css. */}
       {/* Метка data-screen-content — контент под крупным заголовком (у экрана с якорем

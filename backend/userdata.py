@@ -210,6 +210,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             checkin_reminder_days=_days(user.checkin_reminder_days),
             telegram_notifications=user.telegram_notifications,
             folder_swipe=user.folder_swipe,
+            show_todos=user.show_todos,
         ),
         habits=habits,
         todo_folders=todo_folders,
@@ -414,6 +415,7 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
         checkin_reminder=reminder,
         telegram_notifications=settings.telegram_notifications,
         folder_swipe=settings.folder_swipe,
+        show_todos=settings.show_todos,
     )
 
 

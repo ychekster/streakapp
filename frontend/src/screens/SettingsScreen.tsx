@@ -77,7 +77,6 @@ export type SettingsPage =
   | "gridLayout"
   | "folders"
   | "archive"
-  | "todos"
   | "review"
   | "privacy"
   | "terms"
@@ -108,8 +107,6 @@ interface SettingsScreenProps {
   folderCount: number;
   /** How many habits are in the archive («Архив» row). */
   archiveCount: number;
-  /** How many todos are not done yet («Задачи (бета)» row). */
-  todoCount: number;
   /** Web app: load the account again («Нет связи» row). */
   onRetryAccount: () => void;
   /** Web app: link Telegram (opens the bot). */
@@ -125,7 +122,6 @@ export function SettingsScreen({
   account,
   folderCount,
   archiveCount,
-  todoCount,
   onRetryAccount,
   onLinkTelegram,
 }: SettingsScreenProps) {
@@ -213,10 +209,12 @@ export function SettingsScreen({
         icon={<ChecklistIcon />}
         iconColor="orange"
         label={strings.settingsTodos}
-        onPress={() => onOpen("todos")}
       >
-        {todoCount > 0 ? <span className={styles.value}>{todoCount}</span> : null}
-        <Disclosure />
+        <Switch
+          checked={settings?.show_todos ?? false}
+          onChange={(on) => onSave({ show_todos: on })}
+          label={strings.settingsTodos}
+        />
       </ListItem>
     );
 

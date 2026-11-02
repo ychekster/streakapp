@@ -140,6 +140,11 @@ class User(Base):
     folder_swipe: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # «Показывать задачи» (бета): вкладка «Задачи» перед «Привычками», приложение
+    # открывается на ней. Применяет фронтенд.
+    show_todos: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     # Фото профиля в Telegram (backend/photos.py) — для участников совместных привычек:
     # версия (file_unique_id, меняется вместе с фото), file_id, чтобы скачать, и когда его
     # сверяли с Telegram. photo_id NULL — фото нет или ещё не проверяли.

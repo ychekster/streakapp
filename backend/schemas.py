@@ -511,6 +511,9 @@ class SettingsResponse(BaseModel):
     folder_swipe: bool = Field(
         False, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
     )
+    show_todos: bool = Field(
+        False, description="«Показывать задачи» (бета): вкладка «Задачи», приложение — на ней"
+    )
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -541,6 +544,7 @@ class SettingsUpdate(BaseModel):
         None, description="Напоминания и рассылки от бота в Telegram"
     )
     folder_swipe: bool | None = Field(None, description="Переключение папок свайпом")
+    show_todos: bool | None = Field(None, description="Вкладка «Задачи» (бета)")
 
 
 # --------------------------------------------------------------------------- #
@@ -1780,6 +1784,7 @@ class ExportSettings(BaseModel):
     checkin_reminder_days: list[str] = Field(default_factory=list, max_length=7)
     telegram_notifications: bool | None = None
     folder_swipe: bool | None = None
+    show_todos: bool | None = None
 
 
 class ExportAccount(BaseModel):

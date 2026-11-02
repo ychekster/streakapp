@@ -1,29 +1,23 @@
 /**
- * Настройки → «Задачи (бета)»: разовые дела, не привычки — блокнот по сферам жизни.
- * Сверху таблетка папок (TodoFolderBar: «Все задачи», папки, заготовка «Новая папка»),
- * снизу поле ввода (TodoComposer): написал, Enter — задача в выбранной папке («Все
- * задачи» — без папки). Список:
+ * Вкладка «Задачи» (бета; включается в настройках «Задачи (бета)»): разовые дела, не
+ * привычки — блокнот по сферам жизни. Сверху таблетка папок (TodoFolderBar: «Все задачи»,
+ * папки, заготовка «Новая папка»). Список:
  *  - «Все задачи»: сначала задачи без папки, потом папки с заголовками, по порядку папок;
  *  - папка: её задачи;
  * и в конце блок «Выполненные» (последние отмеченные — выше).
  *
- * Заголовок — крупный, как у «Привычек»; подзаголовки групп — как «Не запланированы на
- * сегодня» в списке привычек. С привычками не связаны. Данные — на устройстве, на сервер
- * уходят через /sync (store.ts).
- *
- * Как в мессенджере: поле ввода всегда прямо над клавиатурой. iPhone с открытой
- * клавиатурой не ужимает страницу, а сдвигает её, и закреплённое внизу при прокрутке
- * уезжает. Поэтому экран не прокручивает страницу: он занимает ровно видимую часть окна
- * (visualViewport — над клавиатурой), список прокручивается внутри него, а поле стоит под
- * списком.
+ * Новая задача — карандаш в нижней навигации (на месте «+»): в конце списка выбранной
+ * папки появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая
+ * клавиатура — задача сохранена (пустая — пропадает). Заголовок — крупный, как у
+ * «Привычек»; подзаголовки групп — как «Не запланированы на сегодня». С привычками не
+ * связаны. Данные — на устройстве, на сервер уходят через /sync (store.ts).
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
-import { TodoComposer } from "../components/TodoComposer";
 import { TodoFolderBar } from "../components/TodoFolderBar";
 import { TodoRow } from "../components/TodoRow";
 import { dataStore } from "../data/store";
@@ -34,14 +28,40 @@ import { confirmAction, hapticImpact, showAlert } from "../telegram/webapp";
 import type { Todo } from "../types/todo";
 import styles from "./TodosScreen.module.css";
 
+// Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
+// получает фокус прямо в нажатии карандаша — иначе iPhone не откроет клавиатуру (фокус
+// потом переходит в строку, клавиатура остаётся).
+let openDraft: (() => void) | null = null;
+let keyboardHolder: HTMLTextAreaElement | null = null;
+// Номер новой строки: каждая — своя (карандаш, нажатый во время правки прежней, сохраняет
+// её и открывает следующую с курсором).
+let draftSeq = 0;
+
+/** Карандаш: новая пустая задача в конце списка выбранной папки. */
+export function startNewTodo(): void {
+  keyboardHolder?.focus({ preventScroll: true });
+  openDraft?.();
+}
+
 export function TodosScreen() {
   const strings = useStrings();
   const { todos, todoFolders } = useAppData();
   const [active, setActive] = useState<number | null>(null);
-  // Только что добавленная задача (она последняя в списке) — список доезжает до неё.
-  const added = useRef(false);
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const viewport = useVisibleViewport();
+  // Новая задача, которую сейчас пишут (ещё не сохранена): номер её строки.
+  const [draft, setDraft] = useState<number | null>(null);
+  const holderRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    openDraft = () => {
+      draftSeq += 1;
+      setDraft(draftSeq);
+    };
+    keyboardHolder = holderRef.current;
+    return () => {
+      openDraft = null;
+      keyboardHolder = null;
+    };
+  }, []);
 
   // Выбранной папки больше нет (удалили на другом устройстве) — «Все задачи».
   const folder = active === null ? null : (todoFolders.find((item) => item.id === active) ?? null);
@@ -55,11 +75,12 @@ export function TodosScreen() {
       .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
     const known = new Set(todoFolders.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
-    const sections: { key: string; title?: string; todos: Todo[] }[] = [];
+    // Первая группа — та, куда встаёт новая задача: выбранная папка или «без папки».
+    const sections: { key: string; title?: string; todos: Todo[]; target?: boolean }[] = [];
     if (shownFolder !== null) {
-      sections.push({ key: "folder", todos: open });
+      sections.push({ key: "folder", todos: open, target: true });
     } else {
-      sections.push({ key: "none", todos: loose });
+      sections.push({ key: "none", todos: loose, target: true });
       for (const item of todoFolders) {
         sections.push({
           key: String(item.id),
@@ -68,18 +89,11 @@ export function TodosScreen() {
         });
       }
     }
-    return { groups: sections.filter((section) => section.todos.length > 0), done: checked };
+    return {
+      groups: sections.filter((section) => section.todos.length > 0 || section.target),
+      done: checked,
+    };
   }, [todos, todoFolders, shownFolder]);
-
-  useEffect(() => {
-    const last = todos[todos.length - 1];
-    if (added.current && last) {
-      added.current = false;
-      scrollerRef.current
-        ?.querySelector(`[data-todo="${last.id}"]`)
-        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }, [todos]);
 
   const fail = (error: unknown): void => {
     void showAlert({
@@ -89,14 +103,16 @@ export function TodosScreen() {
     });
   };
 
-  const send = (text: string): boolean => {
+  /** Строка `key` закрыта: открытая после неё остаётся. */
+  const closeDraft = (key: number): void =>
+    setDraft((current) => (current === key ? null : current));
+
+  const saveDraft = (key: number, text: string): void => {
+    closeDraft(key);
     try {
       dataStore.createTodo(text, shownFolder);
-      added.current = true;
-      return true;
     } catch (error) {
       fail(error);
-      return false;
     }
   };
 
@@ -126,60 +142,75 @@ export function TodosScreen() {
     }
   };
 
-  const empty = groups.length === 0 && done.length === 0;
+  const empty = draft === null && done.length === 0 && groups.every((group) => group.todos.length === 0);
   return (
-    <div
-      className={styles.root}
-      style={viewport ? { top: viewport.top, height: viewport.height } : undefined}
-    >
-      <div ref={scrollerRef} className={styles.scroller}>
-        <Screen
-          title={strings.todosTitle}
-          withTabBar={false}
-          enterAnimation
-          scrollerRef={scrollerRef}
-        >
-          <div className={styles.todos}>
-            <TodoFolderBar
-              folders={todoFolders}
-              active={shownFolder}
-              onSelect={(id) => {
-                hapticImpact("light");
-                setActive(id);
-              }}
-              onCreate={createFolder}
-              onRename={(id, name) => {
-                try {
-                  dataStore.renameTodoFolder(id, name);
-                } catch (error) {
-                  fail(error);
-                }
-              }}
-              onDelete={(id) => void deleteFolder(id)}
-              onReorder={(ids) => dataStore.orderTodoFolders(ids)}
-            />
-            {empty ? (
-              <StatusMessage
-                icon="check"
-                title={strings.todosEmptyTitle}
-                description={strings.todosEmptyDescription}
-              />
-            ) : null}
-            {groups.map((group) => (
-              <Section key={group.key} title={group.title} variant="form">
-                <Card>{group.todos.map(renderRow)}</Card>
-              </Section>
-            ))}
-            {done.length > 0 ? (
-              <Section title={strings.todosDone} variant="form">
-                <Card>{done.map(renderRow)}</Card>
-              </Section>
-            ) : null}
-          </div>
-        </Screen>
+    <Screen title={strings.todosTitle}>
+      <div className={styles.todos}>
+        <TodoFolderBar
+          folders={todoFolders}
+          active={shownFolder}
+          onSelect={(id) => {
+            hapticImpact("light");
+            setActive(id);
+          }}
+          onCreate={createFolder}
+          onRename={(id, name) => {
+            try {
+              dataStore.renameTodoFolder(id, name);
+            } catch (error) {
+              fail(error);
+            }
+          }}
+          onDelete={(id) => void deleteFolder(id)}
+          onReorder={(ids) => dataStore.orderTodoFolders(ids)}
+        />
+        {empty ? (
+          <StatusMessage
+            icon="check"
+            title={strings.todosEmptyTitle}
+            description={strings.todosEmptyDescription}
+          />
+        ) : null}
+        {groups.map((group) =>
+          group.todos.length > 0 || (group.target && draft !== null) ? (
+            <Section key={group.key} title={group.title} variant="form">
+              <Card>
+                {group.todos.map(renderRow)}
+                {group.target && draft !== null ? (
+                  <TodoRow
+                    key={`draft-${draft}`}
+                    todo={{
+                      id: 0,
+                      text: "",
+                      folder: shownFolder,
+                      done_at: null,
+                      created_at: "",
+                    }}
+                    startEditing
+                    onToggle={() => undefined}
+                    onEdit={(text) => saveDraft(draft, text)}
+                    onDelete={() => closeDraft(draft)}
+                  />
+                ) : null}
+              </Card>
+            </Section>
+          ) : null,
+        )}
+        {done.length > 0 ? (
+          <Section title={strings.todosDone} variant="form">
+            <Card>{done.map(renderRow)}</Card>
+          </Section>
+        ) : null}
       </div>
-      <TodoComposer onSend={send} />
-    </div>
+      {/* Держит клавиатуру между нажатием карандаша и появлением строки (см. startNewTodo). */}
+      <textarea
+        ref={holderRef}
+        className={styles.keyboardHolder}
+        tabIndex={-1}
+        aria-hidden="true"
+        rows={1}
+      />
+    </Screen>
   );
 
   function renderRow(todo: Todo) {
@@ -196,39 +227,4 @@ export function TodosScreen() {
       />
     );
   }
-}
-
-/**
- * Видимая часть окна (над клавиатурой): верх и высота, px; null — браузер не сообщает.
- * Страница под экраном не прокручивается: iPhone, сдвинувший её при открытии клавиатуры,
- * возвращается к началу — экран и шапка стоят от верха окна.
- */
-function useVisibleViewport(): { top: number; height: number } | null {
-  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const overflow = root.style.overflow;
-    root.style.overflow = "hidden";
-    const viewport = window.visualViewport;
-    if (!viewport) {
-      return () => {
-        root.style.overflow = overflow;
-      };
-    }
-    const update = (): void => {
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
-      setBox({ top: Math.round(viewport.offsetTop), height: Math.round(viewport.height) });
-    };
-    update();
-    viewport.addEventListener("resize", update);
-    viewport.addEventListener("scroll", update);
-    return () => {
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
-      root.style.overflow = overflow;
-    };
-  }, []);
-  return box;
 }

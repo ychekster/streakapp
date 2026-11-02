@@ -68,7 +68,7 @@ import { TabBar, type TabItem } from "./components/TabBar";
 import { TimerBar } from "./components/TimerBar";
 import { closeTimerScreen, TimerScreen, useTimerScreenHabit } from "./components/TimerScreen";
 import { UndoToast } from "./components/UndoToast";
-import { HabitsIcon, SettingsIcon } from "./components/TabIcons";
+import { HabitsIcon, PencilIcon, SettingsIcon, TodosIcon } from "./components/TabIcons";
 import { markingDay } from "./data/dates";
 import { isShared } from "./data/derive";
 import { preloadMemberHabits, preloadMemberPhotos } from "./data/groups";
@@ -80,6 +80,7 @@ import { useTelegramLoginWatcher } from "./hooks/useTelegramLoginWatcher";
 import { useHabits } from "./hooks/useHabits";
 import { useSettings, type SaveOptions } from "./hooks/useSettings";
 import { useSystemDark } from "./hooks/useSystemDark";
+import { useTextFieldFocused } from "./hooks/useTextFieldFocused";
 import { useToggle } from "./hooks/useToggle";
 import {
   PreferencesContext,
@@ -106,7 +107,7 @@ import { FoldersScreen } from "./screens/FoldersScreen";
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
-import { TodosScreen } from "./screens/TodosScreen";
+import { startNewTodo, TodosScreen } from "./screens/TodosScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
 import { PREFETCH_DELAY_MS } from "./constants";
@@ -189,7 +190,7 @@ interface Editor {
   habit: Habit | null;
 }
 
-type TabKey = "habits" | "settings";
+type TabKey = "todos" | "habits" | "settings";
 
 /** The Mini App's share of WebChrome: the scroll indicator and the bottom button. */
 function TelegramChrome() {
@@ -205,7 +206,10 @@ export function App() {
   const { habits, status, error, reload, refresh } = useHabits();
   const settingsState = useSettings();
   const { settings, save } = settingsState;
-  const { rejected, folders, allHabitsPosition, todos } = useAppData();
+  const { rejected, folders, allHabitsPosition } = useAppData();
+  // «Задачи (бета)»: вкладка «Задачи» перед «Привычками», приложение открывается на ней.
+  const showTodos = settings?.show_todos ?? false;
+  const typing = useTextFieldFocused();
   const toggle = useToggle();
   const platform = usePlatform();
   const telegramAvailable = platform === "telegram";
@@ -220,7 +224,26 @@ export function App() {
   // настройками, куда и вернёт «Назад»), «Добавить привычку» — форма новой привычки (над
   // списком привычек).
   const [start] = useState(startScreen);
-  const [tab, setTab] = useState<TabKey>(start === "review" ? "settings" : "habits");
+  const [tab, setTab] = useState<TabKey>(
+    start === "review" ? "settings" : start === null && showTodos ? "todos" : "habits",
+  );
+  // Настройки пришли с сервера уже после запуска (первый вход на устройстве): с задачами —
+  // на вкладку «Задачи», если пользователь ещё никуда не переходил. Вкладку выключили (на
+  // другом устройстве) — уходим с неё.
+  const tabChosen = useRef(false);
+  useEffect(() => {
+    if (showTodos && !tabChosen.current && tab === "habits" && start === null) {
+      setTab("todos");
+    }
+    if (settings) {
+      tabChosen.current = true;
+    }
+    if (!showTodos && tab === "todos") {
+      setTab("habits");
+    }
+    // Только по приходу и смене настройки.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTodos, settings !== null]);
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Страница участника групповой привычки поверх экрана привычки: его Telegram id.
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);
@@ -266,7 +289,7 @@ export function App() {
   const scrollUnderFolderPicker = useRef(0);
   const scrollUnderAdmin = useRef(0);
   // Позиция прокрутки каждой вкладки, пока открыта другая.
-  const tabScroll = useRef<Record<TabKey, number>>({ habits: 0, settings: 0 });
+  const tabScroll = useRef<Record<TabKey, number>>({ todos: 0, habits: 0, settings: 0 });
   // Прокрутка, которую нужно поставить после ближайшего рендера (см. layout-эффект ниже).
   const pendingScroll = useRef<number | null>(null);
   // Эта прокрутка — возврат «Назад» на экран под закрытым (см. Screen, enterAnimation).
@@ -366,6 +389,15 @@ export function App() {
 
   const tabs: TabItem<TabKey>[] = useMemo(
     () => [
+      ...(showTodos
+        ? [
+            {
+              key: "todos" as const,
+              label: strings.tabTodos,
+              icon: (active: boolean) => <TodosIcon filled={active} />,
+            },
+          ]
+        : []),
       { key: "habits", label: strings.tabHabits, icon: (active) => <HabitsIcon filled={active} /> },
       {
         key: "settings",
@@ -374,7 +406,7 @@ export function App() {
         badge: web && account?.is_guest === true,
       },
     ],
-    [strings, web, account?.is_guest],
+    [strings, web, account?.is_guest, showTodos],
   );
 
   const showHabit = useCallback((taskId: number) => {
@@ -542,6 +574,7 @@ export function App() {
   // Переключение вкладки: запомнить, где оставили текущую, и открыть новую там, где её
   // оставили (или с начала).
   function selectTab(next: TabKey): void {
+    tabChosen.current = true;
     if (next === tab) {
       return;
     }
@@ -1091,9 +1124,6 @@ export function App() {
           />
         );
       }
-      if (settingsPage === "todos") {
-        return <TodosScreen />;
-      }
       if (settingsPage === "review") {
         return <ReviewScreen />;
       }
@@ -1136,11 +1166,13 @@ export function App() {
           }
           folderCount={folders.length}
           archiveCount={archivedHabits.length}
-          todoCount={todos.filter((todo) => todo.done_at === null).length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />
       );
+    }
+    if (tab === "todos") {
+      return <TodosScreen />;
     }
     return (
       <HabitsScreen
@@ -1179,10 +1211,12 @@ export function App() {
       <TabBar
         tabs={tabs}
         active={tab}
-        hidden={tabBarHidden}
+        // Пишут задачу — навигация не висит над клавиатурой.
+        hidden={tabBarHidden || (tab === "todos" && typing)}
         onSelect={selectTab}
-        onAdd={() => showEditor(null)}
-        addLabel={strings.addHabit}
+        onAdd={tab === "todos" ? startNewTodo : () => showEditor(null)}
+        addLabel={tab === "todos" ? strings.todosNew : strings.addHabit}
+        addIcon={tab === "todos" ? <PencilIcon /> : undefined}
       />
       {/* «Сверх плана»: плашка «Отменить» после серии нажатий и окно счёта (удержание). */}
       <UndoToast aboveTabBar={!tabBarHidden} />

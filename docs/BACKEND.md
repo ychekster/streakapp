@@ -466,7 +466,8 @@ NOT NULL-колонку `is_registered`.
 
 Миграция `0038` — задачи (бета; настройки → «Задачи»): таблицы `todo_folders` (название,
 место в ряду, `client_ref`) и `todos` (текст, `folder_id` — NULL без папки, `done_at` —
-NULL у открытой, `client_ref`). С привычками не связаны. В `/sync` — операции `todo_*` и
+NULL у открытой, `client_ref`) и `users.show_todos` (настройка «Задачи (бета)»: вкладка
+«Задачи», `show_todos` в `/settings` и `/sync`). С привычками не связаны. В `/sync` — операции `todo_*` и
 `todo_folder_*`, в ответе — `todos` и `todo_folders`; в экспорте — те же поля. Без неё
 `/sync` не ответит.
 

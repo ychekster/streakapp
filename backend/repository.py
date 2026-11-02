@@ -425,6 +425,7 @@ class Repository:
         checkin_reminder: tuple[time | None, str] | None = None,
         telegram_notifications: bool | None = None,
         folder_swipe: bool | None = None,
+        show_todos: bool | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
         меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
@@ -446,6 +447,8 @@ class Repository:
             user.telegram_notifications = telegram_notifications
         if folder_swipe is not None:
             user.folder_swipe = folder_swipe
+        if show_todos is not None:
+            user.show_todos = show_todos
         await self.session.flush()
 
     async def touch_user(
@@ -2272,6 +2275,7 @@ class Repository:
             telegram_notifications=source.telegram_notifications,
             all_habits_position=source.all_habits_position,
             folder_swipe=source.folder_swipe,
+            show_todos=source.show_todos,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,
             telegram_seen_at=source.telegram_seen_at,

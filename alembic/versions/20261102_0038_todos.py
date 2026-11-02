@@ -4,6 +4,7 @@
   id, который дало папке устройство (/sync).
 - таблица `todos` — разовые задачи: текст, папка (null — без папки), когда выполнена
   (null — открыта) и id устройства.
+- `users.show_todos` — «Показывать задачи»: вкладка «Задачи» перед «Привычками».
 
 Revision ID: 0038
 Revises: 0037
@@ -49,9 +50,15 @@ def upgrade() -> None:
     )
     op.create_index("ix_todos_user_id", "todos", ["user_id"])
     op.create_index("ix_todos_client_ref", "todos", ["client_ref"])
+    with op.batch_alter_table("users") as batch:
+        batch.add_column(
+            sa.Column("show_todos", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
 
 
 def downgrade() -> None:
+    with op.batch_alter_table("users") as batch:
+        batch.drop_column("show_todos")
     op.drop_index("ix_todos_client_ref", table_name="todos")
     op.drop_index("ix_todos_user_id", table_name="todos")
     op.drop_table("todos")

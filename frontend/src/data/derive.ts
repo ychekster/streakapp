@@ -487,6 +487,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   if (patch.folder_swipe !== undefined) {
     next.folder_swipe = patch.folder_swipe;
   }
+  if (patch.show_todos !== undefined) {
+    next.show_todos = patch.show_todos;
+  }
   if (patch.checkin_reminder !== undefined) {
     next.checkin_reminder_time = patch.checkin_reminder.time;
     next.checkin_reminder_days = patch.checkin_reminder.days;

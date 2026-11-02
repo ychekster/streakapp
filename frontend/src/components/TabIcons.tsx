@@ -69,6 +69,68 @@ export function SettingsIcon() {
   );
 }
 
+// id маски вырезов «Задач»: навигация на экране одна, поэтому id уникален.
+const TODO_CUTOUT_ID = "tabbar-todo-cutout";
+const TODO_LINES = "M8.4 9.6l1.5 1.5 2.7-3M14.8 9.6h3.4M8.6 16.4h9.6";
+
+/** «Задачи» (бета): листок со строками, у первой — галочка; на активной вкладке —
+ *  залитый листок с прорезанными строками. */
+export function TodosIcon({ filled }: TabIconProps) {
+  if (filled) {
+    return (
+      <svg className={styles.icon} viewBox="0 0 26 26" aria-hidden="true">
+        <mask id={TODO_CUTOUT_ID}>
+          <rect width="26" height="26" fill="#fff" />
+          <path
+            d={TODO_LINES}
+            fill="none"
+            stroke="#000"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </mask>
+        <rect
+          x="2.2"
+          y="2.2"
+          width="21.6"
+          height="21.6"
+          rx="6"
+          fill="currentColor"
+          mask={`url(#${TODO_CUTOUT_ID})`}
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg className={styles.icon} viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="20" height="20" rx="5.5" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d={TODO_LINES}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Кнопка «карандаш» на вкладке «Задачи» (новая задача) — вместо «+». */
+export function PencilIcon() {
+  return (
+    <svg className={styles.icon} viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <path
+        d="M16.6 5.6l3.8 3.8M6.2 19.8l1-4.6 10.4-10.4a1.8 1.8 0 0 1 2.6 0l1.2 1.2a1.8 1.8 0 0 1 0 2.6L11 19l-4.8.8z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Кнопка «+» (новая привычка). */
 export function PlusIcon() {
   return (

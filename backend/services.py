@@ -1631,6 +1631,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         grid_layout=user.grid_layout,
         telegram_notifications=user.telegram_notifications,
         folder_swipe=user.folder_swipe,
+        show_todos=user.show_todos,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
             if user.checkin_reminder_time is not None
@@ -1690,6 +1691,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         ),
         telegram_notifications=payload.telegram_notifications,
         folder_swipe=payload.folder_swipe,
+        show_todos=payload.show_todos,
     )
     changed = sorted(payload.model_dump(exclude_none=True))
     if changed:

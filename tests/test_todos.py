@@ -158,3 +158,9 @@ def test_todos_are_private(client: TestClient, user: AuthUser, other_user: AuthU
     mine = _sync(client, user)
     assert mine["todos"][0]["done_at"] is None
     assert len(mine["todos"]) == 1
+
+
+def test_show_todos_setting_is_off_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["show_todos"] is False
+    data = _sync(client, user, {"type": "settings", "patch": {"show_todos": True}})
+    assert data["settings"]["show_todos"] is True

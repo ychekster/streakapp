@@ -2,7 +2,8 @@
  * Задачи (бета): строка задачи. Кружок слева — отметить выполненной (выполненная уходит в
  * блок «Выполненные» внизу) или вернуть; нажатие на текст — править его прямо в строке
  * (Enter — сохранить, пустой текст — удалить); свайп влево открывает красную кнопку
- * «Удалить» (свайп вправо или нажатие строки закрывает её).
+ * «Удалить» (свайп вправо или нажатие строки закрывает её). Новая задача (карандаш) —
+ * пустая строка, сразу в правке (`startEditing`).
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
@@ -24,12 +25,14 @@ interface TodoRowProps {
   onToggle: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
+  /** Сразу в правке (новая, ещё пустая задача). */
+  startEditing?: boolean;
 }
 
-export function TodoRow({ todo, onToggle, onEdit, onDelete }: TodoRowProps) {
+export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false }: TodoRowProps) {
   const strings = useStrings();
   const done = todo.done_at !== null;
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState(todo.text);
   const [offset, setOffset] = useState(0);
   const [open, setOpen] = useState(false);
@@ -49,7 +52,8 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete }: TodoRowProps) {
   useEffect(() => {
     if (editing) {
       const field = textRef.current;
-      field?.focus();
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ block: "nearest" });
       field?.setSelectionRange(field.value.length, field.value.length);
     }
   }, [editing]);

@@ -4,8 +4,6 @@
 .row {
   position: relative;
   overflow: hidden;
-  /* Доезд до новой задачи — с зазором над полем ввода. */
-  scroll-margin-bottom: var(--todo-composer-gap);
 }
 
 .row + .row .content::before {

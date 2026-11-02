@@ -42,6 +42,8 @@ interface TabBarProps<K extends string> {
   /** Кнопка «+» справа; без обработчика её нет. */
   onAdd?: () => void;
   addLabel?: string;
+  /** Иконка кнопки вместо «+» (на вкладке «Задачи» — карандаш). */
+  addIcon?: ReactNode;
 }
 
 /** Положение подложки внутри таблетки: края вкладки от левого и правого края таблетки, px. */
@@ -59,6 +61,7 @@ export function TabBar<K extends string>({
   onSelect,
   onAdd,
   addLabel,
+  addIcon,
 }: TabBarProps<K>) {
   const pillRef = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<Thumb | null>(null);
@@ -135,7 +138,7 @@ export function TabBar<K extends string>({
       </div>
       {onAdd ? (
         <button type="button" className={styles.add} aria-label={addLabel} onClick={onAdd}>
-          <PlusIcon />
+          {addIcon ?? <PlusIcon />}
         </button>
       ) : null}
     </nav>

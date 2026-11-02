@@ -38,6 +38,9 @@ export interface Settings {
   /** «Переключение свайпом» (Настройки → «Папки»): свайп по списку привычек — соседняя
    *  папка. Нет в настройках, сохранённых на устройстве до неё: выключено. */
   folder_swipe?: boolean;
+  /** «Задачи (бета)»: вкладка «Задачи» перед «Привычками», приложение открывается на ней.
+   *  Нет в настройках, сохранённых на устройстве до неё: выключено. */
+  show_todos?: boolean;
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
 }
@@ -55,6 +58,7 @@ export interface SettingsUpdate {
   checkin_reminder?: CheckinReminder;
   telegram_notifications?: boolean;
   folder_swipe?: boolean;
+  show_todos?: boolean;
 }
 
 export interface CheckinReminder {
