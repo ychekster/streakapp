@@ -1,34 +1,36 @@
 /**
  * Вкладка «Задачи» (бета; включается в Настройки → «Задачи (Beta)»): разовые дела, не
- * привычки — блокнот по сферам жизни. Сверху таблетка списков (TodoFolderBar: «Все задачи»
- * и списки; сами списки заводятся в настройках). Список:
- *  - «Все задачи»: сначала задачи без списка, потом списки с заголовками, по порядку;
- *  - список: его задачи; рекомендуемый (`kind`) — подходящие задачи всех списков
- *    («Сегодня» — без даты, на сегодня и просроченные: задача без даты висит, пока не
- *    сделана; «Запланированные» — с датой, новая в них — на сегодня; «Без даты»);
- *  - кружок задачи — цвета её списка (задачи без списка — серые);
- * задачи на будущие дни — внизу, в блоке «Не запланированы на сегодня» (по дню и времени,
- * как у привычек); в свой день они поднимаются наверх, к остальным. В конце — блок
- * «Выполненные» (последние отмеченные — выше). Просроченная остаётся наверху с красной
- * подписью дня.
+ * привычки. Экран — список дел на сейчас, без лишнего: зашёл, прошёлся галочками.
  *
- * Новая задача — карандаш в нижней навигации (на месте «+»): в конце списка выбранной
- * папки появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая
- * клавиатура — задача сохранена (пустая — пропадает); иконка календаря в строке — окно
- * даты и напоминания (TodoSheet). Заголовок — крупный, как у
- * «Привычек»; подзаголовки групп — как «Не запланированы на сегодня». С привычками не
- * связаны. Данные — на устройстве, на сервер уходят через /sync (store.ts).
+ * Сверху таблетка списков — та же, что папки привычек (FolderBar): «Все задачи» и списки,
+ * только переключение (сами списки, их порядок и названия — в настройках); «Переключение
+ * свайпом» листает их. Видно только «сделать сейчас» — открытые задачи без даты, на сегодня
+ * и просроченные (красная подпись дня):
+ *  - «Все задачи» и рекомендуемые списки — по спискам: сначала без списка, без заголовка,
+ *    потом блоки с заголовками списков по порядку;
+ *  - свой список — одним блоком.
+ * Остальное (задачи на будущие дни — «Не запланированы на сегодня», по дню и времени, и
+ * «Выполненные») — на своём экране: синяя строка «Показать остальные» последней в блоке
+ * задач открывает его, «Назад» возвращает (нижней навигации там нет, как на вложенных
+ * экранах). Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без
+ * остальных: отметил всё — пусто, «Всё выполнено»; «Запланированные» — с датой (новая в них
+ * — на сегодня); «Без даты». Кружок задачи — цвета её списка (без списка — серый).
  *
- * Настройки задач: «Переключение свайпом» (свайп по экрану мимо задач — соседний список;
- * по самой задаче свайп открывает «Удалить») и «Галочки справа».
+ * Новая задача — карандаш в нижней навигации (на месте «+»): в конце первого блока
+ * появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая клавиатура —
+ * задача сохранена (пустая — пропадает); иконка календаря в строке — окно даты и
+ * напоминания (TodoSheet). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
+ * запланированы на сегодня». Данные — на устройстве, на сервер уходят через /sync.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { FolderBar, type FolderTab } from "../components/FolderBar";
+import { Disclosure } from "../components/Disclosure";
+import rowStyles from "../components/ListItem.module.css";
 import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
-import { TodoFolderBar } from "../components/TodoFolderBar";
 import { localDate } from "../components/DateField";
 import { TodoRow } from "../components/TodoRow";
 import { closeTodoSheet, openTodoSheet } from "../components/TodoSheet";
@@ -37,8 +39,9 @@ import { describeError } from "../errors";
 import { useAppData } from "../hooks/useAppData";
 import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
 import { useStrings } from "../preferences";
-import { confirmAction, hapticImpact, showAlert } from "../telegram/webapp";
+import { hapticImpact, showAlert } from "../telegram/webapp";
 import type { Todo, TodoFolderKind } from "../types/todo";
+import formStyles from "./HabitFormScreen.module.css";
 import styles from "./TodosScreen.module.css";
 
 // Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
@@ -49,6 +52,33 @@ let keyboardHolder: HTMLTextAreaElement | null = null;
 // Номер новой строки: каждая — своя (карандаш, нажатый во время правки прежней, сохраняет
 // её и открывает следующую с курсором).
 let draftSeq = 0;
+
+// Экран «остальных» (будущие и выполненные) поверх задач: App прячет навигацию и ведёт
+// «Назад» (одно на всё приложение, как окно задачи).
+let restOpen = false;
+const restListeners = new Set<() => void>();
+
+function setRestOpen(open: boolean): void {
+  if (restOpen !== open) {
+    restOpen = open;
+    restListeners.forEach((listener) => listener());
+  }
+}
+
+export function closeTodoRest(): void {
+  setRestOpen(false);
+}
+
+/** Открыт ли экран «остальных». */
+export function useTodoRestOpen(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      restListeners.add(listener);
+      return () => restListeners.delete(listener);
+    },
+    () => restOpen,
+  );
+}
 
 /** Карандаш: новая пустая задача в конце списка выбранной папки. */
 export function startNewTodo(): void {
@@ -61,6 +91,9 @@ export function TodosScreen() {
   const { todos, todoFolders, todoAllPosition, settings } = useAppData();
   const checksRight = settings?.todo_checks_right ?? false;
   const [active, setActive] = useState<number | null>(null);
+  const showingRest = useTodoRestOpen();
+  // Прокрутка списка под экраном «остальных»: «Назад» возвращает на неё.
+  const scrollUnderRest = useRef(0);
   // Новая задача, которую сейчас пишут (ещё не сохранена): номер её строки.
   const [draft, setDraft] = useState<number | null>(null);
   const holderRef = useRef<HTMLTextAreaElement>(null);
@@ -75,8 +108,14 @@ export function TodosScreen() {
       openDraft = null;
       keyboardHolder = null;
       closeTodoSheet();
+      closeTodoRest();
     };
   }, []);
+
+  // Экран «остальных» открывается с начала, «Назад» — на прежнее место списка.
+  useEffect(() => {
+    window.scrollTo(0, showingRest ? 0 : scrollUnderRest.current);
+  }, [showingRest]);
 
   // Выбранной папки больше нет (удалили на другом устройстве) — «Все задачи».
   const folder = active === null ? null : (todoFolders.find((item) => item.id === active) ?? null);
@@ -99,7 +138,9 @@ export function TodosScreen() {
       setActive(next);
     }
   }, []);
-  useHorizontalSwipe(settings?.todo_folder_swipe && draft === null ? switchList : null);
+  useHorizontalSwipe(
+    settings?.todo_folder_swipe && draft === null && !showingRest ? switchList : null,
+  );
 
   // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
   const today = localDate();
@@ -109,22 +150,34 @@ export function TodosScreen() {
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
     const pending = todos.filter((todo) => todo.done_at === null && inView(todo));
     const open = pending.filter((todo) => !isLater(todo));
-    const upcoming = pending
-      .filter(isLater)
-      .sort(
-        (a, b) =>
-          (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
-          (a.remind_time ?? "").localeCompare(b.remind_time ?? ""),
-      );
-    const checked = todos
-      .filter((todo) => todo.done_at !== null && inView(todo))
-      .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
+    // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
+    const upcoming =
+      kind === "today"
+        ? []
+        : pending
+            .filter(isLater)
+            .sort(
+              (a, b) =>
+                (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
+                (a.remind_time ?? "").localeCompare(b.remind_time ?? ""),
+            );
+    const checked =
+      kind === "today"
+        ? []
+        : todos
+            .filter((todo) => todo.done_at !== null && inView(todo))
+            .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
-    // Первая группа — та, куда встаёт новая задача: выбранная папка или «без папки».
-    const sections: { key: string; title?: string; todos: Todo[]; target?: boolean }[] = [];
-    if (shownFolder !== null) {
+    // Первая группа — та, куда встаёт новая задача: свой список или «без списка».
+    const sections: {
+      key: string;
+      title?: string;
+      todos: Todo[];
+      target?: boolean;
+    }[] = [];
+    if (shownFolder !== null && !kind) {
       sections.push({ key: "folder", todos: open, target: true });
     } else {
       sections.push({ key: "none", todos: loose, target: true });
@@ -181,94 +234,122 @@ export function TodosScreen() {
     }
   };
 
-  const deleteFolder = async (id: number): Promise<void> => {
-    const target = todoFolders.find((item) => item.id === id);
-    if (
-      target &&
-      (await confirmAction({
-        title: strings.todosDeleteFolderTitle(target.name),
-        message: strings.todosDeleteFolderMessage,
-        confirmLabel: strings.todosDeleteFolderConfirm,
-        cancelLabel: strings.todosCancel,
-        destructive: true,
-      }))
-    ) {
-      dataStore.deleteTodoFolder(id);
-      setActive(null);
-    }
-  };
+  // Вкладки таблетки: списки и «Все задачи» на своём месте, как папки привычек.
+  const tabs: FolderTab[] = todoFolders.map((item) => ({
+    key: String(item.id),
+    label: item.name,
+  }));
+  tabs.splice(Math.min(todoAllPosition, tabs.length), 0, {
+    key: "all",
+    label: strings.todosAll,
+  });
 
-  const empty =
-    draft === null &&
-    later.length === 0 &&
-    done.length === 0 &&
-    groups.every((group) => group.todos.length === 0);
+  const nowEmpty = draft === null && groups.every((group) => group.todos.length === 0);
+  const rest = later.length + done.length;
+  // Блоки на экране; «Показать остальные» — последней строкой последнего из них.
+  const shownGroups = groups.filter(
+    (group) => group.todos.length > 0 || (group.target && draft !== null),
+  );
+  const lastGroup = shownGroups[shownGroups.length - 1]?.key;
+  const restRow =
+    rest > 0 ? (
+      <button
+        type="button"
+        className={[rowStyles.row, rowStyles.pressable, rowStyles.accent, styles.restRow].join(" ")}
+        onClick={() => {
+          scrollUnderRest.current = window.scrollY;
+          setRestOpen(true);
+        }}
+      >
+        <span className={rowStyles.label}>{strings.todosShowRest}</span>
+        <span className={rowStyles.trailing}>
+          <span className={styles.restCount}>{rest}</span>
+          <Disclosure />
+        </span>
+      </button>
+    ) : null;
+
+  if (showingRest) {
+    return (
+      <Screen
+        title={folder ? folder.name : strings.todosAll}
+        withTabBar={false}
+        enterAnimation
+        pinnedTitle
+      >
+        <div className={`${formStyles.pinned} ${styles.todos}`}>
+          {rest === 0 ? <StatusMessage icon="check" title={strings.todosRestEmpty} /> : null}
+          {later.length > 0 ? (
+            <Section title={strings.todosLater} variant="form">
+              <Card>{later.map(renderRow)}</Card>
+            </Section>
+          ) : null}
+          {done.length > 0 ? (
+            <Section title={strings.todosDone} variant="form">
+              <Card>{done.map(renderRow)}</Card>
+            </Section>
+          ) : null}
+        </div>
+      </Screen>
+    );
+  }
+
   return (
     <Screen title={strings.todosTitle}>
       <div className={styles.todos}>
-        <TodoFolderBar
-          folders={todoFolders}
-          allPosition={todoAllPosition}
-          active={shownFolder}
-          onSelect={(id) => {
-            hapticImpact("light");
-            setActive(id);
-          }}
-          onRename={(id, name) => {
-            try {
-              dataStore.renameTodoFolder(id, name);
-            } catch (error) {
-              fail(error);
-            }
-          }}
-          onDelete={(id) => void deleteFolder(id)}
-          onReorder={(ids) => dataStore.orderTodoFolders(ids)}
-        />
-        {empty ? (
-          <StatusMessage
-            icon="check"
-            title={strings.todosEmptyTitle}
-            description={strings.todosEmptyDescription}
+        {todoFolders.length > 0 ? (
+          <FolderBar
+            tabs={tabs}
+            active={shownFolder === null ? "all" : String(shownFolder)}
+            onSelect={(key) => {
+              hapticImpact("light");
+              setActive(key === "all" ? null : Number(key));
+            }}
           />
         ) : null}
-        {groups.map((group) =>
-          group.todos.length > 0 || (group.target && draft !== null) ? (
-            <Section key={group.key} title={group.title} variant="form">
-              <Card>
-                {group.todos.map(renderRow)}
-                {group.target && draft !== null ? (
-                  <TodoRow
-                    key={`draft-${draft}`}
-                    todo={{
-                      id: 0,
-                      text: "",
-                      folder: targetFolder,
-                      done_at: null,
-                      created_at: "",
-                    }}
-                    startEditing
-                    checkRight={checksRight}
-                    color={targetFolder === null ? null : (colorOf.get(targetFolder) ?? null)}
-                    onToggle={() => undefined}
-                    onEdit={(text) => saveDraft(draft, text)}
-                    onDelete={() => closeDraft(draft)}
-                    onOpenDetails={(text) => draftDetails(draft, text)}
-                  />
-                ) : null}
-              </Card>
-            </Section>
-          ) : null,
-        )}
-        {later.length > 0 ? (
-          <Section title={strings.todosLater} variant="form">
-            <Card>{later.map(renderRow)}</Card>
-          </Section>
+        {nowEmpty ? (
+          rest === 0 && kind !== "today" ? (
+            <StatusMessage
+              icon="check"
+              title={strings.todosEmptyTitle}
+              description={strings.todosEmptyDescription}
+            />
+          ) : (
+            <StatusMessage
+              icon="check"
+              title={strings.todosAllDoneTitle}
+              description={strings.todosAllDoneDescription}
+            />
+          )
         ) : null}
-        {done.length > 0 ? (
-          <Section title={strings.todosDone} variant="form">
-            <Card>{done.map(renderRow)}</Card>
+        {nowEmpty && restRow ? <Card>{restRow}</Card> : null}
+        {shownGroups.map((group) => (
+          <Section key={group.key} title={group.title} variant="form">
+            <Card>
+              {group.todos.map(renderRow)}
+              {group.target && draft !== null ? (
+                <TodoRow
+                  key={`draft-${draft}`}
+                  todo={{
+                    id: 0,
+                    text: "",
+                    folder: targetFolder,
+                    done_at: null,
+                    created_at: "",
+                  }}
+                  startEditing
+                  checkRight={checksRight}
+                  color={targetFolder === null ? null : (colorOf.get(targetFolder) ?? null)}
+                  onToggle={() => undefined}
+                  onEdit={(text) => saveDraft(draft, text)}
+                  onDelete={() => closeDraft(draft)}
+                  onOpenDetails={(text) => draftDetails(draft, text)}
+                />
+              ) : null}
+              {group.key === lastGroup ? restRow : null}
+            </Card>
           </Section>
-        ) : null}
+        ))}
       </div>
       {/* Держит клавиатуру между нажатием карандаша и появлением строки (см. startNewTodo). */}
       <textarea
@@ -307,6 +388,7 @@ export function TodosScreen() {
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
 function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
+  // Выполненные «Невыполненным» не нужны — их отсекает разбор выше.
   const date = todo.due_date ?? null;
   if (kind === "today") {
     // Без даты — тоже на сегодня: висит, пока не сделана.

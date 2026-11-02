@@ -107,7 +107,12 @@ import { FoldersScreen, HABIT_FOLDERS, habitFoldersTexts } from "./screens/Folde
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
-import { startNewTodo, TodosScreen } from "./screens/TodosScreen";
+import {
+  closeTodoRest,
+  startNewTodo,
+  TodosScreen,
+  useTodoRestOpen,
+} from "./screens/TodosScreen";
 import { TodoListFormScreen } from "./screens/TodoListFormScreen";
 import { ChecklistIcon } from "./components/SettingsIcons";
 import { MAX_TODO_FOLDERS_PER_USER, TODO_FOLDER_KINDS } from "./constants";
@@ -730,7 +735,10 @@ export function App() {
     [hideHabit],
   );
 
-  const tabBarHidden = editor !== null || openHabit !== undefined || settingsPage !== null;
+  // Задачи: экран «остальных» (будущие и выполненные) — вложенный, без навигации.
+  const todoRestOpen = useTodoRestOpen() && tab === "todos";
+  const tabBarHidden =
+    editor !== null || openHabit !== undefined || settingsPage !== null || todoRestOpen;
 
   const timerScreenOpen = useTimerScreenHabit() !== null;
   const countSheetOpen = useCountSheetHabit() !== null;
@@ -742,6 +750,8 @@ export function App() {
       ? null
       : todoSheetOpen
       ? closeTodoSheet
+      : todoRestOpen
+      ? closeTodoRest
       : timerScreenOpen
         ? // Окно времени поверх таймера — сначала оно.
           countSheetOpen

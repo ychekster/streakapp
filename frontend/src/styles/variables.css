@@ -444,8 +444,12 @@
   --search-height: 40px;
   --search-pad-x: 12px;
 
-  /* --- Задачи (бета; TodoRow): кружок отметки 22pt по центру строки текста --- */
-  --todo-check-size: 22px;
+  /* --- Задачи (бета; TodoRow): кружок отметки 26pt по центру строки текста; его центр — в
+     центре скругления угла карточки (поле = радиус карточки − половина кружка), так кружок
+     у угла повторяет скругление --- */
+  --todo-check-size: 26px;
+  --todo-check-inset: calc(var(--radius-card) - var(--todo-check-size) / 2);
+  --todo-check-stroke: 2px;
   --todo-row-line: 22px; /* строка текста задачи: по её центру — кружок */
   --search-gap: 6px; /* между лупой и текстом */
   --search-icon-size: 17px;

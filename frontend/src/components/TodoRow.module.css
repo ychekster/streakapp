@@ -11,7 +11,7 @@
   position: absolute;
   top: 0;
   right: var(--space-card-padding);
-  left: calc(var(--list-row-icon-inset) + var(--todo-check-size) + var(--list-row-icon-gap));
+  left: calc(var(--todo-check-inset) + var(--todo-check-size) + var(--list-row-icon-gap));
   height: 1px;
   background-color: var(--color-separator);
 }
@@ -37,7 +37,7 @@
   align-items: flex-start;
   gap: var(--list-row-icon-gap);
   min-height: var(--list-row-min-height);
-  padding: 0 var(--space-card-padding) 0 var(--list-row-icon-inset);
+  padding: 0 var(--space-card-padding) 0 var(--todo-check-inset);
   background-color: var(--color-card);
   transition: transform 0.22s ease;
 }
@@ -67,7 +67,7 @@
 /* «Галочки справа»: текст от поля карточки, кружок — у правого края (порядок — CSS), линия
    между строками — от начала текста. */
 .checkRight {
-  padding: 0 var(--list-row-icon-inset) 0 var(--space-card-padding);
+  padding: 0 var(--todo-check-inset) 0 var(--space-card-padding);
 }
 
 .checkRight .body {
@@ -97,7 +97,7 @@
   height: var(--todo-check-size);
   /* По центру первой строки текста: и кружок, и строка стоят по центру высоты ряда. */
   margin-top: calc((var(--list-row-min-height) - var(--todo-check-size)) / 2);
-  border: 1.5px solid var(--color-text-secondary);
+  border: var(--todo-check-stroke) solid var(--color-text-secondary);
   border-radius: 50%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -128,8 +128,8 @@
 }
 
 .check svg {
-  width: 16px;
-  height: 16px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: #fff;
   stroke-width: 2.4;
