@@ -66,6 +66,8 @@ from backend.models import (
     TaskReminder,
     TaskSchedulePeriod,
     TaskStatus,
+    Todo,
+    TodoFolder,
     User,
     UserActivity,
     WebSession,
@@ -549,6 +551,8 @@ class Repository:
             TaskReminder,
             Task,
             Folder,
+            Todo,
+            TodoFolder,
             Review,
             UserActivity,
             CheckinDay,
@@ -658,6 +662,126 @@ class Repository:
         for position, folder in enumerate(folders):
             folder.position = position
         user.all_habits_position = all_habits_position
+        await self.session.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Todos (бета: разовые задачи и их папки)
+    # ------------------------------------------------------------------ #
+
+    async def get_todo_folders(self, user_id: int) -> list[TodoFolder]:
+        """Папки задач пользователя по порядку."""
+        result = await self.session.execute(
+            select(TodoFolder)
+            .where(TodoFolder.user_id == user_id)
+            .order_by(TodoFolder.position, TodoFolder.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_todo_folder(self, folder_id: int, user_id: int) -> TodoFolder | None:
+        result = await self.session.execute(
+            select(TodoFolder).where(TodoFolder.id == folder_id, TodoFolder.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_todo_folder_by_ref(self, user_id: int, client_ref: str) -> TodoFolder | None:
+        """Папка задач, созданная устройством под этим id (/sync), или None."""
+        result = await self.session.execute(
+            select(TodoFolder)
+            .where(TodoFolder.user_id == user_id, TodoFolder.client_ref == client_ref)
+            .order_by(TodoFolder.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def create_todo_folder(
+        self, user_id: int, name: str, client_ref: str | None
+    ) -> TodoFolder:
+        """Создать папку задач последней в ряду."""
+        last = await self.session.scalar(
+            select(func.max(TodoFolder.position)).where(TodoFolder.user_id == user_id)
+        )
+        folder = TodoFolder(
+            user_id=user_id,
+            name=name,
+            position=0 if last is None else last + 1,
+            client_ref=client_ref,
+        )
+        self.session.add(folder)
+        await self.session.flush()
+        return folder
+
+    async def rename_todo_folder(self, folder: TodoFolder, name: str) -> None:
+        folder.name = name
+        await self.session.flush()
+
+    async def delete_todo_folder(self, folder: TodoFolder) -> None:
+        """Удалить папку задач; её задачи остаются без папки."""
+        await self.session.execute(
+            update(Todo)
+            .where(Todo.folder_id == folder.id)
+            .values(folder_id=None)
+            .execution_options(synchronize_session="fetch")
+        )
+        await self.session.delete(folder)
+        await self.session.flush()
+
+    async def set_todo_folder_order(self, folders: Sequence[TodoFolder]) -> None:
+        for position, folder in enumerate(folders):
+            folder.position = position
+        await self.session.flush()
+
+    async def get_todos(self, user_id: int) -> list[Todo]:
+        """Задачи пользователя в порядке добавления."""
+        result = await self.session.execute(
+            select(Todo).where(Todo.user_id == user_id).order_by(Todo.created_at, Todo.id)
+        )
+        return list(result.scalars().all())
+
+    async def count_todos(self, user_id: int) -> int:
+        return await self.session.scalar(
+            select(func.count()).select_from(Todo).where(Todo.user_id == user_id)
+        ) or 0
+
+    async def get_todo(self, todo_id: int, user_id: int) -> Todo | None:
+        result = await self.session.execute(
+            select(Todo).where(Todo.id == todo_id, Todo.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_todo_by_ref(self, user_id: int, client_ref: str) -> Todo | None:
+        """Задача, созданная устройством под этим id (/sync), или None."""
+        result = await self.session.execute(
+            select(Todo)
+            .where(Todo.user_id == user_id, Todo.client_ref == client_ref)
+            .order_by(Todo.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def create_todo(
+        self,
+        user_id: int,
+        text: str,
+        folder_id: int | None,
+        client_ref: str | None,
+        done_at: datetime | None = None,
+        created_at: datetime | None = None,
+    ) -> Todo:
+        todo = Todo(
+            user_id=user_id,
+            text=text,
+            folder_id=folder_id,
+            client_ref=client_ref,
+            done_at=done_at,
+        )
+        if created_at is not None:
+            todo.created_at = created_at
+        self.session.add(todo)
+        await self.session.flush()
+        return todo
+
+    async def delete_todo(self, todo: Todo) -> None:
+        await self.session.delete(todo)
         await self.session.flush()
 
     # ------------------------------------------------------------------ #
@@ -2205,20 +2329,21 @@ class Repository:
             target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
 
-        # The source's folders go after the target's.
-        last_position = await self.session.scalar(
-            select(func.max(Folder.position)).where(Folder.user_id == target_id)
-        )
-        if last_position is not None:
-            await self.session.execute(
-                update(Folder)
-                .where(Folder.user_id == source_id)
-                .values(position=Folder.position + last_position + 1)
-                .execution_options(synchronize_session=False)
+        # The source's folders (habit and todo ones) go after the target's.
+        for folder_model in (Folder, TodoFolder):
+            last_position = await self.session.scalar(
+                select(func.max(folder_model.position)).where(folder_model.user_id == target_id)
             )
+            if last_position is not None:
+                await self.session.execute(
+                    update(folder_model)
+                    .where(folder_model.user_id == source_id)
+                    .values(position=folder_model.position + last_position + 1)
+                    .execution_options(synchronize_session=False)
+                )
         for model in (
             Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskReminder, Folder, Review,
-            WebSession, PushSubscription, Event, ActivityLog, DayNote,
+            WebSession, PushSubscription, Event, ActivityLog, DayNote, Todo, TodoFolder,
         ):
             await self.session.execute(
                 update(model)

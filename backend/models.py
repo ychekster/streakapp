@@ -42,6 +42,7 @@ from backend.constants import (
     HABIT_COLOR_MAX_LENGTH,
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
+    TODO_TEXT_MAX_LENGTH,
 )
 
 
@@ -563,6 +564,56 @@ class Folder(Base):
         JSON, default=list, server_default="[]", nullable=False
     )
     # Id, который дало папке устройство (/sync, folder_create): повтор создания — не дубль.
+    client_ref: Mapped[str | None] = mapped_column(
+        String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class TodoFolder(Base):
+    """Папка задач (бета; настройки → «Задачи»): вкладка в таблетке над списком задач.
+
+    Порядок — `position`; вкладка «Все задачи» не хранится, она всегда первая.
+    """
+
+    __tablename__ = "todo_folders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(FOLDER_NAME_MAX_LENGTH), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Id, который дало папке устройство (/sync, todo_folder_create): повтор — не дубль.
+    client_ref: Mapped[str | None] = mapped_column(
+        String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class Todo(Base):
+    """Разовая задача (бета; настройки → «Задачи»), не привычка.
+
+    `folder_id` None — задача без папки (вкладка «Все задачи»); при удалении папки её
+    задачи становятся такими. `done_at` — когда отмечена выполненной (None — открыта).
+    """
+
+    __tablename__ = "todos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    folder_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("todo_folders.id"), nullable=True
+    )
+    text: Mapped[str] = mapped_column(String(TODO_TEXT_MAX_LENGTH), nullable=False)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Id, который дало задаче устройство (/sync, todo_create): повтор — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True
     )

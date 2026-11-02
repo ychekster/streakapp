@@ -1,0 +1,52 @@
+/* Задачи (бета): то, чего нет у таблетки папок привычек (FolderBar.module.css). */
+
+/* Заготовка «Новая папка» — приглушённая, как подсказка в поле. */
+.newFolder {
+  color: var(--color-placeholder);
+}
+
+/* Название вкладки — поле: ширина по тексту (невидимая копия в ::after задаёт её), шрифт
+   вкладки, без рамки — видно только курсор. */
+.field {
+  display: inline-grid;
+  align-items: center;
+}
+
+.field::after,
+.input {
+  grid-area: 1 / 1;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.field::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+  white-space: pre;
+}
+
+.input {
+  width: 100%;
+  min-width: 1ch;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--glass-icon);
+  caret-color: var(--color-accent);
+}
+
+.input::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* Пока тащат папку, соседи расступаются плавно, а тащимая — за пальцем без задержки. */
+.moving {
+  transition: transform 0.18s ease;
+}
+
+.dragged {
+  z-index: 1;
+  transition: none;
+  touch-action: none;
+}

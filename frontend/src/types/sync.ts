@@ -3,6 +3,7 @@
 import type { Folder, FolderInput } from "./folder";
 import type { Habit, HabitInput } from "./habit";
 import type { Settings, SettingsUpdate } from "./settings";
+import type { Todo, TodoFolder } from "./todo";
 
 /** A habit in an operation: its id on the server, or the device's id (`ref`) for a
  *  habit the device created — the server finds it by that too. */
@@ -39,10 +40,34 @@ export type SyncOperation =
   /** Delete a folder (one already gone is not an error). */
   | { type: "folder_delete"; key: FolderKey }
   /** The order of the folders; null — where «Все привычки» stands. */
-  | { type: "folder_order"; order: (FolderKey | null)[] };
+  | { type: "folder_order"; order: (FolderKey | null)[] }
+  /** Todos (beta): create one (last in the list); `ref` is its id on the device. */
+  | { type: "todo_create"; ref: string; text: string; folder?: TodoFolderKey | null }
+  /** Change a todo: only the fields sent; `no_folder` takes it out of its folder. */
+  | {
+      type: "todo_update";
+      key: TodoKey;
+      text?: string;
+      done?: boolean;
+      folder?: TodoFolderKey;
+      no_folder?: boolean;
+    }
+  /** Delete a todo (one already gone is not an error). */
+  | { type: "todo_delete"; key: TodoKey }
+  /** Create a todo folder (last in the row). */
+  | { type: "todo_folder_create"; ref: string; name: string }
+  | { type: "todo_folder_update"; key: TodoFolderKey; name: string }
+  /** Delete a todo folder; its todos stay, without a folder. */
+  | { type: "todo_folder_delete"; key: TodoFolderKey }
+  /** The order of the todo folders; ones not named go last. */
+  | { type: "todo_folder_order"; order: TodoFolderKey[] };
 
 /** A folder in an operation: its id on the server or the device's id (`ref`). */
 export type FolderKey = number | string;
+
+/** A todo and a todo folder in an operation: the server id or the device id (`ref`). */
+export type TodoKey = number | string;
+export type TodoFolderKey = number | string;
 
 export interface SyncResult {
   ok: boolean;
@@ -63,6 +88,9 @@ export interface SyncResponse {
   today: string;
   /** The running timer; null — none (no field — a server before timers). */
   timer?: RunningTimer | null;
+  /** Todos (beta) and their folders; no field — a server before todos. */
+  todos?: Todo[];
+  todo_folders?: TodoFolder[];
 }
 
 /** The user's running timer (a time goal), the same on all their devices. */

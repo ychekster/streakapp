@@ -9,7 +9,7 @@
 import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
 
 /** Сколько держать (мс) и на сколько можно сдвинуть палец (px). */
-const LONG_PRESS_MS = 250;
+export const LONG_PRESS_MS = 250;
 const LONG_PRESS_SLOP = 8;
 
 export interface LongPressHandlers {

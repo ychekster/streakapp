@@ -20,7 +20,8 @@
  * with the operation) and is shown under a negative id; when the server answers, the
  * habit keeps that id on screen for the rest of the run (`aliases`), so open screens and
  * list keys do not change. Folders (Settings → «Папки») work the same way
- * (`folderAliases`).
+ * (`folderAliases`), and so do todos and their folders (beta; Settings → «Задачи»:
+ * `todoAliases`, `todoFolderAliases`).
  *
  * A time goal's timer («Цель по времени») is state too: the last timer operation (or the
  * server's `timer`). Its time is counted from the moment it started, not ticked, so it
@@ -35,6 +36,8 @@ import {
   MAX_FOLDERS_PER_USER,
   HISTORY_DAYS,
   MAX_HABITS_PER_USER,
+  MAX_TODO_FOLDERS_PER_USER,
+  MAX_TODOS_PER_USER,
   OVERTIME_MAX_COUNT,
   SYNC_BATCH_SIZE,
   SYNC_DELAY_MS,
@@ -46,7 +49,15 @@ import { getTelegramUserId } from "../telegram/webapp";
 import type { Folder, FolderHabitType, FolderInput, FolderKind } from "../types/folder";
 import type { Habit, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
-import type { FolderKey, SyncOperation, SyncResponse, TaskKey } from "../types/sync";
+import type {
+  FolderKey,
+  SyncOperation,
+  SyncResponse,
+  TaskKey,
+  TodoFolderKey,
+  TodoKey,
+} from "../types/sync";
+import type { Todo, TodoFolder } from "../types/todo";
 import { currentSessionId } from "../web/session";
 import { addDays, clockIn, markingDay, nextMidnight } from "./dates";
 import {
@@ -55,6 +66,7 @@ import {
   dayMost,
   deriveFolders,
   deriveTimer,
+  deriveTodos,
   deriveView,
   goalOn,
   isTimed,
@@ -92,6 +104,9 @@ export interface DataState {
   timer: TimerView | null;
   /** The marking day the habits are counted for; null — nothing loaded yet. */
   today: string | null;
+  /** Todos (beta; Settings → «Задачи») in the order they were added, and their folders. */
+  todos: Todo[];
+  todoFolders: TodoFolder[];
 }
 
 const SNAPSHOT_KEY = "streak:data";
@@ -108,6 +123,8 @@ const EMPTY: DataState = {
   rejected: null,
   timer: null,
   today: null,
+  todos: [],
+  todoFolders: [],
 };
 
 let started = false;
@@ -138,6 +155,8 @@ const refOfTemp = new Map<number, string>();
 const serverIdOfRef = new Map<string, number>();
 const aliases = new Map<number, number>();
 const folderAliases = new Map<number, number>();
+const todoAliases = new Map<number, number>();
+const todoFolderAliases = new Map<number, number>();
 
 // --------------------------------------------------------------------------- //
 //  Kept on the device
@@ -220,6 +239,14 @@ function displayIdOfFolderKey(key: FolderKey): number {
   return typeof key === "string" ? tempIdOf(key) : (folderAliases.get(key) ?? key);
 }
 
+function displayIdOfTodoKey(key: TodoKey): number {
+  return typeof key === "string" ? tempIdOf(key) : (todoAliases.get(key) ?? key);
+}
+
+function displayIdOfTodoFolderKey(key: TodoFolderKey): number {
+  return typeof key === "string" ? tempIdOf(key) : (todoFolderAliases.get(key) ?? key);
+}
+
 /** The habit (or folder) an id on screen means, as operations name it. */
 function keyOf(displayId: number): TaskKey {
   const ref = refOfTemp.get(displayId);
@@ -232,7 +259,16 @@ function keyOf(displayId: number): TaskKey {
 function rederive(): void {
   if (!snapshot) {
     viewDay = null;
-    emit({ habits: [], folders: [], allHabitsPosition: 0, settings: null, timer: null, today: null });
+    emit({
+      habits: [],
+      folders: [],
+      allHabitsPosition: 0,
+      settings: null,
+      timer: null,
+      today: null,
+      todos: [],
+      todoFolders: [],
+    });
     return;
   }
   const view = deriveView(snapshot, ops, displayIdOfKey);
@@ -246,6 +282,7 @@ function rederive(): void {
   viewDay = view.today;
   viewClock = clockIn(view.settings.timezone);
   const folders = deriveFolders(snapshot, ops, view.habits, displayIdOfKey, displayIdOfFolderKey);
+  const todos = deriveTodos(snapshot, ops, displayIdOfTodoKey, displayIdOfTodoFolderKey);
   emit({
     status: "ready",
     error: null,
@@ -259,6 +296,11 @@ function rederive(): void {
     settings: view.settings,
     timer: JSON.stringify(timer) === JSON.stringify(state.timer) ? state.timer : timer,
     today: view.today,
+    todos: JSON.stringify(todos.todos) === JSON.stringify(state.todos) ? state.todos : todos.todos,
+    todoFolders:
+      JSON.stringify(todos.folders) === JSON.stringify(state.todoFolders)
+        ? state.todoFolders
+        : todos.folders,
   });
 }
 
@@ -295,7 +337,38 @@ function refersTo(op: Operation, key: TaskKey): boolean {
 }
 
 function refersToFolder(op: Operation, key: FolderKey): boolean {
-  return (op.type === "folder_create" && op.ref === key) || ("key" in op && op.key === key);
+  return (
+    (op.type === "folder_create" && op.ref === key) ||
+    ((op.type === "folder_update" || op.type === "folder_delete") && op.key === key)
+  );
+}
+
+function refersToTodo(op: Operation, key: TodoKey): boolean {
+  return (
+    (op.type === "todo_create" && op.ref === key) ||
+    ((op.type === "todo_update" || op.type === "todo_delete") && op.key === key)
+  );
+}
+
+function refersToTodoFolder(op: Operation, key: TodoFolderKey): boolean {
+  return (
+    (op.type === "todo_folder_create" && op.ref === key) ||
+    ((op.type === "todo_folder_update" || op.type === "todo_folder_delete") && op.key === key)
+  );
+}
+
+type TodoUpdate = Extract<Operation, { type: "todo_update" }>;
+
+/** Two changes of one todo as one: the later fields win; a folder and «no folder» are
+ *  one field. */
+function mergeTodoUpdates(earlier: TodoUpdate, later: TodoUpdate): TodoUpdate {
+  const merged: TodoUpdate = { ...earlier, ...later };
+  if (later.folder !== undefined) {
+    delete merged.no_folder;
+  } else if (later.no_folder) {
+    delete merged.folder;
+  }
+  return merged;
 }
 
 /** Add `op` to the unsent part of the queue, merged with what it makes pointless: the
@@ -347,6 +420,52 @@ function enqueue(op: Operation): void {
   } else if (op.type === "folder_order") {
     unsent = unsent.filter((item) => item.type !== "folder_order");
     unsent.push(op);
+  } else if (op.type === "todo_update") {
+    const earlier = unsent.find(
+      (item): item is TodoUpdate => item.type === "todo_update" && item.key === op.key,
+    );
+    const merged = earlier ? mergeTodoUpdates(earlier, op) : op;
+    unsent = unsent.filter((item) => !(item.type === "todo_update" && item.key === op.key));
+    const created = unsent.findIndex((item) => item.type === "todo_create" && item.ref === op.key);
+    if (created >= 0 && merged.done === undefined) {
+      // Not sent yet: the todo is created with the new text and folder.
+      const create = unsent[created] as Extract<Operation, { type: "todo_create" }>;
+      unsent[created] = {
+        ...create,
+        text: merged.text ?? create.text,
+        folder: merged.no_folder ? null : (merged.folder ?? create.folder),
+      };
+    } else {
+      unsent.push(merged);
+    }
+  } else if (op.type === "todo_delete") {
+    const createdHere = unsent.some((item) => item.type === "todo_create" && item.ref === op.key);
+    unsent = unsent.filter((item) => !refersToTodo(item, op.key));
+    if (!createdHere) {
+      unsent.push(op);
+    }
+  } else if (op.type === "todo_folder_update") {
+    const created = unsent.findIndex(
+      (item) => item.type === "todo_folder_create" && item.ref === op.key,
+    );
+    if (created >= 0) {
+      const create = unsent[created] as Extract<Operation, { type: "todo_folder_create" }>;
+      unsent[created] = { ...create, name: op.name };
+    } else {
+      unsent = unsent.filter((item) => !(item.type === "todo_folder_update" && item.key === op.key));
+      unsent.push(op);
+    }
+  } else if (op.type === "todo_folder_delete") {
+    const createdHere = unsent.some(
+      (item) => item.type === "todo_folder_create" && item.ref === op.key,
+    );
+    unsent = unsent.filter((item) => !refersToTodoFolder(item, op.key));
+    if (!createdHere) {
+      unsent.push(op);
+    }
+  } else if (op.type === "todo_folder_order") {
+    unsent = unsent.filter((item) => item.type !== "todo_folder_order");
+    unsent.push(op);
   } else if (op.type === "timer") {
     // Only the last state of the timer matters (a stopped one's time is a mark before it).
     unsent = unsent.filter((item) => item.type !== "timer");
@@ -380,6 +499,12 @@ function enqueue(op: Operation): void {
 function toWire(op: Operation): SyncOperation {
   if (op.type === "settings") {
     return { type: "settings", patch: op.patch };
+  }
+  if (op.type === "todo_create" || op.type === "todo_update") {
+    // The device's time stays on the device.
+    const wire = { ...op };
+    delete wire.at;
+    return wire;
   }
   return op;
 }
@@ -415,6 +540,7 @@ function scheduleRetry(): void {
 function acknowledge(batch: Operation[], response: SyncResponse): void {
   const failedRefs = new Set<string>();
   const failedFolderRefs = new Set<string>();
+  const failedTodoRefs = new Set<string>();
   let saveError: unknown = null;
   let rejected = null as RejectedChange | null;
   response.results.forEach((result, index) => {
@@ -437,6 +563,19 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
         }
       } else {
         failedFolderRefs.add(op.ref);
+      }
+    }
+    if (op?.type === "todo_create" || op?.type === "todo_folder_create") {
+      if (result.ok && result.id !== null) {
+        serverIdOfRef.set(op.ref, result.id);
+        if (tempIds.has(op.ref)) {
+          (op.type === "todo_create" ? todoAliases : todoFolderAliases).set(
+            result.id,
+            tempIdOf(op.ref),
+          );
+        }
+      } else {
+        failedTodoRefs.add(op.ref);
       }
     }
     if (!op || result.ok || !result.error) {
@@ -478,6 +617,28 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     if (op.type === "folder_order") {
       return [{ ...op, order: op.order.map((key) => (key === null ? null : serverKey(key))) }];
     }
+    // Todos: what names a todo or folder the server refused to create is dropped; a todo
+    // in such a folder gets none on the server.
+    if (op.type === "todo_create") {
+      return [{ ...op, folder: op.folder == null ? op.folder : serverKey(op.folder) }];
+    }
+    if (
+      op.type === "todo_update" ||
+      op.type === "todo_delete" ||
+      op.type === "todo_folder_update" ||
+      op.type === "todo_folder_delete"
+    ) {
+      if (typeof op.key === "string" && failedTodoRefs.has(op.key)) {
+        return [];
+      }
+      if (op.type === "todo_update" && op.folder !== undefined) {
+        return [{ ...op, key: serverKey(op.key), folder: serverKey(op.folder) }];
+      }
+      return [{ ...op, key: serverKey(op.key) }];
+    }
+    if (op.type === "todo_folder_order") {
+      return [{ ...op, order: op.order.map(serverKey) }];
+    }
     if (!("task" in op) || typeof op.task !== "string") {
       return [op];
     }
@@ -494,6 +655,8 @@ function acknowledge(batch: Operation[], response: SyncResponse): void {
     all_habits_position: response.all_habits_position,
     today: response.today,
     timer: response.timer ?? null,
+    todos: response.todos ?? [],
+    todo_folders: response.todo_folders ?? [],
   };
   keep(OPS_KEY, ops);
   keep(SNAPSHOT_KEY, snapshot);
@@ -1020,6 +1183,66 @@ export const dataStore = {
   /** Put the folders (ids on screen) in this order; null — where «Все привычки» goes. */
   orderFolders(order: (number | null)[]): void {
     enqueue({ type: "folder_order", order: order.map((id) => (id === null ? null : keyOf(id))) });
+  },
+
+  // ------------------------------------------------------------------------- //
+  //  Todos (beta; Settings → «Задачи»)
+  // ------------------------------------------------------------------------- //
+
+  /** Add a todo at the end of the list, in a folder (id on screen) or none (null); throws
+   *  ApiRequestError (as the server would) if it can't be. */
+  createTodo(text: string, folderId: number | null): void {
+    if (cleanHabitName(text) === "") {
+      throw new ApiRequestError(422, "invalid_todo", "");
+    }
+    if (state.todos.length >= MAX_TODOS_PER_USER) {
+      throw new ApiRequestError(409, "todo_limit", "");
+    }
+    enqueue({
+      type: "todo_create",
+      ref: newRef(),
+      text,
+      folder: folderId === null ? null : keyOf(folderId),
+      at: new Date().toISOString(),
+    });
+  },
+
+  /** Change a todo's text (empty — nothing changes) or check it (`done`). */
+  updateTodo(id: number, change: { text?: string; done?: boolean }): void {
+    if (change.text !== undefined && cleanHabitName(change.text) === "") {
+      return;
+    }
+    enqueue({ type: "todo_update", key: keyOf(id), ...change, at: new Date().toISOString() });
+  },
+
+  deleteTodo(id: number): void {
+    enqueue({ type: "todo_delete", key: keyOf(id) });
+  },
+
+  /** Create a todo folder last in the row; returns its id on screen. */
+  createTodoFolder(name: string): number {
+    validateFolderName(name);
+    if (state.todoFolders.length >= MAX_TODO_FOLDERS_PER_USER) {
+      throw new ApiRequestError(409, "todo_folder_limit", "");
+    }
+    const ref = newRef();
+    enqueue({ type: "todo_folder_create", ref, name });
+    return tempIdOf(ref);
+  },
+
+  renameTodoFolder(id: number, name: string): void {
+    validateFolderName(name);
+    enqueue({ type: "todo_folder_update", key: keyOf(id), name });
+  },
+
+  /** Delete a todo folder; its todos stay, without a folder. */
+  deleteTodoFolder(id: number): void {
+    enqueue({ type: "todo_folder_delete", key: keyOf(id) });
+  },
+
+  /** Put the todo folders (ids on screen) in this order. */
+  orderTodoFolders(order: number[]): void {
+    enqueue({ type: "todo_folder_order", order: order.map(keyOf) });
   },
 
   /** Change settings; `preview` — how it looks until the server answers; `silent` — not

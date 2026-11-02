@@ -23,6 +23,7 @@ from backend.constants import (
     HABIT_DESCRIPTION_MAX_LENGTH,
     HABIT_NAME_MAX_LENGTH,
     NOTE_MAX_LENGTH,
+    TODO_TEXT_MAX_LENGTH,
     LANGUAGES,
     MAX_DB_INT,
     MAX_GOAL_SECONDS,
@@ -77,6 +78,18 @@ def validate_folder_name(name: str) -> str:
             422,
             "invalid_folder_name",
             f"Название папки не длиннее {FOLDER_NAME_MAX_LENGTH} символов",
+        )
+    return cleaned
+
+
+def validate_todo_text(text: str) -> str:
+    """Очистить и проверить текст задачи (бета) — одной строкой, как название привычки."""
+    cleaned = _one_line(text)
+    if not cleaned:
+        raise ApiError(422, "invalid_todo", "Введите задачу")
+    if len(cleaned) > TODO_TEXT_MAX_LENGTH:
+        raise ApiError(
+            422, "invalid_todo", f"Задача не длиннее {TODO_TEXT_MAX_LENGTH} символов"
         )
     return cleaned
 

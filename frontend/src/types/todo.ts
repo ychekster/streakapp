@@ -1,0 +1,19 @@
+/** Todos (beta; Settings → «Задачи») — mirror TodoView / TodoFolderView in backend/schemas.py.
+ *  One-off tasks in folders, not tied to habits. */
+
+/** A todo folder: a tab above the todo list. «Все задачи» is not stored, it is always first. */
+export interface TodoFolder {
+  id: number;
+  name: string;
+}
+
+export interface Todo {
+  id: number;
+  text: string;
+  /** null — no folder (shown on top of «Все задачи»). */
+  folder: number | null;
+  /** When it was checked (ISO, UTC); null — open. */
+  done_at: string | null;
+  /** ISO, UTC: open todos go in this order. */
+  created_at: string;
+}

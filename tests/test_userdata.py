@@ -122,6 +122,32 @@ def test_import_into_another_account(client: TestClient, user: AuthUser) -> None
     assert again["Вода"]["marks"][0]["count"] == 2
 
 
+def test_todos_go_through_export_and_import(client: TestClient, user: AuthUser) -> None:
+    _sync(
+        client,
+        user,
+        {"type": "todo_folder_create", "ref": "f", "name": "Учёба"},
+        {"type": "todo_create", "ref": "a", "text": "Сдать лабу", "folder": "f"},
+        {"type": "todo_create", "ref": "b", "text": "Хлеб"},
+        {"type": "todo_update", "key": "b", "done": True},
+    )
+    data = _export(client, user)
+    assert [folder["name"] for folder in data["todo_folders"]] == ["Учёба"]
+    assert [(todo["text"], todo["done_at"] is not None) for todo in data["todos"]] == [
+        ("Сдать лабу", False),
+        ("Хлеб", True),
+    ]
+    other = new_user()
+    _import(client, other, data)
+    state = _sync(client, other)
+    [folder] = state["todo_folders"]
+    assert folder["name"] == "Учёба"
+    assert [(todo["text"], todo["folder"], todo["done_at"] is not None) for todo in state["todos"]] == [
+        ("Сдать лабу", folder["id"], False),
+        ("Хлеб", None, True),
+    ]
+
+
 def test_import_respects_the_habit_limit(client: TestClient, user: AuthUser) -> None:
     habits = [{"id": index, "name": f"H{index}"} for index in range(MAX_HABITS_PER_USER)]
     _sync(client, user, {"type": "create", "ref": "x", "habit": {"name": "Есть", "frequency_type": "daily"}})

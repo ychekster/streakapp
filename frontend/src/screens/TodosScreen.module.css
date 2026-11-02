@@ -1,0 +1,36 @@
+/* Настройки → «Задачи (бета)». Экран — ровно видимая часть окна (над клавиатурой; top и
+   height ставит TodosScreen): сверху прокручиваемый список, под ним поле ввода. */
+.root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100dvh;
+  /* Ниже кнопки «Назад» веб-приложения (WebChrome) и плашек поверх экрана. */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-background);
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Экран (Screen) внутри списка: по высоте списка, а не окна, и снизу — только зазор до
+   поля ввода (поле стоит под списком, а не поверх). */
+.scroller > main {
+  min-height: 100%;
+  padding-bottom: var(--todo-composer-gap);
+}
+
+/* Как экран «Привычки» — крупный заголовок, под ним таблетка папок. Колонка растягивается
+   по высоте: пустое состояние стоит по центру. */
+.todos {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}

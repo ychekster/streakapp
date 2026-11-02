@@ -25,6 +25,8 @@ from backend.constants import (
     MAX_FOLDERS_PER_USER,
     MAX_HABITS_PER_USER,
     MAX_REVIEWS_PER_DAY,
+    MAX_TODO_FOLDERS_PER_USER,
+    MAX_TODOS_PER_USER,
     REMINDER_TIME_FORMAT,
     TIMER_NOTICE_GRACE_SECONDS,
     TIMEZONE_SEARCH_LIMIT,
@@ -39,6 +41,7 @@ from backend.models import (
     Task,
     TaskSchedulePeriod,
     TaskStatus,
+    TodoFolder,
     User,
 )
 from backend.repository import Repository, utc_now
@@ -77,7 +80,16 @@ from backend.schemas import (
     SyncOperation,
     SyncResult,
     SyncTimer,
+    SyncTodoCreate,
+    SyncTodoDelete,
+    SyncTodoFolderCreate,
+    SyncTodoFolderDelete,
+    SyncTodoFolderOrder,
+    SyncTodoFolderUpdate,
+    SyncTodoUpdate,
     SyncUpdate,
+    TodoFolderView,
+    TodoView,
     TimezoneEntry,
     TimezonesResponse,
 )
@@ -1104,6 +1116,134 @@ async def _apply_folder_op(
     return SyncResult(ok=True)
 
 
+async def list_todo_folders(repo: Repository, user: User) -> list[TodoFolderView]:
+    """Папки задач (бета) по порядку."""
+    return [
+        TodoFolderView(id=folder.id, name=folder.name)
+        for folder in await repo.get_todo_folders(user.telegram_id)
+    ]
+
+
+async def list_todos(repo: Repository, user: User) -> list[TodoView]:
+    """Задачи (бета) в порядке добавления; выполненные — с `done_at`."""
+    return [
+        TodoView(
+            id=todo.id,
+            text=todo.text,
+            folder=todo.folder_id,
+            done_at=todo.done_at,
+            created_at=todo.created_at,
+        )
+        for todo in await repo.get_todos(user.telegram_id)
+    ]
+
+
+async def _todo_folder_by_ref(
+    repo: Repository, user: User, ref: int | str
+) -> TodoFolder | None:
+    """Папка задач пользователя по id на сервере или по id устройства."""
+    if isinstance(ref, int):
+        return await repo.get_todo_folder(ref, user.telegram_id)
+    return await repo.get_todo_folder_by_ref(user.telegram_id, ref)
+
+
+async def _todo_folder_id(repo: Repository, user: User, ref: int | str | None) -> int | None:
+    """Id папки для задачи; удалённая (или так и не созданная) папка — без папки."""
+    if ref is None:
+        return None
+    folder = await _todo_folder_by_ref(repo, user, ref)
+    return folder.id if folder is not None else None
+
+
+async def _apply_todo_op(
+    repo: Repository,
+    user: User,
+    op: SyncTodoCreate
+    | SyncTodoUpdate
+    | SyncTodoDelete
+    | SyncTodoFolderCreate
+    | SyncTodoFolderUpdate
+    | SyncTodoFolderDelete
+    | SyncTodoFolderOrder,
+) -> SyncResult:
+    """Применить операцию /sync с задачами (бета) и их папками (ошибка — ApiError)."""
+    uid = user.telegram_id
+    if isinstance(op, SyncTodoCreate):
+        existing = await repo.get_todo_by_ref(uid, op.ref)
+        if existing is not None:
+            return SyncResult(ok=True, id=existing.id)
+        if await repo.count_todos(uid) >= MAX_TODOS_PER_USER:
+            raise ApiError(
+                409, "todo_limit", f"Можно завести не больше {MAX_TODOS_PER_USER} задач"
+            )
+        text = validation.validate_todo_text(op.text)
+        folder_id = await _todo_folder_id(repo, user, op.folder)
+        todo = await repo.create_todo(uid, text, folder_id, op.ref)
+        return SyncResult(ok=True, id=todo.id)
+    if isinstance(op, SyncTodoUpdate):
+        todo = (
+            await repo.get_todo(op.key, uid)
+            if isinstance(op.key, int)
+            else await repo.get_todo_by_ref(uid, op.key)
+        )
+        if todo is None:
+            raise ApiError(404, "todo_not_found", "Задача не найдена")
+        if op.text is not None:
+            todo.text = validation.validate_todo_text(op.text)
+        if op.done is not None and op.done != (todo.done_at is not None):
+            todo.done_at = utc_now() if op.done else None
+        if op.no_folder:
+            todo.folder_id = None
+        elif op.folder is not None:
+            todo.folder_id = await _todo_folder_id(repo, user, op.folder)
+        await repo.session.flush()
+        return SyncResult(ok=True)
+    if isinstance(op, SyncTodoDelete):
+        # Уже удалённая (или так и не созданная) задача — цель достигнута.
+        todo = (
+            await repo.get_todo(op.key, uid)
+            if isinstance(op.key, int)
+            else await repo.get_todo_by_ref(uid, op.key)
+        )
+        if todo is not None:
+            await repo.delete_todo(todo)
+        return SyncResult(ok=True)
+    if isinstance(op, SyncTodoFolderCreate):
+        existing_folder = await repo.get_todo_folder_by_ref(uid, op.ref)
+        if existing_folder is not None:
+            return SyncResult(ok=True, id=existing_folder.id)
+        if len(await repo.get_todo_folders(uid)) >= MAX_TODO_FOLDERS_PER_USER:
+            raise ApiError(
+                409,
+                "todo_folder_limit",
+                f"Можно завести не больше {MAX_TODO_FOLDERS_PER_USER} папок",
+            )
+        name = validation.validate_folder_name(op.name)
+        folder = await repo.create_todo_folder(uid, name, op.ref)
+        return SyncResult(ok=True, id=folder.id)
+    if isinstance(op, SyncTodoFolderUpdate):
+        folder = await _todo_folder_by_ref(repo, user, op.key)
+        if folder is None:
+            raise ApiError(404, "folder_not_found", "Папка не найдена")
+        await repo.rename_todo_folder(folder, validation.validate_folder_name(op.name))
+        return SyncResult(ok=True)
+    if isinstance(op, SyncTodoFolderDelete):
+        folder = await _todo_folder_by_ref(repo, user, op.key)
+        if folder is not None:
+            await repo.delete_todo_folder(folder)
+        return SyncResult(ok=True)
+    # Порядок: названные папки — как названы, остальные — за ними в прежнем порядке.
+    folders = await repo.get_todo_folders(uid)
+    ordered: list[TodoFolder] = []
+    for ref in op.order:
+        folder = await _todo_folder_by_ref(repo, user, ref)
+        if folder is not None and folder not in ordered:
+            ordered.append(folder)
+    ordered += [folder for folder in folders if folder not in ordered]
+    await repo.set_todo_folder_order(ordered)
+    return SyncResult(ok=True)
+
+
 async def _apply_sync_op(
     repo: Repository, user: User, op: SyncOperation, outcome: SyncOutcome
 ) -> SyncResult:
@@ -1195,6 +1335,19 @@ async def _apply_sync_op(
         return SyncResult(ok=True)
     if isinstance(op, (SyncFolderCreate, SyncFolderUpdate, SyncFolderDelete, SyncFolderOrder)):
         return await _apply_folder_op(repo, user, op)
+    if isinstance(
+        op,
+        (
+            SyncTodoCreate,
+            SyncTodoUpdate,
+            SyncTodoDelete,
+            SyncTodoFolderCreate,
+            SyncTodoFolderUpdate,
+            SyncTodoFolderDelete,
+            SyncTodoFolderOrder,
+        ),
+    ):
+        return await _apply_todo_op(repo, user, op)
     if isinstance(op, SyncDelete):
         # Уже удалённая (или так и не созданная) привычка — цель достигнута.
         task = await _task_by_ref(repo, user, op.task)

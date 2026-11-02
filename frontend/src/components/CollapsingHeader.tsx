@@ -29,6 +29,9 @@
  * Экран с `pinned` (настройки папок): заголовок Б стоит по центру с самого начала, А
  * нет (отступ сверху задаёт сам контент). Подложка проявляется вслед за прокруткой — от прозрачной в начале до полной, когда
  * верх первого блока контента доходит до её нижнего края.
+ *
+ * Обычно прокручивается вся страница; экран со своей прокруткой (задачи: список над
+ * клавиатурой) передаёт `scroller` — тогда отсчёт идёт от его прокрутки.
  */
 
 import { type RefObject, useLayoutEffect, useRef } from "react";
@@ -41,6 +44,8 @@ interface CollapsingHeaderProps {
   anchorRef?: RefObject<HTMLElement>;
   /** Заголовок Б виден всегда (А нет); прокрутка проявляет только подложку. */
   pinned?: boolean;
+  /** Свой прокручиваемый элемент экрана вместо страницы. */
+  scroller?: RefObject<HTMLElement | null>;
 }
 
 let probe: HTMLDivElement | null = null;
@@ -68,9 +73,15 @@ function setRootPx(name: string, px: number): void {
   document.documentElement.style.setProperty(name, `${px}px`);
 }
 
-/** Верх элемента в координатах документа. */
-function documentTop(element: Element): number {
-  return element.getBoundingClientRect().top + window.scrollY;
+/** Прокрутка: страницы или своего элемента экрана (`root`). */
+function scrollOf(root: HTMLElement | null): number {
+  return root ? root.scrollTop : window.scrollY;
+}
+
+/** Верх элемента в координатах прокручиваемого содержимого. */
+function documentTop(element: Element, root: HTMLElement | null): number {
+  const origin = root ? root.getBoundingClientRect().top : 0;
+  return element.getBoundingClientRect().top - origin + scrollOf(root);
 }
 
 /**
@@ -101,7 +112,12 @@ export interface ScrollRestoredDetail {
 // Гистерезис порога (px), чтобы класс не «дёргался» при остановке ровно на границе.
 const COLLAPSE_HYSTERESIS = 8;
 
-export function CollapsingHeader({ title, anchorRef, pinned = false }: CollapsingHeaderProps) {
+export function CollapsingHeader({
+  title,
+  anchorRef,
+  pinned = false,
+  scroller,
+}: CollapsingHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
   const titleExpandedRef = useRef<HTMLHeadingElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -116,11 +132,14 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
     let collapseThreshold = Number.POSITIVE_INFINITY;
     // Эффект перезапускается (смена языка) при уже свёрнутой шапке — берём её состояние.
     let collapsed = headerEl.classList.contains(styles.collapsed);
+    // Свой прокручиваемый элемент — его ref подключается после этого эффекта (он
+    // родитель), поэтому берётся в первом расчёте ниже.
+    let root: HTMLElement | null = null;
 
     // instant — без анимации: стили применяются с выключенными переходами (чтение
     // offsetWidth), после чего переходы возвращаются для обычной прокрутки.
     const updateState = (instant = false): void => {
-      const y = window.scrollY;
+      const y = scrollOf(root);
       if (pinned) {
         const progress = Math.min(1, Math.max(0, y / collapseThreshold));
         barRef.current?.style.setProperty("opacity", String(progress));
@@ -172,10 +191,11 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
       // которой до подложки доходит сам первый блок (без его верхнего отступа).
       const firstBlock = contentEl.firstElementChild;
       const blockTop = anchorRef
-        ? documentTop(headerEl) + standardTitleHeight(headerEl)
+        ? documentTop(headerEl, root) + standardTitleHeight(headerEl)
         : pinned && firstBlock
-          ? documentTop(firstBlock) + Number.parseFloat(getComputedStyle(firstBlock).paddingTop)
-          : documentTop(contentEl);
+          ? documentTop(firstBlock, root) +
+            Number.parseFloat(getComputedStyle(firstBlock).paddingTop)
+          : documentTop(contentEl, root);
       collapseThreshold = Math.max(1, blockTop - barBottom);
       updateState(instant);
     };
@@ -186,6 +206,8 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
     let active = true;
     queueMicrotask(() => {
       if (active) {
+        root = scroller?.current ?? null;
+        root?.addEventListener("scroll", onScroll, { passive: true });
         recompute(true);
       }
     });
@@ -195,12 +217,13 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
     window.addEventListener("app:insets", onResize);
     return () => {
       active = false;
+      root?.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener(SCROLL_RESTORED_EVENT, onScrollRestored);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("app:insets", onResize);
     };
-  }, [title, anchorRef, pinned]);
+  }, [title, anchorRef, pinned, scroller]);
 
   return (
     <div ref={headerRef} className={pinned ? styles.pinned : undefined}>

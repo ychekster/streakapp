@@ -40,6 +40,11 @@ export type ApiErrorCode =
   | "folder_limit"
   | "folder_not_found"
   | "invalid_folder_name"
+  // Задачи (бета).
+  | "todo_limit"
+  | "todo_folder_limit"
+  | "todo_not_found"
+  | "invalid_todo"
   | "rate_limited"
   | "export_chat_unavailable"
   | "invalid_import_file"

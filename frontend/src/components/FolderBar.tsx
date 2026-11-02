@@ -16,7 +16,7 @@
  * вкладок — «Все привычки».
  */
 
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
 import styles from "./FolderBar.module.css";
 
@@ -39,10 +39,52 @@ interface Thumb {
 
 export function FolderBar({ tabs, active, onSelect }: FolderBarProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === active));
+  const { thumbStyle, animated } = useFolderThumb(trackRef, activeIndex, tabs);
+
+  return (
+    <div className={styles.bar}>
+      <div ref={trackRef} className={styles.track} role="tablist">
+        {thumbStyle ? (
+          <span
+            className={`${styles.thumb} ${animated ? styles.animated : ""}`}
+            style={thumbStyle}
+            aria-hidden="true"
+          />
+        ) : null}
+        {tabs.map((tab) => {
+          const selected = tab.key === active;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              className={styles.tab}
+              onClick={() => onSelect(tab.key)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Подложка выбранной вкладки (`[role=tab]` на ленте `trackRef` под номером `activeIndex`)
+ * и доезд ленты до неё; `layout` — то, от чего зависят размеры вкладок (их список). Общая
+ * для папок привычек и папок задач (TodoFolderBar).
+ */
+export function useFolderThumb(
+  trackRef: RefObject<HTMLDivElement | null>,
+  activeIndex: number,
+  layout: unknown,
+): { thumbStyle: CSSProperties | undefined; animated: boolean } {
   const [thumb, setThumb] = useState<Thumb | null>(null);
   // Первое положение подложки ставится без анимации — иначе она въехала бы с края.
   const [animated, setAnimated] = useState(false);
-  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === active));
 
   // Подложка — под выбранной вкладкой: измеряется до отрисовки и заново при изменении
   // размеров (поворот экрана, другие названия).
@@ -65,7 +107,8 @@ export function FolderBar({ tabs, active, onSelect }: FolderBarProps) {
     observer.observe(track);
     tabElements.forEach((tab) => observer.observe(tab));
     return () => observer.disconnect();
-  }, [activeIndex, tabs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, layout]);
 
   useLayoutEffect(() => {
     if (thumb && !animated) {
@@ -97,33 +140,5 @@ export function FolderBar({ tabs, active, onSelect }: FolderBarProps) {
   const thumbStyle = thumb
     ? ({ left: `${thumb.x}px`, width: `${thumb.width}px` } as CSSProperties)
     : undefined;
-
-  return (
-    <div className={styles.bar}>
-      <div ref={trackRef} className={styles.track} role="tablist">
-        {thumb ? (
-          <span
-            className={`${styles.thumb} ${animated ? styles.animated : ""}`}
-            style={thumbStyle}
-            aria-hidden="true"
-          />
-        ) : null}
-        {tabs.map((tab) => {
-          const selected = tab.key === active;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              className={styles.tab}
-              onClick={() => onSelect(tab.key)}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return { thumbStyle, animated };
 }

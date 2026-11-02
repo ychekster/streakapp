@@ -387,6 +387,81 @@ describe("dataStore", () => {
     expect(store.getState().allHabitsPosition).toBe(0);
   });
 
+  it("keeps todos on the device and sends them in folders by server id", async () => {
+    syncChanges.mockResolvedValueOnce(answer([]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const folder = store.createTodoFolder(" Учёба ");
+    store.createTodo("Сдать лабу", folder);
+    store.createTodo("Хлеб", null);
+    const [lab, bread] = store.getState().todos;
+    expect(store.getState().todoFolders).toEqual([{ id: folder, name: "Учёба" }]);
+    expect([lab.text, lab.folder, bread.text, bread.folder]).toEqual(["Сдать лабу", folder, "Хлеб", null]);
+
+    // Edited before sending: created with the new text; checked — a change of its own.
+    store.updateTodo(lab.id, { text: "Сдать лабу 3" });
+    store.updateTodo(bread.id, { done: true });
+    expect(store.getState().todos[1].done_at).toBe(new Date().toISOString());
+    const sent = JSON.parse(localStorage.getItem("streak:changes")!).value;
+    const [folderRef, labRef, breadRef] = [sent[0].ref, sent[1].ref, sent[2].ref];
+
+    syncChanges.mockResolvedValueOnce({
+      ...answer(
+        [],
+        [
+          { ok: true, id: 3, error: null },
+          { ok: true, id: 10, error: null },
+          { ok: true, id: 11, error: null },
+          { ok: true, id: null, error: null },
+        ],
+      ),
+      todo_folders: [{ id: 3, name: "Учёба" }],
+      todos: [
+        { id: 10, text: "Сдать лабу 3", folder: 3, done_at: null, created_at: "2026-10-05T12:00:00Z" },
+        { id: 11, text: "Хлеб", folder: null, done_at: "2026-10-05T12:00:00Z", created_at: "2026-10-05T12:00:00Z" },
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS);
+    expect(syncChanges.mock.calls[1][0]).toEqual([
+      { type: "todo_folder_create", ref: folderRef, name: " Учёба " },
+      { type: "todo_create", ref: labRef, text: "Сдать лабу 3", folder: folderRef },
+      { type: "todo_create", ref: breadRef, text: "Хлеб", folder: null },
+      { type: "todo_update", key: breadRef, done: true },
+    ]);
+    // The same ids on screen after the server answered.
+    expect(store.getState().todos.map((todo) => [todo.id, todo.folder])).toEqual([
+      [lab.id, folder],
+      [bread.id, null],
+    ]);
+
+    // A deleted folder leaves its todos without one.
+    store.deleteTodoFolder(folder);
+    expect(store.getState().todoFolders).toEqual([]);
+    expect(store.getState().todos[0].folder).toBeNull();
+    store.deleteTodo(bread.id);
+    expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([
+      { type: "todo_folder_delete", key: 3 },
+      { type: "todo_delete", key: 11 },
+    ]);
+    expect(store.getState().todos.map((todo) => todo.text)).toEqual(["Сдать лабу 3"]);
+  });
+
+  it("drops a todo created and deleted before sending", async () => {
+    syncChanges.mockResolvedValueOnce(answer([]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+    store.createTodo("Позвонить", null);
+    const [todo] = store.getState().todos;
+    store.updateTodo(todo.id, { done: true });
+    store.deleteTodo(todo.id);
+    expect(store.getState().todos).toEqual([]);
+    expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([]);
+    expect(() => store.createTodo("  ", null)).toThrow();
+  });
+
   it("puts all habits of a folder's types into it, new ones too", async () => {
     syncChanges.mockResolvedValueOnce(
       answer([habit(), habit({ id: 2, name: "Бег", group: { id: 5 } as HabitGroup })]),

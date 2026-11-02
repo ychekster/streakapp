@@ -26,13 +26,25 @@ import type {
   SchedulePeriod,
 } from "../types/habit";
 import type { Settings } from "../types/settings";
-import type { FolderKey, RunningTimer, SyncOperation, TaskKey } from "../types/sync";
+import type {
+  FolderKey,
+  RunningTimer,
+  SyncOperation,
+  TaskKey,
+  TodoFolderKey,
+  TodoKey,
+} from "../types/sync";
+import type { Todo, TodoFolder } from "../types/todo";
 import { addDays, clockIn, daysBetween, daysInMonth, markingDay, weekdayIndex } from "./dates";
 
 /** A change made on the device, as sent to the server (types/sync.ts); a settings
  *  change also carries what only the device needs. */
 export type Operation =
-  | Exclude<SyncOperation, { type: "settings" }>
+  | Exclude<SyncOperation, { type: "settings" | "todo_create" | "todo_update" }>
+  /** A todo created or changed: `at` — when, on the device (ISO): its time and the time
+   *  it was checked until the server answers. Not sent. */
+  | (Extract<SyncOperation, { type: "todo_create" }> & { at?: string })
+  | (Extract<SyncOperation, { type: "todo_update" }> & { at?: string })
   | (Extract<SyncOperation, { type: "settings" }> & {
       /** How the change looks before the server answers (time zone label). */
       preview?: Partial<Settings>;
@@ -51,6 +63,9 @@ export interface Snapshot {
   today: string;
   /** The running timer; not in snapshots kept before timers: none. */
   timer?: RunningTimer | null;
+  /** Todos (beta) and their folders; not in snapshots kept before todos: none. */
+  todos?: Todo[];
+  todo_folders?: TodoFolder[];
 }
 
 /** Habit name as the server stores it (validation.validate_name): control characters
@@ -1459,4 +1474,105 @@ export function reuseUnchanged(previous: Habit[], next: Habit[]): Habit[] {
     return habit;
   });
   return changed ? merged : previous;
+}
+
+// --------------------------------------------------------------------------- //
+//  Todos (beta; Settings → «Задачи»)
+// --------------------------------------------------------------------------- //
+
+export interface TodosView {
+  /** In the order they were added; checked ones have `done_at`. */
+  todos: Todo[];
+  folders: TodoFolder[];
+}
+
+/**
+ * Todos and their folders after the operations, as the server applies them
+ * (services._apply_todo_op): a todo of a folder that is gone has no folder, a deleted
+ * folder leaves its todos without one. `displayTodo` and `displayFolder` give the ids they
+ * are shown under (store.ts).
+ */
+export function deriveTodos(
+  snapshot: Snapshot,
+  ops: readonly Operation[],
+  displayTodo: (key: TodoKey) => number,
+  displayFolder: (key: TodoFolderKey) => number,
+): TodosView {
+  let folders: { key: TodoFolderKey; name: string }[] = (snapshot.todo_folders ?? []).map(
+    (folder) => ({ key: folder.id, name: folder.name }),
+  );
+  let todos: {
+    key: TodoKey;
+    text: string;
+    folder: TodoFolderKey | null;
+    done_at: string | null;
+    created_at: string;
+  }[] = (snapshot.todos ?? []).map((todo) => ({ ...todo, key: todo.id }));
+  const folderOf = (key: TodoFolderKey | null | undefined): TodoFolderKey | null =>
+    key !== null && key !== undefined && folders.some((folder) => folder.key === key) ? key : null;
+  const now = new Date().toISOString();
+  for (const op of ops) {
+    if (op.type === "todo_create") {
+      if (!todos.some((todo) => todo.key === op.ref)) {
+        todos.push({
+          key: op.ref,
+          text: cleanHabitName(op.text),
+          folder: folderOf(op.folder),
+          done_at: null,
+          created_at: op.at ?? now,
+        });
+      }
+    } else if (op.type === "todo_update") {
+      todos = todos.map((todo) => {
+        if (todo.key !== op.key) {
+          return todo;
+        }
+        const next = { ...todo };
+        if (op.text !== undefined && cleanHabitName(op.text) !== "") {
+          next.text = cleanHabitName(op.text);
+        }
+        if (op.done !== undefined && op.done !== (todo.done_at !== null)) {
+          next.done_at = op.done ? (op.at ?? now) : null;
+        }
+        if (op.no_folder) {
+          next.folder = null;
+        } else if (op.folder !== undefined) {
+          next.folder = folderOf(op.folder);
+        }
+        return next;
+      });
+    } else if (op.type === "todo_delete") {
+      todos = todos.filter((todo) => todo.key !== op.key);
+    } else if (op.type === "todo_folder_create") {
+      if (!folders.some((folder) => folder.key === op.ref)) {
+        folders.push({ key: op.ref, name: cleanHabitName(op.name) });
+      }
+    } else if (op.type === "todo_folder_update") {
+      folders = folders.map((folder) =>
+        folder.key === op.key ? { ...folder, name: cleanHabitName(op.name) } : folder,
+      );
+    } else if (op.type === "todo_folder_delete") {
+      folders = folders.filter((folder) => folder.key !== op.key);
+      todos = todos.map((todo) => (todo.folder === op.key ? { ...todo, folder: null } : todo));
+    } else if (op.type === "todo_folder_order") {
+      const ordered: typeof folders = [];
+      for (const key of op.order) {
+        const folder = folders.find((item) => item.key === key);
+        if (folder && !ordered.includes(folder)) {
+          ordered.push(folder);
+        }
+      }
+      folders = [...ordered, ...folders.filter((folder) => !ordered.includes(folder))];
+    }
+  }
+  return {
+    todos: todos.map((todo) => ({
+      id: displayTodo(todo.key),
+      text: todo.text,
+      folder: todo.folder === null ? null : displayFolder(todo.folder),
+      done_at: todo.done_at,
+      created_at: todo.created_at,
+    })),
+    folders: folders.map((folder) => ({ id: displayFolder(folder.key), name: folder.name })),
+  };
 }

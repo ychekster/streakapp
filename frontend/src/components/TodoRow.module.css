@@ -1,0 +1,123 @@
+/* Задачи (бета): строка задачи в карточке — как ряд списка (ListItem): те же поля и
+   разделитель между строками — от начала текста до поля карточки справа. */
+
+.row {
+  position: relative;
+  overflow: hidden;
+  /* Доезд до новой задачи — с зазором над полем ввода. */
+  scroll-margin-bottom: var(--todo-composer-gap);
+}
+
+.row + .row .content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--space-card-padding);
+  left: calc(var(--list-row-icon-inset) + var(--todo-check-size) + var(--list-row-icon-gap));
+  height: 1px;
+  background-color: var(--color-separator);
+}
+
+/* Красная кнопка «Удалить» под строкой справа: её открывает свайп влево. */
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-danger);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--list-row-icon-gap);
+  min-height: var(--list-row-min-height);
+  padding: 0 var(--space-card-padding) 0 var(--list-row-icon-inset);
+  background-color: var(--color-card);
+  /* Вертикальная прокрутка — браузеру, горизонтальный свайп — строке. */
+  touch-action: pan-y;
+  transition: transform 0.22s ease;
+}
+
+.dragging {
+  transition: none;
+}
+
+/* Кружок отметки: пустой — обводка, выполненная — залит акцентом с галочкой. */
+.check {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--todo-check-size);
+  height: var(--todo-check-size);
+  /* По центру первой строки текста: и кружок, и строка стоят по центру высоты ряда. */
+  margin-top: calc((var(--list-row-min-height) - var(--todo-check-size)) / 2);
+  border: 1.5px solid var(--color-text-secondary);
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Площадь нажатия кружка — на всю высоту ряда, как у пальца. */
+.check::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
+.check {
+  position: relative;
+}
+
+.checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+}
+
+.check svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Текст задачи и поле его правки — одного размера, переносятся по словам. */
+.text {
+  flex: 1;
+  min-width: 0;
+  padding: calc((var(--list-row-min-height) - var(--todo-row-line)) / 2) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-habit-name);
+  line-height: var(--todo-row-line);
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.doneText {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.field {
+  display: block;
+  margin: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font-family: inherit;
+  caret-color: var(--color-accent);
+}

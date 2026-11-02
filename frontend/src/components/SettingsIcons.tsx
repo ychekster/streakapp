@@ -283,6 +283,17 @@ export function FolderIcon() {
   );
 }
 
+/** «Задачи (бета)»: список с галочкой у первого пункта. */
+export function ChecklistIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M4 7l1.6 1.6L8.5 5.7M11.5 7H20M11.5 12H20M11.5 17H20" />
+      <circle {...STROKE} cx="6" cy="12" r="1.1" />
+      <circle {...STROKE} cx="6" cy="17" r="1.1" />
+    </svg>
+  );
+}
+
 /** «Архив»: коробка с крышкой и прорезью-ручкой. */
 export function ArchiveIcon() {
   return (

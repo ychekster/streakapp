@@ -58,6 +58,14 @@ FOLDER_KINDS: tuple[str, ...] = ("unfinished", "today")
 # привычки подходят, считает устройство (data/derive.ts).
 FOLDER_HABIT_TYPES: tuple[str, ...] = ("group", "personal", "frozen", "unscheduled")
 
+# Задачи (бета; настройки → «Задачи»): разовые дела по папкам, с привычками не связаны.
+# Сколько папок и задач может быть у пользователя и длина текста задачи (совпадают с
+# MAX_TODO_FOLDERS_PER_USER, MAX_TODOS_PER_USER и TODO_TEXT_MAX_LENGTH во фронтенде и с
+# длиной колонки todos.text). Название папки — не длиннее FOLDER_NAME_MAX_LENGTH.
+MAX_TODO_FOLDERS_PER_USER = 10
+MAX_TODOS_PER_USER = 1000
+TODO_TEXT_MAX_LENGTH = 500
+
 # Совместные привычки (backend/groups.py): сколько участников может быть в одной (совпадает
 # с MAX_GROUP_MEMBERS во фронтенде) и длина кода ссылки-приглашения
 # (`t.me/<бот>?start=join_<код>`; параметр /start — до 64 символов [A-Za-z0-9_-]).

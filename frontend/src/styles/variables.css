@@ -443,6 +443,18 @@
   --color-search-clear: rgba(60, 60, 67, 0.36); /* кружок крестика в поле поиска */
   --search-height: 40px;
   --search-pad-x: 12px;
+
+  /* --- Задачи (бета; TodosScreen): поле ввода снизу — по строке сообщения «Сообщений»
+     iOS 26: капсула 40pt, текст 17pt в строке 22pt, кнопка «добавить» 30pt; кружок отметки
+     задачи 22pt --- */
+  --todo-composer-height: 40px;
+  --todo-composer-line: 22px;
+  --todo-composer-pad-y: 9px;
+  --todo-composer-pad-x: 16px;
+  --todo-composer-send: 30px;
+  --todo-composer-gap: 8px;
+  --todo-check-size: 22px;
+  --todo-row-line: 22px; /* строка текста задачи: по её центру — кружок */
   --search-gap: 6px; /* между лупой и текстом */
   --search-icon-size: 17px;
   --search-clear-size: 18px;

@@ -106,6 +106,7 @@ import { FoldersScreen } from "./screens/FoldersScreen";
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
+import { TodosScreen } from "./screens/TodosScreen";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
 import { PREFETCH_DELAY_MS } from "./constants";
@@ -204,7 +205,7 @@ export function App() {
   const { habits, status, error, reload, refresh } = useHabits();
   const settingsState = useSettings();
   const { settings, save } = settingsState;
-  const { rejected, folders, allHabitsPosition } = useAppData();
+  const { rejected, folders, allHabitsPosition, todos } = useAppData();
   const toggle = useToggle();
   const platform = usePlatform();
   const telegramAvailable = platform === "telegram";
@@ -1090,6 +1091,9 @@ export function App() {
           />
         );
       }
+      if (settingsPage === "todos") {
+        return <TodosScreen />;
+      }
       if (settingsPage === "review") {
         return <ReviewScreen />;
       }
@@ -1132,6 +1136,7 @@ export function App() {
           }
           folderCount={folders.length}
           archiveCount={archivedHabits.length}
+          todoCount={todos.filter((todo) => todo.done_at === null).length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />

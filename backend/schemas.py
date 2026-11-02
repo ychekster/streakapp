@@ -25,12 +25,15 @@ from backend.constants import (
     MAX_FOLDERS_PER_USER,
     MAX_HABITS_PER_USER,
     MAX_REMINDERS_PER_HABIT,
+    MAX_TODO_FOLDERS_PER_USER,
+    MAX_TODOS_PER_USER,
     MAX_GOAL_SECONDS,
     MAX_TIMES_PER_DAY,
     MIN_GOAL_SECONDS,
     OVERTIME_MAX_COUNT,
     SEGMENT_TITLE_MAX_LENGTH,
     SYNC_MAX_OPS,
+    TODO_TEXT_MAX_LENGTH,
 )
 
 
@@ -694,6 +697,70 @@ class SyncFolderOrder(BaseModel):
     order: list[FolderRef | None] = Field(..., max_length=SYNC_MAX_OPS)
 
 
+# Задачи (бета; настройки → «Задачи»): задача и её папка в операции — id на сервере или
+# id, который дало ей устройство при создании.
+TodoRef = Annotated[int, Field(ge=1, le=MAX_DB_INT)] | ClientRef
+TodoFolderRef = Annotated[int, Field(ge=1, le=MAX_DB_INT)] | ClientRef
+TodoText = Annotated[str, Field(min_length=1, max_length=TODO_TEXT_MAX_LENGTH * 2)]
+
+
+class SyncTodoCreate(BaseModel):
+    """Создать задачу (последней в списке); `ref` — её id на устройстве (повтор — не дубль)."""
+
+    type: Literal["todo_create"]
+    ref: ClientRef
+    text: TodoText
+    folder: TodoFolderRef | None = Field(None, description="Папка; null — без папки")
+
+
+class SyncTodoUpdate(BaseModel):
+    """Изменить задачу: только переданные поля (текст, выполнена, папка)."""
+
+    type: Literal["todo_update"]
+    key: TodoRef
+    text: TodoText | None = None
+    done: bool | None = None
+    folder: TodoFolderRef | None = Field(None, description="Перенести в папку")
+    no_folder: bool = Field(False, description="Убрать из папки")
+
+
+class SyncTodoDelete(BaseModel):
+    """Удалить задачу (уже удалённая — не ошибка)."""
+
+    type: Literal["todo_delete"]
+    key: TodoRef
+
+
+class SyncTodoFolderCreate(BaseModel):
+    """Создать папку задач (последней); `ref` — её id на устройстве."""
+
+    type: Literal["todo_folder_create"]
+    ref: ClientRef
+    name: str
+
+
+class SyncTodoFolderUpdate(BaseModel):
+    """Переименовать папку задач."""
+
+    type: Literal["todo_folder_update"]
+    key: TodoFolderRef
+    name: str
+
+
+class SyncTodoFolderDelete(BaseModel):
+    """Удалить папку задач; её задачи остаются без папки (уже удалённая — не ошибка)."""
+
+    type: Literal["todo_folder_delete"]
+    key: TodoFolderRef
+
+
+class SyncTodoFolderOrder(BaseModel):
+    """Порядок папок задач; папки, которых нет в списке, встают в конец."""
+
+    type: Literal["todo_folder_order"]
+    order: list[TodoFolderRef] = Field(..., max_length=SYNC_MAX_OPS)
+
+
 SyncOperation = Annotated[
     SyncMark
     | SyncNote
@@ -707,7 +774,14 @@ SyncOperation = Annotated[
     | SyncFolderCreate
     | SyncFolderUpdate
     | SyncFolderDelete
-    | SyncFolderOrder,
+    | SyncFolderOrder
+    | SyncTodoCreate
+    | SyncTodoUpdate
+    | SyncTodoDelete
+    | SyncTodoFolderCreate
+    | SyncTodoFolderUpdate
+    | SyncTodoFolderDelete
+    | SyncTodoFolderOrder,
     Field(discriminator="type"),
 ]
 
@@ -783,6 +857,23 @@ class Folder(BaseModel):
     kind: str | None = Field(None, description="Рекомендуемая папка (unfinished, today) или null")
 
 
+class TodoFolderView(BaseModel):
+    """Папка задач (бета)."""
+
+    id: int
+    name: str
+
+
+class TodoView(BaseModel):
+    """Задача (бета): открытые — по времени добавления, выполненные — `done_at`."""
+
+    id: int
+    text: str
+    folder: int | None = Field(None, description="Папка; null — без папки")
+    done_at: UtcDateTime | None = Field(None, description="Когда выполнена (UTC); null — открыта")
+    created_at: UtcDateTime
+
+
 class RunningTimerView(BaseModel):
     """Идущий таймер пользователя (виден на всех его устройствах)."""
 
@@ -800,6 +891,10 @@ class SyncResponse(BaseModel):
     folders: list[Folder] = Field(default_factory=list, description="Папки по порядку")
     all_habits_position: int = Field(
         0, description="Место папки «Все привычки» среди папок (сколько папок перед ней)"
+    )
+    todos: list[TodoView] = Field(default_factory=list, description="Задачи (бета)")
+    todo_folders: list[TodoFolderView] = Field(
+        default_factory=list, description="Папки задач по порядку"
     )
     today: date = Field(
         ..., description="День отметки — последний день `history` каждой привычки"
@@ -1656,6 +1751,22 @@ class ExportFolder(BaseModel):
     habits: list[int] = Field(default_factory=list, max_length=MAX_HABITS_PER_USER)
 
 
+class ExportTodoFolder(BaseModel):
+    """A todo folder (beta); `id` links it with todos inside the file."""
+
+    id: int
+    name: str
+
+
+class ExportTodo(BaseModel):
+    """A todo (beta): `folder` is an `ExportTodoFolder.id` of this file or null."""
+
+    text: str = Field(..., max_length=TODO_TEXT_MAX_LENGTH * 2)
+    folder: int | None = None
+    done_at: UtcDateTime | None = None
+    created_at: UtcDateTime | None = None
+
+
 class ExportSettings(BaseModel):
     """Settings; a missing value is left as it is on import."""
 
@@ -1703,6 +1814,10 @@ class DataExport(BaseModel):
     folders: list[ExportFolder] = Field(default_factory=list, max_length=MAX_FOLDERS_PER_USER)
     all_habits_position: int = Field(0, ge=0, le=MAX_FOLDERS_PER_USER)
     reviews: list[ExportReview] = Field(default_factory=list)
+    todo_folders: list[ExportTodoFolder] = Field(
+        default_factory=list, max_length=MAX_TODO_FOLDERS_PER_USER
+    )
+    todos: list[ExportTodo] = Field(default_factory=list, max_length=MAX_TODOS_PER_USER)
 
 
 class ImportResult(BaseModel):

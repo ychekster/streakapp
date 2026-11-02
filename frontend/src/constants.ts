@@ -238,6 +238,13 @@ export const MAX_HABITS_PER_USER = 50;
 export const MAX_FOLDERS_PER_USER = 10;
 export const FOLDER_NAME_MAX_LENGTH = 24;
 
+/** Todos (beta; Settings → «Задачи»): how many folders and todos a user can have and how
+ *  long a todo can be — MAX_TODO_FOLDERS_PER_USER, MAX_TODOS_PER_USER and
+ *  TODO_TEXT_MAX_LENGTH on the backend. A todo folder name is FOLDER_NAME_MAX_LENGTH. */
+export const MAX_TODO_FOLDERS_PER_USER = 10;
+export const MAX_TODOS_PER_USER = 1000;
+export const TODO_TEXT_MAX_LENGTH = 500;
+
 /** Recommended folders (Settings → «Папки») fill themselves: «unfinished» — habits due
  *  today and not done yet, «today» — all habits due today (data/derive.ts). The same as
  *  FOLDER_KINDS on the backend. */

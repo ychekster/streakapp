@@ -31,6 +31,8 @@ from backend.constants import (
     MAX_FOLDERS_PER_USER,
     MAX_DAY_SECONDS,
     MAX_HABITS_PER_USER,
+    MAX_TODO_FOLDERS_PER_USER,
+    MAX_TODOS_PER_USER,
     OVERTIME_MAX_COUNT,
     REMINDER_TIME_FORMAT,
     WEEKDAYS,
@@ -49,6 +51,8 @@ from backend.schemas import (
     ExportReview,
     ExportSettings,
     ExportShared,
+    ExportTodo,
+    ExportTodoFolder,
     ImportResult,
     SchedulePeriod,
 )
@@ -172,6 +176,16 @@ async def build_export(repo: Repository, user: User) -> DataExport:
         )
         for review in await repo.user_reviews(user.telegram_id)
     ]
+    todo_folders = [
+        ExportTodoFolder(id=folder.id, name=folder.name)
+        for folder in await repo.get_todo_folders(user.telegram_id)
+    ]
+    todos = [
+        ExportTodo(
+            text=todo.text, folder=todo.folder_id, done_at=todo.done_at, created_at=todo.created_at
+        )
+        for todo in await repo.get_todos(user.telegram_id)
+    ]
     await repo.log_action(user.telegram_id, "data_export")
     return DataExport(
         format=EXPORT_FORMAT,
@@ -198,6 +212,8 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             folder_swipe=user.folder_swipe,
         ),
         habits=habits,
+        todo_folders=todo_folders,
+        todos=todos,
         folders=folders,
         all_habits_position=user.all_habits_position,
         reviews=reviews,
@@ -401,6 +417,51 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
     )
 
 
+async def _import_todos(repo: Repository, user: User, data: DataExport, now: datetime) -> int:
+    """Добавить задачи (бета) и их папки из файла к текущим — сколько задач добавлено.
+    Сверх лимитов и с пустым текстом — пропускаются; задача из пропущенной папки — без
+    папки."""
+    folder_count = len(await repo.get_todo_folders(user.telegram_id))
+    folder_ids: dict[int, int] = {}
+    for folder in data.todo_folders:
+        if folder_count >= MAX_TODO_FOLDERS_PER_USER:
+            break
+        if folder.id in folder_ids:
+            continue
+        try:
+            name = validation.validate_folder_name(folder.name)
+        except ApiError:
+            continue
+        folder_ids[folder.id] = (await repo.create_todo_folder(user.telegram_id, name, None)).id
+        folder_count += 1
+    room = MAX_TODOS_PER_USER - await repo.count_todos(user.telegram_id)
+    added = 0
+    for todo in data.todos:
+        if added >= room:
+            break
+        try:
+            text = validation.validate_todo_text(todo.text)
+        except ApiError:
+            continue
+        await repo.create_todo(
+            user.telegram_id,
+            text,
+            folder_ids.get(todo.folder) if todo.folder is not None else None,
+            None,
+            done_at=_naive_utc(todo.done_at),
+            created_at=_naive_utc(todo.created_at) or now,
+        )
+        added += 1
+    return added
+
+
+def _naive_utc(moment: datetime | None) -> datetime | None:
+    """Момент из файла — UTC без пояса, как в базе; из будущего — не позже сейчас."""
+    if moment is None:
+        return None
+    return min(moment.astimezone(timezone.utc).replace(tzinfo=None), utc_now())
+
+
 async def import_data(repo: Repository, user: User, data: DataExport) -> ImportResult:
     """Добавить привычки и папки из файла к текущим и взять из него настройки."""
     current = await repo.get_active_tasks(user.telegram_id)
@@ -447,7 +508,10 @@ async def import_data(repo: Repository, user: User, data: DataExport) -> ImportR
         if kind is not None:
             kinds.add(kind)
         added_folders += 1
+    added_todos = await _import_todos(repo, user, data, now)
     await repo.log_action(
-        user.telegram_id, "data_import", detail=f"{len(created)} habits, {added_folders} folders"
+        user.telegram_id,
+        "data_import",
+        detail=f"{len(created)} habits, {added_folders} folders, {added_todos} todos",
     )
     return ImportResult(habits=len(created), folders=added_folders)
