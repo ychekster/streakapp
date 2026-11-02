@@ -769,6 +769,9 @@ class Repository:
         client_ref: str | None,
         done_at: datetime | None = None,
         created_at: datetime | None = None,
+        due_date: date | None = None,
+        remind_time: time | None = None,
+        remind_at: datetime | None = None,
     ) -> Todo:
         todo = Todo(
             user_id=user_id,
@@ -776,12 +779,29 @@ class Repository:
             folder_id=folder_id,
             client_ref=client_ref,
             done_at=done_at,
+            due_date=due_date,
+            remind_time=remind_time,
+            remind_at=remind_at,
         )
         if created_at is not None:
             todo.created_at = created_at
         self.session.add(todo)
         await self.session.flush()
         return todo
+
+    async def get_todos_to_remind(self, moment: datetime) -> list[tuple[Todo, User]]:
+        """Открытые задачи, которым к `moment` (UTC без пояса) пора напомнить, — с
+        владельцем."""
+        result = await self.session.execute(
+            select(Todo, User)
+            .join(User, User.telegram_id == Todo.user_id)
+            .where(
+                Todo.remind_at.is_not(None),
+                Todo.remind_at <= moment,
+                Todo.done_at.is_(None),
+            )
+        )
+        return [(todo, user) for todo, user in result.tuples()]
 
     async def delete_todo(self, todo: Todo) -> None:
         await self.session.delete(todo)

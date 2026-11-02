@@ -1133,9 +1133,49 @@ async def list_todos(repo: Repository, user: User) -> list[TodoView]:
             folder=todo.folder_id,
             done_at=todo.done_at,
             created_at=todo.created_at,
+            due_date=todo.due_date,
+            remind_time=(
+                todo.remind_time.strftime(REMINDER_TIME_FORMAT)
+                if todo.remind_time is not None
+                else None
+            ),
         )
         for todo in await repo.get_todos(user.telegram_id)
     ]
+
+
+def todo_remind_at(
+    user: User, due_date: date | None, remind_time: time | None
+) -> datetime | None:
+    """Когда прислать напоминание задачи (UTC без пояса): её день и время в поясе
+    пользователя. Без дня или времени и прошедший момент — None (не присылать)."""
+    if due_date is None or remind_time is None:
+        return None
+    local = resolve_timezone(user.timezone).localize(datetime.combine(due_date, remind_time))
+    moment = local.astimezone(pytz.utc).replace(tzinfo=None)
+    return moment if moment > utc_now() else None
+
+
+async def due_todo_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
+    """Напоминания задач (бета), которым к `moment` (UTC без пояса) пора. Каждое — одно:
+    момент сбрасывается сразу (зовёт бот раз в минуту, bot/reminders.py)."""
+    reminders: list[DueReminder] = []
+    for todo, user in await repo.get_todos_to_remind(moment):
+        todo.remind_at = None
+        if user.blocked_at is not None:
+            continue
+        reminders.append(
+            DueReminder(
+                task_id=None,
+                user_id=user.telegram_id,
+                habit_name=todo.text,
+                language=user.language,
+                telegram=user.telegram_notifications,
+                todo_id=todo.id,
+            )
+        )
+    await repo.session.flush()
+    return reminders
 
 
 async def _todo_folder_by_ref(
@@ -1178,7 +1218,16 @@ async def _apply_todo_op(
             )
         text = validation.validate_todo_text(op.text)
         folder_id = await _todo_folder_id(repo, user, op.folder)
-        todo = await repo.create_todo(uid, text, folder_id, op.ref)
+        remind_time = validation.validate_reminder_time(op.remind_time)
+        todo = await repo.create_todo(
+            uid,
+            text,
+            folder_id,
+            op.ref,
+            due_date=op.due_date,
+            remind_time=remind_time,
+            remind_at=todo_remind_at(user, op.due_date, remind_time),
+        )
         return SyncResult(ok=True, id=todo.id)
     if isinstance(op, SyncTodoUpdate):
         todo = (
@@ -1196,6 +1245,14 @@ async def _apply_todo_op(
             todo.folder_id = None
         elif op.folder is not None:
             todo.folder_id = await _todo_folder_id(repo, user, op.folder)
+        # Дата и напоминание: переданное null — убрать, не переданное — не трогать.
+        sent = op.model_fields_set
+        if "due_date" in sent or "remind_time" in sent:
+            if "due_date" in sent:
+                todo.due_date = op.due_date
+            if "remind_time" in sent:
+                todo.remind_time = validation.validate_reminder_time(op.remind_time)
+            todo.remind_at = todo_remind_at(user, todo.due_date, todo.remind_time)
         await repo.session.flush()
         return SyncResult(ok=True)
     if isinstance(op, SyncTodoDelete):
@@ -1494,6 +1551,8 @@ class DueReminder:
     # Готовый текст вместо «Пора выполнить…» (уведомление «Отметки участников» совместной
     # привычки, groups.due_group_marks) — без 🔔 и пишется в ленту по-своему.
     text: str | None = None
+    # Напоминание задачи (бета, due_todo_reminders): её id, текст задачи — в `habit_name`.
+    todo_id: int | None = None
 
 
 def _clock_times(moment: datetime) -> set[time]:
@@ -1693,6 +1752,12 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         folder_swipe=payload.folder_swipe,
         show_todos=payload.show_todos,
     )
+    if timezone is not None:
+        # Новый пояс — напоминания задач приходят в то же время уже по нему.
+        for todo in await repo.get_todos(user.telegram_id):
+            if todo.done_at is None and todo.remind_time is not None:
+                todo.remind_at = todo_remind_at(user, todo.due_date, todo.remind_time)
+        await repo.session.flush()
     changed = sorted(payload.model_dump(exclude_none=True))
     if changed:
         await repo.log_action(user.telegram_id, "settings", detail=",".join(changed))

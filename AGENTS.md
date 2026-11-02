@@ -44,7 +44,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0038)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0039)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -78,6 +78,9 @@ are historical names — keep them; renaming breaks the server `.env` and client
   `data/derive.ts` (how it looks before the server answers). Errors are `{"error": {"code", "message"}}`; the frontend shows
   text by `code` (`errors.ts`), not the server message.
 - **UI copy** goes to `strings.ts` (admin: `admin/adminStrings.ts`) in **both** ru and en.
+  **Never use the middle dot «·» as a separator** in anything the user sees (date and
+  time, a count after a label, two facts in a row): write it in words («Завтра в 15:00»,
+  «Tomorrow at 15:00»), with a comma or on a new line.
 - **Constants shared by both sides** must match: `HISTORY_DAYS`, weekdays, habit colors,
   `MAX_HABITS_PER_USER`, `SYNC_BATCH_SIZE` ≤ `SYNC_MAX_OPS`, `AUDIENCE_FILTERS` (backend/constants.py ↔ frontend/src/constants.ts; audience SQL in
   `repository._audience_condition`).
@@ -134,7 +137,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
 | Export / import of all user data (JSON file; import adds habits, shared → ordinary, takes settings) | backend/userdata.py, routers/userdata.py, schemas.DataExport, repository get_task_logs / add_task_history; frontend data/userData.ts, api/userdata.ts, SettingsScreen |
 | Habit statistics screen (month vs last month, trend line, weekdays, pie) | frontend data/habitStats.ts, screens/HabitStatsScreen.tsx, components/charts/ (LineChart shared with admin), StatDelta, HabitSummary `onOpenStats` |
-| Задачи (бета; setting `show_todos` → «Задачи» tab first, pencil instead of «+»: one-off todos in folders, not habits) | models.Todo / TodoFolder / User.show_todos, services._apply_todo_op, repository «Todos», userdata (todos); frontend types/todo.ts, data/store.ts (createTodo…, todoAliases), derive.ts (deriveTodos), App (tab, startNewTodo), screens/TodosScreen.tsx, components/TodoFolderBar, TodoRow, TabIcons (TodosIcon, PencilIcon) |
+| Задачи (бета; setting `show_todos` → «Задачи» tab first, pencil instead of «+»: one-off todos in folders, not habits) | models.Todo / TodoFolder / User.show_todos, services._apply_todo_op, repository «Todos», userdata (todos); frontend types/todo.ts, data/store.ts (createTodo…, todoAliases), derive.ts (deriveTodos), App (tab, startNewTodo), screens/TodosScreen.tsx, components/TodoFolderBar, TodoRow, TodoSheet (date + reminder), TabIcons (TodosIcon, PencilIcon); reminder: services.todo_remind_at / due_todo_reminders, bot/reminders `_send_todo_reminders` |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

@@ -434,6 +434,8 @@ function enqueue(op: Operation): void {
         ...create,
         text: merged.text ?? create.text,
         folder: merged.no_folder ? null : (merged.folder ?? create.folder),
+        due_date: merged.due_date !== undefined ? merged.due_date : create.due_date,
+        remind_time: merged.remind_time !== undefined ? merged.remind_time : create.remind_time,
       };
     } else {
       unsent.push(merged);
@@ -1190,25 +1192,36 @@ export const dataStore = {
   // ------------------------------------------------------------------------- //
 
   /** Add a todo at the end of the list, in a folder (id on screen) or none (null); throws
-   *  ApiRequestError (as the server would) if it can't be. */
-  createTodo(text: string, folderId: number | null): void {
+   *  ApiRequestError (as the server would) if it can't be. Returns its id on screen. */
+  createTodo(text: string, folderId: number | null): number {
     if (cleanHabitName(text) === "") {
       throw new ApiRequestError(422, "invalid_todo", "");
     }
     if (state.todos.length >= MAX_TODOS_PER_USER) {
       throw new ApiRequestError(409, "todo_limit", "");
     }
+    const ref = newRef();
     enqueue({
       type: "todo_create",
-      ref: newRef(),
+      ref,
       text,
       folder: folderId === null ? null : keyOf(folderId),
       at: new Date().toISOString(),
     });
+    return tempIdOf(ref);
   },
 
-  /** Change a todo's text (empty — nothing changes) or check it (`done`). */
-  updateTodo(id: number, change: { text?: string; done?: boolean }): void {
+  /** Change a todo's text (empty — nothing changes), check it (`done`), set or remove
+   *  (null) its date and reminder time. */
+  updateTodo(
+    id: number,
+    change: {
+      text?: string;
+      done?: boolean;
+      due_date?: string | null;
+      remind_time?: string | null;
+    },
+  ): void {
     if (change.text !== undefined && cleanHabitName(change.text) === "") {
       return;
     }

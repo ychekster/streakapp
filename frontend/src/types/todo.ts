@@ -16,4 +16,8 @@ export interface Todo {
   done_at: string | null;
   /** ISO, UTC: open todos go in this order. */
   created_at: string;
+  /** Its day («YYYY-MM-DD»); null — no date. Not in todos kept before dates. */
+  due_date?: string | null;
+  /** A reminder on that day, «HH:MM» in the user's zone; null — none. */
+  remind_time?: string | null;
 }

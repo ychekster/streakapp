@@ -448,6 +448,21 @@ describe("dataStore", () => {
     expect(store.getState().todos.map((todo) => todo.text)).toEqual(["Сдать лабу 3"]);
   });
 
+  it("sends a todo's date and reminder with it, and null removes them", async () => {
+    syncChanges.mockResolvedValueOnce(answer([]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const id = store.createTodo("Банк", null);
+    store.updateTodo(id, { due_date: "2030-05-02", remind_time: "15:00" });
+    expect(store.getState().todos[0]).toMatchObject({ due_date: "2030-05-02", remind_time: "15:00" });
+    store.updateTodo(id, { remind_time: null });
+    const [create] = JSON.parse(localStorage.getItem("streak:changes")!).value;
+    expect(create).toMatchObject({ type: "todo_create", due_date: "2030-05-02", remind_time: null });
+    expect(store.getState().todos[0].remind_time).toBeNull();
+  });
+
   it("drops a todo created and deleted before sending", async () => {
     syncChanges.mockResolvedValueOnce(answer([]));
     const store = await freshStore();

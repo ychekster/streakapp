@@ -185,6 +185,8 @@ TIMER_GOAL_TEXTS: dict[str, str] = {
     "ru": "«{name}»: {goal} — цель выполнена",
     "en": "“{name}”: {goal} — goal done",
 }
+# Напоминание задачи (бета; день и время задачи): после 🔔 — сам текст задачи.
+TODO_REMINDER_TEXTS: dict[str, str] = {"ru": "{text}", "en": "{text}"}
 # Цель в уведомлении: «1 ч 30 мин», «45 мин», «2 ч».
 TIMER_HOURS: dict[str, str] = {"ru": "{} ч", "en": "{} h"}
 TIMER_MINUTES: dict[str, str] = {"ru": "{} мин", "en": "{} min"}

@@ -4,11 +4,15 @@
  * папки, заготовка «Новая папка»). Список:
  *  - «Все задачи»: сначала задачи без папки, потом папки с заголовками, по порядку папок;
  *  - папка: её задачи;
- * и в конце блок «Выполненные» (последние отмеченные — выше).
+ * задачи на будущие дни — внизу, в блоке «Не запланированы на сегодня» (по дню и времени,
+ * как у привычек); в свой день они поднимаются наверх, к остальным. В конце — блок
+ * «Выполненные» (последние отмеченные — выше). Просроченная остаётся наверху с красной
+ * подписью дня.
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в конце списка выбранной
  * папки появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая
- * клавиатура — задача сохранена (пустая — пропадает). Заголовок — крупный, как у
+ * клавиатура — задача сохранена (пустая — пропадает); иконка календаря в строке — окно
+ * даты и напоминания (TodoSheet). Заголовок — крупный, как у
  * «Привычек»; подзаголовки групп — как «Не запланированы на сегодня». С привычками не
  * связаны. Данные — на устройстве, на сервер уходят через /sync (store.ts).
  */
@@ -19,7 +23,9 @@ import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
 import { TodoFolderBar } from "../components/TodoFolderBar";
+import { localDate } from "../components/DateField";
 import { TodoRow } from "../components/TodoRow";
+import { closeTodoSheet, openTodoSheet } from "../components/TodoSheet";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useAppData } from "../hooks/useAppData";
@@ -60,6 +66,7 @@ export function TodosScreen() {
     return () => {
       openDraft = null;
       keyboardHolder = null;
+      closeTodoSheet();
     };
   }, []);
 
@@ -67,9 +74,20 @@ export function TodosScreen() {
   const folder = active === null ? null : (todoFolders.find((item) => item.id === active) ?? null);
   const shownFolder = folder?.id ?? null;
 
-  const { groups, done } = useMemo(() => {
+  // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
+  const today = localDate();
+  const { groups, later, done } = useMemo(() => {
     const inView = (todo: Todo): boolean => shownFolder === null || todo.folder === shownFolder;
-    const open = todos.filter((todo) => todo.done_at === null && inView(todo));
+    const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
+    const pending = todos.filter((todo) => todo.done_at === null && inView(todo));
+    const open = pending.filter((todo) => !isLater(todo));
+    const upcoming = pending
+      .filter(isLater)
+      .sort(
+        (a, b) =>
+          (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
+          (a.remind_time ?? "").localeCompare(b.remind_time ?? ""),
+      );
     const checked = todos
       .filter((todo) => todo.done_at !== null && inView(todo))
       .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
@@ -91,9 +109,10 @@ export function TodosScreen() {
     }
     return {
       groups: sections.filter((section) => section.todos.length > 0 || section.target),
+      later: upcoming,
       done: checked,
     };
-  }, [todos, todoFolders, shownFolder]);
+  }, [todos, todoFolders, shownFolder, today]);
 
   const fail = (error: unknown): void => {
     void showAlert({
@@ -111,6 +130,16 @@ export function TodosScreen() {
     closeDraft(key);
     try {
       dataStore.createTodo(text, shownFolder);
+    } catch (error) {
+      fail(error);
+    }
+  };
+
+  /** Иконка календаря у новой строки: задача создаётся и открывается её окно. */
+  const draftDetails = (key: number, text: string): void => {
+    closeDraft(key);
+    try {
+      openTodoSheet(dataStore.createTodo(text, shownFolder));
     } catch (error) {
       fail(error);
     }
@@ -142,7 +171,11 @@ export function TodosScreen() {
     }
   };
 
-  const empty = draft === null && done.length === 0 && groups.every((group) => group.todos.length === 0);
+  const empty =
+    draft === null &&
+    later.length === 0 &&
+    done.length === 0 &&
+    groups.every((group) => group.todos.length === 0);
   return (
     <Screen title={strings.todosTitle}>
       <div className={styles.todos}>
@@ -190,12 +223,18 @@ export function TodosScreen() {
                     onToggle={() => undefined}
                     onEdit={(text) => saveDraft(draft, text)}
                     onDelete={() => closeDraft(draft)}
+                    onOpenDetails={(text) => draftDetails(draft, text)}
                   />
                 ) : null}
               </Card>
             </Section>
           ) : null,
         )}
+        {later.length > 0 ? (
+          <Section title={strings.todosLater} variant="form">
+            <Card>{later.map(renderRow)}</Card>
+          </Section>
+        ) : null}
         {done.length > 0 ? (
           <Section title={strings.todosDone} variant="form">
             <Card>{done.map(renderRow)}</Card>
@@ -224,6 +263,12 @@ export function TodosScreen() {
         }}
         onEdit={(text) => dataStore.updateTodo(todo.id, { text })}
         onDelete={() => dataStore.deleteTodo(todo.id)}
+        onOpenDetails={(text) => {
+          if (text !== todo.text) {
+            dataStore.updateTodo(todo.id, { text });
+          }
+          openTodoSheet(todo.id);
+        }}
       />
     );
   }

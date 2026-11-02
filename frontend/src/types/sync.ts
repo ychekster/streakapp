@@ -42,8 +42,16 @@ export type SyncOperation =
   /** The order of the folders; null — where «Все привычки» stands. */
   | { type: "folder_order"; order: (FolderKey | null)[] }
   /** Todos (beta): create one (last in the list); `ref` is its id on the device. */
-  | { type: "todo_create"; ref: string; text: string; folder?: TodoFolderKey | null }
-  /** Change a todo: only the fields sent; `no_folder` takes it out of its folder. */
+  | {
+      type: "todo_create";
+      ref: string;
+      text: string;
+      folder?: TodoFolderKey | null;
+      due_date?: string | null;
+      remind_time?: string | null;
+    }
+  /** Change a todo: only the fields sent; `no_folder` takes it out of its folder;
+   *  `due_date` / `remind_time` sent as null — remove them. */
   | {
       type: "todo_update";
       key: TodoKey;
@@ -51,6 +59,8 @@ export type SyncOperation =
       done?: boolean;
       folder?: TodoFolderKey;
       no_folder?: boolean;
+      due_date?: string | null;
+      remind_time?: string | null;
     }
   /** Delete a todo (one already gone is not an error). */
   | { type: "todo_delete"; key: TodoKey }

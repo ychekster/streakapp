@@ -89,6 +89,14 @@
   stroke-linejoin: round;
 }
 
+/* Текст и подпись даты под ним. */
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Текст задачи и поле его правки — одного размера, переносятся по словам. */
 .text {
   flex: 1;
@@ -101,6 +109,46 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Подпись даты: прямо под текстом (текст отдаёт ей свой нижний отступ). */
+.text:has(+ .caption) {
+  padding-bottom: 0;
+}
+
+.caption {
+  padding-bottom: calc((var(--list-row-min-height) - var(--todo-row-line)) / 2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-secondary);
+}
+
+.overdue {
+  color: var(--color-danger);
+}
+
+/* Иконка календаря справа в строке, пока задачу пишут: по центру первой строки. */
+.details {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: calc((var(--list-row-min-height) - 30px) / 2);
+  margin-right: -6px;
+  color: var(--color-text-secondary);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.details svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* У задачи уже есть дата — иконка акцентная. */
+.detailsSet {
+  color: var(--color-accent);
 }
 
 .doneText {

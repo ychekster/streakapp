@@ -715,10 +715,15 @@ class SyncTodoCreate(BaseModel):
     ref: ClientRef
     text: TodoText
     folder: TodoFolderRef | None = Field(None, description="Папка; null — без папки")
+    due_date: date | None = Field(None, description="День задачи; null — без даты")
+    remind_time: str | None = Field(
+        None, description="Напоминание «ЧЧ:ММ» в день задачи (поясе пользователя)"
+    )
 
 
 class SyncTodoUpdate(BaseModel):
-    """Изменить задачу: только переданные поля (текст, выполнена, папка)."""
+    """Изменить задачу: только переданные поля (текст, выполнена, папка, дата,
+    напоминание); `due_date` / `remind_time`, переданные как null, — убрать."""
 
     type: Literal["todo_update"]
     key: TodoRef
@@ -726,6 +731,8 @@ class SyncTodoUpdate(BaseModel):
     done: bool | None = None
     folder: TodoFolderRef | None = Field(None, description="Перенести в папку")
     no_folder: bool = Field(False, description="Убрать из папки")
+    due_date: date | None = None
+    remind_time: str | None = None
 
 
 class SyncTodoDelete(BaseModel):
@@ -876,6 +883,8 @@ class TodoView(BaseModel):
     folder: int | None = Field(None, description="Папка; null — без папки")
     done_at: UtcDateTime | None = Field(None, description="Когда выполнена (UTC); null — открыта")
     created_at: UtcDateTime
+    due_date: date | None = Field(None, description="День задачи; null — без даты")
+    remind_time: str | None = Field(None, description="Напоминание «ЧЧ:ММ»; null — нет")
 
 
 class RunningTimerView(BaseModel):
@@ -1769,6 +1778,8 @@ class ExportTodo(BaseModel):
     folder: int | None = None
     done_at: UtcDateTime | None = None
     created_at: UtcDateTime | None = None
+    due_date: date | None = None
+    remind_time: str | None = None
 
 
 class ExportSettings(BaseModel):

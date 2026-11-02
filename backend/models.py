@@ -605,6 +605,8 @@ class Todo(Base):
 
     `folder_id` None — задача без папки (вкладка «Все задачи»); при удалении папки её
     задачи становятся такими. `done_at` — когда отмечена выполненной (None — открыта).
+    Дата и напоминание — по желанию: `due_date` и `remind_time` (в поясе пользователя),
+    `remind_at` — когда прислать (как RunningTimer.notify_at).
     """
 
     __tablename__ = "todos"
@@ -618,6 +620,12 @@ class Todo(Base):
     )
     text: Mapped[str] = mapped_column(String(TODO_TEXT_MAX_LENGTH), nullable=False)
     done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    remind_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # Когда прислать напоминание (UTC без пояса) — день и время задачи в поясе
+    # пользователя; бот берёт наступившие у открытых задач и сбрасывает в NULL до
+    # отправки (одно напоминание). Прошедший момент не ставится.
+    remind_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     # Id, который дало задаче устройство (/sync, todo_create): повтор — не дубль.
     client_ref: Mapped[str | None] = mapped_column(
         String(CLIENT_REF_MAX_LENGTH), nullable=True, index=True

@@ -56,7 +56,7 @@ from backend.schemas import (
     ImportResult,
     SchedulePeriod,
 )
-from backend.services import user_today
+from backend.services import todo_remind_at, user_today
 
 # Подпись под файлом, который присылает бот (POST /export/telegram), — на языке пользователя.
 EXPORT_CAPTIONS: dict[str, str] = {
@@ -182,7 +182,12 @@ async def build_export(repo: Repository, user: User) -> DataExport:
     ]
     todos = [
         ExportTodo(
-            text=todo.text, folder=todo.folder_id, done_at=todo.done_at, created_at=todo.created_at
+            text=todo.text,
+            folder=todo.folder_id,
+            done_at=todo.done_at,
+            created_at=todo.created_at,
+            due_date=todo.due_date,
+            remind_time=_clock(todo.remind_time),
         )
         for todo in await repo.get_todos(user.telegram_id)
     ]
@@ -445,13 +450,23 @@ async def _import_todos(repo: Repository, user: User, data: DataExport, now: dat
             text = validation.validate_todo_text(todo.text)
         except ApiError:
             continue
+        try:
+            remind_time = validation.validate_reminder_time(todo.remind_time)
+        except ApiError:
+            remind_time = None
+        done_at = _naive_utc(todo.done_at)
         await repo.create_todo(
             user.telegram_id,
             text,
             folder_ids.get(todo.folder) if todo.folder is not None else None,
             None,
-            done_at=_naive_utc(todo.done_at),
+            done_at=done_at,
             created_at=_naive_utc(todo.created_at) or now,
+            due_date=todo.due_date,
+            remind_time=remind_time,
+            remind_at=(
+                todo_remind_at(user, todo.due_date, remind_time) if done_at is None else None
+            ),
         )
         added += 1
     return added

@@ -108,6 +108,7 @@ import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
 import { startNewTodo, TodosScreen } from "./screens/TodosScreen";
+import { closeTodoSheet, TodoSheet, useTodoSheetTodo } from "./components/TodoSheet";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
 import { PREFETCH_DELAY_MS } from "./constants";
@@ -701,11 +702,14 @@ export function App() {
 
   const timerScreenOpen = useTimerScreenHabit() !== null;
   const countSheetOpen = useCountSheetHabit() !== null;
+  const todoSheetOpen = useTodoSheetTodo() !== null;
 
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
     adminMode
       ? null
+      : todoSheetOpen
+      ? closeTodoSheet
       : timerScreenOpen
         ? // Окно времени поверх таймера — сначала оно.
           countSheetOpen
@@ -1226,6 +1230,8 @@ export function App() {
       <CountSheet />
       {/* Окно дня: нажатие на день в календаре привычки. */}
       <DaySheet />
+      {/* Задачи (бета): окно даты и напоминания задачи. */}
+      <TodoSheet />
       {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );

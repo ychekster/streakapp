@@ -4,12 +4,19 @@
  * (Enter — сохранить, пустой текст — удалить); свайп влево открывает красную кнопку
  * «Удалить» (свайп вправо или нажатие строки закрывает её). Новая задача (карандаш) —
  * пустая строка, сразу в правке (`startEditing`).
+ *
+ * Пока задачу пишут, справа в строке иконка календаря: сохранить текст и открыть окно
+ * даты и напоминания (TodoSheet). Задача с датой — подпись под текстом («Завтра в 15:00»),
+ * прошедший день у открытой — красным.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 
 import { TODO_TEXT_MAX_LENGTH } from "../constants";
-import { useStrings } from "../preferences";
+import { useLanguage, useStrings } from "../preferences";
+import type { Strings } from "../strings";
+import type { Language } from "../types/settings";
+import { localDate } from "./DateField";
 import { hapticImpact } from "../telegram/webapp";
 import type { Todo } from "../types/todo";
 import styles from "./TodoRow.module.css";
@@ -27,10 +34,38 @@ interface TodoRowProps {
   onDelete: () => void;
   /** Сразу в правке (новая, ещё пустая задача). */
   startEditing?: boolean;
+  /** Иконка календаря: сохранить текст (непустой) и открыть окно даты и напоминания. */
+  onOpenDetails: (text: string) => void;
 }
 
-export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false }: TodoRowProps) {
+/** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
+ *  День считается по часам устройства — как в выборе даты (DateField). */
+export function formatTodoDate(iso: string, strings: Strings, language: Language): string {
+  if (iso === localDate()) {
+    return strings.dateToday;
+  }
+  if (iso === localDate(1)) {
+    return strings.dateTomorrow;
+  }
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat(language, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: year === new Date().getFullYear() ? undefined : "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+export function TodoRow({
+  todo,
+  onToggle,
+  onEdit,
+  onDelete,
+  startEditing = false,
+  onOpenDetails,
+}: TodoRowProps) {
   const strings = useStrings();
+  const language = useLanguage();
   const done = todo.done_at !== null;
   const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState(todo.text);
@@ -39,6 +74,8 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false
   const swipe = useRef<{ x: number; y: number; from: number; moving: boolean } | null>(null);
   const moved = useRef(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  // Правку закончила иконка календаря — уход фокуса из поля уже ничего не сохраняет.
+  const handled = useRef(false);
 
   // Поле правки растёт по тексту.
   useLayoutEffect(() => {
@@ -59,6 +96,10 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false
   }, [editing]);
 
   const finishEdit = (): void => {
+    if (handled.current) {
+      handled.current = false;
+      return;
+    }
     setEditing(false);
     const text = draft.trim();
     if (text === "") {
@@ -157,6 +198,7 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false
             </svg>
           ) : null}
         </button>
+        <div className={styles.body}>
         {editing ? (
           <textarea
             ref={textRef}
@@ -189,6 +231,45 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, startEditing = false
             {todo.text}
           </button>
         )}
+        {todo.due_date && !done && !editing ? (
+          <span
+            className={`${styles.caption} ${todo.due_date < localDate() ? styles.overdue : ""}`}
+          >
+            {todo.remind_time
+              ? strings.todosDateTime(
+                  formatTodoDate(todo.due_date, strings, language),
+                  todo.remind_time,
+                )
+              : formatTodoDate(todo.due_date, strings, language)}
+          </span>
+        ) : null}
+        </div>
+        {editing && draft.trim() !== "" ? (
+          <button
+            type="button"
+            className={`${styles.details} ${todo.due_date ? styles.detailsSet : ""}`}
+            aria-label={strings.todosDetails}
+            // Срабатывает в самом касании: на iPhone поле теряет фокус уже в его начале, правка
+            // заканчивалась (иконка пропадала) раньше, чем доходил click.
+            onPointerDown={(event) => {
+              event.preventDefault();
+              handled.current = true;
+              setEditing(false);
+              textRef.current?.blur();
+              onOpenDetails(draft.trim());
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke="currentColor" strokeWidth="1.8" />
+              <path
+                d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        ) : null}
       </div>
     </div>
   );

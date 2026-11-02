@@ -1510,7 +1510,14 @@ export function deriveTodos(
     folder: TodoFolderKey | null;
     done_at: string | null;
     created_at: string;
-  }[] = (snapshot.todos ?? []).map((todo) => ({ ...todo, key: todo.id }));
+    due_date: string | null;
+    remind_time: string | null;
+  }[] = (snapshot.todos ?? []).map((todo) => ({
+    ...todo,
+    key: todo.id,
+    due_date: todo.due_date ?? null,
+    remind_time: todo.remind_time ?? null,
+  }));
   const folderOf = (key: TodoFolderKey | null | undefined): TodoFolderKey | null =>
     key !== null && key !== undefined && folders.some((folder) => folder.key === key) ? key : null;
   const now = new Date().toISOString();
@@ -1523,6 +1530,8 @@ export function deriveTodos(
           folder: folderOf(op.folder),
           done_at: null,
           created_at: op.at ?? now,
+          due_date: op.due_date ?? null,
+          remind_time: op.remind_time ?? null,
         });
       }
     } else if (op.type === "todo_update") {
@@ -1541,6 +1550,12 @@ export function deriveTodos(
           next.folder = null;
         } else if (op.folder !== undefined) {
           next.folder = folderOf(op.folder);
+        }
+        if (op.due_date !== undefined) {
+          next.due_date = op.due_date;
+        }
+        if (op.remind_time !== undefined) {
+          next.remind_time = op.remind_time;
         }
         return next;
       });
@@ -1575,6 +1590,8 @@ export function deriveTodos(
       folder: todo.folder === null ? null : displayFolder(todo.folder),
       done_at: todo.done_at,
       created_at: todo.created_at,
+      due_date: todo.due_date,
+      remind_time: todo.remind_time,
     })),
     folders: folders.map((folder) => ({ id: displayFolder(folder.key), name: folder.name })),
   };

@@ -82,6 +82,7 @@ from bot.constants import (
     TIMER_GOAL_TEXTS,
     TIMER_HOURS,
     TIMER_MINUTES,
+    TODO_REMINDER_TEXTS,
 )
 from bot.emoji import without_custom_emoji, without_icons
 from bot.pacing import Pacer
@@ -97,6 +98,7 @@ from backend.services import (
     due_checkin_reminders,
     due_reminders,
     due_timer_goals,
+    due_todo_reminders,
 )
 from backend.webpush import (
     PushOutcome,
@@ -195,6 +197,10 @@ async def run_reminders(
             await _send_timer_goals(bot, database, pacer, keyboards, push)
         except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
             logger.exception("Timer goal notices failed")
+        try:
+            await _send_todo_reminders(bot, database, pacer, keyboards, push)
+        except Exception:  # noqa: BLE001 — цикл напоминаний не должен падать
+            logger.exception("Todo reminders failed")
         next_minute = _current_minute() + _MINUTE
         await asyncio.sleep((next_minute - datetime.now(timezone.utc)).total_seconds())
 
@@ -323,6 +329,32 @@ async def _send_timer_goals(
     )
 
 
+async def _send_todo_reminders(
+    bot: Bot,
+    database: Database,
+    pacer: Pacer,
+    keyboards: Mapping[str, InlineKeyboardMarkup],
+    push: PushConfig | None = None,
+    send: PushSender = send_push,
+) -> None:
+    """Прислать напоминания задач (бета), чей момент наступил. Помечаются присланными до
+    отправки (сессия закрывается до сети), как «цель достигнута» у таймеров."""
+    async with database.session_factory() as session:
+        repo = Repository(session)
+        reminders = await due_todo_reminders(repo, utc_now())
+        subscriptions = (
+            await repo.push_subscriptions_for({item.user_id for item in reminders})
+            if reminders and push is not None
+            else {}
+        )
+        await session.commit()
+    if reminders:
+        await _dispatch(
+            bot, database, pacer, reminders, subscriptions, keyboards, push, send,
+            ("todo_reminder_sent", "todo_reminder_failed"),
+        )
+
+
 async def _dispatch(
     bot: Bot,
     database: Database,
@@ -377,7 +409,7 @@ async def _dispatch(
             await repo.log_action(
                 item.user_id,
                 kinds[0] if ok else kinds[1],
-                ref_id=item.task_id,
+                ref_id=item.task_id if item.todo_id is None else item.todo_id,
                 detail=channel,
             )
         await session.commit()
@@ -393,6 +425,9 @@ async def _auto_mark(database: Database) -> None:
 
 
 def _reminder_key(reminder: DueReminder) -> tuple[int, int | None]:
+    # Задача — отрицательным id: не совпадает ни с привычкой, ни с «Пора отметить».
+    if reminder.todo_id is not None:
+        return reminder.user_id, -reminder.todo_id
     return reminder.user_id, reminder.task_id
 
 
@@ -401,6 +436,9 @@ def reminder_text(reminder: DueReminder) -> str:
     (у уведомления совместной привычки — его готовый текст)."""
     if reminder.text is not None:
         return reminder.text
+    if reminder.todo_id is not None:
+        template = TODO_REMINDER_TEXTS.get(reminder.language, TODO_REMINDER_TEXTS[DEFAULT_LANGUAGE])
+        return template.format(text=reminder.habit_name)
     if reminder.habit_name is None:
         return CHECKIN_REMINDER_TEXTS.get(
             reminder.language, CHECKIN_REMINDER_TEXTS[DEFAULT_LANGUAGE]
@@ -415,7 +453,15 @@ def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
 
     The text is the title and there is no body: iOS puts «from Knot» under the
     title itself (it can't be turned off), so an app-name title would only repeat it.
-    Plain text, without the bot message's 🔔."""
+    Plain text, without the bot message's 🔔. A todo reminder opens the app (the Tasks
+    tab is where it opens when todos are on)."""
+    if reminder.todo_id is not None:
+        return notification(
+            reminder_text(reminder),
+            "",
+            f"{base_url}/app?pwa=1&from=push",
+            tag=f"todo-{reminder.todo_id}",
+        )
     if reminder.task_id is None:
         return notification(
             reminder_text(reminder), "", f"{base_url}/app?pwa=1&from=push", tag="checkin"
