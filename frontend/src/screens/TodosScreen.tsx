@@ -177,11 +177,15 @@ export function TodosScreen() {
     before: MotionSnapshot;
     alias: { from: string; to: string } | null;
   } | null>(null);
+  // Перерисовать экран вместе с переменой: она бывает только внутри строки (правка
+  // закрылась, плашки ушли), а переезд запускает отрисовка экрана (useLayoutEffect ниже).
+  const [, setMotionTick] = useState(0);
 
   /** Перед переменой (сохранение, удаление, переезд после галочки): снять, где что стоит. */
   const prepareMotion = (): void => {
     const before = takeSnapshot(listRef.current);
     motion.current = before ? { before, alias: null } : null;
+    setMotionTick((tick) => tick + 1);
   };
 
   useEffect(() => () => window.clearTimeout(settleTimer.current), [view]);

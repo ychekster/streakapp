@@ -75,10 +75,17 @@ export function playMotion(
   if (!list || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     return;
   }
+  // Места — от верха контейнера, не окна: закрытая клавиатура iPhone в тот же миг сдвигает
+  // страницу, и этот сдвиг иначе считался бы переездом строк (рывок). `drift` — насколько
+  // сам контейнер сдвинулся в окне.
+  const drift = list.getBoundingClientRect().top - before.top;
   // Сначала все замеры: анимация, запущенная раньше, сдвинула бы следующие замеры.
   const sections = [...list.querySelectorAll<HTMLElement>("[data-section]")].map((element) => {
     const old = before.sections.get(element.dataset.section ?? "");
-    return { element, shift: old === undefined ? null : old - element.getBoundingClientRect().top };
+    return {
+      element,
+      shift: old === undefined ? null : old + drift - element.getBoundingClientRect().top,
+    };
   });
   const sectionShift = new Map(sections.map(({ element, shift }) => [element, shift ?? 0]));
   const seen = new Set<string>();
@@ -92,7 +99,7 @@ export function playMotion(
     const section = element.closest<HTMLElement>("[data-section]");
     const parent = section ? (sectionShift.get(section) ?? 0) : 0;
     const old = before.rows.get(from) as DOMRect;
-    return { element, shift: old.top - element.getBoundingClientRect().top - parent };
+    return { element, shift: old.top + drift - element.getBoundingClientRect().top - parent };
   });
 
   for (const { element, shift } of [...sections, ...rows]) {
