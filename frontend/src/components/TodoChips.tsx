@@ -6,7 +6,7 @@
  * на неё (как DateField / TimeField): <input type="date">, <input type="time">, <select>.
  * Не выбрано — серая подпись («Без срока», «Напоминание», «Без списка»), выбрано —
  * акцентная. «Сбросить» в системном выборе (пустое значение) убирает день или напоминание.
- * Напоминание — в день задачи: без дня оно ставит сегодня, убранный день убирает и его.
+ * Напоминание — в день задачи: без дня оно ставит «сегодня» (день отметки `today`), убранный день убирает и его.
  * Список — только свои (рекомендуемые наполняются сами); нет своих — плашки нет.
  */
 
@@ -15,7 +15,6 @@ import type { MouseEvent, ReactNode } from "react";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { useLanguage, useStrings } from "../preferences";
 import type { TodoFolder } from "../types/todo";
-import { localDate } from "./DateField";
 import { formatTodoDate } from "./TodoRow";
 import styles from "./TodoChips.module.css";
 
@@ -31,6 +30,8 @@ interface TodoChipsProps {
   onChange: (value: TodoChipsValue) => void;
   /** Свои списки задач (без рекомендуемых). */
   lists: TodoFolder[];
+  /** «Сегодня» задач — день отметки (в «Отмечать за вчера» — вчера). */
+  today: string;
 }
 
 function openPickerWithMouse(event: MouseEvent<HTMLInputElement>): void {
@@ -44,7 +45,7 @@ function openPickerWithMouse(event: MouseEvent<HTMLInputElement>): void {
   }
 }
 
-export function TodoChips({ value, onChange, lists }: TodoChipsProps) {
+export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
   const strings = useStrings();
   const language = useLanguage();
   const enableReminderPush = useReminderPush();
@@ -56,7 +57,7 @@ export function TodoChips({ value, onChange, lists }: TodoChipsProps) {
         set={value.due_date !== null}
         icon={calendarIcon}
         label={
-          value.due_date ? formatTodoDate(value.due_date, strings, language) : strings.todosAnyDay
+          value.due_date ? formatTodoDate(value.due_date, strings, language, today) : strings.todosAnyDay
         }
       >
         <input
@@ -86,7 +87,7 @@ export function TodoChips({ value, onChange, lists }: TodoChipsProps) {
             onChange({
               ...value,
               remind_time: time,
-              due_date: time ? (value.due_date ?? localDate()) : value.due_date,
+              due_date: time ? (value.due_date ?? today) : value.due_date,
             });
             if (time && value.remind_time === null) {
               void enableReminderPush();

@@ -209,11 +209,11 @@ export function TodosScreen() {
     }
   });
 
-  // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
-  const today = localDate();
-  // День отметки — как у привычек: в «Отмечать за вчера» вчерашний день ещё идёт, его
-  // задачи не просрочены, а выполненные за него ещё стоят внизу блоков.
-  const markDay = settings?.mark_yesterday ? localDate(-1) : today;
+  // «Сегодня» задач — день отметки, как во всём приложении: день устройства (как в выборе
+  // даты, DateField), а в «Отмечать за вчера» — вчерашний: настоящее сегодня ещё не
+  // наступило (его задачи — в будущих), вчерашние не просрочены. Пересчёт — с каждой
+  // отрисовкой.
+  const today = settings?.mark_yesterday ? localDate(-1) : localDate();
   const { groups, later, done } = useMemo(() => {
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
@@ -223,7 +223,7 @@ export function TodosScreen() {
       (held.get(todo.id) ?? todo).done_at;
     const doneToday = (todo: Todo): boolean => {
       const at = doneAt(todo);
-      return at !== null && dayOf(at) >= markDay;
+      return at !== null && dayOf(at) >= today;
     };
     const pending = todos.filter((todo) => doneAt(todo) === null && inView(todo));
     // Сделать сейчас, а под ними — выполненные сегодня: только что отмеченная — первой из них,
@@ -283,7 +283,7 @@ export function TodosScreen() {
       later: upcoming,
       done: checked,
     };
-  }, [todos, todoFolders, shownFolder, kind, today, markDay, held]);
+  }, [todos, todoFolders, shownFolder, kind, today, held]);
   // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.
@@ -431,6 +431,7 @@ export function TodosScreen() {
                   startEditing
                   checkRight={checksRight}
                   lists={lists}
+                  markDay={today}
                   onToggle={() => undefined}
                   onSave={(next) => saveDraft(draft, next)}
                   onDelete={() => closeDraft(draft)}
@@ -472,7 +473,7 @@ export function TodosScreen() {
         onToggle={() => toggle(todo)}
         onSave={(next) => saveTodo(todo, next)}
         onEditStart={prepareMotion}
-        markDay={markDay}
+        markDay={today}
         onDelete={() => {
           prepareMotion();
           dataStore.deleteTodo(todo.id);

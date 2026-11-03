@@ -28,6 +28,7 @@ import { TODO_TEXT_MAX_LENGTH } from "../constants";
 import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import type { Language } from "../types/settings";
+import { addDays } from "../data/dates";
 import { localDate } from "./DateField";
 import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
@@ -42,10 +43,26 @@ const OPEN_AT = DELETE_WIDTH / 2;
 const SWIPE_SLOP = 8;
 /** Полоса у правого края строки, с которой свайп открывает «Удалить» (px). */
 const EDGE_WIDTH = 28;
-/** Что нажимают (у них после касания приходит click). */
-const INTERACTIVE = "button, a[href], input, select, textarea, label, [role='button']";
-/** Сколько ждать click после касания кнопки, прежде чем закончить правку без него (мс). */
+/** Сколько ждать click после касания (мс): у нижней навигации — прежде чем закончить
+ *  правку без него, у остального — сколько гасить его. */
 const CLICK_WAIT_MS = 400;
+
+/** Погасить click, который придёт за этим касанием (правка закончена касанием мимо
+ *  строки — нажатое под пальцем не срабатывает). Слушатель не зависит от строки: она
+ *  успевает выйти из правки до click. Click не пришёл — через CLICK_WAIT_MS снимается. */
+function swallowNextClick(): void {
+  const swallow = (event: MouseEvent): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    stop();
+  };
+  const stop = (): void => {
+    window.clearTimeout(timer);
+    document.removeEventListener("click", swallow, true);
+  };
+  const timer = window.setTimeout(stop, CLICK_WAIT_MS);
+  document.addEventListener("click", swallow, true);
+}
 
 /** Задача после правки: текст (непустой) и плашки. */
 export interface TodoDraft extends TodoChipsValue {
@@ -67,8 +84,9 @@ interface TodoRowProps {
   checkRight?: boolean;
   /** Свои списки задач: плашка списка и цвет кружка. */
   lists: TodoFolder[];
-  /** День отметки (как у привычек; в «Отмечать за вчера» — вчера): задача с днём раньше —
-   *  просрочена (красная подпись). Не задан — сегодня. */
+  /** «Сегодня» задач — день отметки (как у привычек; в «Отмечать за вчера» — вчера): от
+   *  него подписи «Сегодня» / «Завтра», раньше него — просрочена (красная подпись). Не
+   *  задан — сегодня. */
   markDay?: string;
 }
 
@@ -82,12 +100,18 @@ function draftOf(todo: Todo): TodoDraft {
 }
 
 /** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
- *  День считается по часам устройства — как в выборе даты (DateField). */
-export function formatTodoDate(iso: string, strings: Strings, language: Language): string {
-  if (iso === localDate()) {
+ *  «Сегодня» — `today`: день отметки (по часам устройства, как в выборе даты — DateField;
+ *  в «Отмечать за вчера» — вчера). */
+export function formatTodoDate(
+  iso: string,
+  strings: Strings,
+  language: Language,
+  today: string = localDate(),
+): string {
+  if (iso === today) {
     return strings.dateToday;
   }
-  if (iso === localDate(1)) {
+  if (iso === addDays(today, 1)) {
     return strings.dateTomorrow;
   }
   const [year, month, day] = iso.split("-").map(Number);
@@ -184,11 +208,11 @@ export function TodoRow({
   const finishRef = useRef(finishEdit);
   finishRef.current = finishEdit;
 
-  // Нажатие мимо строки заканчивает правку; палец, который сдвинулся (прокрутка), — нет.
-  // Нажатие на кнопку (вкладка, карандаш, другая задача) заканчивает её в своём click —
-  // до обработчика кнопки, и кнопка срабатывает: iPhone не доводит касание до click, если
-  // страница поменялась уже на отпускании пальца. На пустом месте click не бывает —
-  // правка заканчивается на отпускании.
+  // Нажатие мимо строки только заканчивает правку: другая задача не открывается, галочка не
+  // ставится — само нажатие гасится (swallowNextClick). Палец, который сдвинулся
+  // (прокрутка), правку не заканчивает. Исключение — нижняя навигация (вкладки, карандаш):
+  // там правка заканчивается в click — до обработчика кнопки, и кнопка срабатывает (iPhone
+  // не доводит касание до click, если страница поменялась уже на отпускании пальца).
   useEffect(() => {
     if (!editing) {
       return undefined;
@@ -213,10 +237,11 @@ export function TodoRow({
       if (!isTap) {
         return;
       }
-      if (event.target instanceof Element && event.target.closest(INTERACTIVE)) {
-        // Click не пришёл (браузер его не дал) — всё равно закончить.
+      if (event.target instanceof Element && event.target.closest("[data-tab-bar]")) {
+        // Click не пришёл (браузер его не дал, или мимо кнопки) — всё равно закончить.
         waitingClick = window.setTimeout(finish, CLICK_WAIT_MS);
       } else {
+        swallowNextClick();
         finish();
       }
     };
@@ -383,6 +408,7 @@ export function TodoRow({
               value={draft}
               onChange={(value) => setDraft({ ...draft, ...value })}
               lists={lists}
+              today={markDay}
             />
           </>
         ) : (
@@ -400,10 +426,10 @@ export function TodoRow({
           >
             {todo.remind_time
               ? strings.todosDateTime(
-                  formatTodoDate(todo.due_date, strings, language),
+                  formatTodoDate(todo.due_date, strings, language, markDay),
                   todo.remind_time,
                 )
-              : formatTodoDate(todo.due_date, strings, language)}
+              : formatTodoDate(todo.due_date, strings, language, markDay)}
           </span>
         ) : null}
         </div>

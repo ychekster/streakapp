@@ -112,7 +112,7 @@ export function TabBar<K extends string>({
     : undefined;
 
   return (
-    <nav className={className} aria-hidden={hidden}>
+    <nav className={className} aria-hidden={hidden} data-tab-bar="">
       <div ref={pillRef} className={styles.pill} role="tablist">
         {/* До первого измерения подложки нет — иначе она въехала бы из левого края. */}
         {thumb ? <span className={styles.thumb} style={thumbStyle} aria-hidden="true" /> : null}
