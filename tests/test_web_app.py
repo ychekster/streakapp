@@ -354,7 +354,7 @@ def test_a_guest_keeps_every_setting_after_linking_telegram(client: TestClient) 
         "mark_yesterday": True,
         "grid_layout": "fixed",
         "checkin_reminder": {"time": "21:00", "days": ["mon", "fri"]},
-        "folder_swipe": True,
+        "folder_swipe": False,
     }
     assert client.put("/settings", json=changed, headers=guest).status_code == 200
     ops = [

@@ -185,6 +185,12 @@ def test_open_on_todos_setting_is_off_by_default(client: TestClient, user: AuthU
     assert data["settings"]["open_on_todos"] is True
 
 
+def test_hide_list_names_setting_is_off_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["todo_hide_list_names"] is False
+    data = _sync(client, user, {"type": "settings", "patch": {"todo_hide_list_names": True}})
+    assert data["settings"]["todo_hide_list_names"] is True
+
+
 def test_todo_date_and_reminder_are_set_and_cleared(client: TestClient, user: AuthUser) -> None:
     data = _sync(
         client,

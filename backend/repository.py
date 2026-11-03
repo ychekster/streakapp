@@ -429,6 +429,7 @@ class Repository:
         open_on_todos: bool | None = None,
         todo_folder_swipe: bool | None = None,
         todo_checks_right: bool | None = None,
+        todo_hide_list_names: bool | None = None,
     ) -> None:
         """Изменить настройки пользователя; None — оставить как есть. Город пояса
         меняется вместе с поясом (None у нового пояса — пояс без города). Напоминание
@@ -458,6 +459,8 @@ class Repository:
             user.todo_folder_swipe = todo_folder_swipe
         if todo_checks_right is not None:
             user.todo_checks_right = todo_checks_right
+        if todo_hide_list_names is not None:
+            user.todo_hide_list_names = todo_hide_list_names
         await self.session.flush()
 
     async def touch_user(
@@ -2320,6 +2323,7 @@ class Repository:
             open_on_todos=source.open_on_todos,
             todo_folder_swipe=source.todo_folder_swipe,
             todo_checks_right=source.todo_checks_right,
+            todo_hide_list_names=source.todo_hide_list_names,
             all_todos_position=source.all_todos_position,
             app_opened_at=source.app_opened_at,
             last_seen_at=source.last_seen_at,

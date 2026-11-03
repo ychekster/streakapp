@@ -119,6 +119,8 @@ export function TodosScreen() {
   const strings = useStrings();
   const { todos, todoFolders, todoAllPosition, settings } = useAppData();
   const checksRight = settings?.todo_checks_right ?? false;
+  // «Скрыть названия списков»: в «Все задачи» и рекомендуемых — блоки без заголовков.
+  const hideListNames = settings?.todo_hide_list_names ?? false;
   const [active, setActive] = useState<number | null>(null);
   const showingRest = useTodoRestOpen();
   // Прокрутка списка под экраном «остальных»: «Назад» возвращает на неё.
@@ -154,7 +156,7 @@ export function TodosScreen() {
   // Список, куда встаёт новая задача: свой — он, рекомендуемый и «Все задачи» — без списка.
   const targetFolder = kind ? null : shownFolder;
 
-  // «Переключение свайпом»: свайп влево — следующий список, вправо — предыдущий.
+  // Свайп влево — следующий список, вправо — предыдущий (всегда включён).
   const order = useRef<(number | null)[]>([]);
   order.current = todoFolders.map((item) => item.id as number | null);
   order.current.splice(Math.min(todoAllPosition, todoFolders.length), 0, null);
@@ -168,9 +170,7 @@ export function TodosScreen() {
       setActive(next);
     }
   }, []);
-  useHorizontalSwipe(
-    settings?.todo_folder_swipe && draft === null && !showingRest ? switchList : null,
-  );
+  useHorizontalSwipe(draft === null && !showingRest ? switchList : null);
 
   // Задачи, отмеченные (или возвращённые) в этом списке: стоят там, где были до отметки, —
   // как были отмечены тогда. На экране задач — до конца паузы после последней галочки, на
@@ -288,7 +288,7 @@ export function TodosScreen() {
       for (const item of own) {
         sections.push({
           key: String(item.id),
-          title: item.name,
+          title: hideListNames ? undefined : item.name,
           todos: open.filter((todo) => todo.folder === item.id),
         });
       }
@@ -298,7 +298,7 @@ export function TodosScreen() {
       later: upcoming,
       done: checked,
     };
-  }, [todos, todoFolders, shownFolder, kind, today, held]);
+  }, [todos, todoFolders, shownFolder, kind, today, held, hideListNames]);
   // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.

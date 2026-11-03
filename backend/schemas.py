@@ -509,7 +509,7 @@ class SettingsResponse(BaseModel):
         description="«Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram",
     )
     folder_swipe: bool = Field(
-        False, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
+        True, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
     )
     show_todos: bool = Field(
         False, description="«Показывать задачи» (бета): вкладка «Задачи» перед «Привычками»"
@@ -518,9 +518,12 @@ class SettingsResponse(BaseModel):
         False, description="«Начинать с задач»: приложение открывается на вкладке «Задачи»"
     )
     todo_folder_swipe: bool = Field(
-        False, description="Задачи: свайп по списку задач — соседний список"
+        False, description="Не применяется: свайп между списками задач всегда включён"
     )
     todo_checks_right: bool = Field(False, description="Задачи: кружок отметки справа")
+    todo_hide_list_names: bool = Field(
+        False, description="Задачи: в «Все задачи» и рекомендуемых — блоки без названий списков"
+    )
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -555,6 +558,7 @@ class SettingsUpdate(BaseModel):
     open_on_todos: bool | None = Field(None, description="Начинать с вкладки «Задачи»")
     todo_folder_swipe: bool | None = Field(None, description="Задачи: переключение свайпом")
     todo_checks_right: bool | None = Field(None, description="Задачи: галочки справа")
+    todo_hide_list_names: bool | None = Field(None, description="Задачи: скрыть названия списков")
 
 
 # --------------------------------------------------------------------------- #
@@ -1822,6 +1826,7 @@ class ExportSettings(BaseModel):
     open_on_todos: bool | None = None
     todo_folder_swipe: bool | None = None
     todo_checks_right: bool | None = None
+    todo_hide_list_names: bool | None = None
 
 
 class ExportAccount(BaseModel):

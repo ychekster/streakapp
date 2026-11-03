@@ -156,8 +156,6 @@ const RU = {
   todoSettingsShow: "Показывать задачи",
   todoSettingsShowFooter: "Вкладка «Задачи» появится перед «Привычками».",
   todoSettingsOpenOn: "Начинать с задач",
-  todoSettingsOpenOnFooter:
-    "Приложение будет открываться на вкладке «Задачи». Если выключено — на «Привычках».",
   todoSettingsLists: "Списки",
   todoSettingsChecksRight: "Галочки справа",
   todoSettingsChecksRightFooter: "Кружок отметки задачи будет у правого края, под большим пальцем.",
@@ -180,7 +178,9 @@ const RU = {
       "Задачи попадают в этот список сами: все, у которых есть дата. Новая задача в нём — на сегодня.",
     undated: "Задачи попадают в этот список сами: все без даты.",
   },
-  todoListsSwipeFooter: "Свайп влево или вправо по списку задач открывает соседний список.",
+  todoListsHideNames: "Скрыть названия списков",
+  todoListsHideNamesFooter:
+    "В «Все задачи» и рекомендуемых списках задачи из разных списков будут отдельными блоками, без названий.",
   todoListRemove: (name: string) => `Удалить список «${name}»`,
   todoListDeleteTitle: "Удалить список",
   todoListDeleteMessage: (name: string) =>
@@ -844,7 +844,6 @@ const EN: Strings = {
   todoSettingsShow: "Show Tasks",
   todoSettingsShowFooter: "A Tasks tab appears before Habits.",
   todoSettingsOpenOn: "Start on Tasks",
-  todoSettingsOpenOnFooter: "The app opens on the Tasks tab. When off, it opens on Habits.",
   todoSettingsLists: "Lists",
   todoSettingsChecksRight: "Checkmarks on the Right",
   todoSettingsChecksRightFooter: "The task checkmark sits at the right edge, under your thumb.",
@@ -865,7 +864,9 @@ const EN: Strings = {
     scheduled: "Tasks get into this list by themselves: all with a date. A new task here is for today.",
     undated: "Tasks get into this list by themselves: all without a date.",
   },
-  todoListsSwipeFooter: "Swipe left or right on the task list to open the next list.",
+  todoListsHideNames: "Hide List Names",
+  todoListsHideNamesFooter:
+    "In “All Tasks” and the recommended lists, tasks from different lists appear as separate blocks, without names.",
   todoListRemove: (name: string) => `Delete list “${name}”`,
   todoListDeleteTitle: "Delete List",
   todoListDeleteMessage: (name: string) =>

@@ -220,6 +220,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             open_on_todos=user.open_on_todos,
             todo_folder_swipe=user.todo_folder_swipe,
             todo_checks_right=user.todo_checks_right,
+            todo_hide_list_names=user.todo_hide_list_names,
         ),
         habits=habits,
         todo_folders=todo_folders,
@@ -428,6 +429,7 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
         open_on_todos=settings.open_on_todos,
         todo_folder_swipe=settings.todo_folder_swipe,
         todo_checks_right=settings.todo_checks_right,
+        todo_hide_list_names=settings.todo_hide_list_names,
     )
 
 

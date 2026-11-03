@@ -1719,6 +1719,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         open_on_todos=user.open_on_todos,
         todo_folder_swipe=user.todo_folder_swipe,
         todo_checks_right=user.todo_checks_right,
+        todo_hide_list_names=user.todo_hide_list_names,
         checkin_reminder_time=(
             user.checkin_reminder_time.strftime(REMINDER_TIME_FORMAT)
             if user.checkin_reminder_time is not None
@@ -1782,6 +1783,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         open_on_todos=payload.open_on_todos,
         todo_folder_swipe=payload.todo_folder_swipe,
         todo_checks_right=payload.todo_checks_right,
+        todo_hide_list_names=payload.todo_hide_list_names,
     )
     if timezone is not None:
         # Новый пояс — напоминания задач приходят в то же время уже по нему.

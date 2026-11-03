@@ -548,7 +548,7 @@ def test_recommended_folder_keeps_its_kind_and_no_habits(
     assert data["folders"][0]["habits"] == []
 
 
-def test_folder_swipe_setting_is_off_by_default(client: TestClient, user: AuthUser) -> None:
-    assert _sync(client, user)["settings"]["folder_swipe"] is False
-    data = _sync(client, user, {"type": "settings", "patch": {"folder_swipe": True}})
-    assert data["settings"]["folder_swipe"] is True
+def test_folder_swipe_setting_is_on_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["folder_swipe"] is True
+    data = _sync(client, user, {"type": "settings", "patch": {"folder_swipe": False}})
+    assert data["settings"]["folder_swipe"] is False

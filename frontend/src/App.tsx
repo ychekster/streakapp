@@ -393,7 +393,7 @@ export function App() {
           },
           inFolder: activeFolder !== null,
           kind: activeFolder?.kind ?? null,
-          swipe: settings?.folder_swipe ?? false,
+          swipe: settings?.folder_swipe ?? true,
         }
       : null;
   // In the Mini App Telegram itself says who it is (also before the account loads).
@@ -1176,8 +1176,8 @@ export function App() {
             onDelete={(folder) => dataStore.deleteFolder(folder.id)}
             onReorder={(order) => dataStore.orderFolders(order)}
             onAddRecommended={addRecommendedFolder}
-            swipe={settings?.folder_swipe ?? false}
-            onSwipeChange={(on) => saveSettings({ folder_swipe: on })}
+            option={settings?.folder_swipe ?? true}
+            onOptionChange={(on) => saveSettings({ folder_swipe: on })}
             countOf={(folder) => folder.habits.length}
             texts={habitFoldersTexts(strings)}
             kinds={HABIT_FOLDERS.kinds}
@@ -1204,8 +1204,8 @@ export function App() {
             onDelete={(list) => dataStore.deleteTodoFolder(list.id)}
             onReorder={(order) => dataStore.orderTodoFolders(order)}
             onAddRecommended={addRecommendedTodoList}
-            swipe={settings?.todo_folder_swipe ?? false}
-            onSwipeChange={(on) => saveSettings({ todo_folder_swipe: on })}
+            option={settings?.todo_hide_list_names ?? false}
+            onOptionChange={(on) => saveSettings({ todo_hide_list_names: on })}
             countOf={(list) => todoListCount(list, todos, settings?.mark_yesterday ?? false)}
             texts={{
               title: strings.todoSettingsLists,
@@ -1218,8 +1218,8 @@ export function App() {
               recommendedHeading: strings.todoListsRecommendedHeading,
               kindNames: strings.todoListKindNames,
               kindDescriptions: strings.todoListKindDescriptions,
-              swipe: strings.foldersSwipe,
-              swipeFooter: strings.todoListsSwipeFooter,
+              option: strings.todoListsHideNames,
+              optionFooter: strings.todoListsHideNamesFooter,
               remove: strings.todoListRemove,
               deleteTitle: strings.todoListDeleteTitle,
               deleteMessage: strings.todoListDeleteMessage,

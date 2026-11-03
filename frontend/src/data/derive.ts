@@ -501,6 +501,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   if (patch.todo_checks_right !== undefined) {
     next.todo_checks_right = patch.todo_checks_right;
   }
+  if (patch.todo_hide_list_names !== undefined) {
+    next.todo_hide_list_names = patch.todo_hide_list_names;
+  }
   if (patch.checkin_reminder !== undefined) {
     next.checkin_reminder_time = patch.checkin_reminder.time;
     next.checkin_reminder_days = patch.checkin_reminder.days;

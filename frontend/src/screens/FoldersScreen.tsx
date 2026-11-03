@@ -9,8 +9,9 @@
  *
  * «Рекомендуемые папки» — папки, которые наполняются сами (FOLDER_KINDS): название,
  * под ним пояснение, справа «Добавить» — папка сразу создаётся и пропадает отсюда. Ниже,
- * без заголовка, — переключатель «Переключение свайпом» (настройка `folder_swipe`) с
- * пояснением.
+ * без заголовка, — переключатель с пояснением (`option`): у папок — «Переключение
+ * свайпом» (`folder_swipe`), у списков задач — «Скрыть названия списков»
+ * (`todo_hide_list_names`).
  *
  * «Изменить» справа от заголовка секции (кнопку в шапке не поставить: в Mini App там
  * кнопки Telegram) включает правку: у папок слева красный «−» — удалить (с
@@ -69,8 +70,9 @@ export interface FoldersTexts<K extends string> {
   recommendedHeading: string;
   kindNames: Record<K, string>;
   kindDescriptions: Record<K, string>;
-  swipe: string;
-  swipeFooter: string;
+  /** Переключатель внизу экрана и пояснение под ним. */
+  option: string;
+  optionFooter: string;
   remove: (name: string) => string;
   deleteTitle: string;
   deleteMessage: (name: string) => string;
@@ -91,8 +93,8 @@ export function habitFoldersTexts(strings: Strings): FoldersTexts<FolderKind> {
     recommendedHeading: strings.foldersRecommendedHeading,
     kindNames: strings.folderKindNames,
     kindDescriptions: strings.folderKindDescriptions,
-    swipe: strings.foldersSwipe,
-    swipeFooter: strings.foldersSwipeFooter,
+    option: strings.foldersSwipe,
+    optionFooter: strings.foldersSwipeFooter,
     remove: strings.folderRemove,
     deleteTitle: strings.folderDeleteTitle,
     deleteMessage: strings.folderDeleteMessage,
@@ -111,9 +113,9 @@ interface FoldersScreenProps<K extends string, F extends FolderLike<K>> {
   onReorder: (order: (number | null)[]) => void;
   /** Добавить рекомендуемую папку. */
   onAddRecommended: (kind: K) => void;
-  /** «Переключение свайпом». */
-  swipe: boolean;
-  onSwipeChange: (on: boolean) => void;
+  /** Переключатель внизу экрана (`texts.option`). */
+  option: boolean;
+  onOptionChange: (on: boolean) => void;
   /** Сколько в папке (подпись справа). */
   countOf: (folder: F) => number;
   texts: FoldersTexts<K>;
@@ -144,8 +146,8 @@ export function FoldersScreen<K extends string, F extends FolderLike<K>>({
   onDelete,
   onReorder,
   onAddRecommended,
-  swipe,
-  onSwipeChange,
+  option,
+  onOptionChange,
   countOf,
   texts,
   kinds,
@@ -412,11 +414,11 @@ export function FoldersScreen<K extends string, F extends FolderLike<K>>({
           </Section>
         ) : null}
 
-        <div className={styles.swipe}>
-          <Section variant="form" footer={texts.swipeFooter}>
+        <div className={styles.option}>
+          <Section variant="form" footer={texts.optionFooter}>
             <Card>
-              <ListItem label={texts.swipe}>
-                <Switch checked={swipe} onChange={onSwipeChange} label={texts.swipe} />
+              <ListItem label={texts.option}>
+                <Switch checked={option} onChange={onOptionChange} label={texts.option} />
               </ListItem>
             </Card>
           </Section>

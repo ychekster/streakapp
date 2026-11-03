@@ -214,9 +214,7 @@ export function SettingsScreen({
     // «Начинать с задач», «Списки» и «Галочки справа».
     const showTodos = settings.show_todos ?? false;
     const todosGroup = (
-      <ListGroup
-        footer={showTodos ? strings.todoSettingsOpenOnFooter : strings.todoSettingsShowFooter}
-      >
+      <ListGroup footer={showTodos ? undefined : strings.todoSettingsShowFooter}>
         <ListItem icon={<ChecklistIcon />} iconColor="orange" label={strings.settingsTodos}>
           <Switch
             checked={showTodos}

@@ -136,9 +136,9 @@ class User(Base):
         Integer, default=0, server_default="0", nullable=False
     )
     # «Переключение свайпом» (настройки → «Папки»): свайп по списку привычек открывает
-    # соседнюю папку. Применяет фронтенд.
+    # соседнюю папку; у новых пользователей включено. Применяет фронтенд.
     folder_swipe: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
+        Boolean, default=True, server_default=true(), nullable=False
     )
     # «Показывать задачи» (бета): вкладка «Задачи» перед «Привычками». Применяет фронтенд.
     show_todos: Mapped[bool] = mapped_column(
@@ -149,11 +149,16 @@ class User(Base):
     open_on_todos: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
-    # Настройки задач: «Переключение свайпом» между списками и «Галочки справа».
+    # Настройки задач: «Галочки справа» и «Скрыть названия списков» (в «Все задачи» и
+    # рекомендуемых списках — блоки без заголовков). `todo_folder_swipe` больше не
+    # применяется (свайп между списками всегда включён) — осталась ради старых клиентов.
     todo_folder_swipe: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     todo_checks_right: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    todo_hide_list_names: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     # Место «Все задачи» среди списков задач (TodoFolder.position): сколько списков перед ней.
