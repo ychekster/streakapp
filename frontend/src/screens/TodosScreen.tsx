@@ -54,7 +54,7 @@ import { useAppData } from "../hooks/useAppData";
 import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
 import { useStrings } from "../preferences";
 import { hapticImpact, showAlert } from "../telegram/webapp";
-import type { Todo, TodoFolderKind } from "../types/todo";
+import type { Todo, TodoFolder, TodoFolderKind } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
 import { playMotion, takeSnapshot, type MotionSnapshot } from "./todoMotion";
 import styles from "./TodosScreen.module.css";
@@ -96,6 +96,17 @@ export function useTodoRestOpen(): boolean {
     },
     () => restOpen,
   );
+}
+
+/** Сколько задач в списке (настройки → «Списки»): в своём — все его задачи, в
+ *  рекомендуемом — невыполненные, которые он сам в себя берёт (как экран задач). */
+export function todoListCount(list: TodoFolder, todos: Todo[], markYesterday: boolean): number {
+  if (!list.kind) {
+    return todos.filter((todo) => todo.folder === list.id).length;
+  }
+  const kind = list.kind;
+  const today = markYesterday ? localDate(-1) : localDate();
+  return todos.filter((todo) => todo.done_at === null && inKind(kind, todo, today)).length;
 }
 
 /** Карандаш: новая пустая задача первой строкой списка выбранной папки. */

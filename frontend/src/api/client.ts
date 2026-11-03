@@ -43,6 +43,7 @@ export type ApiErrorCode =
   // Задачи (бета).
   | "todo_limit"
   | "todo_folder_limit"
+  | "todo_folder_kind_taken"
   | "todo_not_found"
   | "invalid_todo"
   | "rate_limited"

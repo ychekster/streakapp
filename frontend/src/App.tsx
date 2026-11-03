@@ -110,6 +110,7 @@ import { ArchiveScreen } from "./screens/ArchiveScreen";
 import {
   closeTodoRest,
   startNewTodo,
+  todoListCount,
   TodosScreen,
   useTodoRestOpen,
 } from "./screens/TodosScreen";
@@ -664,7 +665,8 @@ export function App() {
     hideEditor();
   }
 
-  // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.
+  // Рекомендуемый список задач (настройки → «Задачи (Beta)» → «Списки») создаётся сразу,
+  // под своим названием.
   function addRecommendedTodoList(kind: TodoFolderKind): void {
     try {
       dataStore.createTodoFolder(strings.todoListKindNames[kind], kind);
@@ -679,6 +681,7 @@ export function App() {
     }
   }
 
+  // Рекомендуемая папка (Настройки → «Папки») создаётся сразу, под своим названием.
   function addRecommendedFolder(kind: FolderKind): void {
     try {
       dataStore.createFolder(strings.folderKindNames[kind], [], kind);
@@ -1201,7 +1204,7 @@ export function App() {
             onAddRecommended={addRecommendedTodoList}
             swipe={settings?.todo_folder_swipe ?? false}
             onSwipeChange={(on) => saveSettings({ todo_folder_swipe: on })}
-            countOf={(list) => todos.filter((todo) => todo.folder === list.id).length}
+            countOf={(list) => todoListCount(list, todos, settings?.mark_yesterday ?? false)}
             texts={{
               title: strings.todoSettingsLists,
               description: strings.todoListsDescription,
