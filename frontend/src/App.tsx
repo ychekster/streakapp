@@ -117,7 +117,6 @@ import { TodoListFormScreen } from "./screens/TodoListFormScreen";
 import { ChecklistIcon } from "./components/SettingsIcons";
 import { MAX_TODO_FOLDERS_PER_USER, TODO_FOLDER_KINDS } from "./constants";
 import type { TodoFolder, TodoFolderKind } from "./types/todo";
-import { closeTodoSheet, TodoSheet, useTodoSheetTodo } from "./components/TodoSheet";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
 import { PREFETCH_DELAY_MS } from "./constants";
@@ -742,14 +741,11 @@ export function App() {
 
   const timerScreenOpen = useTimerScreenHabit() !== null;
   const countSheetOpen = useCountSheetHabit() !== null;
-  const todoSheetOpen = useTodoSheetTodo() !== null;
 
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
   useBackButton(
     adminMode
       ? null
-      : todoSheetOpen
-      ? closeTodoSheet
       : todoRestOpen
       ? closeTodoRest
       : timerScreenOpen
@@ -1327,8 +1323,6 @@ export function App() {
       <CountSheet />
       {/* Окно дня: нажатие на день в календаре привычки. */}
       <DaySheet />
-      {/* Задачи (бета): окно даты и напоминания задачи. */}
-      <TodoSheet />
       {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );

@@ -5,14 +5,23 @@
  * EDGE_WIDTH) открывает красную кнопку «Удалить» (свайп вправо или нажатие строки
  * закрывает её). Свайп по остальной строке — экрану: «Переключение свайпом» листает
  * списки. Новая задача (карандаш) — пустая строка, сразу в правке (`startEditing`).
- * Задача списка с цветом — кружок его цвета (`color`); без списка — серый.
+ * Задача списка с цветом — кружок его цвета; без списка — серый.
  *
- * Пока задачу пишут, справа в строке иконка календаря: сохранить текст и открыть окно
- * даты и напоминания (TodoSheet). Задача с датой — подпись под текстом («Завтра в 15:00»),
- * прошедший день у открытой — красным.
+ * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips). Правка —
+ * текст и плашки вместе: она заканчивается, когда фокус ушёл из строки (Enter, закрытая
+ * клавиатура, закрытый выбор дня или времени), и всё сохраняется разом (`onSave`).
+ * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
+ * красным.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type PointerEvent,
+} from "react";
 
 import { TODO_TEXT_MAX_LENGTH } from "../constants";
 import { useLanguage, useStrings } from "../preferences";
@@ -21,8 +30,8 @@ import type { Language } from "../types/settings";
 import { localDate } from "./DateField";
 import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
-import type { HabitColor } from "../types/habit";
-import type { Todo } from "../types/todo";
+import type { Todo, TodoFolder } from "../types/todo";
+import { TodoChips, type TodoChipsValue } from "./TodoChips";
 import styles from "./TodoRow.module.css";
 
 /** Ширина кнопки «Удалить» под строкой (px) и сдвиг, после которого она остаётся открытой. */
@@ -33,19 +42,32 @@ const SWIPE_SLOP = 8;
 /** Полоса у правого края строки, с которой свайп открывает «Удалить» (px). */
 const EDGE_WIDTH = 28;
 
+/** Задача после правки: текст (непустой) и плашки. */
+export interface TodoDraft extends TodoChipsValue {
+  text: string;
+}
+
 interface TodoRowProps {
   todo: Todo;
   onToggle: () => void;
-  onEdit: (text: string) => void;
+  /** Правка закончена с непустым текстом (что-то могло и не измениться). */
+  onSave: (draft: TodoDraft) => void;
   onDelete: () => void;
   /** Сразу в правке (новая, ещё пустая задача). */
   startEditing?: boolean;
-  /** Иконка календаря: сохранить текст (непустой) и открыть окно даты и напоминания. */
-  onOpenDetails: (text: string) => void;
   /** «Галочки справа» (настройки задач): кружок у правого края. */
   checkRight?: boolean;
-  /** Цвет списка задачи: кружок его цвета; null — серый. */
-  color?: HabitColor | null;
+  /** Свои списки задач: плашка списка и цвет кружка. */
+  lists: TodoFolder[];
+}
+
+function draftOf(todo: Todo): TodoDraft {
+  return {
+    text: todo.text,
+    due_date: todo.due_date ?? null,
+    remind_time: todo.remind_time ?? null,
+    folder: todo.folder,
+  };
 }
 
 /** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
@@ -69,25 +91,32 @@ export function formatTodoDate(iso: string, strings: Strings, language: Language
 export function TodoRow({
   todo,
   onToggle,
-  onEdit,
+  onSave,
   onDelete,
   startEditing = false,
-  onOpenDetails,
   checkRight = false,
-  color = null,
+  lists,
 }: TodoRowProps) {
   const strings = useStrings();
   const language = useLanguage();
   const done = todo.done_at !== null;
   const [editing, setEditing] = useState(startEditing);
-  const [draft, setDraft] = useState(todo.text);
+  const [draft, setDraft] = useState(() => draftOf(todo));
   const [offset, setOffset] = useState(0);
   const [open, setOpen] = useState(false);
   const swipe = useRef<{ x: number; y: number; from: number; moving: boolean } | null>(null);
   const moved = useRef(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  // Правку закончила иконка календаря — уход фокуса из поля уже ничего не сохраняет.
-  const handled = useRef(false);
+  // Для конца правки, который приходит позже отрисовки (см. leaveEdit): свежая правка и
+  // то, что она ещё не закончена (повторный уход фокуса не сохраняет второй раз).
+  const latest = useRef(draft);
+  latest.current = draft;
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+
+  // Кружок — цвета списка (в правке — выбранного в плашке).
+  const folder = editing ? draft.folder : todo.folder;
+  const color = lists.find((item) => item.id === folder)?.color ?? null;
 
   // Поле правки растёт по тексту.
   useLayoutEffect(() => {
@@ -96,7 +125,7 @@ export function TodoRow({
       field.style.height = "0px";
       field.style.height = `${field.scrollHeight}px`;
     }
-  }, [editing, draft]);
+  }, [editing, draft.text]);
 
   useEffect(() => {
     if (editing) {
@@ -108,22 +137,36 @@ export function TodoRow({
   }, [editing]);
 
   const startEdit = (): void => {
-    setDraft(todo.text);
+    setDraft(draftOf(todo));
     setEditing(true);
   };
 
   const finishEdit = (): void => {
-    if (handled.current) {
-      handled.current = false;
+    if (!editingRef.current) {
       return;
     }
+    editingRef.current = false;
     setEditing(false);
-    const text = draft.trim();
+    const text = latest.current.text.trim();
     if (text === "") {
       onDelete();
-    } else if (text !== todo.text) {
-      onEdit(text);
+    } else {
+      onSave({ ...latest.current, text });
     }
+  };
+
+  /** Фокус ушёл из поля или плашки: правка кончена, если он ушёл из строки совсем. На
+   *  iPhone фокус может прийти в плашку чуть позже, чем ушёл из поля, — проверка после. */
+  const leaveEdit = (event: FocusEvent<HTMLDivElement>): void => {
+    const box = event.currentTarget;
+    if (event.relatedTarget instanceof Node && box.contains(event.relatedTarget)) {
+      return;
+    }
+    window.setTimeout(() => {
+      if (!box.contains(document.activeElement)) {
+        finishEdit();
+      }
+    }, 0);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
@@ -229,27 +272,33 @@ export function TodoRow({
             </svg>
           ) : null}
         </button>
-        <div className={styles.body}>
+        <div className={styles.body} onBlur={editing ? leaveEdit : undefined}>
         {editing ? (
-          <textarea
-            ref={textRef}
-            className={`${styles.text} ${styles.field}`}
-            value={draft}
-            rows={1}
-            maxLength={TODO_TEXT_MAX_LENGTH}
-            enterKeyHint="done"
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                event.currentTarget.blur();
-              } else if (event.key === "Escape") {
-                setDraft(todo.text);
-                setEditing(false);
-              }
-            }}
-            onBlur={finishEdit}
-          />
+          <>
+            <textarea
+              ref={textRef}
+              className={`${styles.text} ${styles.field} ${styles.withChips}`}
+              value={draft.text}
+              rows={1}
+              maxLength={TODO_TEXT_MAX_LENGTH}
+              enterKeyHint="done"
+              onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === "Escape") {
+                  editingRef.current = false;
+                  setEditing(false);
+                }
+              }}
+            />
+            <TodoChips
+              value={draft}
+              onChange={(value) => setDraft({ ...draft, ...value })}
+              lists={lists}
+            />
+          </>
         ) : (
           <button
             type="button"
@@ -272,32 +321,6 @@ export function TodoRow({
           </span>
         ) : null}
         </div>
-        {editing && draft.trim() !== "" ? (
-          <button
-            type="button"
-            className={`${styles.details} ${todo.due_date ? styles.detailsSet : ""}`}
-            aria-label={strings.todosDetails}
-            // Срабатывает в самом касании: на iPhone поле теряет фокус уже в его начале, правка
-            // заканчивалась (иконка пропадала) раньше, чем доходил click.
-            onPointerDown={(event) => {
-              event.preventDefault();
-              handled.current = true;
-              setEditing(false);
-              textRef.current?.blur();
-              onOpenDetails(draft.trim());
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke="currentColor" strokeWidth="1.8" />
-              <path
-                d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        ) : null}
         {editing ? null : (
           // Полоса у правого края: с неё свайп открывает «Удалить» (экран её свайп не
           // листает); нажатие — как по тому, что под ней.

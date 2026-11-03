@@ -18,8 +18,8 @@
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в конце первого блока
  * появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая клавиатура —
- * задача сохранена (пустая — пропадает); иконка календаря в строке — окно даты и
- * напоминания (TodoSheet). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
+ * задача сохранена (пустая — пропадает); под текстом плашки дня, напоминания и списка
+ * (TodoChips; список — тот, где пишешь). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
  * запланированы на сегодня». Данные — на устройстве, на сервер уходят через /sync.
  */
 
@@ -32,8 +32,7 @@ import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
 import { localDate } from "../components/DateField";
-import { TodoRow } from "../components/TodoRow";
-import { closeTodoSheet, openTodoSheet } from "../components/TodoSheet";
+import { TodoRow, type TodoDraft } from "../components/TodoRow";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
 import { useAppData } from "../hooks/useAppData";
@@ -107,7 +106,6 @@ export function TodosScreen() {
     return () => {
       openDraft = null;
       keyboardHolder = null;
-      closeTodoSheet();
       closeTodoRest();
     };
   }, []);
@@ -197,11 +195,8 @@ export function TodosScreen() {
   }, [todos, todoFolders, shownFolder, kind, today]);
   // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" ? today : undefined;
-  // Цвет задачи — цвет её списка.
-  const colorOf = useMemo(
-    () => new Map(todoFolders.map((item) => [item.id, item.color ?? null])),
-    [todoFolders],
-  );
+  // Свои списки: плашка списка у задачи и цвет её кружка.
+  const lists = useMemo(() => todoFolders.filter((item) => !item.kind), [todoFolders]);
 
   const fail = (error: unknown): void => {
     void showAlert({
@@ -215,22 +210,32 @@ export function TodosScreen() {
   const closeDraft = (key: number): void =>
     setDraft((current) => (current === key ? null : current));
 
-  const saveDraft = (key: number, text: string): void => {
+  const saveDraft = (key: number, next: TodoDraft): void => {
     closeDraft(key);
     try {
-      dataStore.createTodo(text, targetFolder, newDate);
+      dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
     } catch (error) {
       fail(error);
     }
   };
 
-  /** Иконка календаря у новой строки: задача создаётся и открывается её окно. */
-  const draftDetails = (key: number, text: string): void => {
-    closeDraft(key);
-    try {
-      openTodoSheet(dataStore.createTodo(text, targetFolder, newDate));
-    } catch (error) {
-      fail(error);
+  /** Правка задачи: в очередь — только изменённое. */
+  const saveTodo = (todo: Todo, next: TodoDraft): void => {
+    const change: Parameters<typeof dataStore.updateTodo>[1] = {};
+    if (next.text !== todo.text) {
+      change.text = next.text;
+    }
+    if (next.folder !== todo.folder) {
+      change.folder = next.folder;
+    }
+    if (next.due_date !== (todo.due_date ?? null)) {
+      change.due_date = next.due_date;
+    }
+    if (next.remind_time !== (todo.remind_time ?? null)) {
+      change.remind_time = next.remind_time;
+    }
+    if (Object.keys(change).length > 0) {
+      dataStore.updateTodo(todo.id, change);
     }
   };
 
@@ -336,14 +341,14 @@ export function TodosScreen() {
                     folder: targetFolder,
                     done_at: null,
                     created_at: "",
+                    due_date: newDate ?? null,
                   }}
                   startEditing
                   checkRight={checksRight}
-                  color={targetFolder === null ? null : (colorOf.get(targetFolder) ?? null)}
+                  lists={lists}
                   onToggle={() => undefined}
-                  onEdit={(text) => saveDraft(draft, text)}
+                  onSave={(next) => saveDraft(draft, next)}
                   onDelete={() => closeDraft(draft)}
-                  onOpenDetails={(text) => draftDetails(draft, text)}
                 />
               ) : null}
               {group.key === lastGroup ? restRow : null}
@@ -371,16 +376,10 @@ export function TodosScreen() {
           hapticImpact("light");
           dataStore.updateTodo(todo.id, { done: todo.done_at === null });
         }}
-        onEdit={(text) => dataStore.updateTodo(todo.id, { text })}
+        onSave={(next) => saveTodo(todo, next)}
         onDelete={() => dataStore.deleteTodo(todo.id)}
         checkRight={checksRight}
-        color={todo.folder === null ? null : (colorOf.get(todo.folder) ?? null)}
-        onOpenDetails={(text) => {
-          if (text !== todo.text) {
-            dataStore.updateTodo(todo.id, { text });
-          }
-          openTodoSheet(todo.id);
-        }}
+        lists={lists}
       />
     );
   }

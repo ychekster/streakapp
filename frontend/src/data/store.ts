@@ -1204,7 +1204,12 @@ export const dataStore = {
 
   /** Add a todo at the end of the list, in a folder (id on screen) or none (null); throws
    *  ApiRequestError (as the server would) if it can't be. Returns its id on screen. */
-  createTodo(text: string, folderId: number | null, dueDate?: string): number {
+  createTodo(
+    text: string,
+    folderId: number | null,
+    dueDate?: string | null,
+    remindTime?: string | null,
+  ): number {
     if (cleanHabitName(text) === "") {
       throw new ApiRequestError(422, "invalid_todo", "");
     }
@@ -1218,18 +1223,21 @@ export const dataStore = {
       text,
       folder: folderId === null ? null : keyOf(folderId),
       ...(dueDate ? { due_date: dueDate } : {}),
+      ...(dueDate && remindTime ? { remind_time: remindTime } : {}),
       at: new Date().toISOString(),
     });
     return tempIdOf(ref);
   },
 
-  /** Change a todo's text (empty — nothing changes), check it (`done`), set or remove
-   *  (null) its date and reminder time. */
+  /** Change a todo's text (empty — nothing changes), check it (`done`), move it to a
+   *  folder (id on screen) or out of one (`folder: null`), set or remove (null) its date
+   *  and reminder time. */
   updateTodo(
     id: number,
     change: {
       text?: string;
       done?: boolean;
+      folder?: number | null;
       due_date?: string | null;
       remind_time?: string | null;
     },
@@ -1237,7 +1245,14 @@ export const dataStore = {
     if (change.text !== undefined && cleanHabitName(change.text) === "") {
       return;
     }
-    enqueue({ type: "todo_update", key: keyOf(id), ...change, at: new Date().toISOString() });
+    const { folder, ...rest } = change;
+    enqueue({
+      type: "todo_update",
+      key: keyOf(id),
+      ...rest,
+      ...(folder === undefined ? {} : folder === null ? { no_folder: true } : { folder: keyOf(folder) }),
+      at: new Date().toISOString(),
+    });
   },
 
   deleteTodo(id: number): void {

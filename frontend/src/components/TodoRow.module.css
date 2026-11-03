@@ -74,11 +74,6 @@
   order: 1;
 }
 
-.checkRight .details {
-  order: 2;
-  margin-right: 0;
-}
-
 .checkRight .check {
   order: 3;
 }
@@ -175,28 +170,9 @@
   color: var(--color-danger);
 }
 
-/* Иконка календаря справа в строке, пока задачу пишут: по центру первой строки. */
-.details {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  margin-top: calc((var(--list-row-min-height) - 30px) / 2);
-  margin-right: -6px;
-  color: var(--color-text-secondary);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.details svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* У задачи уже есть дата — иконка акцентная. */
-.detailsSet {
-  color: var(--color-accent);
+/* Поле правки над плашками (TodoChips): снизу — небольшой зазор до них. */
+.withChips {
+  padding-bottom: 8px;
 }
 
 .doneText {

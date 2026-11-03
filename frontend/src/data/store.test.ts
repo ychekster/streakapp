@@ -463,6 +463,23 @@ describe("dataStore", () => {
     expect(store.getState().todos[0].remind_time).toBeNull();
   });
 
+  it("creates a todo with a reminder and moves it between lists", async () => {
+    syncChanges.mockResolvedValueOnce(answer([]));
+    const store = await freshStore();
+    store.start();
+    await settle();
+
+    const folder = store.createTodoFolder("Дом");
+    const id = store.createTodo("Банк", null, "2030-05-02", "15:00");
+    expect(store.getState().todos[0]).toMatchObject({ due_date: "2030-05-02", remind_time: "15:00" });
+    store.updateTodo(id, { folder });
+    expect(store.getState().todos[0].folder).toBe(folder);
+    store.updateTodo(id, { folder: null });
+    expect(store.getState().todos[0].folder).toBeNull();
+    const [, create] = JSON.parse(localStorage.getItem("streak:changes")!).value;
+    expect(create).toMatchObject({ type: "todo_create", folder: null, remind_time: "15:00" });
+  });
+
   it("drops a todo created and deleted before sending", async () => {
     syncChanges.mockResolvedValueOnce(answer([]));
     const store = await freshStore();
