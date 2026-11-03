@@ -140,9 +140,13 @@ class User(Base):
     folder_swipe: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
-    # «Показывать задачи» (бета): вкладка «Задачи» перед «Привычками», приложение
-    # открывается на ней. Применяет фронтенд.
+    # «Показывать задачи» (бета): вкладка «Задачи» перед «Привычками». Применяет фронтенд.
     show_todos: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    # «Начинать с задач»: при включённых задачах приложение открывается на вкладке
+    # «Задачи», иначе — на «Привычках». Применяет фронтенд.
+    open_on_todos: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     # Настройки задач: «Переключение свайпом» между списками и «Галочки справа».

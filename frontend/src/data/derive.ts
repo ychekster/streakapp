@@ -492,6 +492,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   if (patch.show_todos !== undefined) {
     next.show_todos = patch.show_todos;
   }
+  if (patch.open_on_todos !== undefined) {
+    next.open_on_todos = patch.open_on_todos;
+  }
   if (patch.todo_folder_swipe !== undefined) {
     next.todo_folder_swipe = patch.todo_folder_swipe;
   }

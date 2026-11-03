@@ -179,6 +179,12 @@ def test_show_todos_setting_is_off_by_default(client: TestClient, user: AuthUser
     assert data["settings"]["show_todos"] is True
 
 
+def test_open_on_todos_setting_is_off_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["open_on_todos"] is False
+    data = _sync(client, user, {"type": "settings", "patch": {"open_on_todos": True}})
+    assert data["settings"]["open_on_todos"] is True
+
+
 def test_todo_date_and_reminder_are_set_and_cleared(client: TestClient, user: AuthUser) -> None:
     data = _sync(
         client,

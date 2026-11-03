@@ -224,6 +224,16 @@ export function HandIcon() {
   );
 }
 
+/** «Начинать с задач»: домик — вкладка, с которой открывается приложение. */
+export function HouseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path {...STROKE} d="M4 10.5 12 4l8 6.5M6 9v9.5a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V9" />
+      <path {...STROKE} d="M10 20v-5h4v5" />
+    </svg>
+  );
+}
+
 /** Установить на рабочий стол. */
 export function InstallIcon() {
   return (

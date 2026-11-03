@@ -218,8 +218,10 @@ export function App() {
   const { settings, save } = settingsState;
   const { rejected, folders, allHabitsPosition, todos, todoFolders, todoAllPosition } =
     useAppData();
-  // «Задачи (бета)»: вкладка «Задачи» перед «Привычками», приложение открывается на ней.
+  // «Задачи (бета)»: вкладка «Задачи» перед «Привычками»; с «Начинать с задач» приложение
+  // открывается на ней.
   const showTodos = settings?.show_todos ?? false;
+  const openOnTodos = showTodos && (settings?.open_on_todos ?? false);
   const typing = useTextFieldFocused();
   const toggle = useToggle();
   const platform = usePlatform();
@@ -236,14 +238,14 @@ export function App() {
   // списком привычек).
   const [start] = useState(startScreen);
   const [tab, setTab] = useState<TabKey>(
-    start === "review" ? "settings" : start === null && showTodos ? "todos" : "habits",
+    start === "review" ? "settings" : start === null && openOnTodos ? "todos" : "habits",
   );
-  // Настройки пришли с сервера уже после запуска (первый вход на устройстве): с задачами —
-  // на вкладку «Задачи», если пользователь ещё никуда не переходил. Вкладку выключили (на
+  // Настройки пришли с сервера уже после запуска (первый вход на устройстве): с «Начинать
+  // с задач» — на вкладку «Задачи», если пользователь ещё никуда не переходил. Вкладку выключили (на
   // другом устройстве) — уходим с неё.
   const tabChosen = useRef(false);
   useEffect(() => {
-    if (showTodos && !tabChosen.current && tab === "habits" && start === null) {
+    if (openOnTodos && !tabChosen.current && tab === "habits" && start === null) {
       setTab("todos");
     }
     if (settings) {
@@ -254,7 +256,7 @@ export function App() {
     }
     // Только по приходу и смене настройки.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showTodos, settings !== null]);
+  }, [showTodos, openOnTodos, settings !== null]);
   const [openHabitId, setOpenHabitId] = useState<number | null>(null);
   // Страница участника групповой привычки поверх экрана привычки: его Telegram id.
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);

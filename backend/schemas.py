@@ -512,7 +512,10 @@ class SettingsResponse(BaseModel):
         False, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
     )
     show_todos: bool = Field(
-        False, description="«Показывать задачи» (бета): вкладка «Задачи», приложение — на ней"
+        False, description="«Показывать задачи» (бета): вкладка «Задачи» перед «Привычками»"
+    )
+    open_on_todos: bool = Field(
+        False, description="«Начинать с задач»: приложение открывается на вкладке «Задачи»"
     )
     todo_folder_swipe: bool = Field(
         False, description="Задачи: свайп по списку задач — соседний список"
@@ -549,6 +552,7 @@ class SettingsUpdate(BaseModel):
     )
     folder_swipe: bool | None = Field(None, description="Переключение папок свайпом")
     show_todos: bool | None = Field(None, description="Вкладка «Задачи» (бета)")
+    open_on_todos: bool | None = Field(None, description="Начинать с вкладки «Задачи»")
     todo_folder_swipe: bool | None = Field(None, description="Задачи: переключение свайпом")
     todo_checks_right: bool | None = Field(None, description="Задачи: галочки справа")
 
@@ -1815,6 +1819,7 @@ class ExportSettings(BaseModel):
     telegram_notifications: bool | None = None
     folder_swipe: bool | None = None
     show_todos: bool | None = None
+    open_on_todos: bool | None = None
     todo_folder_swipe: bool | None = None
     todo_checks_right: bool | None = None
 

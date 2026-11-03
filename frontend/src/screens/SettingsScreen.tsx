@@ -51,6 +51,7 @@ import {
   ExportIcon,
   FolderIcon,
   HandIcon,
+  HouseIcon,
   ImportIcon,
   InstallIcon,
   PersonIcon,
@@ -210,10 +211,12 @@ export function SettingsScreen({
       </ListItem>
     );
     // «Задачи (Beta)» — своя группа: переключатель, а при включённых задачах в ней же
-    // «Списки» и «Галочки справа».
+    // «Начинать с задач», «Списки» и «Галочки справа».
     const showTodos = settings.show_todos ?? false;
     const todosGroup = (
-      <ListGroup footer={showTodos ? undefined : strings.todoSettingsShowFooter}>
+      <ListGroup
+        footer={showTodos ? strings.todoSettingsOpenOnFooter : strings.todoSettingsShowFooter}
+      >
         <ListItem icon={<ChecklistIcon />} iconColor="orange" label={strings.settingsTodos}>
           <Switch
             checked={showTodos}
@@ -223,6 +226,13 @@ export function SettingsScreen({
         </ListItem>
         {showTodos ? (
           <>
+            <ListItem icon={<HouseIcon />} iconColor="orange" label={strings.todoSettingsOpenOn}>
+              <Switch
+                checked={settings.open_on_todos ?? false}
+                onChange={(on) => onSave({ open_on_todos: on })}
+                label={strings.todoSettingsOpenOn}
+              />
+            </ListItem>
             <ListItem
               icon={<FolderIcon />}
               iconColor="orange"

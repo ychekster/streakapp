@@ -1716,6 +1716,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         telegram_notifications=user.telegram_notifications,
         folder_swipe=user.folder_swipe,
         show_todos=user.show_todos,
+        open_on_todos=user.open_on_todos,
         todo_folder_swipe=user.todo_folder_swipe,
         todo_checks_right=user.todo_checks_right,
         checkin_reminder_time=(
@@ -1778,6 +1779,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         telegram_notifications=payload.telegram_notifications,
         folder_swipe=payload.folder_swipe,
         show_todos=payload.show_todos,
+        open_on_todos=payload.open_on_todos,
         todo_folder_swipe=payload.todo_folder_swipe,
         todo_checks_right=payload.todo_checks_right,
     )

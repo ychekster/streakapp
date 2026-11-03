@@ -154,8 +154,10 @@ const RU = {
   // Настройки → «Задачи (Beta)» и «Списки» (screens/TodoSettingsScreen.tsx, FoldersScreen).
   todoSettingsTitle: "Задачи",
   todoSettingsShow: "Показывать задачи",
-  todoSettingsShowFooter:
-    "Вкладка «Задачи» появится перед «Привычками», и приложение будет открываться на ней.",
+  todoSettingsShowFooter: "Вкладка «Задачи» появится перед «Привычками».",
+  todoSettingsOpenOn: "Начинать с задач",
+  todoSettingsOpenOnFooter:
+    "Приложение будет открываться на вкладке «Задачи». Если выключено — на «Привычках».",
   todoSettingsLists: "Списки",
   todoSettingsChecksRight: "Галочки справа",
   todoSettingsChecksRightFooter: "Кружок отметки задачи будет у правого края, под большим пальцем.",
@@ -840,7 +842,9 @@ const EN: Strings = {
   todosFailed: "Couldn’t save",
   todoSettingsTitle: "Tasks",
   todoSettingsShow: "Show Tasks",
-  todoSettingsShowFooter: "A Tasks tab appears before Habits, and the app opens on it.",
+  todoSettingsShowFooter: "A Tasks tab appears before Habits.",
+  todoSettingsOpenOn: "Start on Tasks",
+  todoSettingsOpenOnFooter: "The app opens on the Tasks tab. When off, it opens on Habits.",
   todoSettingsLists: "Lists",
   todoSettingsChecksRight: "Checkmarks on the Right",
   todoSettingsChecksRightFooter: "The task checkmark sits at the right edge, under your thumb.",

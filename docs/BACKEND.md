@@ -84,7 +84,7 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 | `DELETE` | `/tasks/{task_id}` | Удалить привычку (мягко: `is_active = false`, история остаётся в базе, название снова свободно). Ответ `204`; нет такой активной привычки — `404`. |
 | `POST` | `/tasks/{task_id}/toggle` | Отметить / снять отметку выполнения за сегодня. Возвращает обновлённую привычку. |
 | `GET` | `/settings` | Текущие настройки: часовой пояс (с подписью на языке пользователя), язык (`ru` / `en`), тема (`light` / `dark` / `system`), «Отмечать за вчера», «Вид серий» (`grid_layout`), напоминание «Пора отметить привычки» (`checkin_reminder_time`, `checkin_reminder_days`), «Уведомления» в Mini App (`telegram_notifications`), «Переключение свайпом» (`folder_swipe`), `is_admin`. |
-| `PUT` | `/settings` | Изменить настройки — передаются только меняемые поля: `{"timezone_city": 498817}` (пояс городом из справочника — `city_id` из `/meta/timezones`), `{"timezone": "Europe/Moscow"}` (или `"UTC+3"`; пояс без города), `{"language": "en"}`, `{"theme": "system"}`, `{"mark_yesterday": true}`, `{"grid_layout": "fixed"}` («Вид серий»: `rolling`, `fixed`, `calendar`), `{"checkin_reminder": {"time": "21:00", "days": ["mon", "fri"]}}` (`time: null` — выключить), `{"telegram_notifications": false}`, `{"folder_swipe": true}`, задачи (бета): `{"show_todos": true}`, `{"todo_folder_swipe": true}`, `{"todo_checks_right": true}`. |
+| `PUT` | `/settings` | Изменить настройки — передаются только меняемые поля: `{"timezone_city": 498817}` (пояс городом из справочника — `city_id` из `/meta/timezones`), `{"timezone": "Europe/Moscow"}` (или `"UTC+3"`; пояс без города), `{"language": "en"}`, `{"theme": "system"}`, `{"mark_yesterday": true}`, `{"grid_layout": "fixed"}` («Вид серий»: `rolling`, `fixed`, `calendar`), `{"checkin_reminder": {"time": "21:00", "days": ["mon", "fri"]}}` (`time: null` — выключить), `{"telegram_notifications": false}`, `{"folder_swipe": true}`, задачи (бета): `{"show_todos": true}`, `{"open_on_todos": true}`, `{"todo_folder_swipe": true}`, `{"todo_checks_right": true}`. |
 | `GET` | `/meta` | Справочные данные формы привычки: лимит длины названия. |
 | `GET` | `/meta/timezones?language=ru` | Каталог часовых поясов для выбора в настройках — по поясу на зону, с запада на восток: зона IANA, город (`city_id` в справочнике, если он там есть), страна (на языке `language`) и текущее смещение. |
 | `GET` | `/meta/timezones?language=ru&q=питер` | Поиск города (до 50): по названию на любом языке латиницей или кириллицей, с уточнением страны или региона (`портленд орегон`); по названию страны — ещё и её пояса; по смещению (`+3`) — пояса с ним. У одноимённых городов страны есть `region`. |
@@ -486,6 +486,10 @@ NULL у открытой, `client_ref`) и `users.show_todos` (настройк�
 Миграция `0041` — цвет списка задач: `todo_folders.color` (как у привычки, `invalid_color`;
 NULL — серый). В `todo_folder_create` / `todo_folder_update` — `color`, в ответе и экспорте —
 `todo_folders[].color`. Без неё `/sync` не ответит.
+
+Миграция `0042` — «Начинать с задач»: `users.open_on_todos` (при включённых задачах
+приложение открывается на вкладке «Задачи», по умолчанию — на «Привычках»; в `/settings`,
+`/sync` и экспорте — `open_on_todos`). Без неё API не прочитает пользователя.
 
 > Перед миграцией сделайте копию базы: `python scripts/backup_db.py` (база в режиме
 > WAL — простое копирование файла на работающих процессах может потерять последние

@@ -426,6 +426,7 @@ class Repository:
         telegram_notifications: bool | None = None,
         folder_swipe: bool | None = None,
         show_todos: bool | None = None,
+        open_on_todos: bool | None = None,
         todo_folder_swipe: bool | None = None,
         todo_checks_right: bool | None = None,
     ) -> None:
@@ -451,6 +452,8 @@ class Repository:
             user.folder_swipe = folder_swipe
         if show_todos is not None:
             user.show_todos = show_todos
+        if open_on_todos is not None:
+            user.open_on_todos = open_on_todos
         if todo_folder_swipe is not None:
             user.todo_folder_swipe = todo_folder_swipe
         if todo_checks_right is not None:
@@ -2314,6 +2317,7 @@ class Repository:
             all_habits_position=source.all_habits_position,
             folder_swipe=source.folder_swipe,
             show_todos=source.show_todos,
+            open_on_todos=source.open_on_todos,
             todo_folder_swipe=source.todo_folder_swipe,
             todo_checks_right=source.todo_checks_right,
             all_todos_position=source.all_todos_position,

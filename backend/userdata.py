@@ -217,6 +217,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             telegram_notifications=user.telegram_notifications,
             folder_swipe=user.folder_swipe,
             show_todos=user.show_todos,
+            open_on_todos=user.open_on_todos,
             todo_folder_swipe=user.todo_folder_swipe,
             todo_checks_right=user.todo_checks_right,
         ),
@@ -424,6 +425,7 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
         telegram_notifications=settings.telegram_notifications,
         folder_swipe=settings.folder_swipe,
         show_todos=settings.show_todos,
+        open_on_todos=settings.open_on_todos,
         todo_folder_swipe=settings.todo_folder_swipe,
         todo_checks_right=settings.todo_checks_right,
     )
