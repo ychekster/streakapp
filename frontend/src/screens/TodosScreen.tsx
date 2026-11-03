@@ -402,7 +402,7 @@ export function TodosScreen() {
 
   return (
     <Screen title={strings.todosTitle}>
-      <div ref={listRef} className={styles.todos}>
+      <div ref={listRef} className={styles.todos} data-plain={hideListNames ? "" : undefined}>
         {todoFolders.length > 0 ? (
           <FolderBar
             tabs={tabs}

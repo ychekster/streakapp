@@ -6,7 +6,8 @@
  *    карточки (форма привычки, как в эталоне). Шрифт у обоих одинаковый.
  *
  * Под содержимым может стоять приглушённое пояснение (`footer`), как под группой списка,
- * а справа от заголовка — действие (`action`, «Изменить» у списка папок). Без `title` —
+ * а справа от заголовка — действие (`action`, «Изменить» у списка папок), или сразу за
+ * текстом заголовка — подсказка (`hint`, значок «i», InfoTip). Без `title` —
  * секция без заголовка (переключатель с пояснением в настройках папок).
  *
  * `Card` — белая карточка секции; `padded` добавляет горизонтальный отступ (карточка
@@ -27,6 +28,8 @@ interface SectionProps {
   footer?: ReactNode;
   /** Кнопка справа от заголовка. */
   action?: ReactNode;
+  /** Сразу за текстом заголовка: значок «i» с пояснением (InfoTip). */
+  hint?: ReactNode;
   /** Метка блока (`data-section`): по ней экран находит блок, чтобы плавно его сдвинуть. */
   motionKey?: string;
   children: ReactNode;
@@ -38,6 +41,7 @@ export function Section({
   headingRef,
   footer,
   action,
+  hint,
   motionKey,
   children,
 }: SectionProps) {
@@ -53,6 +57,11 @@ export function Section({
         <div className={styles.headingRow}>
           {heading}
           {action}
+        </div>
+      ) : hint ? (
+        <div className={styles.titleRow}>
+          {heading}
+          {hint}
         </div>
       ) : (
         heading

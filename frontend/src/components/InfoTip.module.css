@@ -1,0 +1,64 @@
+/* Значок «i» и пояснение под заголовком секции. Карточка пояснения встаёт относительно
+   ряда заголовка (Section .titleRow — position: relative), а не значка: так она во всю
+   ширину секции и не выходит за экран. */
+
+.tip {
+  display: inline-flex;
+}
+
+/* Поле нажатия больше значка; сам значок — цветом заголовка секции. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--info-tip-hit);
+  height: var(--info-tip-hit);
+  margin: calc((var(--info-tip-size) - var(--info-tip-hit)) / 2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button svg {
+  width: var(--info-tip-size);
+  height: var(--info-tip-size);
+}
+
+.button:active,
+.button[aria-expanded="true"] {
+  opacity: 0.6;
+}
+
+.bubble {
+  position: absolute;
+  top: calc(100% + var(--info-tip-gap));
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: var(--info-tip-padding);
+  border-radius: var(--info-tip-radius);
+  background-color: var(--info-tip-background);
+  box-shadow: var(--info-tip-shadow);
+  font-size: var(--font-size-body);
+  font-weight: 400;
+  line-height: 20px;
+  text-transform: none;
+  color: var(--color-text-primary);
+  animation: info-tip-in 160ms ease-out;
+}
+
+@keyframes info-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: none;
+  }
+}

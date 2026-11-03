@@ -81,6 +81,9 @@ are historical names — keep them; renaming breaks the server `.env` and client
   **Never use the middle dot «·» as a separator** in anything the user sees (date and
   time, a count after a label, two facts in a row): write it in words («Завтра в 15:00»,
   «Tomorrow at 15:00»), with a comma or on a new line.
+  **No dashes («—», «–», « - ») in anything the user sees**: app copy (ru and en), hints,
+  bot messages, reminders, push, broadcasts, the install page. Phrase it so no dash is
+  needed: two sentences, a comma, a colon, «если», «поэтому». Fix old copy when you touch it.
 - **Constants shared by both sides** must match: `HISTORY_DAYS`, weekdays, habit colors,
   `MAX_HABITS_PER_USER`, `SYNC_BATCH_SIZE` ≤ `SYNC_MAX_OPS`, `AUDIENCE_FILTERS` (backend/constants.py ↔ frontend/src/constants.ts; audience SQL in
   `repository._audience_condition`).

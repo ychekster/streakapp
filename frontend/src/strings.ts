@@ -428,6 +428,11 @@ const RU = {
   // Для скринридеров: «↑ 18% к прошлому месяцу».
   statsDeltaLabel: (arrow: string, amount: string) => `${arrow} ${amount} к прошлому месяцу`,
   statsTrendHeading: "Динамика",
+  statsTrendInfoLabel: "Что показывает динамика",
+  statsTrendInfo:
+    "Линия показывает счёт привычки. За каждый выполненный по плану день прибавляется 1 очко, за пропущенный отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
+  statsTrendInfoFlexible:
+    "Линия показывает счёт привычки. За каждую отметку прибавляется 1 очко. Когда период заканчивается, за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
   statsWeekdaysHeading: "Выполнение по дням недели",
   statsDaysHeading: "Итоги по дням",
@@ -1086,6 +1091,11 @@ const EN: Strings = {
   statsBestDayOn: (date: string) => `Best day, ${date}`,
   statsDeltaLabel: (arrow: string, amount: string) => `${arrow} ${amount} vs last month`,
   statsTrendHeading: "Trend",
+  statsTrendInfoLabel: "What the trend shows",
+  statsTrendInfo:
+    "The line shows the habit’s score. Each day done as planned adds 1 point, each missed day takes 1 away. The score never goes below zero, so the longer you keep the habit, the higher the line.",
+  statsTrendInfoFlexible:
+    "The line shows the habit’s score. Each mark adds 1 point. When a period ends, 1 point is taken away for each mark short of the goal. The score never goes below zero, so the longer you keep the habit, the higher the line.",
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
   statsWeekdaysHeading: "Completion by weekday",
   statsDaysHeading: "Days summary",

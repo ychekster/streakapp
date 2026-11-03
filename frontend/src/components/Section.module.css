@@ -32,6 +32,19 @@
   margin-bottom: 0;
 }
 
+/* Заголовок с подсказкой «i» сразу за текстом; пояснение встаёт под рядом (InfoTip). */
+.titleRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-subheading-bottom);
+}
+
+.titleRow > .heading {
+  margin-bottom: 0;
+}
+
 /* Экран привычки: капсом, вровень с краем карточки. */
 .screen {
   text-transform: uppercase;

@@ -29,6 +29,7 @@ import { PieChart, type PieSlice } from "../components/charts/PieChart";
 import { localDate } from "../components/DateField";
 import { useGridView } from "../components/gridLayout";
 import { shortDate, timesStat, timeStat } from "../components/HabitSummary";
+import { InfoTip } from "../components/InfoTip";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { StatDelta } from "../components/StatDelta";
@@ -226,7 +227,15 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
           </Section>
         ) : null}
 
-        <Section title={strings.statsTrendHeading}>
+        <Section
+          title={strings.statsTrendHeading}
+          hint={
+            <InfoTip
+              label={strings.statsTrendInfoLabel}
+              text={kind === "flexible" ? strings.statsTrendInfoFlexible : strings.statsTrendInfo}
+            />
+          }
+        >
           <Card padded>
             <div className={styles.chartCard}>
               <div className={styles.pills} role="group" aria-label={strings.statsTrendHeading}>
