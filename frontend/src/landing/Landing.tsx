@@ -213,7 +213,6 @@ function MainScreen({ onTelegram, onInstall }: { onTelegram: () => void; onInsta
     <PhoneScreen
       actions={
         <>
-          <p className={styles.footnote}>Knot работает в браузере, скачивать ничего не нужно</p>
           <button type="button" className={styles.primary} onClick={onInstall}>
             Добавить на экран телефона
           </button>
@@ -251,7 +250,7 @@ function DesktopScreen() {
       <div className={styles.window}>
         <AppIcon size="medium" />
         <h1 className={styles.desktopTitle}>Knot живёт в телефоне</h1>
-        <p className={styles.desktopText}>Наведите камеру телефона на код, Knot откроется в браузере</p>
+        <p className={styles.desktopText}>Наведите камеру телефона на QR-код, Knot откроется в браузере</p>
         <div className={styles.qrTile}>
           {qr ? <img className={styles.qr} src={qr} alt="QR-код ссылки на Knot" /> : null}
         </div>

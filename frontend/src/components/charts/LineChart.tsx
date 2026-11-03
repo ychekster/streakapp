@@ -11,8 +11,8 @@
  *
  * `null` — у дня нет значения (например, не на что считать долю выполнения): линия
  * прерывается. `partialLast` — последний день ещё идёт (сегодня): отрезок к нему
- * пунктиром. `smooth` — линия плавной кривой через точки (без выбросов за значения
- * соседей: доля не уходит выше 100% и ниже нуля). `fit` — шкала не от нуля, а от
+ * пунктиром. `smooth` — углы линии скруглены (без выбросов за значения соседей: доля
+ * не уходит выше 100% и ниже нуля). `fit` — шкала не от нуля, а от
  * «красивого» значения под наименьшим: рост от 270 до 300 занимает весь график.
  */
 
@@ -68,44 +68,27 @@ function fittedTicks(values: number[], count: number, integer: boolean): number[
   return ticks;
 }
 
-/** Монотонная кубическая кривая через точки (Фриц — Карлсон): касательные — среднее
- *  соседних наклонов, на пиках и впадинах — горизонтальные, так кривая не выходит за
- *  значения соседних точек. */
+/** Скругление угла: не дальше CORNER_RADIUS от вершины по каждому отрезку (и не дальше
+ *  его половины). */
+const CORNER_RADIUS = 12;
+
+/** Ломаная со скруглёнными углами: отрезки прямые, вершина срезана дугой (квадратичная
+ *  кривая с вершиной как опорной точкой) — дуга идёт внутри угла, не выпирает за
+ *  отрезки и не выходит за значения соседних точек. */
 function smoothPath(points: [number, number][]): string {
-  const n = points.length;
-  const slopes = points.slice(1).map(([x1, y1], index) => {
-    const [x0, y0] = points[index];
-    return (y1 - y0) / (x1 - x0);
+  const toward = ([x0, y0]: [number, number], [x1, y1]: [number, number]): [number, number] => {
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    const share = length > 0 ? Math.min(CORNER_RADIUS, length / 2) / length : 0;
+    return [x0 + (x1 - x0) * share, y0 + (y1 - y0) * share];
+  };
+  const [first, ...rest] = points;
+  const last = rest.pop() as [number, number];
+  const corners = rest.map((point, index) => {
+    const [ax, ay] = toward(point, points[index]);
+    const [bx, by] = toward(point, points[index + 2]);
+    return `L${ax} ${ay} Q${point[0]} ${point[1]} ${bx} ${by}`;
   });
-  const tangents = points.map((_, index) => {
-    if (index === 0) return slopes[0];
-    if (index === n - 1) return slopes[n - 2];
-    const [before, after] = [slopes[index - 1], slopes[index]];
-    return before * after <= 0 ? 0 : (before + after) / 2;
-  });
-  slopes.forEach((slope, index) => {
-    if (slope === 0) {
-      tangents[index] = 0;
-      tangents[index + 1] = 0;
-      return;
-    }
-    const a = tangents[index] / slope;
-    const b = tangents[index + 1] / slope;
-    const length = a * a + b * b;
-    if (length > 9) {
-      const scale = 3 / Math.sqrt(length);
-      tangents[index] = scale * a * slope;
-      tangents[index + 1] = scale * b * slope;
-    }
-  });
-  return points
-    .map(([x1, y1], index) => {
-      if (index === 0) return `M${x1} ${y1}`;
-      const [x0, y0] = points[index - 1];
-      const third = (x1 - x0) / 3;
-      return `C${x0 + third} ${y0 + tangents[index - 1] * third} ${x1 - third} ${y1 - tangents[index] * third} ${x1} ${y1}`;
-    })
-    .join(" ");
+  return [`M${first[0]} ${first[1]}`, ...corners, `L${last[0]} ${last[1]}`].join(" ");
 }
 
 export function LineChart({
