@@ -20,8 +20,8 @@
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в конце первого блока
  * появляется пустая строка с курсором, пишешь прямо в ней; под текстом плашки дня,
- * напоминания и списка (TodoChips; список — тот, где пишешь); Enter или нажатие мимо
- * строки — задача сохранена (пустая — пропадает). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
+ * напоминания и списка (TodoChips; список — тот, где пишешь); нажатие мимо
+ * строки — задача сохранена (пустая — пропадает), галочка — сохранена и отмечена. Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
  * запланированы на сегодня». Данные — на устройстве, на сервер уходят через /sync.
  */
 
@@ -228,13 +228,36 @@ export function TodosScreen() {
   const closeDraft = (key: number): void =>
     setDraft((current) => (current === key ? null : current));
 
+  // Задача, только что созданная из новой строки: галочка той строки отмечает её.
+  const lastCreated = useRef<number | null>(null);
+
   const saveDraft = (key: number, next: TodoDraft): void => {
     closeDraft(key);
+    lastCreated.current = null;
     try {
-      dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
+      lastCreated.current = dataStore.createTodo(
+        next.text,
+        next.folder,
+        next.due_date,
+        next.remind_time,
+      );
     } catch (error) {
       fail(error);
     }
+  };
+
+  /** Галочка новой строки (TodoRow сначала сохраняет её — saveDraft). */
+  const checkCreated = (): void => {
+    const todo = dataStore.getState().todos.find((item) => item.id === lastCreated.current);
+    if (todo) {
+      toggle(todo);
+    }
+  };
+
+  const toggle = (todo: Todo): void => {
+    hapticImpact("light");
+    hold(todo);
+    dataStore.updateTodo(todo.id, { done: todo.done_at === null });
   };
 
   /** Правка задачи: в очередь — только изменённое. */
@@ -344,7 +367,7 @@ export function TodosScreen() {
                   startEditing
                   checkRight={checksRight}
                   lists={lists}
-                  onToggle={() => undefined}
+                  onToggle={checkCreated}
                   onSave={(next) => saveDraft(draft, next)}
                   onDelete={() => closeDraft(draft)}
                 />
@@ -381,11 +404,7 @@ export function TodosScreen() {
       <TodoRow
         key={todo.id}
         todo={todo}
-        onToggle={() => {
-          hapticImpact("light");
-          hold(todo);
-          dataStore.updateTodo(todo.id, { done: todo.done_at === null });
-        }}
+        onToggle={() => toggle(todo)}
         onSave={(next) => saveTodo(todo, next)}
         onDelete={() => dataStore.deleteTodo(todo.id)}
         checkRight={checksRight}

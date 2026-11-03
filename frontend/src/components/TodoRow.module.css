@@ -31,6 +31,13 @@
   font-weight: 500;
 }
 
+/* Строка на месте — кнопки нет (её край просвечивал по скруглению угла карточки); прячется,
+   когда строка доехала обратно (время — как у transition строки). */
+.deleteHidden {
+  visibility: hidden;
+  transition: visibility 0s linear 0.22s;
+}
+
 .content {
   position: relative;
   display: flex;

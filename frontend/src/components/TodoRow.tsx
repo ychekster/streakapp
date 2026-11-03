@@ -9,7 +9,8 @@
  *
  * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips). Правка —
  * текст и плашки вместе: выбор дня или времени и закрытая клавиатура её не заканчивают —
- * только Enter («Готово») или нажатие мимо строки (не прокрутка); тогда всё сохраняется
+ * «Готово» на клавиатуре тоже (прячет клавиатуру). Правку заканчивает нажатие мимо строки
+ * (не прокрутка) или галочка (задача сохраняется и отмечается); тогда всё сохраняется
  * разом (`onSave`).
  * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
  * красным.
@@ -142,18 +143,28 @@ export function TodoRow({
     setEditing(true);
   };
 
-  const finishEdit = (): void => {
-    if (!editingRef.current) {
-      return;
-    }
+  /** Закрыть правку. Поле сначала теряет фокус: убранное из страницы в фокусе, на iPhone
+   *  оно не присылает focusout — приложение считало бы клавиатуру открытой и не
+   *  возвращало нижнюю навигацию (useTextFieldFocused). */
+  const closeEdit = (): void => {
     editingRef.current = false;
+    textRef.current?.blur();
     setEditing(false);
+  };
+
+  /** Сохранить правку; false — текст пуст, задача удалена (или новая не создана). */
+  const finishEdit = (): boolean => {
+    if (!editingRef.current) {
+      return false;
+    }
+    closeEdit();
     const text = latest.current.text.trim();
     if (text === "") {
       onDelete();
-    } else {
-      onSave({ ...latest.current, text });
+      return false;
     }
+    onSave({ ...latest.current, text });
+    return true;
   };
 
   const finishRef = useRef(finishEdit);
@@ -246,7 +257,9 @@ export function TodoRow({
     >
       <button
         type="button"
-        className={styles.delete}
+        // Пока строка не сдвинута, кнопки нет: иначе её красный край просвечивал по скруглению
+        // угла карточки.
+        className={`${styles.delete} ${shift ? "" : styles.deleteHidden}`}
         style={{ width: DELETE_WIDTH }}
         tabIndex={open ? 0 : -1}
         aria-hidden={!open}
@@ -283,7 +296,12 @@ export function TodoRow({
           className={`${styles.check} ${done ? styles.checked : ""}`}
           aria-label={done ? strings.todosUncheck : strings.todosCheck}
           aria-pressed={done}
-          onClick={onToggle}
+          onClick={() => {
+            // Отметка в правке: правка сохраняется и закрывается, задача — зачёркнутой.
+            if (!editingRef.current || finishEdit()) {
+              onToggle();
+            }
+          }}
         >
           {done ? (
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -304,11 +322,11 @@ export function TodoRow({
               onChange={(event) => setDraft({ ...draft, text: event.target.value })}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
+                  // «Готово» на клавиатуре прячет её, правка остаётся (как ✓ над клавиатурой).
                   event.preventDefault();
-                  finishEdit();
+                  event.currentTarget.blur();
                 } else if (event.key === "Escape") {
-                  editingRef.current = false;
-                  setEditing(false);
+                  closeEdit();
                 }
               }}
             />
