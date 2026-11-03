@@ -27,6 +27,8 @@ interface SectionProps {
   footer?: ReactNode;
   /** Кнопка справа от заголовка. */
   action?: ReactNode;
+  /** Метка блока (`data-section`): по ней экран находит блок, чтобы плавно его сдвинуть. */
+  motionKey?: string;
   children: ReactNode;
 }
 
@@ -36,6 +38,7 @@ export function Section({
   headingRef,
   footer,
   action,
+  motionKey,
   children,
 }: SectionProps) {
   const heading =
@@ -45,7 +48,7 @@ export function Section({
       </h2>
     ) : null;
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-section={motionKey}>
       {action ? (
         <div className={styles.headingRow}>
           {heading}

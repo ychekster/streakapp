@@ -58,6 +58,9 @@ interface TodoRowProps {
   /** Правка закончена с непустым текстом (что-то могло и не измениться). */
   onSave: (draft: TodoDraft) => void;
   onDelete: () => void;
+  /** Правку открыли нажатием на текст — до появления плашек (экран плавно сдвигает строки
+   *  ниже). */
+  onEditStart?: () => void;
   /** Сразу в правке (новая, ещё пустая задача). */
   startEditing?: boolean;
   /** «Галочки справа» (настройки задач): кружок у правого края. */
@@ -98,6 +101,7 @@ export function TodoRow({
   onToggle,
   onSave,
   onDelete,
+  onEditStart,
   startEditing = false,
   checkRight = false,
   lists,
@@ -144,6 +148,7 @@ export function TodoRow({
   }, [editing]);
 
   const startEdit = (): void => {
+    onEditStart?.();
     setDraft(draftOf(todo));
     setEditing(true);
   };

@@ -56,12 +56,11 @@ import { useStrings } from "../preferences";
 import { hapticImpact, showAlert } from "../telegram/webapp";
 import type { Todo, TodoFolderKind } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
+import { playMotion, takeSnapshot, type MotionSnapshot } from "./todoMotion";
 import styles from "./TodosScreen.module.css";
 
 /** Сколько отмеченная задача стоит на месте после последней галочки (мс). */
 const SETTLE_MS = 700;
-/** Переезд строк на свои места (мс). */
-const MOVE_MS = 400;
 
 // Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
 // получает фокус прямо в нажатии карандаша — иначе iPhone не откроет клавиатуру (фокус
@@ -119,6 +118,8 @@ export function TodosScreen() {
 
   useEffect(() => {
     openDraft = () => {
+      // Строки ниже плавно уступают место новой (todoMotion).
+      prepareMotion();
       draftSeq += 1;
       setDraft(draftSeq);
     };
@@ -171,8 +172,17 @@ export function TodosScreen() {
   const held = heldState.view === view ? heldState.held : EMPTY_HELD;
   const listRef = useRef<HTMLDivElement>(null);
   const settleTimer = useRef<number | undefined>(undefined);
-  // Места строк до переезда (id → верх строки): следующая отрисовка сдвигает их оттуда.
-  const moveFrom = useRef<Map<string, number> | null>(null);
+  // Снимок экрана до перемены (todoMotion): следующая отрисовка плавно переводит из него.
+  const motion = useRef<{
+    before: MotionSnapshot;
+    alias: { from: string; to: string } | null;
+  } | null>(null);
+
+  /** Перед переменой (сохранение, удаление, переезд после галочки): снять, где что стоит. */
+  const prepareMotion = (): void => {
+    const before = takeSnapshot(listRef.current);
+    motion.current = before ? { before, alias: null } : null;
+  };
 
   useEffect(() => () => window.clearTimeout(settleTimer.current), [view]);
 
@@ -185,28 +195,18 @@ export function TodosScreen() {
     }
     window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
-      moveFrom.current = rowTops(listRef.current);
+      prepareMotion();
       setHeldState({ view, held: new Map() });
     }, SETTLE_MS);
   };
 
-  // Переезд после паузы: строка встаёт на новое место и плавно едет туда из прежнего.
+  // Перемена отрисована: строки и блоки плавно едут из прежних мест (todoMotion).
   useLayoutEffect(() => {
-    const before = moveFrom.current;
-    moveFrom.current = null;
-    if (!before || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
+    const pending = motion.current;
+    motion.current = null;
+    if (pending) {
+      playMotion(listRef.current, pending.before, pending.alias);
     }
-    listRef.current?.querySelectorAll<HTMLElement>("[data-todo]").forEach((row) => {
-      const top = before.get(row.dataset.todo ?? "");
-      const shift = top === undefined ? 0 : top - row.getBoundingClientRect().top;
-      if (Math.abs(shift) > 0.5) {
-        row.animate(
-          [{ transform: `translateY(${shift}px)` }, { transform: "translateY(0)" }],
-          { duration: MOVE_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" },
-        );
-      }
-    });
   });
 
   // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
@@ -234,16 +234,19 @@ export function TodosScreen() {
             .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""))),
     ];
     // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
+    // Будущие — одним блоком, но по спискам (без списка — первыми, дальше списки по порядку,
+    // как блоки экрана задач), внутри списка — по дню и времени.
+    const listOrder = new Map(
+      todoFolders.filter((item) => !item.kind).map((item, index) => [item.id, index + 1]),
+    );
+    const listIndex = (todo: Todo): number =>
+      todo.folder === null ? 0 : (listOrder.get(todo.folder) ?? 0);
     const upcoming =
       kind === "today"
         ? []
         : pending
             .filter(isLater)
-            .sort(
-              (a, b) =>
-                (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
-                (a.remind_time ?? "").localeCompare(b.remind_time ?? ""),
-            );
+            .sort((a, b) => listIndex(a) - listIndex(b) || byWhen(a, b));
     const checked =
       kind === "today"
         ? []
@@ -292,13 +295,19 @@ export function TodosScreen() {
   };
 
   /** Строка `key` закрыта: открытая после неё остаётся. */
-  const closeDraft = (key: number): void =>
+  const closeDraft = (key: number): void => {
+    prepareMotion();
     setDraft((current) => (current === key ? null : current));
+  };
 
   const saveDraft = (key: number, next: TodoDraft): void => {
     closeDraft(key);
     try {
-      dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
+      const id = dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
+      // Новая задача едет на своё место из строки ввода (её data-todo — 0).
+      if (motion.current) {
+        motion.current.alias = { from: "0", to: String(id) };
+      }
     } catch (error) {
       fail(error);
     }
@@ -312,6 +321,8 @@ export function TodosScreen() {
 
   /** Правка задачи: в очередь — только изменённое. */
   const saveTodo = (todo: Todo, next: TodoDraft): void => {
+    // И без перемен правка закрывается (плашки уходят) — строки ниже плавно поднимаются.
+    prepareMotion();
     const change: Parameters<typeof dataStore.updateTodo>[1] = {};
     if (next.text !== todo.text) {
       change.text = next.text;
@@ -354,15 +365,15 @@ export function TodosScreen() {
         enterAnimation
         pinnedTitle
       >
-        <div className={`${formStyles.pinned} ${styles.todos}`}>
+        <div ref={listRef} className={`${formStyles.pinned} ${styles.todos}`}>
           {rest === 0 ? <StatusMessage icon="check" title={strings.todosRestEmpty} /> : null}
           {later.length > 0 ? (
-            <Section title={strings.todosLater} variant="form">
+            <Section title={strings.todosLater} variant="form" motionKey="later">
               <Card>{later.map(renderRow)}</Card>
             </Section>
           ) : null}
           {done.length > 0 ? (
-            <Section title={strings.todosDone} variant="form">
+            <Section title={strings.todosDone} variant="form" motionKey="done">
               <Card>{done.map(renderRow)}</Card>
             </Section>
           ) : null}
@@ -400,7 +411,7 @@ export function TodosScreen() {
           )
         ) : null}
         {shownGroups.map((group) => (
-          <Section key={group.key} title={group.title} variant="form">
+          <Section key={group.key} title={group.title} variant="form" motionKey={group.key}>
             <Card>
               {/* Новая задача — первой строкой блока. */}
               {group.target && draft !== null ? (
@@ -457,7 +468,11 @@ export function TodosScreen() {
         todo={todo}
         onToggle={() => toggle(todo)}
         onSave={(next) => saveTodo(todo, next)}
-        onDelete={() => dataStore.deleteTodo(todo.id)}
+        onEditStart={prepareMotion}
+        onDelete={() => {
+          prepareMotion();
+          dataStore.deleteTodo(todo.id);
+        }}
         checkRight={checksRight}
         lists={lists}
       />
@@ -474,15 +489,6 @@ function byWhen(a: Todo, b: Todo): number {
   const dayA = a.due_date ?? "";
   const dayB = b.due_date ?? "";
   return dayA.localeCompare(dayB) || (a.remind_time ?? "").localeCompare(b.remind_time ?? "");
-}
-
-/** Верх каждой строки задачи в `list` (id → px от окна). */
-function rowTops(list: HTMLElement | null): Map<string, number> {
-  const tops = new Map<string, number>();
-  list?.querySelectorAll<HTMLElement>("[data-todo]").forEach((row) => {
-    tops.set(row.dataset.todo ?? "", row.getBoundingClientRect().top);
-  });
-  return tops;
 }
 
 /** День устройства «ГГГГ-ММ-ДД» момента `iso` (как localDate). */

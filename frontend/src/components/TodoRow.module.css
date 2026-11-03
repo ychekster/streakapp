@@ -131,7 +131,8 @@
   left: var(--space-card-padding);
 }
 
-/* Кружок отметки: пустой — обводка, выполненная — залит акцентом с галочкой. */
+/* Кружок отметки: пустой — обводка, выполненная — залит с галочкой. Задача без списка (или
+   списка без цвета) — акцентного цвета, как привычка по умолчанию; со списком — его цвета. */
 .check {
   flex: none;
   display: flex;
@@ -141,7 +142,7 @@
   height: var(--todo-check-size);
   /* По центру первой строки текста: и кружок, и строка стоят по центру высоты ряда. */
   margin-top: calc((var(--list-row-min-height) - var(--todo-check-size)) / 2);
-  border: var(--todo-check-stroke) solid var(--color-text-secondary);
+  border: var(--todo-check-stroke) solid var(--color-accent);
   border-radius: 50%;
   -webkit-tap-highlight-color: transparent;
 }
