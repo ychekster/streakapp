@@ -130,11 +130,11 @@
 }
 
 .check svg {
-  width: 19px;
-  height: 19px;
+  width: var(--todo-check-icon-size);
+  height: var(--todo-check-icon-size);
   fill: none;
-  stroke: #fff;
-  stroke-width: 2.4;
+  stroke: var(--color-check-icon); /* как у привычек: в тёмной теме — тёмная */
+  stroke-width: 3.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }

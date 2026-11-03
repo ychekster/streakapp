@@ -305,7 +305,7 @@ export function TodoRow({
         >
           {done ? (
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 12.5l3.2 3.2L17 9" />
+              <path d="M5 12.75l4.5 4.5L19 7.75" />
             </svg>
           ) : null}
         </button>

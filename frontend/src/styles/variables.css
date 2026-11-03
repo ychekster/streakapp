@@ -450,6 +450,8 @@
   --todo-check-size: 26px;
   --todo-check-inset: calc(var(--radius-card) - var(--todo-check-size) / 2);
   --todo-check-stroke: 2px;
+  /* Галочка выполненной задачи — в тех же долях кружка, что у привычки (20 из 30). */
+  --todo-check-icon-size: calc(var(--todo-check-size) * 2 / 3);
   --todo-row-line: 22px; /* строка текста задачи: по её центру — кружок */
   --search-gap: 6px; /* между лупой и текстом */
   --search-icon-size: 17px;

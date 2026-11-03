@@ -12,10 +12,17 @@
  * Остальное (задачи на будущие дни — «Не запланированы на сегодня», по дню и времени, и
  * «Выполненные») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
  * ссылка «Показать остальные» в самом низу экрана, отдельно от задач; «Назад» возвращает
- * (нижней навигации там нет, как на вложенных экранах). Отмеченная (или возвращённая)
- * задача не убегает сразу: она стоит на месте, пока список открыт (`held`), и уходит в свой
- * блок, когда сменили список или экран, — промахнулся галочкой — видно, где исправить. Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без
- * остальных: отметил всё — пусто, «Всё выполнено»; «Запланированные» — с датой (новая в них
+ * (нижней навигации там нет, как на вложенных экранах).
+ *
+ * Выполненные сегодня — зачёркнутыми внизу своего блока (списка), до конца дня; назавтра
+ * они в «Выполненных» на экране остальных, а здесь — чисто. Отмеченная (или возвращённая)
+ * задача не убегает сразу: она стоит на месте (`held`), и через SETTLE_MS после последней
+ * галочки плавно переезжает на своё место (FLIP: строки сдвигаются из прежних мест).
+ * Промахнулся галочкой — успел вернуть, ничего не сдвинулось. На экране остальных
+ * отмеченная стоит на месте, пока он открыт.
+ *
+ * Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без остальных и
+ * без выполненных (отмеченная уходит через ту же паузу): отметил всё — «Всё выполнено»; «Запланированные» — с датой (новая в них
  * — на сегодня); «Без даты». Кружок задачи — цвета её списка (без списка — серый).
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в конце первого блока
@@ -25,7 +32,15 @@
  * запланированы на сегодня». Данные — на устройстве, на сервер уходят через /sync.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { FolderBar, type FolderTab } from "../components/FolderBar";
 import { Card, Section } from "../components/Section";
@@ -42,6 +57,11 @@ import { hapticImpact, showAlert } from "../telegram/webapp";
 import type { Todo, TodoFolderKind } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
 import styles from "./TodosScreen.module.css";
+
+/** Сколько отмеченная задача стоит на месте после последней галочки (мс). */
+const SETTLE_MS = 700;
+/** Переезд строк на свои места (мс). */
+const MOVE_MS = 400;
 
 // Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
 // получает фокус прямо в нажатии карандаша — иначе iPhone не откроет клавиатуру (фокус
@@ -141,19 +161,53 @@ export function TodosScreen() {
   );
 
   // Задачи, отмеченные (или возвращённые) в этом списке: стоят там, где были до отметки, —
-  // как были отмечены тогда и с прежним местом среди выполненных. Другой список или экран —
-  // всё по местам.
+  // как были отмечены тогда. На экране задач — до конца паузы после последней галочки, на
+  // экране остальных — пока он открыт. Другой список или экран — всё по местам.
   const view = `${shownFolder}:${showingRest}`;
   const [heldState, setHeldState] = useState<{ view: string; held: Map<number, Todo> }>({
     view,
     held: new Map(),
   });
   const held = heldState.view === view ? heldState.held : EMPTY_HELD;
+  const listRef = useRef<HTMLDivElement>(null);
+  const settleTimer = useRef<number | undefined>(undefined);
+  // Места строк до переезда (id → верх строки): следующая отрисовка сдвигает их оттуда.
+  const moveFrom = useRef<Map<string, number> | null>(null);
+
+  useEffect(() => () => window.clearTimeout(settleTimer.current), [view]);
+
   const hold = (todo: Todo): void => {
     if (!held.has(todo.id)) {
       setHeldState({ view, held: new Map(held).set(todo.id, todo) });
     }
+    if (showingRest) {
+      return;
+    }
+    window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      moveFrom.current = rowTops(listRef.current);
+      setHeldState({ view, held: new Map() });
+    }, SETTLE_MS);
   };
+
+  // Переезд после паузы: строка встаёт на новое место и плавно едет туда из прежнего.
+  useLayoutEffect(() => {
+    const before = moveFrom.current;
+    moveFrom.current = null;
+    if (!before || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    listRef.current?.querySelectorAll<HTMLElement>("[data-todo]").forEach((row) => {
+      const top = before.get(row.dataset.todo ?? "");
+      const shift = top === undefined ? 0 : top - row.getBoundingClientRect().top;
+      if (Math.abs(shift) > 0.5) {
+        row.animate(
+          [{ transform: `translateY(${shift}px)` }, { transform: "translateY(0)" }],
+          { duration: MOVE_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+        );
+      }
+    });
+  });
 
   // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
   const today = localDate();
@@ -164,8 +218,21 @@ export function TodosScreen() {
     // Где задача стоит: отмеченная здесь — по тому, какой была до отметки.
     const doneAt = (todo: Todo): string | null =>
       (held.get(todo.id) ?? todo).done_at;
+    const doneToday = (todo: Todo): boolean => {
+      const at = doneAt(todo);
+      return at !== null && dayOf(at) === today;
+    };
     const pending = todos.filter((todo) => doneAt(todo) === null && inView(todo));
-    const open = pending.filter((todo) => !isLater(todo));
+    // Сделать сейчас, а под ними — выполненные сегодня: только что отмеченная — первой из них,
+    // сразу под невыполненными (над прежними выполненными).
+    const open = [
+      ...pending.filter((todo) => !isLater(todo)).sort(byWhen),
+      ...(kind === "today"
+        ? []
+        : todos
+            .filter((todo) => doneToday(todo) && inView(todo))
+            .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""))),
+    ];
     // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
     const upcoming =
       kind === "today"
@@ -181,7 +248,7 @@ export function TodosScreen() {
       kind === "today"
         ? []
         : todos
-            .filter((todo) => doneAt(todo) !== null && inView(todo))
+            .filter((todo) => doneAt(todo) !== null && !doneToday(todo) && inView(todo))
             .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
@@ -323,7 +390,7 @@ export function TodosScreen() {
 
   return (
     <Screen title={strings.todosTitle}>
-      <div className={styles.todos}>
+      <div ref={listRef} className={styles.todos}>
         {todoFolders.length > 0 ? (
           <FolderBar
             tabs={tabs}
@@ -415,6 +482,31 @@ export function TodosScreen() {
 }
 
 const EMPTY_HELD = new Map<number, Todo>();
+
+/** Порядок невыполненных в блоке: без даты — первыми (в порядке добавления), потом по дню
+ *  (раньше — выше); в один день без времени — выше, потом по времени. Сортировка
+ *  устойчивая: равные остаются в порядке добавления. */
+function byWhen(a: Todo, b: Todo): number {
+  const dayA = a.due_date ?? "";
+  const dayB = b.due_date ?? "";
+  return dayA.localeCompare(dayB) || (a.remind_time ?? "").localeCompare(b.remind_time ?? "");
+}
+
+/** Верх каждой строки задачи в `list` (id → px от окна). */
+function rowTops(list: HTMLElement | null): Map<string, number> {
+  const tops = new Map<string, number>();
+  list?.querySelectorAll<HTMLElement>("[data-todo]").forEach((row) => {
+    tops.set(row.dataset.todo ?? "", row.getBoundingClientRect().top);
+  });
+  return tops;
+}
+
+/** День устройства «ГГГГ-ММ-ДД» момента `iso` (как localDate). */
+function dayOf(iso: string): string {
+  const moment = new Date(iso);
+  const month = String(moment.getMonth() + 1).padStart(2, "0");
+  return `${moment.getFullYear()}-${month}-${String(moment.getDate()).padStart(2, "0")}`;
+}
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
 function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
