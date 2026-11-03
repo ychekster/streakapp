@@ -406,6 +406,29 @@ def test_guest_with_habits_merges_into_the_existing_account(
     ]
 
 
+def test_merge_keeps_one_recommended_list_of_a_kind(client: TestClient, user: AuthUser) -> None:
+    def lists(headers: dict[str, str], *names: tuple[str, str | None]) -> None:
+        ops = [
+            {"type": "todo_folder_create", "ref": f"f{index}", "name": name,
+             **({"kind": kind} if kind else {})}
+            for index, (name, kind) in enumerate(names)
+        ]
+        ops.append({"type": "todo_create", "ref": "t", "text": "Хлеб", "folder": "f0"})
+        assert client.post("/sync", json={"ops": ops}, headers=headers).status_code == 200
+
+    lists(user.headers, ("Работа", None), ("Невыполненные", "today"))
+    guest = _guest(client)
+    lists(guest, ("Дом", None), ("Невыполненные", "today"), ("Запланированные", "scheduled"))
+
+    result = _bot_login(client, guest, user)
+    state = client.post("/sync", json={"ops": []}, headers=_bearer(result["session"]["token"])).json()
+    assert [(item["name"], item.get("kind")) for item in state["todo_folders"]] == [
+        ("Работа", None), ("Невыполненные", "today"), ("Дом", None),
+        ("Запланированные", "scheduled"),
+    ]
+    assert len(state["todos"]) == 2
+
+
 def test_a_guest_running_timer_moves_into_the_account(
     client: TestClient, user: AuthUser
 ) -> None:

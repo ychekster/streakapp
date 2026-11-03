@@ -550,4 +550,4 @@ async def import_data(repo: Repository, user: User, data: DataExport) -> ImportR
         "data_import",
         detail=f"{len(created)} habits, {added_folders} folders, {added_todos} todos",
     )
-    return ImportResult(habits=len(created), folders=added_folders)
+    return ImportResult(habits=len(created), folders=added_folders, todos=added_todos)

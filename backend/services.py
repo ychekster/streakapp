@@ -1163,11 +1163,12 @@ def todo_remind_at(
 
 async def due_todo_reminders(repo: Repository, moment: datetime) -> list[DueReminder]:
     """Напоминания задач (бета), которым к `moment` (UTC без пояса) пора. Каждое — одно:
-    момент сбрасывается сразу (зовёт бот раз в минуту, bot/reminders.py)."""
+    момент сбрасывается сразу (зовёт бот раз в минуту, bot/reminders.py). Вкладка «Задачи»
+    выключена (`show_todos`) — задач не видно, и напоминаний о них нет."""
     reminders: list[DueReminder] = []
     for todo, user in await repo.get_todos_to_remind(moment):
         todo.remind_at = None
-        if user.blocked_at is not None:
+        if user.blocked_at is not None or not user.show_todos:
             continue
         reminders.append(
             DueReminder(

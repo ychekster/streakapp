@@ -219,7 +219,7 @@ async function importFile(file: File, strings: Strings): Promise<void> {
     await showAlert({
       okLabel: strings.alertOk,
       title: strings.importDoneTitle,
-      message: strings.importDoneMessage(result.habits, result.folders),
+      message: strings.importDoneMessage(result.habits, result.folders, result.todos ?? 0),
     });
   } catch (error) {
     hapticNotification("error");

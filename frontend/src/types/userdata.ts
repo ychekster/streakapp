@@ -11,8 +11,10 @@ export interface DataExport {
   [field: string]: unknown;
 }
 
-/** Answer of POST /import: how many habits and folders were added. */
+/** Answer of POST /import: how many habits, folders and todos were added. */
 export interface ImportResult {
   habits: number;
   folders: number;
+  /** Not in answers of servers before todos. */
+  todos?: number;
 }

@@ -13,7 +13,7 @@
  * (не прокрутка) или залитый кружок «Добавить» (плюс) / «Сохранить» (стрелка) на его месте; тогда всё сохраняется
  * разом (`onSave`).
  * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
- * красным.
+ * красным (раньше дня отметки `markDay`: в «Отмечать за вчера» вчерашняя — ещё нет).
  */
 
 import {
@@ -67,6 +67,9 @@ interface TodoRowProps {
   checkRight?: boolean;
   /** Свои списки задач: плашка списка и цвет кружка. */
   lists: TodoFolder[];
+  /** День отметки (как у привычек; в «Отмечать за вчера» — вчера): задача с днём раньше —
+   *  просрочена (красная подпись). Не задан — сегодня. */
+  markDay?: string;
 }
 
 function draftOf(todo: Todo): TodoDraft {
@@ -105,6 +108,7 @@ export function TodoRow({
   startEditing = false,
   checkRight = false,
   lists,
+  markDay = localDate(),
 }: TodoRowProps) {
   const strings = useStrings();
   const language = useLanguage();
@@ -392,7 +396,7 @@ export function TodoRow({
         )}
         {todo.due_date && !done && !editing ? (
           <span
-            className={`${styles.caption} ${todo.due_date < localDate() ? styles.overdue : ""}`}
+            className={`${styles.caption} ${todo.due_date < markDay ? styles.overdue : ""}`}
           >
             {todo.remind_time
               ? strings.todosDateTime(

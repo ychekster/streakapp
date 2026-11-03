@@ -245,12 +245,16 @@ def test_todo_reminder_comes_once_and_not_for_done(db_url: str) -> None:
         try:
             async with database.session_factory() as session:
                 repo = Repository(session)
-                await repo.get_or_create_user(1, None, "Аня", language="ru")
+                user = await repo.get_or_create_user(1, None, "Аня", language="ru")
+                user.show_todos = True
+                # Вкладка «Задачи» выключена — напоминаний нет.
+                await repo.get_or_create_user(2, None, "Боря", language="ru")
                 soon = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
                 await repo.create_todo(1, "Позвонить в банк", None, None, remind_at=soon)
                 await repo.create_todo(
                     1, "Уже сделано", None, None, remind_at=soon, done_at=soon
                 )
+                await repo.create_todo(2, "Без вкладки", None, None, remind_at=soon)
                 await session.commit()
             keyboards = bot_reminders.open_app_keyboards("https://example.com")
             for _ in range(2):

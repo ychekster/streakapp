@@ -42,6 +42,15 @@ function ruFolders(count: number): string {
   return `${count} ${ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "папки" : "папок"}`;
 }
 
+function ruTodos(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (ones === 1 && tens !== 11) {
+    return `${count} задача`;
+  }
+  return `${count} ${ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14) ? "задачи" : "задач"}`;
+}
+
 function ruDays(count: number): string {
   const tens = count % 100;
   const ones = count % 10;
@@ -196,8 +205,12 @@ const RU = {
   importConfirm: "Импортировать",
   importCancel: "Отмена",
   importDoneTitle: "Данные загружены",
-  importDoneMessage: (habits: number, folders: number) =>
-    `Добавлено: ${ruHabits(habits)}${folders > 0 ? `, ${ruFolders(folders)}` : ""}.`,
+  importDoneMessage: (habits: number, folders: number, todos: number) =>
+    `Добавлено: ${[
+      ruHabits(habits),
+      ...(folders > 0 ? [ruFolders(folders)] : []),
+      ...(todos > 0 ? [ruTodos(todos)] : []),
+    ].join(", ")}.`,
   importFailed: "Не удалось импортировать данные. Попробуйте ещё раз.",
   importBadFile: "Этот файл не подходит. Выберите файл, сохранённый через «Экспорт данных».",
   archiveTitle: "Архив",
@@ -871,8 +884,15 @@ const EN: Strings = {
   importConfirm: "Import",
   importCancel: "Cancel",
   importDoneTitle: "Data Imported",
-  importDoneMessage: (habits: number, folders: number) =>
-    `Added ${habits} ${habits === 1 ? "habit" : "habits"}${folders > 0 ? ` and ${folders} ${folders === 1 ? "folder" : "folders"}` : ""}.`,
+  importDoneMessage: (habits: number, folders: number, todos: number) => {
+    const parts = [
+      `${habits} ${habits === 1 ? "habit" : "habits"}`,
+      ...(folders > 0 ? [`${folders} ${folders === 1 ? "folder" : "folders"}`] : []),
+      ...(todos > 0 ? [`${todos} ${todos === 1 ? "task" : "tasks"}`] : []),
+    ];
+    const last = parts.pop();
+    return `Added ${parts.length > 0 ? `${parts.join(", ")} and ${last}` : last}.`;
+  },
   importFailed: "Couldn’t import the data. Please try again.",
   importBadFile: "This file won’t work. Choose a file saved with “Export Data”.",
   archiveTitle: "Archive",

@@ -102,7 +102,7 @@ def test_import_into_another_account(client: TestClient, user: AuthUser) -> None
     other = new_user()
     _sync(client, other, {"type": "create", "ref": "x", "habit": {"name": "бег", "frequency_type": "daily"}})
 
-    assert _import(client, other, data) == {"habits": 3, "folders": 1}
+    assert _import(client, other, data) == {"habits": 3, "folders": 1, "todos": 0}
     state = _sync(client, other)
     habits = {habit["name"]: habit for habit in state["habits"]}
     # Added to what was there; the taken name got « (2)»; the shared one is ordinary.
@@ -138,7 +138,7 @@ def test_todos_go_through_export_and_import(client: TestClient, user: AuthUser) 
         ("Хлеб", True),
     ]
     other = new_user()
-    _import(client, other, data)
+    assert _import(client, other, data)["todos"] == 2
     state = _sync(client, other)
     [folder] = state["todo_folders"]
     assert folder["name"] == "Учёба"
@@ -171,7 +171,7 @@ def test_import_caps_counts_and_repeats(client: TestClient, user: AuthUser) -> N
         ],
         "folders": [{"name": "Дом", "habits": [1, 1, 2]}],
     }
-    assert _import(client, user, data) == {"habits": 2, "folders": 1}
+    assert _import(client, user, data) == {"habits": 2, "folders": 1, "todos": 0}
     habits = {habit["name"]: habit for habit in _export(client, user)["habits"]}
     assert habits["Чтение"]["marks"][0]["count"] == MAX_DAY_SECONDS
     assert habits["Вода"]["marks"][0]["count"] == OVERTIME_MAX_COUNT

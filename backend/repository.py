@@ -2339,12 +2339,15 @@ class Repository:
         return bool(await self.session.scalar(select(exists().where(Task.user_id == user_id))))
 
     async def user_has_data(self, user_id: int) -> bool:
-        """Has the account ever had a habit (even a deleted one) or a review."""
+        """Has the account ever had a habit (even a deleted one), a todo, a todo list or a
+        review — a guest with any of them is merged, not dropped, when it logs in."""
         return bool(
             await self.session.scalar(
                 select(
                     or_(
                         exists().where(Task.user_id == user_id),
+                        exists().where(Todo.user_id == user_id),
+                        exists().where(TodoFolder.user_id == user_id),
                         exists().where(Review.user_id == user_id),
                     )
                 )
@@ -2373,6 +2376,37 @@ class Repository:
         if target.source is None and source.source is not None:
             target.source, target.source_tag = source.source, source.source_tag
         await self.session.flush()
+
+        # A recommended folder (habit or todo one) is one per kind: the source's copy of a
+        # kind the target has goes (it fills itself, nothing is in it; a todo in it would
+        # stay without a folder).
+        target_kinds = select(TodoFolder.kind).where(
+            TodoFolder.user_id == target_id, TodoFolder.kind.is_not(None)
+        )
+        doubled = select(TodoFolder.id).where(
+            TodoFolder.user_id == source_id, TodoFolder.kind.in_(target_kinds)
+        )
+        await self.session.execute(
+            update(Todo)
+            .where(Todo.folder_id.in_(doubled))
+            .values(folder_id=None)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(
+            delete(TodoFolder)
+            .where(TodoFolder.id.in_(doubled))
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(
+            delete(Folder)
+            .where(
+                Folder.user_id == source_id,
+                Folder.kind.in_(
+                    select(Folder.kind).where(Folder.user_id == target_id, Folder.kind.is_not(None))
+                ),
+            )
+            .execution_options(synchronize_session=False)
+        )
 
         # The source's folders (habit and todo ones) go after the target's.
         for folder_model in (Folder, TodoFolder):

@@ -1858,7 +1858,8 @@ class DataExport(BaseModel):
 
 
 class ImportResult(BaseModel):
-    """Answer of POST /import: how many habits and folders were added."""
+    """Answer of POST /import: how many habits, folders and todos were added."""
 
     habits: int
     folders: int
+    todos: int = 0
