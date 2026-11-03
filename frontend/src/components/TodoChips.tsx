@@ -57,7 +57,7 @@ export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
         set={value.due_date !== null}
         icon={calendarIcon}
         label={
-          value.due_date ? formatTodoDate(value.due_date, strings, language, today) : strings.todosAnyDay
+          value.due_date ? formatTodoDate(value.due_date, strings, language) : strings.todosAnyDay
         }
       >
         <input

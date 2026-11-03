@@ -16,10 +16,19 @@
 import { startOf, stateOf } from "../components/calendarDays";
 import type { Habit } from "../types/habit";
 import { addDays, daysBetween, daysInMonth, weekdayIndex } from "./dates";
-import { countedHistory, flexiblePeriod, goalOn, isDueOnDay, isTimed, myDay } from "./derive";
+import {
+  countedHistory,
+  flexiblePeriod,
+  goalOn,
+  isDueOnDay,
+  isTimed,
+  myDay,
+  periodBounds,
+  periodGoal,
+} from "./derive";
 
 export type StatsKind = "time" | "times" | "check" | "flexible";
-export type StatsRange = "week" | "month" | "year";
+export type StatsRange = "month" | "quarter" | "year";
 
 export function statsKind(habit: Habit): StatsKind {
   if (flexiblePeriod(habit) !== null) {
@@ -157,37 +166,73 @@ export function daysGoing(habit: Habit, day: string): number {
 }
 
 /**
- * The line chart: one point per day for a week (7) and a month (30), per week for a year
- * (52 weeks back from `day`); null — no known day under the point.
- *  - time — minutes a day (a week's for a year), times — reps the same way;
- *  - check — completion (%) over the 7 days ending on the point: a day is 0 or 100, so
- *    a line by days would only jump between them;
- *  - flexible — marks over the 7 days ending on the point.
+ * The habit's score — what the line chart («Динамика») draws: it grows while the habit is
+ * kept and falls when it is not, so a habit done every day is a rising line, not a flat
+ * 100%. From 0 on the habit's first day (or the history's), never below 0, day by day:
+ *  - a due day: +1 done, −1 not; time and times — by the share of the goal (half — 0);
+ *  - a day off schedule: + the share done (a bonus mark), frozen — 0;
+ *  - the marking day: +1 once done, otherwise nothing yet — it is not over;
+ *  - flexible: +1 a mark, and when a period ends −1 for each mark short of its goal (a
+ *    period begun before the habit is not held against it).
+ * Null — before the habit's first day.
+ */
+function scores(days: Days): (number | null)[] {
+  const { habit, day, kind } = days;
+  const result: (number | null)[] = Array(habit.history.length).fill(null);
+  if (days.start === null) {
+    return result;
+  }
+  const period = flexiblePeriod(habit);
+  let score = 0;
+  let marks = 0;
+  const from = days.start > days.first ? days.start : days.first;
+  for (let date = from; date <= day; date = addDays(date, 1)) {
+    const index = daysBetween(days.first, date);
+    const amount = amountOn(days, date);
+    if (period !== null) {
+      const [start, end] = periodBounds(period, date);
+      marks = date === start ? amount : marks + amount;
+      score += amount;
+      if (date === end && date < day && start >= days.start) {
+        score -= Math.max(0, (periodGoal(habit, date) ?? 0) - marks);
+      }
+    } else if (!habit.frozen_history[index]) {
+      const goal = kind === "time" || kind === "times" ? goalOn(habit, date).goal : 1;
+      const share = habit.history[index] ? 1 : Math.min(1, amount / Math.max(1, goal));
+      if (date === day) {
+        score += share >= 1 ? 1 : 0;
+      } else {
+        score += isDueOnDay(habit, date) ? 2 * share - 1 : share;
+      }
+    }
+    score = Math.max(0, score);
+    result[index] = Math.round(score * 10) / 10;
+  }
+  return result;
+}
+
+/**
+ * The line chart: the score (scores) on each of the last 30 days (month), 91 (quarter), or
+ * at the end of each of the last 52 weeks (year), the last point — `day`. Points before the
+ * habit's first day are cut off, but at least MIN_TREND_POINTS stay (null).
  */
 export interface Trend {
   values: (number | null)[];
-  /** The point's last day. */
   dates: string[];
 }
 
+const MIN_TREND_POINTS = 4;
+
 export function trend(habit: Habit, day: string, range: StatsRange): Trend {
   const days = daysOf(habit, day);
-  const { kind } = days;
-  const points = range === "week" ? 7 : range === "month" ? 30 : 52;
+  const byDay = scores(days);
+  const points = range === "month" ? 30 : range === "quarter" ? 91 : 52;
   const step = range === "year" ? 7 : 1;
-  const span = kind === "time" || kind === "times" ? step : 7;
   const dates = Array.from({ length: points }, (_, index) => addDays(day, (index + 1 - points) * step));
-  const values = dates.map((end) => {
-    const sum = totals(days, addDays(end, 1 - span), end);
-    if (!sum.any) {
-      return null;
-    }
-    if (kind === "check") {
-      return sum.due > 0 ? Math.round((sum.done / sum.due) * 100) : null;
-    }
-    return kind === "time" ? Math.floor(sum.amount / 60) : sum.amount;
-  });
-  return { values, dates };
+  const values = dates.map((date) => byDay[daysBetween(days.first, date)] ?? null);
+  const firstKnown = values.findIndex((value) => value !== null);
+  const from = Math.min(firstKnown < 0 ? 0 : firstKnown, points - MIN_TREND_POINTS);
+  return { values: values.slice(from), dates: dates.slice(from) };
 }
 
 /** Each weekday (Monday first): completion (%) — counted days of the due ones; flexible —

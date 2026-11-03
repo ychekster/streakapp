@@ -11,7 +11,9 @@
  *
  * `null` — у дня нет значения (например, не на что считать долю выполнения): линия
  * прерывается. `partialLast` — последний день ещё идёт (сегодня): отрезок к нему
- * пунктиром.
+ * пунктиром. `smooth` — линия плавной кривой через точки (без выбросов за значения
+ * соседей: доля не уходит выше 100% и ниже нуля). `fit` — шкала не от нуля, а от
+ * «красивого» значения под наименьшим: рост от 270 до 300 занимает весь график.
  */
 
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
@@ -42,6 +44,8 @@ interface LineChartProps {
   integer?: boolean;
   formatTick: (value: number) => string;
   partialLast?: boolean;
+  smooth?: boolean;
+  fit?: boolean;
   selected: number | null;
   onSelect: (index: number | null) => void;
   /** Доступное описание графика. */
@@ -51,6 +55,59 @@ interface LineChartProps {
 /** Отступ крайних точек от краёв: точка с кольцом не обрезается. */
 const EDGE = DOT_RADIUS + DOT_RING;
 
+/** Деления шкалы `fit`: шаг — «красивый» для размаха значений, низ — кратное шага под
+ *  наименьшим, верх — первое деление не ниже наибольшего (делений не меньше двух). */
+function fittedTicks(values: number[], count: number, integer: boolean): number[] {
+  const lowest = Math.min(...values);
+  const highest = Math.max(...values);
+  const step = niceTicks(highest - lowest, count, integer)[1];
+  const ticks = [Math.floor(lowest / step) * step];
+  while (ticks.length < 2 || ticks[ticks.length - 1] < highest) {
+    ticks.push(ticks[ticks.length - 1] + step);
+  }
+  return ticks;
+}
+
+/** Монотонная кубическая кривая через точки (Фриц — Карлсон): касательные — среднее
+ *  соседних наклонов, на пиках и впадинах — горизонтальные, так кривая не выходит за
+ *  значения соседних точек. */
+function smoothPath(points: [number, number][]): string {
+  const n = points.length;
+  const slopes = points.slice(1).map(([x1, y1], index) => {
+    const [x0, y0] = points[index];
+    return (y1 - y0) / (x1 - x0);
+  });
+  const tangents = points.map((_, index) => {
+    if (index === 0) return slopes[0];
+    if (index === n - 1) return slopes[n - 2];
+    const [before, after] = [slopes[index - 1], slopes[index]];
+    return before * after <= 0 ? 0 : (before + after) / 2;
+  });
+  slopes.forEach((slope, index) => {
+    if (slope === 0) {
+      tangents[index] = 0;
+      tangents[index + 1] = 0;
+      return;
+    }
+    const a = tangents[index] / slope;
+    const b = tangents[index + 1] / slope;
+    const length = a * a + b * b;
+    if (length > 9) {
+      const scale = 3 / Math.sqrt(length);
+      tangents[index] = scale * a * slope;
+      tangents[index + 1] = scale * b * slope;
+    }
+  });
+  return points
+    .map(([x1, y1], index) => {
+      if (index === 0) return `M${x1} ${y1}`;
+      const [x0, y0] = points[index - 1];
+      const third = (x1 - x0) / 3;
+      return `C${x0 + third} ${y0 + tangents[index - 1] * third} ${x1 - third} ${y1 - tangents[index] * third} ${x1} ${y1}`;
+    })
+    .join(" ");
+}
+
 export function LineChart({
   values,
   labels,
@@ -59,6 +116,8 @@ export function LineChart({
   integer = true,
   formatTick,
   partialLast = false,
+  smooth = false,
+  fit = false,
   selected,
   onSelect,
   label,
@@ -69,13 +128,18 @@ export function LineChart({
   const plotWidth = Math.max(0, width - Y_AXIS_WIDTH);
   const count = values.length;
   const known = values.filter((value): value is number => value !== null);
-  const ticks = niceTicks(max ?? Math.max(0, ...known), tickCount, integer);
+  const ticks =
+    fit && known.length
+      ? fittedTicks(known, tickCount, integer)
+      : niceTicks(max ?? Math.max(0, ...known), tickCount, integer);
+  const bottom = ticks[0];
   const top = max ?? ticks[ticks.length - 1];
   const baseline = PLOT_TOP + PLOT_HEIGHT;
 
   const x = (index: number): number =>
     count <= 1 ? plotWidth / 2 : EDGE + (index * (plotWidth - 2 * EDGE)) / (count - 1);
-  const y = (value: number): number => PLOT_TOP + PLOT_HEIGHT * (1 - Math.min(value, top) / top);
+  const y = (value: number): number =>
+    PLOT_TOP + PLOT_HEIGHT * (1 - (Math.min(value, top) - bottom) / (top - bottom));
 
   // Непрерывные участки без пропусков; отрезок к неполному последнему дню — отдельно.
   const solidEnd = partialLast && count >= 2 && values[count - 1] !== null && values[count - 2] !== null
@@ -95,7 +159,9 @@ export function LineChart({
 
   const point = (index: number): string => `${x(index)} ${y(values[index] as number)}`;
   const linePath = (indices: number[]): string =>
-    indices.map((index, order) => `${order ? "L" : "M"}${point(index)}`).join(" ");
+    smooth && indices.length > 2
+      ? smoothPath(indices.map((index) => [x(index), y(values[index] as number)]))
+      : indices.map((index, order) => `${order ? "L" : "M"}${point(index)}`).join(" ");
   const areaPath = (indices: number[]): string =>
     `${linePath(indices)} L${x(indices[indices.length - 1])} ${baseline} L${x(indices[0])} ${baseline} Z`;
 
@@ -157,7 +223,7 @@ export function LineChart({
           {ticks.map((tick) => (
             <g key={tick}>
               <line
-                className={tick === 0 ? styles.axis : styles.grid}
+                className={tick === bottom ? styles.axis : styles.grid}
                 x1={0}
                 x2={plotWidth}
                 y1={Math.round(y(tick)) + 0.5}

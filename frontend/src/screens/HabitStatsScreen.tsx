@@ -9,10 +9,12 @@
  *    графика» — только выполнено);
  *  - «За всё время» (время, повторения) — «Всего» («24 / 100 мин», переехало сюда из
  *    «Основного») и рекорд за день;
- *  - «Динамика» — линейный график за неделю, месяц или год (капсулы над ним); над ним
- *    значение последней точки, палец на графике — значение и дата выбранной;
- *  - «По дням недели» — столбики выполнения (палец — значение над столбиком);
- *  - «Дни привычки» — круг: выполнено, частично, пропущено, заморожено (у «Гибкого
+ *  - «Динамика» — счёт привычки (растёт, пока её выполняют, падает от пропусков — см.
+ *    habitStats.trend) плавной линией за месяц, 3 месяца или год (капсулы над ней), шкала —
+ *    по видимым значениям; над ней значение последней точки, палец на графике — значение и
+ *    дата выбранной;
+ *  - «Выполнение по дням недели» — столбики выполнения (палец — значение над столбиком);
+ *  - «Итоги по дням» — круг: выполнено, частично, пропущено, заморожено (у «Гибкого
  *    графика» нет пропусков — круга нет).
  * Дни недели и круг — только когда привычке хотя бы MIN_DAYS дней: раньше в них нечего
  * читать.
@@ -52,7 +54,7 @@ import styles from "./HabitStatsScreen.module.css";
 /** С какого дня привычки показываются дни недели и круг. */
 const MIN_DAYS = 14;
 
-const RANGES: StatsRange[] = ["week", "month", "year"];
+const RANGES: StatsRange[] = ["month", "quarter", "year"];
 
 /** Значение графика или карточки: минуты, повторения, отметки или %. */
 function formatValue(kind: StatsKind, value: number, strings: Strings): string {
@@ -240,16 +242,17 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                 ))}
               </div>
               <p className={styles.chartValue}>
-                {shownValue === null ? "—" : formatValue(kind, shownValue, strings)}
+                {shownValue === null ? "—" : Math.round(shownValue)}
                 {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
               </p>
               <LineChart
                 values={line.values}
                 labels={labels}
-                max={kind === "check" ? 100 : undefined}
-                tickCount={kind === "check" ? 2 : 3}
-                formatTick={(value) => (kind === "check" ? `${value}%` : String(value))}
+                fit
+                tickCount={3}
+                formatTick={String}
                 partialLast
+                smooth
                 selected={point}
                 onSelect={setPoint}
                 label={strings.statsTrendHeading}

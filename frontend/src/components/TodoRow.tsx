@@ -99,9 +99,9 @@ function draftOf(todo: Todo): TodoDraft {
   };
 }
 
-/** День задачи подписью: «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не текущий).
- *  «Сегодня» — `today`: день отметки (по часам устройства, как в выборе даты — DateField;
- *  в «Отмечать за вчера» — вчера). */
+/** День задачи подписью: «Вчера», «Сегодня», «Завтра», «чт, 12 нояб.» (год — только не
+ *  текущий). «Сегодня» — `today`, настоящий день по часам устройства: в «Отмечать за вчера»
+ *  вчерашняя задача — «Вчера», а не просрочена ли она, решает день отметки (TodoRow). */
 export function formatTodoDate(
   iso: string,
   strings: Strings,
@@ -113,6 +113,9 @@ export function formatTodoDate(
   }
   if (iso === addDays(today, 1)) {
     return strings.dateTomorrow;
+  }
+  if (iso === addDays(today, -1)) {
+    return strings.dateYesterday;
   }
   const [year, month, day] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat(language, {
@@ -426,10 +429,10 @@ export function TodoRow({
           >
             {todo.remind_time
               ? strings.todosDateTime(
-                  formatTodoDate(todo.due_date, strings, language, markDay),
+                  formatTodoDate(todo.due_date, strings, language),
                   todo.remind_time,
                 )
-              : formatTodoDate(todo.due_date, strings, language, markDay)}
+              : formatTodoDate(todo.due_date, strings, language)}
           </span>
         ) : null}
         </div>

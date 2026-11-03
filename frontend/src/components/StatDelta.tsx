@@ -1,8 +1,9 @@
 /**
  * Изменение показателя к тем же дням прошлого месяца (экран статистики привычки): рядом
  * со значением «↑ 18%» — зелёным, «↓ 8%» — красным, без изменений — «→ 0%» цветом текста.
- * `rate` — доля в процентах: разница в процентных пунктах. Нечего сравнивать (`previous`
- * null или у счётчика 0 в прошлом месяце) — ничего.
+ * `rate` — доля в процентах: разница самих долей (было 80%, стало 30% — «↓ 50%»; «п.п.»
+ * читалось непонятно). Нечего сравнивать (`previous` null или у счётчика 0 в прошлом
+ * месяце) — ничего.
  */
 
 import { useStrings } from "../preferences";
@@ -20,10 +21,7 @@ export function StatDelta({ current, previous, kind }: StatDeltaProps) {
     return null;
   }
   const diff = current - previous;
-  const amount =
-    kind === "rate"
-      ? strings.statsPoints(Math.abs(Math.round(diff)))
-      : `${Math.abs(Math.round((diff / previous) * 100))}%`;
+  const amount = `${Math.abs(Math.round(kind === "rate" ? diff : (diff / previous) * 100))}%`;
   const arrow = diff > 0 ? "↑" : diff < 0 ? "↓" : "→";
   const tone = diff > 0 ? styles.good : diff < 0 ? styles.bad : "";
   return (
