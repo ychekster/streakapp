@@ -1573,6 +1573,9 @@ class DueReminder:
     # Готовый текст вместо «Пора выполнить…» (уведомление «Отметки участников» совместной
     # привычки, groups.due_group_marks) — без 🔔 и пишется в ленту по-своему.
     text: str | None = None
+    # Текст push под заголовком-названием для такого уведомления (у остальных его
+    # выбирает bot/reminders.push_payload).
+    push_body: str | None = None
     # Напоминание задачи (бета, due_todo_reminders): её id, текст задачи — в `habit_name`.
     todo_id: int | None = None
 

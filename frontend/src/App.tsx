@@ -137,7 +137,7 @@ import type { Settings, SettingsUpdate } from "./types/settings";
 import { keepAccount, keptAccount } from "./web/account";
 import { trackAppOpen, trackPushOpen } from "./web/analytics";
 import { authNotice, SESSION_CHANGED_EVENT } from "./web/bootstrap";
-import { beginTelegramBotLogin } from "./web/login";
+import { beginTelegramBotLogin, prepareTelegramBotLogin } from "./web/login";
 import { ScrollIndicator } from "./web/ScrollIndicator";
 import { MainButtonBar, WebChrome } from "./web/WebChrome";
 import styles from "./App.module.css";
@@ -849,6 +849,23 @@ export function App() {
     reloadAccountData();
   }, [reloadAccountData]);
   useTelegramLoginWatcher(web, telegramLinked);
+
+  // A guest may press «Войти через Telegram» any moment: its code is asked ahead, so the
+  // press opens Telegram at once (asked again when the app comes back and it has expired).
+  const guest = web && account?.is_guest === true;
+  useEffect(() => {
+    if (!guest) {
+      return undefined;
+    }
+    const prepare = (): void => {
+      if (document.visibilityState === "visible") {
+        prepareTelegramBotLogin();
+      }
+    };
+    prepare();
+    document.addEventListener("visibilitychange", prepare);
+    return () => document.removeEventListener("visibilitychange", prepare);
+  }, [guest]);
 
   // Errors are shown in a dialog: linking Telegram (now, or a bot login that failed while
   // the app was closed) and saving a setting (the admin panel shows its own).

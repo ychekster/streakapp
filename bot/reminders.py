@@ -76,6 +76,12 @@ from bot.constants import (
     CHECKIN_REMINDER_TEXTS,
     GROUP_MARK_TEXTS,
     OPEN_APP_EMOJI,
+    PUSH_CHECKIN_BODY,
+    PUSH_CHECKIN_TITLE,
+    PUSH_GROUP_MARK_BODY,
+    PUSH_REMINDER_BODY,
+    PUSH_TIMER_GOAL_BODY,
+    PUSH_TODO_BODY,
     REMINDER_BUTTONS,
     REMINDER_EMOJI,
     REMINDER_TEXTS,
@@ -269,6 +275,7 @@ async def _send_group_marks(
             text=GROUP_MARK_TEXTS.get(notice.language, GROUP_MARK_TEXTS[DEFAULT_LANGUAGE]).format(
                 name=notice.habit_name, actor=notice.actor
             ),
+            push_body=_localized(PUSH_GROUP_MARK_BODY, notice.language).format(actor=notice.actor),
         )
         for notice in notices
     ]
@@ -319,6 +326,9 @@ async def _send_timer_goals(
             telegram=notice.telegram,
             text=TIMER_GOAL_TEXTS.get(notice.language, TIMER_GOAL_TEXTS[DEFAULT_LANGUAGE]).format(
                 name=notice.habit_name, goal=goal_text(notice.goal, notice.language)
+            ),
+            push_body=_localized(PUSH_TIMER_GOAL_BODY, notice.language).format(
+                goal=goal_text(notice.goal, notice.language)
             ),
         )
         for notice in notices
@@ -447,36 +457,43 @@ def reminder_text(reminder: DueReminder) -> str:
     return template.format(name=reminder.habit_name)
 
 
-def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
-    """Push notification of a reminder: same text as the bot message; a tap opens the
-    habit in the app (the check-in reminder — the habit list).
+def _localized(texts: Mapping[str, str], language: str) -> str:
+    return texts.get(language, texts[DEFAULT_LANGUAGE])
 
-    The text is the title and there is no body: iOS puts «from Knot» under the
-    title itself (it can't be turned off), so an app-name title would only repeat it.
-    Plain text, without the bot message's 🔔. A todo reminder opens the app (the Tasks
-    tab is where it opens when todos are on)."""
+
+def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
+    """Push notification of a reminder: a short title — what it is about (the habit's
+    name, the todo's text) — and the text under it (bot/constants PUSH_*): a long title is
+    cut off by iOS and Android, the text under it is shown in full. A tap opens the habit
+    in the app (the check-in reminder — the habit list; a todo — the app, the Tasks tab is
+    where it opens when todos are on). Plain text, without the bot message's 🔔."""
+    language = reminder.language
     if reminder.todo_id is not None:
         return notification(
-            reminder_text(reminder),
-            "",
+            reminder.habit_name or "",
+            _localized(PUSH_TODO_BODY, language),
             f"{base_url}/app?pwa=1&from=push",
             tag=f"todo-{reminder.todo_id}",
         )
     if reminder.task_id is None:
         return notification(
-            reminder_text(reminder), "", f"{base_url}/app?pwa=1&from=push", tag="checkin"
+            _localized(PUSH_CHECKIN_TITLE, language),
+            _localized(PUSH_CHECKIN_BODY, language),
+            f"{base_url}/app?pwa=1&from=push",
+            tag="checkin",
         )
     if reminder.text is not None:
-        # «Отметки участников»: своя метка — не заменяет напоминание о той же привычке.
+        # «Отметки участников», «цель выполнена»: своя метка — не заменяет напоминание о
+        # той же привычке.
         return notification(
-            reminder.text,
-            "",
+            reminder.habit_name or reminder.text,
+            reminder.push_body or "",
             f"{base_url}/app?pwa=1&from=push&habit={reminder.task_id}",
             tag=f"mark-{reminder.task_id}",
         )
     return notification(
-        reminder_text(reminder),
-        "",
+        reminder.habit_name or "",
+        _localized(PUSH_REMINDER_BODY, language),
         f"{base_url}/app?pwa=1&from=push&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
     )

@@ -3,8 +3,8 @@
  * one relevant screen at a time.
  *
  *   desktop                → QR code to this link, «наведите камеру телефона»
- *   phone, `/`             → «Установить приложение» / «Открыть в Telegram»
- *   «Установить», in-app   → jump to the system browser on `/install` (Android: Chrome
+ *   phone, `/`             → «Добавить на экран телефона» / «Открыть в Telegram»
+ *   «Добавить», in-app     → jump to the system browser on `/install` (Android: Chrome
  *                            intent; iPhone: x-safari-https), else a hint + copy link
  *   `/install`, Android    → native install button, or manual steps
  *   `/install`, iPhone     → steps (and an optional video)
@@ -17,6 +17,10 @@
  * is not spent: it goes into the app's start address (the manifest from the API) and the
  * app logs in on its first launch (web/bootstrap.ts). Every step is a funnel event; `src`
  * travels along.
+ *
+ * The words say what it is — a page of the browser with its own icon on the screen,
+ * nothing is downloaded: «Установить приложение» made people think of a file to install.
+ * They do not argue it is safe — that only sounds suspicious.
  *
  * The look is the app's own (iOS 26, light or dark with the system): an onboarding
  * screen with the app icon, a title, one line of text and the bottom capsule button;
@@ -209,8 +213,9 @@ function MainScreen({ onTelegram, onInstall }: { onTelegram: () => void; onInsta
     <PhoneScreen
       actions={
         <>
+          <p className={styles.footnote}>Knot работает в браузере, скачивать ничего не нужно</p>
           <button type="button" className={styles.primary} onClick={onInstall}>
-            Установить приложение
+            Добавить на экран телефона
           </button>
           <button type="button" className={styles.plain} onClick={onTelegram}>
             Открыть в Telegram
@@ -246,7 +251,7 @@ function DesktopScreen() {
       <div className={styles.window}>
         <AppIcon size="medium" />
         <h1 className={styles.desktopTitle}>Knot живёт в телефоне</h1>
-        <p className={styles.desktopText}>Наведите камеру телефона на код</p>
+        <p className={styles.desktopText}>Наведите камеру телефона на код, Knot откроется в браузере</p>
         <div className={styles.qrTile}>
           {qr ? <img className={styles.qr} src={qr} alt="QR-код ссылки на Knot" /> : null}
         </div>
@@ -349,13 +354,15 @@ function AndroidInstall({ onDone }: { onDone: () => void }) {
           disabled={!available}
           onClick={() => void install()}
         >
-          {available ? "Установить" : <span className={styles.spinner} aria-label="Загрузка" />}
+          {available ? "Добавить на экран" : <span className={styles.spinner} aria-label="Загрузка" />}
         </button>
       }
     >
       <AppIcon size="large" />
       <h1 className={styles.title}>Knot</h1>
-      <p className={styles.subtitle}>Иконка появится на рабочем столе</p>
+      <p className={styles.subtitle}>
+        На рабочем столе появится значок, Knot будет открываться с него без адресной строки
+      </p>
     </PhoneScreen>
   );
 }

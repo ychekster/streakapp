@@ -348,8 +348,9 @@ const RU = {
   notificationsOffCancel: "Отмена",
   telegramNotificationsOffMessage:
     "Бот перестанет присылать в Telegram напоминания о привычках и новости Knot.",
-  installTitle: "Приложение на телефоне",
-  installDescription: "Установка откроется в браузере. Привычки останутся те же.",
+  installTitle: "Knot на экране телефона",
+  installDescription:
+    "Knot можно добавить на экран телефона: он откроется в браузере, со своим значком. Привычки останутся те же.",
   installOpen: "Открыть в браузере",
   installFailed: "Не удалось подготовить ссылку. Попробуйте ещё раз.",
 
@@ -746,7 +747,6 @@ const RU = {
     telegram_already_linked: "К аккаунту уже привязан другой Telegram",
     invalid_telegram_login: "Telegram не подтвердил вход. Попробуйте ещё раз.",
     push_unavailable: "Уведомления пока не настроены на сервере",
-    push_not_delivered: "Не удалось доставить уведомление. Разрешите уведомления для Knot.",
     group_needs_telegram: "Групповые привычки доступны после входа через Telegram",
     group_not_found: "Групповая привычка не найдена. Возможно, вас уже исключили",
     group_full: "В привычке уже максимум участников",
@@ -1019,8 +1019,9 @@ const EN: Strings = {
   notificationsOffCancel: "Cancel",
   telegramNotificationsOffMessage:
     "The bot will stop sending habit reminders and Knot news to Telegram.",
-  installTitle: "App on Your Phone",
-  installDescription: "The install page opens in your browser. Your habits stay the same.",
+  installTitle: "Knot on Your Home Screen",
+  installDescription:
+    "Add Knot to your home screen: it opens in your browser, with its own icon. Your habits stay the same.",
   installOpen: "Open in Browser",
   installFailed: "Couldn’t prepare the link. Please try again.",
 
@@ -1355,7 +1356,6 @@ const EN: Strings = {
     telegram_already_linked: "Another Telegram account is already linked",
     invalid_telegram_login: "Telegram didn’t confirm the login. Please try again.",
     push_unavailable: "Notifications aren’t set up on the server yet",
-    push_not_delivered: "Couldn’t deliver the notification. Allow notifications for Knot.",
     group_needs_telegram: "Group habits are available after logging in with Telegram",
     group_not_found: "Group habit not found. You may have been removed",
     group_full: "This habit already has the most people it can",

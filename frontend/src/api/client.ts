@@ -116,7 +116,6 @@ export type ApiErrorCode =
   | "invalid_event"
   | "invalid_subscription"
   | "push_unavailable"
-  | "push_not_delivered"
   // Совместные привычки.
   | "group_needs_telegram"
   | "group_not_found"

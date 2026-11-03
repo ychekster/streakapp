@@ -15,7 +15,6 @@ from datetime import datetime, time as clock, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
 from bot import reminders as bot_reminders
 from bot.pacing import Pacer
@@ -35,7 +34,6 @@ from backend.funnel import _client_props
 from backend.models import FrequencyType
 from backend.ratelimit import RateLimiter
 from backend.repository import Repository, utc_now
-from backend.routers import web as web_router
 from backend.routers.auth import client_ip
 from backend.webauth import hash_token
 from backend.webpush import PushOutcome, VapidKeys, is_push_endpoint
@@ -713,41 +711,6 @@ def test_unsubscribe_forgets_only_the_accounts_own_device(client: TestClient) ->
     assert client.get("/web/push", headers=guest).json()["subscribed"] is False
 
 
-def test_test_push_forgets_gone_devices_and_is_rate_limited(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    state = client.app.state
-    monkeypatch.setattr(
-        state,
-        "settings",
-        state.settings.model_copy(
-            update={"vapid_public_key": "public", "vapid_private_key": SecretStr("private")}
-        ),
-    )
-    monkeypatch.setattr(state, "push_test_limiter", RateLimiter(2, 0.001))
-    outcome = PushOutcome.gone
-
-    async def sender(target, data, keys) -> PushOutcome:
-        return outcome
-
-    monkeypatch.setattr(web_router, "send_push", sender)
-    guest = _guest(client)
-    client.post("/web/push/subscribe", json=_device("old"), headers=guest)
-
-    # Not delivered: the error answer still keeps the cleanup of the gone device.
-    failed = client.post("/web/push/test", headers=guest)
-    assert failed.status_code == 409
-    assert failed.json()["error"]["code"] == "push_not_delivered"
-    assert client.get("/web/push", headers=guest).json()["subscribed"] is False
-
-    client.post("/web/push/subscribe", json=_device("new"), headers=guest)
-    outcome = PushOutcome.sent
-    assert client.post("/web/push/test", headers=guest).status_code == 200
-    limited = client.post("/web/push/test", headers=guest)
-    assert limited.status_code == 429
-    assert limited.json()["error"]["code"] == "rate_limited"
-
-
 def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
     moment = datetime(2026, 9, 22, 9, 0, tzinfo=timezone.utc)
     pushed: list[tuple[str, dict]] = []
@@ -789,9 +752,8 @@ def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
         ["https://push.example/web", "https://push.example/tg", gone_endpoint]
     )
     payload = pushed[0][1]
-    # The reminder is the title: iOS shows «from Knot» under it by itself.
-    # Plain text, no emoji.
-    assert payload["title"] == "Пора выполнить «Вода»" and payload["body"] == ""
+    # The habit is the title, what to do — the text under it. Plain text, no emoji.
+    assert payload["title"] == "Вода" and payload["body"] == "Пора выполнить привычку"
     assert "/app?pwa=1&from=push&habit=" in payload["url"]
     # The gone subscription is deleted.
     assert 503 not in left and len(left) == 2

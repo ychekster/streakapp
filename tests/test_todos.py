@@ -279,8 +279,21 @@ def test_todo_push_opens_the_app() -> None:
         task_id=None, user_id=1, habit_name="Банк", language="ru", todo_id=7
     )
     payload = bot_reminders.push_payload(reminder, "https://example.com")
-    assert payload["title"] == "Банк"
+    assert payload["title"] == "Банк" and payload["body"] == "Напоминание о задаче"
     assert payload["tag"] == "todo-7"
+
+
+def test_push_has_a_title_and_a_text_for_every_notice() -> None:
+    checkin = DueReminder(task_id=None, user_id=1, habit_name=None, language="en")
+    payload = bot_reminders.push_payload(checkin, "https://example.com")
+    assert payload["title"] == "Time to check off your habits"
+    assert payload["body"] == "Check off what you’ve already done"
+    mark = DueReminder(
+        task_id=3, user_id=1, habit_name="Бег", language="ru",
+        text="«Бег»: отметка от @anya", push_body="Отметка от @anya",
+    )
+    payload = bot_reminders.push_payload(mark, "https://example.com")
+    assert (payload["title"], payload["body"], payload["tag"]) == ("Бег", "Отметка от @anya", "mark-3")
 
 
 def test_recommended_todo_list_keeps_its_kind_once(client: TestClient, user: AuthUser) -> None:

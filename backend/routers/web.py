@@ -5,7 +5,6 @@
     GET  /web/push              — does the account get push reminders
     POST /web/push/subscribe    — store this device's push subscription
     POST /web/push/unsubscribe  — forget it
-    POST /web/push/test         — send a test notification to the account's devices
     POST /events                — funnel analytics event (no login needed; never blocks UI)
 """
 
@@ -27,7 +26,7 @@ from backend.dependencies import (
 from backend.errors import ApiError
 from backend.funnel import record_client_event
 from backend.models import User
-from backend.repository import Repository, utc_now
+from backend.repository import Repository
 from backend.routers.auth import client_ip, limit
 from backend.schemas import (
     EventIn,
@@ -36,21 +35,9 @@ from backend.schemas import (
     PushUnsubscribe,
     WebConfig,
 )
-from backend.webpush import (
-    PushOutcome,
-    PushTarget,
-    VapidKeys,
-    is_push_endpoint,
-    notification,
-    send_push,
-)
+from backend.webpush import is_push_endpoint
 
 router = APIRouter(tags=["web"])
-
-# Test notification text (Russian, like the rest of the web app's push texts).
-# Not the app name as the title: iOS adds «from Knot» under the title itself.
-_TEST_TITLE = "Уведомления работают"
-_TEST_BODY = "Напоминания будут приходить сюда"
 
 # A handoff token as webauth.new_token makes it (URL-safe base64).
 _HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")
@@ -159,39 +146,6 @@ async def unsubscribe_push(
     if not subscribed:
         await repo.log_action(db_user.telegram_id, "push_off")
     return PushStatus(subscribed=subscribed)
-
-
-@router.post("/web/push/test", response_model=PushStatus)
-async def test_push(
-    request: Request,
-    db_user: User = Depends(get_db_user),
-    repo: Repository = RepositoryDep,
-) -> PushStatus:
-    """Send a test notification to every device of the account (to check push works)."""
-    limit(request, request.app.state.push_test_limiter, str(db_user.telegram_id))
-    settings = get_settings(request)
-    if settings.vapid_private_key is None or not settings.vapid_public_key:
-        raise ApiError(404, "push_unavailable", "Уведомления не настроены на сервере")
-    keys = VapidKeys(settings.vapid_private_key.get_secret_value(), settings.vapid_subject)
-    subscriptions = (await repo.push_subscriptions_for([db_user.telegram_id])).get(
-        db_user.telegram_id, []
-    )
-    targets = [PushTarget(item.endpoint, item.p256dh, item.auth) for item in subscriptions]
-    # No network while the transaction is open (see Repository.commit).
-    await repo.commit()
-    data = notification(_TEST_TITLE, _TEST_BODY, f"{settings.web_base_url}/app?pwa=1")
-    outcomes = [await send_push(target, data, keys) for target in targets]
-    gone = [t.endpoint for t, outcome in zip(targets, outcomes) if outcome is PushOutcome.gone]
-    sent = [t.endpoint for t, outcome in zip(targets, outcomes) if outcome is PushOutcome.sent]
-    await repo.delete_push_subscriptions(gone)
-    if gone and not await repo.has_push_subscription(db_user.telegram_id):
-        await repo.log_action(db_user.telegram_id, "push_gone")
-    await repo.mark_push_delivered(sent, utc_now())
-    if not sent:
-        # The error rolls the session back: the cleanup above must stay.
-        await repo.commit()
-        raise ApiError(409, "push_not_delivered", "Не удалось доставить уведомление")
-    return PushStatus(subscribed=True)
 
 
 @router.post("/events", status_code=204, response_class=Response)

@@ -378,8 +378,6 @@ EVENT_PROPS_VALUE_MAX_LENGTH = 64
 GUEST_RATE_LIMIT: tuple[int, float] = (10, 0.1)
 EVENT_RATE_LIMIT: tuple[int, float] = (60, 2.0)
 ADDRESS_RATE_LIMIT: tuple[int, float] = (120, 4.0)
-# Test notifications per account (POST /web/push/test sends one push per device).
-PUSH_TEST_RATE_LIMIT: tuple[int, float] = (3, 0.05)
 # «Экспорт данных» / «Импорт данных» (Settings, routers/userdata.py): the file's format
 # and version (a file of a newer version is not taken), exports sent by the bot and
 # imports per account, the largest import body (the only path besides
