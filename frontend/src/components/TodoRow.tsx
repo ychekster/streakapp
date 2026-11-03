@@ -10,7 +10,7 @@
  * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips). Правка —
  * текст и плашки вместе: выбор дня или времени и закрытая клавиатура её не заканчивают —
  * «Готово» на клавиатуре тоже (прячет клавиатуру). Правку заканчивает нажатие мимо строки
- * (не прокрутка) или галочка (задача сохраняется и отмечается); тогда всё сохраняется
+ * (не прокрутка) или залитый кружок «Добавить» (плюс) / «Сохранить» (стрелка) на его месте; тогда всё сохраняется
  * разом (`onSave`).
  * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
  * красным.
@@ -42,6 +42,10 @@ const OPEN_AT = DELETE_WIDTH / 2;
 const SWIPE_SLOP = 8;
 /** Полоса у правого края строки, с которой свайп открывает «Удалить» (px). */
 const EDGE_WIDTH = 28;
+/** Что нажимают (у них после касания приходит click). */
+const INTERACTIVE = "button, a[href], input, select, textarea, label, [role='button']";
+/** Сколько ждать click после касания кнопки, прежде чем закончить правку без него (мс). */
+const CLICK_WAIT_MS = 400;
 
 /** Задача после правки: текст (непустой) и плашки. */
 export interface TodoDraft extends TodoChipsValue {
@@ -172,30 +176,54 @@ export function TodoRow({
   finishRef.current = finishEdit;
 
   // Нажатие мимо строки заканчивает правку; палец, который сдвинулся (прокрутка), — нет.
+  // Нажатие на кнопку (вкладка, карандаш, другая задача) заканчивает её в своём click —
+  // до обработчика кнопки, и кнопка срабатывает: iPhone не доводит касание до click, если
+  // страница поменялась уже на отпускании пальца. На пустом месте click не бывает —
+  // правка заканчивается на отпускании.
   useEffect(() => {
     if (!editing) {
       return undefined;
     }
     let tap: { x: number; y: number } | null = null;
+    let waitingClick: number | undefined;
+    const finish = (): void => {
+      window.clearTimeout(waitingClick);
+      waitingClick = undefined;
+      finishRef.current();
+    };
     const onDown = (event: globalThis.PointerEvent): void => {
       const outside = !(event.target instanceof Node && rowRef.current?.contains(event.target));
       tap = outside ? { x: event.clientX, y: event.clientY } : null;
     };
     const onUp = (event: globalThis.PointerEvent): void => {
-      if (
-        tap &&
+      const isTap =
+        tap !== null &&
         Math.abs(event.clientX - tap.x) <= SWIPE_SLOP &&
-        Math.abs(event.clientY - tap.y) <= SWIPE_SLOP
-      ) {
-        finishRef.current();
-      }
+        Math.abs(event.clientY - tap.y) <= SWIPE_SLOP;
       tap = null;
+      if (!isTap) {
+        return;
+      }
+      if (event.target instanceof Element && event.target.closest(INTERACTIVE)) {
+        // Click не пришёл (браузер его не дал) — всё равно закончить.
+        waitingClick = window.setTimeout(finish, CLICK_WAIT_MS);
+      } else {
+        finish();
+      }
+    };
+    const onClick = (): void => {
+      if (waitingClick !== undefined) {
+        finish();
+      }
     };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("click", onClick, true);
     return () => {
+      window.clearTimeout(waitingClick);
       document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("click", onClick, true);
     };
   }, [editing]);
 
@@ -292,24 +320,35 @@ export function TodoRow({
           }
         }}
       >
-        <button
-          type="button"
-          className={`${styles.check} ${done ? styles.checked : ""}`}
-          aria-label={done ? strings.todosUncheck : strings.todosCheck}
-          aria-pressed={done}
-          onClick={() => {
-            // Отметка в правке: правка сохраняется и закрывается, задача — зачёркнутой.
-            if (!editingRef.current || finishEdit()) {
-              onToggle();
-            }
-          }}
-        >
-          {done ? (
+        {editing ? (
+          // В правке на месте кружка — залитый кружок «Добавить» (плюс) / «Сохранить»
+          // (стрелка вверх, как «отправить»). Пустой текст — нечего.
+          <button
+            type="button"
+            className={styles.save}
+            aria-label={startEditing ? strings.todosAdd : strings.todosSave}
+            disabled={draft.text.trim() === ""}
+            onClick={finishEdit}
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12.75l4.5 4.5L19 7.75" />
+              <path d={startEditing ? "M12 5.5v13M5.5 12h13" : "M12 18.5V6M6.5 11.5L12 6l5.5 5.5"} />
             </svg>
-          ) : null}
-        </button>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`${styles.check} ${done ? styles.checked : ""}`}
+            aria-label={done ? strings.todosUncheck : strings.todosCheck}
+            aria-pressed={done}
+            onClick={onToggle}
+          >
+            {done ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12.75l4.5 4.5L19 7.75" />
+              </svg>
+            ) : null}
+          </button>
+        )}
         <div className={styles.body}>
         {editing ? (
           <>

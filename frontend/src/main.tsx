@@ -58,7 +58,10 @@ function followDevicePixel(): void {
  * На iPhone с открытой клавиатурой страница прокручивается внутри уменьшенной видимой
  * области, а position: fixed держится за верх вьюпорта — шапка, «Назад» и подложка уезжали
  * вверх под вырез и строку состояния. Закреплённое сверху прибавляет этот сдвиг к `top`.
- * Без клавиатуры (и не на iPhone) он 0.
+ *
+ * Сдвиг — не больше того, что клавиатура отняла у вьюпорта: «пружина» за краем страницы
+ * iOS тоже двигает видимую область, и без предела шапка ползла за пальцем вниз. Без
+ * клавиатуры (и не на iPhone) он 0.
  */
 function followVisualViewport(): void {
   const viewport = window.visualViewport;
@@ -66,7 +69,8 @@ function followVisualViewport(): void {
     return;
   }
   const apply = (): void => {
-    const top = Math.max(0, Math.round(viewport.offsetTop));
+    const room = Math.max(0, document.documentElement.clientHeight - viewport.height);
+    const top = Math.round(Math.min(room, Math.max(0, viewport.offsetTop)));
     document.documentElement.style.setProperty("--viewport-top", `${top}px`);
   };
   viewport.addEventListener("resize", apply);

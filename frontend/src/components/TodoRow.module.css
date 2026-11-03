@@ -81,8 +81,50 @@
   order: 1;
 }
 
-.checkRight .check {
+.checkRight .check,
+.checkRight .save {
   order: 3;
+}
+
+/* «Добавить» / «Сохранить» в правке — на месте кружка и того же размера, залитый, как
+   отмеченный (список с цветом — его цвет); значок — в долях и цвета галочки. */
+.save {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--todo-check-size);
+  height: var(--todo-check-size);
+  margin-top: calc((var(--list-row-min-height) - var(--todo-check-size)) / 2);
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.save svg {
+  width: var(--todo-check-icon-size);
+  height: var(--todo-check-icon-size);
+  fill: none;
+  stroke: var(--color-check-icon);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Площадь нажатия — больше кружка. */
+.save::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
+.colored .save {
+  background-color: rgb(var(--habit-rgb));
+}
+
+.save:disabled {
+  opacity: 0.4;
 }
 
 .row + .row .checkRight::before {
@@ -194,7 +236,11 @@
   scroll-margin-bottom: var(--space-card-padding);
 }
 
+/* Высоту поля по тексту ставит TodoRow; в колонке с плашками оно не сжимается (flex: 1
+   и overflow: hidden давали ему сжаться — вторая строка уходила под плашки). */
 .field {
+  flex: none;
+  box-sizing: border-box;
   display: block;
   margin: 0;
   border: none;
