@@ -151,7 +151,7 @@ const RU = {
   todosEmptyTitle: "Пока нет задач",
   todosEmptyDescription: "Нажмите на карандаш внизу, чтобы добавить задачу",
   todosFailed: "Не удалось сохранить",
-  // Настройки → «Задачи (Beta)» и «Списки» (screens/TodoSettingsScreen.tsx, FoldersScreen).
+  // Настройки → «Задачи (Beta)» и «Списки» (screens/SettingsScreen.tsx, FoldersScreen).
   todoSettingsTitle: "Задачи",
   todoSettingsShow: "Показывать задачи",
   todoSettingsShowFooter: "Вкладка «Задачи» появится перед «Привычками».",
@@ -586,7 +586,7 @@ const RU = {
   timerLeft: (left: string) => `Осталось ${left}`,
   timerHabitRow: "Привычка",
   streakDaysValue: (count: number) => `${count} ${ruDays(count)}`,
-  timerGoal: (goal: string) => `Цель — ${goal}`,
+  timerGoal: (goal: string) => `Цель: ${goal}`,
   timerGoalDone: "Цель выполнена",
 
   // --- Окно счёта «Сверх плана» (удержание кнопки отметки) ---
@@ -612,7 +612,7 @@ const RU = {
   daySheetUnmark: "Снять отметку",
   daySheetNote: "Заметка к дню",
   // Подпись окна для скринридеров; свайп влево-вправо — соседний день.
-  daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайп — соседний день`,
+  daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайпом можно перейти на соседний день`,
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
