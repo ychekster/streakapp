@@ -32,6 +32,8 @@ applyPlatform();
 installPressFeedback();
 // Размер физического пикселя — для деталей, которые выравниваются по пикселям экрана.
 followDevicePixel();
+// Сдвиг видимой области при открытой клавиатуре — чтобы шапка не уезжала под вырез.
+followVisualViewport();
 
 /**
  * --device-pixel на <html>: один физический пиксель экрана в CSS-пикселях (1/3px на
@@ -48,6 +50,27 @@ function followDevicePixel(): void {
       .matchMedia(`(resolution: ${ratio}dppx)`)
       .addEventListener?.("change", apply, { once: true });
   };
+  apply();
+}
+
+/**
+ * --viewport-top на <html>: насколько видимая область ушла вниз от верха вьюпорта (px).
+ * На iPhone с открытой клавиатурой страница прокручивается внутри уменьшенной видимой
+ * области, а position: fixed держится за верх вьюпорта — шапка, «Назад» и подложка уезжали
+ * вверх под вырез и строку состояния. Закреплённое сверху прибавляет этот сдвиг к `top`.
+ * Без клавиатуры (и не на iPhone) он 0.
+ */
+function followVisualViewport(): void {
+  const viewport = window.visualViewport;
+  if (!viewport) {
+    return;
+  }
+  const apply = (): void => {
+    const top = Math.max(0, Math.round(viewport.offsetTop));
+    document.documentElement.style.setProperty("--viewport-top", `${top}px`);
+  };
+  viewport.addEventListener("resize", apply);
+  viewport.addEventListener("scroll", apply);
   apply();
 }
 

@@ -34,7 +34,8 @@
   z-index: 11;
   top: calc(
     var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
-    max(var(--app-content-safe-area-top, 0px), var(--header-collapsed-row-height)) / 2
+    max(var(--app-content-safe-area-top, 0px), var(--header-collapsed-row-height)) / 2 +
+    var(--viewport-top, 0px)
   );
   left: 0;
   right: 0;
@@ -77,7 +78,8 @@
  */
 .bar {
   position: fixed;
-  top: 0;
+  /* С клавиатурой iPhone — от верха видимой области (--viewport-top, main.tsx). */
+  top: var(--viewport-top, 0px);
   left: 0;
   right: 0;
   z-index: 1;

@@ -10,7 +10,7 @@
 .topEdge {
   position: fixed;
   z-index: 30;
-  top: 0;
+  top: var(--viewport-top, 0px); /* with the iPhone keyboard open (main.tsx) */
   left: 0;
   right: 0;
   height: 16px;
@@ -36,7 +36,8 @@
   z-index: 20;
   top: calc(
     var(--app-safe-area-top, env(safe-area-inset-top, 0px)) +
-      (var(--app-content-safe-area-top, 44px) - var(--web-back-size)) / 2
+      (var(--app-content-safe-area-top, 44px) - var(--web-back-size)) / 2 +
+      var(--viewport-top, 0px)
   );
   left: calc(env(safe-area-inset-left, 0px) + var(--web-back-left));
   width: var(--web-back-size);

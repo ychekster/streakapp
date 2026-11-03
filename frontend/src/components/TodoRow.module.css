@@ -187,6 +187,13 @@
   text-decoration: line-through;
 }
 
+/* Строка в правке подкручивается в видимую часть (TodoRow, scrollIntoView) — не под шапку:
+   сверху запас на неё. */
+.row {
+  scroll-margin-top: calc(var(--header-bar-bottom) + var(--space-card-padding));
+  scroll-margin-bottom: var(--space-card-padding);
+}
+
 .field {
   display: block;
   margin: 0;

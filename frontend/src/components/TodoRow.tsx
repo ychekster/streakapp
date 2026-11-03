@@ -133,7 +133,8 @@ export function TodoRow({
     if (editing) {
       const field = textRef.current;
       field?.focus({ preventScroll: true });
-      field?.scrollIntoView({ block: "nearest" });
+      // Вся строка с плашками — в видимую часть, не под шапку (scroll-margin в CSS).
+      rowRef.current?.scrollIntoView({ block: "nearest" });
       field?.setSelectionRange(field.value.length, field.value.length);
     }
   }, [editing]);
