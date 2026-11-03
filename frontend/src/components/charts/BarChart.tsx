@@ -4,7 +4,8 @@
  * chartScale). Цвет — цвет секции (`--habit-rgb`).
  *
  * Выбор столбика — пальцем (или мышью), как у LineChart: остальные приглушаются, над
- * выбранным — его значение (`formatTick`). `null` — у значения нет данных: столбика нет.
+ * выбранным — его значение (`formatTick`); у высокого столбика оно уходит в отступ карточки
+ * над графиком (svg — overflow: visible). `null` — у значения нет данных: столбика нет.
  */
 
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
@@ -126,7 +127,7 @@ export function BarChart({
                   <text
                     className={styles.barValue}
                     x={center}
-                    y={Math.max(barTop - 6, PLOT_TOP)}
+                    y={barTop - 6}
                     textAnchor="middle"
                   >
                     {formatTick(value)}
