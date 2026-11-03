@@ -127,7 +127,7 @@ const RU = {
   // День и время задачи под её текстом: «Завтра в 15:00» (без «·» — см. CLAUDE.md).
   todosDateTime: (day: string, time: string) => `${day} в ${time}`,
   todosLater: "Не запланированы на сегодня",
-  todosShowRest: "Показать остальные",
+  todosShowRest: (count: number) => `Показать остальные (${count})`,
   todosRestEmpty: "Здесь пока пусто",
   todosAllDoneTitle: "Всё выполнено",
   todosAllDoneDescription: "Задачи на сегодня закончились",
@@ -805,7 +805,7 @@ const EN: Strings = {
   todosList: "List",
   todosDateTime: (day: string, time: string) => `${day} at ${time}`,
   todosLater: "Not scheduled for today",
-  todosShowRest: "Show the Rest",
+  todosShowRest: (count: number) => `Show the rest (${count})`,
   todosRestEmpty: "Nothing here yet",
   todosAllDoneTitle: "All Done",
   todosAllDoneDescription: "No more tasks for today",

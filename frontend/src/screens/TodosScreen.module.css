@@ -6,26 +6,15 @@
   flex-direction: column;
 }
 
-/* «Показать остальные» — последняя строка блока задач: синий текст, как «Добавить
-   участника»; линия над ней — как между задачами, от начала текста. */
-.restRow {
-  position: relative;
-  width: 100%;
-}
-
-.restRow:not(:first-child)::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: var(--space-card-padding);
-  left: var(--space-card-padding);
-  height: 1px;
-  background-color: var(--color-separator);
-}
-
-/* Сколько их — справа, приглушённо, как значение ряда настроек. */
-.restCount {
+/* «Показать остальные (N)» — неприметная серая ссылка в самом низу экрана (колонка
+   растянута по высоте), отдельно от задач: есть, если нужно, но глаза не мозолит. */
+.restLink {
+  align-self: center;
+  margin-top: auto;
+  padding: 16px var(--space-card-padding) 8px;
   color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Невидимое поле, которое держит клавиатуру, пока появляется строка новой задачи: вверху

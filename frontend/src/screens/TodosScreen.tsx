@@ -10,24 +10,24 @@
  *    потом блоки с заголовками списков по порядку;
  *  - свой список — одним блоком.
  * Остальное (задачи на будущие дни — «Не запланированы на сегодня», по дню и времени, и
- * «Выполненные») — на своём экране: синяя строка «Показать остальные» последней в блоке
- * задач открывает его, «Назад» возвращает (нижней навигации там нет, как на вложенных
- * экранах). Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без
+ * «Выполненные») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
+ * ссылка «Показать остальные» в самом низу экрана, отдельно от задач; «Назад» возвращает
+ * (нижней навигации там нет, как на вложенных экранах). Отмеченная (или возвращённая)
+ * задача не убегает сразу: она стоит на месте, пока список открыт (`held`), и уходит в свой
+ * блок, когда сменили список или экран, — промахнулся галочкой — видно, где исправить. Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без
  * остальных: отметил всё — пусто, «Всё выполнено»; «Запланированные» — с датой (новая в них
  * — на сегодня); «Без даты». Кружок задачи — цвета её списка (без списка — серый).
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в конце первого блока
- * появляется пустая строка с курсором, пишешь прямо в ней; Enter или закрытая клавиатура —
- * задача сохранена (пустая — пропадает); под текстом плашки дня, напоминания и списка
- * (TodoChips; список — тот, где пишешь). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
+ * появляется пустая строка с курсором, пишешь прямо в ней; под текстом плашки дня,
+ * напоминания и списка (TodoChips; список — тот, где пишешь); Enter или нажатие мимо
+ * строки — задача сохранена (пустая — пропадает). Заголовок — крупный, как у «Привычек»; подзаголовки — как «Не
  * запланированы на сегодня». Данные — на устройстве, на сервер уходят через /sync.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { FolderBar, type FolderTab } from "../components/FolderBar";
-import { Disclosure } from "../components/Disclosure";
-import rowStyles from "../components/ListItem.module.css";
 import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
@@ -140,13 +140,31 @@ export function TodosScreen() {
     settings?.todo_folder_swipe && draft === null && !showingRest ? switchList : null,
   );
 
+  // Задачи, отмеченные (или возвращённые) в этом списке: стоят там, где были до отметки, —
+  // как были отмечены тогда и с прежним местом среди выполненных. Другой список или экран —
+  // всё по местам.
+  const view = `${shownFolder}:${showingRest}`;
+  const [heldState, setHeldState] = useState<{ view: string; held: Map<number, Todo> }>({
+    view,
+    held: new Map(),
+  });
+  const held = heldState.view === view ? heldState.held : EMPTY_HELD;
+  const hold = (todo: Todo): void => {
+    if (!held.has(todo.id)) {
+      setHeldState({ view, held: new Map(held).set(todo.id, todo) });
+    }
+  };
+
   // День устройства — как в выборе даты (DateField); пересчёт — с каждой отрисовкой.
   const today = localDate();
   const { groups, later, done } = useMemo(() => {
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
-    const pending = todos.filter((todo) => todo.done_at === null && inView(todo));
+    // Где задача стоит: отмеченная здесь — по тому, какой была до отметки.
+    const doneAt = (todo: Todo): string | null =>
+      (held.get(todo.id) ?? todo).done_at;
+    const pending = todos.filter((todo) => doneAt(todo) === null && inView(todo));
     const open = pending.filter((todo) => !isLater(todo));
     // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
     const upcoming =
@@ -163,8 +181,8 @@ export function TodosScreen() {
       kind === "today"
         ? []
         : todos
-            .filter((todo) => todo.done_at !== null && inView(todo))
-            .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
+            .filter((todo) => doneAt(todo) !== null && inView(todo))
+            .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
@@ -192,7 +210,7 @@ export function TodosScreen() {
       later: upcoming,
       done: checked,
     };
-  }, [todos, todoFolders, shownFolder, kind, today]);
+  }, [todos, todoFolders, shownFolder, kind, today, held]);
   // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.
@@ -251,28 +269,9 @@ export function TodosScreen() {
 
   const nowEmpty = draft === null && groups.every((group) => group.todos.length === 0);
   const rest = later.length + done.length;
-  // Блоки на экране; «Показать остальные» — последней строкой последнего из них.
   const shownGroups = groups.filter(
     (group) => group.todos.length > 0 || (group.target && draft !== null),
   );
-  const lastGroup = shownGroups[shownGroups.length - 1]?.key;
-  const restRow =
-    rest > 0 ? (
-      <button
-        type="button"
-        className={[rowStyles.row, rowStyles.pressable, rowStyles.accent, styles.restRow].join(" ")}
-        onClick={() => {
-          scrollUnderRest.current = window.scrollY;
-          setRestOpen(true);
-        }}
-      >
-        <span className={rowStyles.label}>{strings.todosShowRest}</span>
-        <span className={rowStyles.trailing}>
-          <span className={styles.restCount}>{rest}</span>
-          <Disclosure />
-        </span>
-      </button>
-    ) : null;
 
   if (showingRest) {
     return (
@@ -327,7 +326,6 @@ export function TodosScreen() {
             />
           )
         ) : null}
-        {nowEmpty && restRow ? <Card>{restRow}</Card> : null}
         {shownGroups.map((group) => (
           <Section key={group.key} title={group.title} variant="form">
             <Card>
@@ -351,10 +349,21 @@ export function TodosScreen() {
                   onDelete={() => closeDraft(draft)}
                 />
               ) : null}
-              {group.key === lastGroup ? restRow : null}
             </Card>
           </Section>
         ))}
+        {rest > 0 ? (
+          <button
+            type="button"
+            className={styles.restLink}
+            onClick={() => {
+              scrollUnderRest.current = window.scrollY;
+              setRestOpen(true);
+            }}
+          >
+            {strings.todosShowRest(rest)}
+          </button>
+        ) : null}
       </div>
       {/* Держит клавиатуру между нажатием карандаша и появлением строки (см. startNewTodo). */}
       <textarea
@@ -374,6 +383,7 @@ export function TodosScreen() {
         todo={todo}
         onToggle={() => {
           hapticImpact("light");
+          hold(todo);
           dataStore.updateTodo(todo.id, { done: todo.done_at === null });
         }}
         onSave={(next) => saveTodo(todo, next)}
@@ -384,6 +394,8 @@ export function TodosScreen() {
     );
   }
 }
+
+const EMPTY_HELD = new Map<number, Todo>();
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
 function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {

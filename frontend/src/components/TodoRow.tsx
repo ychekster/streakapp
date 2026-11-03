@@ -1,6 +1,6 @@
 /**
- * Задачи (бета): строка задачи. Кружок слева — отметить выполненной (выполненная уходит в
- * блок «Выполненные» внизу) или вернуть; нажатие на текст — править его прямо в строке
+ * Задачи (бета): строка задачи. Кружок слева — отметить выполненной или вернуть (строка
+ * остаётся на месте, пока открыт список, — см. TodosScreen); нажатие на текст — править его прямо в строке
  * (Enter — сохранить, пустой текст — удалить); свайп влево от правого края строки (полоса
  * EDGE_WIDTH) открывает красную кнопку «Удалить» (свайп вправо или нажатие строки
  * закрывает её). Свайп по остальной строке — экрану: «Переключение свайпом» листает
@@ -8,8 +8,9 @@
  * Задача списка с цветом — кружок его цвета; без списка — серый.
  *
  * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips). Правка —
- * текст и плашки вместе: она заканчивается, когда фокус ушёл из строки (Enter, закрытая
- * клавиатура, закрытый выбор дня или времени), и всё сохраняется разом (`onSave`).
+ * текст и плашки вместе: выбор дня или времени и закрытая клавиатура её не заканчивают —
+ * только Enter («Готово») или нажатие мимо строки (не прокрутка); тогда всё сохраняется
+ * разом (`onSave`).
  * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
  * красным.
  */
@@ -19,7 +20,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type FocusEvent,
   type PointerEvent,
 } from "react";
 
@@ -107,8 +107,9 @@ export function TodoRow({
   const swipe = useRef<{ x: number; y: number; from: number; moving: boolean } | null>(null);
   const moved = useRef(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  // Для конца правки, который приходит позже отрисовки (см. leaveEdit): свежая правка и
-  // то, что она ещё не закончена (повторный уход фокуса не сохраняет второй раз).
+  const rowRef = useRef<HTMLDivElement>(null);
+  // Для конца правки из слушателей документа: свежая правка и то, что она ещё не
+  // закончена (второй конец не сохраняет второй раз).
   const latest = useRef(draft);
   latest.current = draft;
   const editingRef = useRef(editing);
@@ -155,19 +156,36 @@ export function TodoRow({
     }
   };
 
-  /** Фокус ушёл из поля или плашки: правка кончена, если он ушёл из строки совсем. На
-   *  iPhone фокус может прийти в плашку чуть позже, чем ушёл из поля, — проверка после. */
-  const leaveEdit = (event: FocusEvent<HTMLDivElement>): void => {
-    const box = event.currentTarget;
-    if (event.relatedTarget instanceof Node && box.contains(event.relatedTarget)) {
-      return;
+  const finishRef = useRef(finishEdit);
+  finishRef.current = finishEdit;
+
+  // Нажатие мимо строки заканчивает правку; палец, который сдвинулся (прокрутка), — нет.
+  useEffect(() => {
+    if (!editing) {
+      return undefined;
     }
-    window.setTimeout(() => {
-      if (!box.contains(document.activeElement)) {
-        finishEdit();
+    let tap: { x: number; y: number } | null = null;
+    const onDown = (event: globalThis.PointerEvent): void => {
+      const outside = !(event.target instanceof Node && rowRef.current?.contains(event.target));
+      tap = outside ? { x: event.clientX, y: event.clientY } : null;
+    };
+    const onUp = (event: globalThis.PointerEvent): void => {
+      if (
+        tap &&
+        Math.abs(event.clientX - tap.x) <= SWIPE_SLOP &&
+        Math.abs(event.clientY - tap.y) <= SWIPE_SLOP
+      ) {
+        finishRef.current();
       }
-    }, 0);
-  };
+      tap = null;
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+  }, [editing]);
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     moved.current = false;
@@ -221,6 +239,7 @@ export function TodoRow({
 
   return (
     <div
+      ref={rowRef}
       className={`${styles.row} ${color ? styles.colored : ""}`}
       style={color ? habitColorStyle(color) : undefined}
       data-todo={todo.id}
@@ -272,7 +291,7 @@ export function TodoRow({
             </svg>
           ) : null}
         </button>
-        <div className={styles.body} onBlur={editing ? leaveEdit : undefined}>
+        <div className={styles.body}>
         {editing ? (
           <>
             <textarea
@@ -286,7 +305,7 @@ export function TodoRow({
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  event.currentTarget.blur();
+                  finishEdit();
                 } else if (event.key === "Escape") {
                   editingRef.current = false;
                   setEditing(false);
