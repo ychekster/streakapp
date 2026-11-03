@@ -98,53 +98,110 @@
 
 /* --- Круг --- */
 
-/* Легенда — по верху кольца. */
+/* Крупное кольцо по центру карточки, под ним — плитки легенды на всю ширину. */
 .pie {
   margin: 0;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: var(--space-card-padding);
 }
 
-.pie svg {
+.ring {
+  position: relative;
   flex-shrink: 0;
+}
+
+.ring svg {
   display: block;
 }
 
-.legend {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Подложка кольца: видна, пока частей нет. */
+.ringTrack {
+  fill: none;
+  stroke: var(--color-fill);
 }
 
-.legendRow {
+/* Доля выполненных дней крупно в центре кольца, под ней — подпись. */
+.ringCenter {
+  position: absolute;
+  inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-body);
-  line-height: 1.25;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ringValue {
+  font-size: var(--font-size-chart-value);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
 }
 
-.legendLabel {
-  flex: 1;
+.ringLabel {
+  margin-top: 2px;
+  font-size: var(--font-size-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* Три плитки — в ряд, четыре — сеткой 2×2. */
+.legend {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.legend[data-count="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.legendTile {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background-color: var(--color-fill);
 }
 
-/* Сколько дней и доля — двумя колонками с выровненными цифрами. */
-.legendValue,
-.legendShare {
+.legendLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--font-size-secondary);
+  line-height: 1.25;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Сколько дней крупно, доля рядом мельче. */
+.legendNumbers {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+}
+
+.legendValue {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 .legendShare {
-  min-width: 3.2em;
+  font-size: var(--font-size-secondary);
   color: var(--color-text-secondary);
 }
 

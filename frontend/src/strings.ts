@@ -428,6 +428,8 @@ const RU = {
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
   statsWeekdaysHeading: "Выполнение по дням недели",
   statsDaysHeading: "Итоги по дням",
+  // В центре кольца «Итогов по дням», под долей выполненных дней.
+  statsPieCenter: "выполнено",
   statsSlices: {
     done: "Выполнено",
     partial: "Частично",
@@ -1080,6 +1082,7 @@ const EN: Strings = {
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
   statsWeekdaysHeading: "Completion by weekday",
   statsDaysHeading: "Days summary",
+  statsPieCenter: "completed",
   statsSlices: {
     done: "Completed",
     partial: "Partly",

@@ -14,8 +14,9 @@
  *    по видимым значениям; над ней значение последней точки, палец на графике — значение и
  *    дата выбранной;
  *  - «Выполнение по дням недели» — столбики выполнения (палец — значение над столбиком);
- *  - «Итоги по дням» — круг: выполнено, частично, пропущено, заморожено (у «Гибкого
- *    графика» нет пропусков — круга нет).
+ *  - «Итоги по дням» — крупное кольцо с долей выполненных в центре, под ним плитки:
+ *    выполнено, частично (только со счётом), пропущено, заморожено (у «Гибкого графика»
+ *    нет пропусков — круга нет).
  * Дни недели и круг — только когда привычке хотя бы MIN_DAYS дней: раньше в них нечего
  * читать.
  */
@@ -185,12 +186,15 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   const shownPoint = point ?? lastKnown;
   const shownValue = shownPoint === null ? null : line.values[shownPoint];
 
-  const slices: PieSlice[] = (["done", "partial", "missed", "frozen"] as const).map((tone) => ({
-    key: tone,
-    label: strings.statsSlices[tone],
-    value: breakdown[tone],
-    tone,
-  }));
+  // «Частично» — только у привычек со счётом (раз в день его не бывает): плиток три или четыре.
+  const slices: PieSlice[] = (["done", "partial", "missed", "frozen"] as const)
+    .filter((tone) => tone !== "partial" || counts || breakdown.partial > 0)
+    .map((tone) => ({
+      key: tone,
+      label: strings.statsSlices[tone],
+      value: breakdown[tone],
+      tone,
+    }));
 
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
@@ -286,7 +290,11 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
             <Card padded>
               <div className={styles.chartCard}>
                 {enough ? (
-                  <PieChart slices={slices} label={strings.statsDaysHeading} />
+                  <PieChart
+                    slices={slices}
+                    centerLabel={strings.statsPieCenter}
+                    label={strings.statsDaysHeading}
+                  />
                 ) : (
                   <p className={styles.tooEarly}>{strings.statsTooEarly}</p>
                 )}
