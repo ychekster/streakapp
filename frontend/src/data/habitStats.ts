@@ -122,18 +122,31 @@ function totals(days: Days, from: string, to: string): Totals {
   return sum;
 }
 
-/** This month so far and the same days of the last one: the 1st to `day`'s date (a shorter
- *  last month — all its days). No last month — the habit began after its 1st. */
-export function monthTotals(habit: Habit, day: string): { current: Totals; previous: Totals | null } {
+/** The same date a month before `date` («ГГГГ-ММ-ДД»); a shorter month — its last day. */
+export function monthBefore(date: string): string {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const previous = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+  const last = daysInMonth(`${previous}-01`);
+  return `${previous}-${String(Math.min(Number(date.slice(8, 10)), last)).padStart(2, "0")}`;
+}
+
+/** The last month and the one before it: the day after `day`'s date a month ago to `day`
+ *  (5 Nov — 6 Oct to 5 Nov), and the same a month earlier (6 Sep to 5 Oct). No month before
+ *  — the habit began inside it. */
+export function monthTotals(
+  habit: Habit,
+  day: string,
+): { current: Totals; previous: Totals | null; from: string } {
   const days = daysOf(habit, day);
-  const from = `${day.slice(0, 8)}01`;
-  const elapsed = daysBetween(from, day) + 1;
-  const previousFrom = `${addDays(from, -1).slice(0, 8)}01`;
-  const previousTo = addDays(previousFrom, Math.min(elapsed, daysInMonth(previousFrom)) - 1);
+  const previousTo = monthBefore(day);
+  const from = addDays(previousTo, 1);
+  const previousFrom = addDays(monthBefore(previousTo), 1);
   const began = days.start !== null && days.start <= previousFrom && days.first <= previousFrom;
   return {
     current: totals(days, from, day),
     previous: began ? totals(days, previousFrom, previousTo) : null,
+    from,
   };
 }
 
@@ -168,10 +181,12 @@ export function daysGoing(habit: Habit, day: string): number {
 /**
  * The habit's score — what the line chart («Динамика») draws: it grows while the habit is
  * kept and falls when it is not, so a habit done every day is a rising line, not a flat
- * 100%. From 0 on the habit's first day (or the history's), never below 0, day by day:
- *  - a due day: +1 done, −1 not; time and times — by the share of the goal (half — 0);
- *  - a day off schedule: + the share done (a bonus mark), frozen — 0;
- *  - the marking day: +1 once done, otherwise nothing yet — it is not over;
+ * 100%. From 0 on the habit's first day (or the history's), never below 0, day by day
+ * (the marking day too: −1 until it is done, so its piece of the line points down):
+ *  - a due day: +1 done, −1 not; time and times — by the share of the goal s, with no cap:
+ *    below the goal 2s − 1 (nothing −1, a quarter −0.5, half 0, three quarters +0.5), from
+ *    the goal on s itself (the goal +1, twice the goal +2, two and a half times +2.5);
+ *  - a day off schedule: + the share done (a bonus mark, no cap either), frozen — 0;
  *  - flexible: +1 a mark, and when a period ends −1 for each mark short of its goal (a
  *    period begun before the habit is not held against it).
  * Null — before the habit's first day.
@@ -198,15 +213,16 @@ function scores(days: Days): (number | null)[] {
       }
     } else if (!habit.frozen_history[index]) {
       const goal = kind === "time" || kind === "times" ? goalOn(habit, date).goal : 1;
-      const share = habit.history[index] ? 1 : Math.min(1, amount / Math.max(1, goal));
-      if (date === day) {
-        score += share >= 1 ? 1 : 0;
+      const done = amount / Math.max(1, goal);
+      const share = habit.history[index] ? Math.max(1, done) : done;
+      if (isDueOnDay(habit, date)) {
+        score += share >= 1 ? share : 2 * share - 1;
       } else {
-        score += isDueOnDay(habit, date) ? 2 * share - 1 : share;
+        score += share;
       }
     }
     score = Math.max(0, score);
-    result[index] = Math.round(score * 10) / 10;
+    result[index] = Math.round(score * 100) / 100;
   }
   return result;
 }

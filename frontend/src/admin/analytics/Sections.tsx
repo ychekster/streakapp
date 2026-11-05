@@ -10,6 +10,7 @@ import { useAdminFormat } from "../adminFormat";
 import { describeAdminError, useAdminStrings } from "../adminStrings";
 import { ChartCard, type ChartTable } from "../components/ChartCard";
 import { LineChart } from "../../components/charts/LineChart";
+import { JourneySection, type JourneyQuery } from "../components/JourneySection";
 import { WebFunnelSection } from "../components/WebFunnelSection";
 import { ListItem } from "../../components/ListItem";
 import { Card } from "../../components/Section";
@@ -49,6 +50,8 @@ export interface SectionProps {
   filter: AnalyticsFilter;
   onOpenPeople: (query: PeopleQuery) => void;
   onOpenLinks: () => void;
+  /** Путь с сайта: кто остановился на шаге (JourneySection). */
+  onOpenJourney: (query: JourneyQuery) => void;
 }
 
 // Цвета разделов — как секции экрана привычки.
@@ -305,7 +308,7 @@ function Summary({ data, onOpenPeople }: { data: AnalyticsSections["summary"]; o
 
 const PERIOD_DAYS: Record<string, number> = { today: 1, "7": 7, "30": 30, "90": 90, all: 365 };
 
-export function FunnelSection({ filter, onOpenPeople }: SectionProps) {
+export function FunnelSection({ filter, onOpenPeople, onOpenJourney }: SectionProps) {
   const resource = useSection("funnel", filter);
   return (
     <Loaded resource={resource}>
@@ -316,6 +319,7 @@ export function FunnelSection({ filter, onOpenPeople }: SectionProps) {
           ))}
           {filter.platform !== "telegram" ? (
             <div className={styles.content}>
+              <JourneySection days={PERIOD_DAYS[filter.period] ?? 30} onOpen={onOpenJourney} />
               <WebFunnelSection days={PERIOD_DAYS[filter.period] ?? 30} />
             </div>
           ) : null}

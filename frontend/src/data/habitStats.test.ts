@@ -8,6 +8,7 @@ import { addDays, daysBetween } from "./dates";
 import {
   bestDay,
   dayBreakdown,
+  monthBefore,
   monthTotals,
   statsKind,
   trend,
@@ -83,22 +84,23 @@ describe("statsKind", () => {
 });
 
 describe("monthTotals", () => {
-  it("compares this month so far with the same days of the last one", () => {
-    const day = "2026-10-07";
-    // September: 1…7 done 3 times, the rest of the month does not count.
-    const marks = ["2026-08-20", "2026-09-01", "2026-09-03", "2026-09-05", "2026-09-20"];
-    const { current, previous } = monthTotals(habit(day, [...marks, ...range("2026-10-01", day)]), day);
-    expect(current.done).toBe(7);
-    expect(current.due).toBe(7);
-    expect(previous?.done).toBe(3);
-    expect(previous?.due).toBe(7);
+  it("compares the month up to today with the month before it", () => {
+    const day = "2026-11-05";
+    // 6 Sep … 5 Oct: two marks; 6 Oct … 5 Nov: 6 Oct and 1 … 5 Nov.
+    const marks = ["2026-08-01", "2026-09-06", "2026-10-05", "2026-10-06"];
+    const totals = monthTotals(habit(day, [...marks, ...range("2026-11-01", day)]), day);
+    expect(totals.from).toBe("2026-10-06");
+    expect(totals.current).toMatchObject({ done: 6, due: 31 });
+    expect(totals.previous).toMatchObject({ done: 2, due: 30 });
   });
 
-  it("takes all of a shorter last month", () => {
+  it("takes the last day of a shorter month", () => {
+    expect(monthBefore("2026-03-31")).toBe("2026-02-28");
+    expect(monthBefore("2026-01-15")).toBe("2025-12-15");
     const day = "2026-03-31";
-    const { previous } = monthTotals(habit(day, ["2026-01-10", ...range("2026-02-01", "2026-02-28")]), day);
-    expect(previous?.due).toBe(28);
-    expect(previous?.done).toBe(28);
+    const totals = monthTotals(habit(day, ["2026-01-10", ...range("2026-01-29", "2026-02-28")]), day);
+    expect(totals.from).toBe("2026-03-01");
+    expect(totals.previous).toMatchObject({ done: 31, due: 31 });
   });
 
   it("has no last month when the habit began after its 1st", () => {
@@ -108,13 +110,13 @@ describe("monthTotals", () => {
 
   it("counts the marking day as due only once done", () => {
     const day = "2026-10-03";
-    const { current } = monthTotals(habit(day, ["2026-09-01", "2026-10-01"]), day);
+    const { current } = monthTotals(habit(day, ["2026-10-01"]), day);
     expect(current).toMatchObject({ done: 1, due: 2 });
   });
 
   it("leaves frozen days and days off schedule out of the due ones", () => {
     const day = "2026-10-07"; // Wednesday
-    const weekdays = habit(day, ["2026-09-01", "2026-10-01"], {
+    const weekdays = habit(day, ["2026-10-01"], {
       frequency_type: "specific_days",
       days: ["mon", "tue", "wed", "thu", "fri"],
       frozen: ["2026-10-02"],
@@ -143,14 +145,14 @@ describe("trend", () => {
     expect(line.values).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
-  it("falls by one for a missed day, not below zero; today counts once done", () => {
+  it("falls by one for a missed day, not below zero; today is −1 until done", () => {
     const day = "2026-10-07";
     const missed = habit(day, ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", day]);
     expect(trend(missed, day, "month").values).toEqual([1, 2, 3, 4, 5, 4, 5]);
     const low = habit("2026-10-04", ["2026-10-01", "2026-10-04"]);
     expect(trend(low, "2026-10-04", "month").values).toEqual([1, 0, 0, 1]);
     const open = habit("2026-10-04", range("2026-10-01", "2026-10-03"));
-    expect(trend(open, "2026-10-04", "month").values).toEqual([1, 2, 3, 3]);
+    expect(trend(open, "2026-10-04", "month").values).toEqual([1, 2, 3, 2]);
   });
 
   it("counts the share of the goal for several times a day", () => {
@@ -160,8 +162,27 @@ describe("trend", () => {
       started_on: "2026-10-01",
       counts: { "2026-10-01": 2, "2026-10-02": 4, "2026-10-03": 1 },
     });
-    // Half the goal — 0, done — +1, today not done yet — nothing.
-    expect(trend(several, day, "month").values).toEqual([null, 0, 1, 1]);
+    // Half the goal — 0, done — +1, today a quarter so far — −0.5.
+    expect(trend(several, day, "month").values).toEqual([null, 0, 1, 0.5]);
+  });
+
+  it("keeps growing past the goal", () => {
+    const day = "2026-10-03";
+    const several = habit(day, ["2026-10-01", "2026-10-03"], {
+      times_per_day: 4,
+      started_on: "2026-10-01",
+      counts: { "2026-10-01": 8, "2026-10-02": 3, "2026-10-03": 10 },
+    });
+    // Twice the goal — +2, three quarters — +0.5, two and a half times — +2.5.
+    expect(trend(several, day, "month").values).toEqual([null, 2, 2.5, 5]);
+    const timed = habit("2026-10-02", ["2026-10-01"], {
+      times_per_day: 6000,
+      goal_unit: "seconds",
+      started_on: "2026-10-01",
+      counts: { "2026-10-01": 7500, "2026-10-02": 0 },
+    });
+    // 125 of 100 minutes — +1.25; today nothing yet — −1.
+    expect(trend(timed, "2026-10-02", "month").values).toEqual([null, null, 1.25, 0.25]);
   });
 
   it("takes a flexible period's missing marks when it ends", () => {

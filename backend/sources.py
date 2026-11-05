@@ -5,6 +5,8 @@
 
 - бот: `t.me/<бот>?start=src_threads_post12` (bot/handlers/start.py) и Mini App по прямой
   ссылке: `startapp=src_threads_post12` (initData.start_param, dependencies.get_db_user);
+  с лендинга перед меткой идёт id устройства посетителя: `start=v_<32 hex>_src_threads`
+  (split_visitor);
 - веб-версия: `?src=threads_post12` — лендинг запоминает её на устройстве и передаёт с
   событиями воронки (POST /events), а кнопка «Открыть в Telegram» — боту.
 
@@ -45,6 +47,21 @@ def parse_start_param(value: str | None) -> tuple[str, str | None] | None:
     if not value or not value.lower().startswith(SOURCE_START_PREFIX):
         return None
     return parse_source(value[len(SOURCE_START_PREFIX):])
+
+
+_VISITOR = re.compile(r"v_([0-9a-f]{32})(?:_(.*))?")
+
+
+def split_visitor(value: str | None) -> tuple[str | None, str | None]:
+    """Параметр /start с лендинга «v_<32 hex>_src_threads_post12» → (id устройства
+    посетителя, как его хранит лендинг: UUID с дефисами; «src_threads_post12»). Без «v_» —
+    (None, параметр как есть): по id бот связывает путь посетителя на сайте с аккаунтом."""
+    match = _VISITOR.fullmatch(value or "")
+    if match is None:
+        return None, value
+    raw = match.group(1)
+    anon = f"{raw[:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:]}"
+    return anon, match.group(2)
 
 
 def source_name(source: str | None) -> str:

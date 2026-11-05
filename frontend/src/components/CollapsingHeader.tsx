@@ -109,6 +109,7 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
   // Layout-эффект: начальное состояние шапки ставится до первой отрисовки экрана.
   useLayoutEffect(() => {
     const headerEl = headerRef.current;
+    const barEl = barRef.current;
     if (!headerEl) {
       return;
     }
@@ -195,6 +196,9 @@ export function CollapsingHeader({ title, anchorRef, pinned = false }: Collapsin
     window.addEventListener("app:insets", onResize);
     return () => {
       active = false;
+      // Прозрачность подложки у pinned — inline: снимаем, иначе она перекроет .collapsed,
+      // если тот же экземпляр шапки дальше работает без pinned.
+      barEl?.style.removeProperty("opacity");
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener(SCROLL_RESTORED_EVENT, onScrollRestored);
       window.removeEventListener("resize", onResize);

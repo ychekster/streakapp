@@ -3,14 +3,14 @@
  * привычки. Всё считается на устройстве из истории привычки (data/habitStats.ts), по дню
  * отметки из «Вида сетки». Текста — минимум: заголовки разделов и подписи цифр.
  *
- *  - «Этот месяц» — одна карточка с цифрами и стрелкой к тем же дням прошлого месяца
- *    (StatDelta): у «Цели по времени» и «несколько раз в день» — минуты (повторения) и в
+ *  - «За месяц» — одна карточка с цифрами за месяц по день отметки (с того же числа прошлого
+ *    месяца, даты под карточкой) и стрелкой к месяцу перед ним (StatDelta): у «Цели по времени» и «несколько раз в день» — минуты (повторения) и в
  *    среднем за день с отметкой, у остальных — выполнено и выполнение (%; у «Гибкого
  *    графика» — только выполнено);
  *  - «За всё время» (время, повторения) — «Всего» («24 / 100 мин», переехало сюда из
  *    «Основного») и рекорд за день;
  *  - «Динамика» — счёт привычки (растёт, пока её выполняют, падает от пропусков — см.
- *    habitStats.trend) плавной линией за месяц, 3 месяца или год (капсулы над ней), шкала —
+ *    habitStats.trend) сплошной линией с острыми углами за месяц, 3 месяца или год (капсулы над ней), шкала —
  *    по видимым значениям; над ней значение последней точки, палец на графике — значение и
  *    дата выбранной;
  *  - «Выполнение по дням недели» — столбики выполнения (палец — значение над столбиком);
@@ -76,6 +76,19 @@ function averageOf(kind: StatsKind, totals: Totals): number | null {
   return totals.activeDays > 0 ? Math.round(amountOf(kind, totals.amount) / totals.activeDays) : null;
 }
 
+/** Счёт динамики над графиком: дробный — до десятых («12,5»). */
+function formatScore(score: number, language: string): string {
+  return (Math.round(score * 10) / 10).toLocaleString(language);
+}
+
+/** День подписью для дат под «За месяц»: «6 октября», «October 6». */
+function longDate(day: string, language: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Intl.DateTimeFormat(language, { day: "numeric", month: "long" }).format(
+    new Date(year, month - 1, date),
+  );
+}
+
 /** Выполнение (%), null — не было дней по расписанию. */
 function rateOf(totals: Totals): number | null {
   return totals.due > 0 ? Math.round((totals.done / totals.due) * 100) : null;
@@ -126,6 +139,7 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   const breakdown = useMemo(() => dayBreakdown(habit, day), [habit, day]);
   const enough = daysGoing(habit, day) >= MIN_DAYS;
   const { current, previous } = month;
+  const monthRange = strings.statsMonthRange(longDate(month.from, language), longDate(day, language));
   const counts = kind === "time" || kind === "times";
 
   const monthFigures: Figure[] = counts
@@ -200,7 +214,7 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   return (
     <Screen title={habit.name} titleAnchorRef={headingRef} withTabBar={false}>
       <div className={habitStyles.enter} style={habitColorStyle(habit.color)}>
-        <Section title={strings.statsMonthHeading} headingRef={headingRef}>
+        <Section title={strings.statsMonthHeading} headingRef={headingRef} footer={monthRange}>
           <Card>
             <Figures items={monthFigures} />
           </Card>
@@ -232,7 +246,13 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
           hint={
             <InfoTip
               label={strings.statsTrendInfoLabel}
-              text={kind === "flexible" ? strings.statsTrendInfoFlexible : strings.statsTrendInfo}
+              text={
+                kind === "flexible"
+                  ? strings.statsTrendInfoFlexible
+                  : counts
+                    ? strings.statsTrendInfoAmount
+                    : strings.statsTrendInfo
+              }
             />
           }
         >
@@ -255,7 +275,7 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                 ))}
               </div>
               <p className={styles.chartValue}>
-                {shownValue === null ? "—" : Math.round(shownValue)}
+                {shownValue === null ? "—" : formatScore(shownValue, language)}
                 {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
               </p>
               <LineChart
@@ -264,8 +284,6 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                 fit
                 tickCount={3}
                 formatTick={String}
-                partialLast
-                smooth
                 selected={point}
                 onSelect={setPoint}
                 label={strings.statsTrendHeading}

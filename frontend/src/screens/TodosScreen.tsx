@@ -377,7 +377,10 @@ export function TodosScreen() {
 
   if (showingRest) {
     return (
+      // Свои key у двух экранов: иначе React берёт ту же шапку, и прозрачность подложки
+      // экрана остальных (pinned) остаётся на шапке задач.
       <Screen
+        key="rest"
         title={folder ? folder.name : strings.todosAll}
         withTabBar={false}
         enterAnimation
@@ -401,7 +404,7 @@ export function TodosScreen() {
   }
 
   return (
-    <Screen title={strings.todosTitle}>
+    <Screen key="main" title={strings.todosTitle}>
       <div ref={listRef} className={styles.todos} data-plain={hideListNames ? "" : undefined}>
         {todoFolders.length > 0 ? (
           <FolderBar

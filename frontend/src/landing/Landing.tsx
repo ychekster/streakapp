@@ -29,7 +29,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { botLinkWithSource, installSource, track } from "../web/analytics";
+import { anonId, botLinkWithSource, installSource, track } from "../web/analytics";
 import { API_BASE_URL } from "../api/client";
 import { devicePlatform, inAppBrowser } from "../platform";
 import { redeemHandoffLink } from "../web/handoff";
@@ -62,10 +62,12 @@ function initialScreen(): Screen {
   return path === INSTALL_PATH ? "install" : "main";
 }
 
-/** This flow's address on another screen, keeping `src` and the handoff token. */
+/** This flow's address on another screen, keeping `src`, the device id (the system
+ *  browser has its own storage) and the handoff token. */
 function flowUrl(path: string): string {
   const url = new URL(path, window.location.origin);
   url.searchParams.set("src", installSource());
+  url.searchParams.set("v", anonId());
   const handoff = new URLSearchParams(window.location.search).get("h");
   if (handoff) {
     url.searchParams.set("h", handoff);
@@ -73,8 +75,8 @@ function flowUrl(path: string): string {
   return url.toString();
 }
 
-/** iPhone: the app added to the home screen starts with the handoff token (if any) and
- *  the install source (its storage is not Safari's — the source would be lost). */
+/** iPhone: the app added to the home screen starts with the handoff token (if any), the
+ *  install source and the device id (its storage is not Safari's, they would be lost). */
 function carryHandoffToInstalledApp(token: string | null): void {
   let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (!link) {
@@ -90,6 +92,7 @@ function carryHandoffToInstalledApp(token: string | null): void {
   if (source !== DEFAULT_SRC) {
     params.set("s", source);
   }
+  params.set("v", anonId());
   link.href = `${API_BASE_URL}/web/manifest?${params}`;
 }
 

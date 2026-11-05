@@ -88,8 +88,13 @@ def _client_props(props: dict[str, object] | None) -> dict[str, Any] | None:
 async def record_client_event(repo: Repository, payload: EventIn, user_id: int | None) -> None:
     """Store an event sent by the landing or the app; unknown names are rejected. The app's
     «opened» event goes to the action log instead of the funnel."""
+    anon_id = payload.anon_id or None
     if user_id is not None:
         await _remember_source(repo, user_id, payload.src)
+        # The device is now known to be the account's: its earlier steps (landing,
+        # install) join the account's path.
+        if anon_id is not None:
+            await repo.claim_anon_events(anon_id, user_id)
     if payload.event == APP_OPEN_EVENT:
         if user_id is not None:
             await _record_app_open(repo, payload, user_id)
@@ -97,10 +102,13 @@ async def record_client_event(repo: Repository, payload: EventIn, user_id: int |
     if payload.event not in FUNNEL_EVENTS or payload.event in SERVER_FUNNEL_EVENTS:
         raise ApiError(422, "invalid_event", "Неизвестное событие")
     props = _client_props(payload.props)
+    # A known device without a login (the landing in its browser) — still that account.
+    if user_id is None and anon_id is not None:
+        user_id = await repo.user_of_anon(anon_id)
     await repo.add_event(
         payload.event,
         user_id=user_id,
-        anon_id=payload.anon_id or None,
+        anon_id=anon_id,
         platform=_known(payload.platform, EVENT_PLATFORMS),
         browser_context=_known(payload.browser_context, EVENT_CONTEXTS),
         src=_clean_src(payload.src),

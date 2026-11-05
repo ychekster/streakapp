@@ -18,6 +18,9 @@ import type {
   Broadcast,
   BroadcastButton,
   Delivery,
+  JourneyPathKey,
+  JourneyPerson,
+  JourneyReport,
   OverviewGroup,
   Page,
   PeopleQuery,
@@ -26,6 +29,8 @@ import type {
   ReviewReply,
   Segment,
   TimelinePage,
+  TimelineOrder,
+  VisitorJourney,
 } from "../types/admin";
 import { apiRequest } from "./client";
 
@@ -121,9 +126,39 @@ export function saveAnalyticsConfig(
   });
 }
 
-/** Лента действий пользователя, новые сначала. */
-export function fetchTimeline(telegramId: number, offset: number): Promise<TimelinePage> {
-  return apiRequest<TimelinePage>(`/admin/users/${telegramId}/timeline?offset=${offset}`, {
+/** Лента действий пользователя: новые сначала или с самого начала. */
+export function fetchTimeline(
+  telegramId: number,
+  offset: number,
+  order: TimelineOrder = "new",
+): Promise<TimelinePage> {
+  return apiRequest<TimelinePage>(
+    `/admin/users/${telegramId}/timeline?offset=${offset}&order=${order}`,
+    { method: "GET" },
+  );
+}
+
+/** Путь посетителей, открывших лендинг за `days` дней. */
+export function fetchJourney(days: number): Promise<JourneyReport> {
+  return apiRequest<JourneyReport>(`/admin/journey?days=${days}`, { method: "GET" });
+}
+
+/** Кто дошёл до шага ветки и дальше не пошёл. */
+export async function fetchJourneyStuck(
+  days: number,
+  path: JourneyPathKey,
+  step: string,
+): Promise<JourneyPerson[]> {
+  const params = new URLSearchParams({ days: String(days), path, step });
+  const data = await apiRequest<{ items: JourneyPerson[] }>(`/admin/journey/stuck?${params}`, {
+    method: "GET",
+  });
+  return data.items;
+}
+
+/** Все шаги устройства посетителя с самого начала. */
+export function fetchVisitor(anonId: string): Promise<VisitorJourney> {
+  return apiRequest<VisitorJourney>(`/admin/visitors/${encodeURIComponent(anonId)}`, {
     method: "GET",
   });
 }

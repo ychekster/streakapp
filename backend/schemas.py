@@ -1525,6 +1525,58 @@ class TimelinePage(BaseModel):
     next_offset: int | None
 
 
+class JourneyStep(BaseModel):
+    """Шаг пути с сайта: сколько человек до него дошли и доли от прошлого шага и от
+    первого (null у первого шага или когда делить не на что)."""
+
+    key: str
+    people: int
+    from_previous: float | None
+    from_start: float | None
+
+
+class JourneyPath(BaseModel):
+    """Ветка пути с сайта: `install` (установка) или `telegram` (в бота)."""
+
+    path: str
+    steps: list[JourneyStep]
+
+
+class JourneyResponse(BaseModel):
+    """`GET /admin/journey` — путь посетителей, открывших лендинг за `days` дней."""
+
+    days: int
+    paths: list[JourneyPath]
+
+
+class JourneyPerson(BaseModel):
+    """Человек (или устройство без аккаунта), который остановился на шаге."""
+
+    anon_id: str | None
+    user_id: int | None
+    name: str | None
+    last_event: str
+    last_at: UtcDateTime
+    platform: str | None
+    src: str | None
+
+
+class JourneyPeople(BaseModel):
+    """`GET /admin/journey/stuck` — кто дошёл до шага и дальше не пошёл, последние сначала."""
+
+    items: list[JourneyPerson]
+
+
+class VisitorJourney(BaseModel):
+    """`GET /admin/visitors/{anon_id}` — все шаги устройства с самого начала; `user_id` —
+    его аккаунт, если он уже есть."""
+
+    anon_id: str
+    user_id: int | None
+    name: str | None
+    items: list[TimelineItem]
+
+
 class AdminTestUpdate(BaseModel):
     """Запрос `PUT /admin/users/{id}/test`."""
 

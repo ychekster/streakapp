@@ -1,7 +1,9 @@
 /**
- * Лента действий пользователя в профиле — новые сначала, страницами: пришёл (откуда) →
- * открыл приложение (откуда) → создал «Читать 10 страниц» → отметил → … → заблокировал
- * бота. По ней видно поведение конкретного человека.
+ * Лента действий пользователя в профиле, страницами: открыл страницу (с какого устройства,
+ * по какой метке) → выбрал «Установить» → пришёл → открыл приложение (откуда) → создал
+ * «Читать 10 страниц» → отметил → … → заблокировал бота. По ней видно поведение конкретного
+ * человека с первого клика. Справа от заголовка — порядок: «Сначала новые» или «С самого
+ * начала».
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -12,12 +14,29 @@ import { useAdminStrings, type AdminStrings } from "../adminStrings";
 import { LoadMore } from "./LoadMore";
 import { ListItem } from "../../components/ListItem";
 import { Card, Section } from "../../components/Section";
-import type { TimelineItem } from "../../types/admin";
+import type { TimelineItem, TimelineOrder } from "../../types/admin";
 import styles from "./UserTimeline.module.css";
+
+/** Шаг страницы установки или приложения (`detail` — «платформа|браузер|метка|приложение»,
+ *  backend/analytics/profile.event_item): «Открыли страницу (iPhone, встроенный браузер
+ *  Threads, метка threads)». */
+export function describeEvent(item: TimelineItem, strings: AdminStrings): string {
+  const base = strings.webFunnelSteps[item.kind] ?? item.kind;
+  const [platform, context, source, app] = (item.detail ?? "").split("|");
+  const parts = [
+    platform ? (strings.an.devices[platform] ?? platform) : "",
+    context ? [strings.eventContexts[context] ?? context, app].filter(Boolean).join(" ") : app ?? "",
+    source && source !== "direct" ? strings.eventSource(source) : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? `${base} (${parts.join(", ")})` : base;
+}
 
 /** Строка ленты на языке панели. */
 function describe(item: TimelineItem, strings: AdminStrings): string {
   const an = strings.an;
+  if (!(item.kind in an.timeline) && item.kind in strings.webFunnelSteps) {
+    return describeEvent(item, strings);
+  }
   const base = an.timeline[item.kind] ?? item.kind;
   const detail = item.detail ?? "";
   if (item.kind === "joined") {
@@ -46,12 +65,13 @@ export function UserTimeline({ telegramId }: { telegramId: number }) {
   const [next, setNext] = useState<number | null>(0);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [order, setOrder] = useState<TimelineOrder>("new");
 
   const load = useCallback(
     (offset: number) => {
       setLoading(true);
       setFailed(false);
-      fetchTimeline(telegramId, offset)
+      fetchTimeline(telegramId, offset, order)
         .then((page) => {
           setItems((current) => (offset === 0 ? page.items : [...current, ...page.items]));
           setNext(page.next_offset);
@@ -59,13 +79,27 @@ export function UserTimeline({ telegramId }: { telegramId: number }) {
         .catch(() => setFailed(true))
         .finally(() => setLoading(false));
     },
-    [telegramId],
+    [telegramId, order],
   );
 
   useEffect(() => load(0), [load]);
 
   return (
-    <Section title={strings.an.timelineHeading}>
+    <Section
+      title={strings.an.timelineHeading}
+      action={
+        <button
+          type="button"
+          className={styles.order}
+          onClick={() => {
+            setItems([]);
+            setOrder(order === "new" ? "old" : "new");
+          }}
+        >
+          {order === "new" ? strings.timelineOrderOld : strings.timelineOrderNew}
+        </button>
+      }
+    >
       <Card>
         {items.length === 0 ? (
           <ListItem label={loading ? strings.loading : failed ? strings.an.timelineFailed : strings.an.timelineEmpty} />

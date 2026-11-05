@@ -186,8 +186,12 @@ def test_manifest_carries_the_handoff_into_the_installed_app(
     assert manifest.json()["start_url"] == f"/app?pwa=1&h={token}"
     assert manifest.json()["id"] == "/app"
     # Anything that is not a token — the plain start address.
-    junk = client.get("/web/manifest", params={"h": "x&evil=1"})
+    junk = client.get("/web/manifest", params={"h": "x&evil=1", "v": "x&evil=1"})
     assert junk.json()["start_url"] == "/app?pwa=1"
+    # The visitor's device id goes on into the installed app.
+    anon = "0a1b2c3d-1111-2222-3333-444455556666"
+    carried = client.get("/web/manifest", params={"s": "threads", "v": anon})
+    assert carried.json()["start_url"] == f"/app?pwa=1&src=threads&v={anon}"
 
 
 def test_logout_ends_the_session_of_a_linked_account(client: TestClient, user: AuthUser) -> None:

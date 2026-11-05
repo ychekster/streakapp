@@ -239,6 +239,8 @@ async def link_login(repo: Repository, current: User, profile: LoginProfile) -> 
 
     # The login belongs to another account.
     if await is_guest(repo, current) and not await repo.user_has_data(current.telegram_id):
+        # The guest's path (landing, install, first launch) is the person's: keep it.
+        await repo.reassign_events(current.telegram_id, owner.telegram_id)
         await repo.delete_user(current.telegram_id)
         await _sync_profile(repo, owner, profile)
         return owner

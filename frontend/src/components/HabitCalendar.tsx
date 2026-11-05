@@ -128,7 +128,7 @@ export function HabitCalendar({ habit, day, onTapDay }: HabitCalendarProps) {
         ))}
         {days.map((cell, place) => {
           if (cell === null) {
-            return <span key={place} className={styles.day} />;
+            return <span key={`empty-${place}`} className={styles.day} />;
           }
           const props = {
             className: `${styles.day} ${styles[cell.state]} ${cell.today ? styles.today : ""}`,
@@ -144,7 +144,7 @@ export function HabitCalendar({ habit, day, onTapDay }: HabitCalendarProps) {
           // Исправить можно дни истории по день отметки.
           return onTapDay && cell.date <= day && cell.state !== "unknown" ? (
             <button
-              key={place}
+              key={cell.date}
               type="button"
               {...props}
               className={`${props.className} ${styles.pickable}`}
@@ -176,7 +176,7 @@ export function HabitCalendar({ habit, day, onTapDay }: HabitCalendarProps) {
               {number}
             </button>
           ) : (
-            <span key={place} {...props}>
+            <span key={cell.date} {...props}>
               {number}
             </span>
           );

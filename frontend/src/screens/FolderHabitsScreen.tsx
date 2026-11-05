@@ -173,7 +173,7 @@ export function HabitAvatar({ habit }: { habit: Habit }) {
 }
 
 /** Кружок выбора справа: пустой с обводкой или залитый с галочкой. */
-function Check({ on, label }: { on: boolean; label: string }) {
+export function Check({ on, label }: { on: boolean; label: string }) {
   return (
     <span
       className={`${styles.check} ${on ? styles.checked : ""}`}

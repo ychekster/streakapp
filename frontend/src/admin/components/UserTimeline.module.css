@@ -18,3 +18,18 @@
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
+
+/* Порядок ленты справа от заголовка: как «Изменить» у списка папок. */
+.order {
+  padding: 0 var(--space-card-padding) 0 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  color: var(--color-accent);
+  transition: opacity var(--transition-fast);
+}
+
+.order[data-pressed] {
+  opacity: 0.5;
+}

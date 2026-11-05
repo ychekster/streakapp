@@ -412,10 +412,12 @@ const RU = {
   statForecast: "Прогноз на год",
   statForecastNone: "Прогноз",
   statGoalReached: "Цель выполнена",
-  // Экран статистики привычки (HabitStatsScreen.tsx), кнопка — в «Основном». «Этот
-  // месяц» сравнивается с теми же днями прошлого (стрелка рядом со значением).
+  // Экран статистики привычки (HabitStatsScreen.tsx), кнопка — в «Основном». «За месяц» —
+  // с того же числа прошлого месяца по сегодня, сравнивается с месяцем перед ним (стрелка
+  // рядом со значением); даты — под карточкой.
   statsOpen: "Статистика",
-  statsMonthHeading: "Этот месяц",
+  statsMonthHeading: "За месяц",
+  statsMonthRange: (from: string, to: string) => `С ${from} по ${to}`,
   statsAllTimeHeading: "За всё время",
   statsMinutes: "Минут",
   statsTimes: "Повторений",
@@ -430,7 +432,9 @@ const RU = {
   statsTrendHeading: "Динамика",
   statsTrendInfoLabel: "Что показывает динамика",
   statsTrendInfo:
-    "Линия показывает счёт привычки. За каждый выполненный по плану день прибавляется 1 очко, за пропущенный отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
+    "Линия показывает счёт привычки. За каждый выполненный по плану день прибавляется 1 очко, за пропущенный отнимается 1. Сегодня тоже считается: пока привычка не отмечена, линия смотрит вниз. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
+  statsTrendInfoAmount:
+    "Линия показывает счёт привычки. День по плану без выполнения отнимает 1 очко, выполненная цель прибавляет 1. Неполный день считается по доле: половина цели даёт 0, три четверти дают 0,5. Сверх цели счёт растёт дальше: вдвое больше цели даёт 2. Сегодня тоже считается и меняется с каждой отметкой. Ниже нуля счёт не опускается.",
   statsTrendInfoFlexible:
     "Линия показывает счёт привычки. За каждую отметку прибавляется 1 очко. Когда период заканчивается, за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
@@ -669,6 +673,10 @@ const RU = {
   formReminderRemove: (time: string) => `Удалить напоминание ${time}`,
   formThemeHeading: "Тема",
   formAdvanced: "Дополнительно",
+  // «Папки» в «Дополнительно»: свои папки с галочками.
+  formFoldersHeading: "Папки",
+  formFoldersFooter:
+    "Привычка будет во вкладках отмеченных папок. Папки, которые собирают привычки по типу, отмечаются сами.",
   formAutoMarkHeading: "Автоотметка",
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
@@ -1079,7 +1087,8 @@ const EN: Strings = {
   statForecastNone: "Forecast",
   statGoalReached: "Goal reached",
   statsOpen: "Statistics",
-  statsMonthHeading: "This month",
+  statsMonthHeading: "Past month",
+  statsMonthRange: (from: string, to: string) => `${from} to ${to}`,
   statsAllTimeHeading: "All time",
   statsMinutes: "Minutes",
   statsTimes: "Reps",
@@ -1093,7 +1102,9 @@ const EN: Strings = {
   statsTrendHeading: "Trend",
   statsTrendInfoLabel: "What the trend shows",
   statsTrendInfo:
-    "The line shows the habit’s score. Each day done as planned adds 1 point, each missed day takes 1 away. The score never goes below zero, so the longer you keep the habit, the higher the line.",
+    "The line shows the habit’s score. Each day done as planned adds 1 point, each missed day takes 1 away. Today counts too: until the habit is checked, the line points down. The score never goes below zero, so the longer you keep the habit, the higher the line.",
+  statsTrendInfoAmount:
+    "The line shows the habit’s score. A planned day with nothing done takes 1 point away, a reached goal adds 1. A partial day counts by its share: half the goal gives 0, three quarters give 0.5. Past the goal the score keeps growing: twice the goal gives 2. Today counts too and changes with every mark. The score never goes below zero.",
   statsTrendInfoFlexible:
     "The line shows the habit’s score. Each mark adds 1 point. When a period ends, 1 point is taken away for each mark short of the goal. The score never goes below zero, so the longer you keep the habit, the higher the line.",
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
@@ -1296,6 +1307,9 @@ const EN: Strings = {
   formReminderRemove: (time: string) => `Remove reminder ${time}`,
   formThemeHeading: "Color",
   formAdvanced: "Advanced",
+  formFoldersHeading: "Folders",
+  formFoldersFooter:
+    "The habit shows up in the tabs of the checked folders. Folders that collect habits by type are checked on their own.",
   formAutoMarkHeading: "Auto Check-Off",
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:

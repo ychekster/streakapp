@@ -2085,12 +2085,20 @@ class Repository:
         result = await self.session.execute(query.order_by(ActivityLog.created_at, ActivityLog.id))
         return [tuple(row) for row in result.tuples()]  # type: ignore[misc]
 
-    async def user_actions_page(self, user_id: int, offset: int, limit: int) -> list[ActivityLog]:
-        """Лента действий пользователя, новые сначала: страница `limit` с `offset`."""
+    async def user_actions_page(
+        self, user_id: int, offset: int, limit: int, newest_first: bool = True
+    ) -> list[ActivityLog]:
+        """Лента действий пользователя (новые сначала или с самого начала): страница
+        `limit` с `offset`."""
+        order = (
+            (ActivityLog.created_at.desc(), ActivityLog.id.desc())
+            if newest_first
+            else (ActivityLog.created_at, ActivityLog.id)
+        )
         result = await self.session.scalars(
             select(ActivityLog)
             .where(ActivityLog.user_id == user_id)
-            .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
+            .order_by(*order)
             .offset(offset)
             .limit(limit)
         )
@@ -2774,3 +2782,59 @@ class Repository:
             (event, platform, src, int(total), int(distinct))
             for event, platform, src, total, distinct in result.tuples()
         ]
+
+    async def claim_anon_events(self, anon_id: str, user_id: int) -> None:
+        """The device `anon_id` turned out to be this account's: its events from before the
+        account (landing, install) become the account's too."""
+        await self.session.execute(
+            update(Event)
+            .where(Event.anon_id == anon_id, Event.user_id.is_(None))
+            .values(user_id=user_id)
+        )
+
+    async def user_of_anon(self, anon_id: str) -> int | None:
+        """The account the device `anon_id` was last seen with, if any."""
+        return await self.session.scalar(
+            select(Event.user_id)
+            .where(Event.anon_id == anon_id, Event.user_id.is_not(None))
+            .order_by(Event.created_at.desc(), Event.id.desc())
+            .limit(1)
+        )
+
+    async def reassign_events(self, from_user: int, to_user: int) -> None:
+        """Events of an account that is thrown away (an empty guest) go to the account the
+        person logged into, so their path from the first click is not lost."""
+        await self.session.execute(
+            update(Event).where(Event.user_id == from_user).values(user_id=to_user)
+        )
+
+    async def user_events(self, user_id: int, limit: int, newest_first: bool) -> list[Event]:
+        """The account's funnel events (also those of its devices before it existed)."""
+        order = (
+            (Event.created_at.desc(), Event.id.desc())
+            if newest_first
+            else (Event.created_at, Event.id)
+        )
+        result = await self.session.scalars(
+            select(Event).where(Event.user_id == user_id).order_by(*order).limit(limit)
+        )
+        return list(result.all())
+
+    async def anon_events(self, anon_id: str, limit: int) -> list[Event]:
+        """A device's events, oldest first."""
+        result = await self.session.scalars(
+            select(Event)
+            .where(Event.anon_id == anon_id)
+            .order_by(Event.created_at, Event.id)
+            .limit(limit)
+        )
+        return list(result.all())
+
+    async def journey_events(self, since: datetime, events: Collection[str]) -> list[Event]:
+        """Events `events` from `since` on, oldest first (the visitors' path report)."""
+        result = await self.session.scalars(
+            select(Event)
+            .where(Event.created_at >= since, Event.event.in_(list(events)))
+            .order_by(Event.created_at, Event.id)
+        )
+        return list(result.all())

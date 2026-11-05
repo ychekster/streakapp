@@ -20,6 +20,7 @@ from backend.database import Database
 from backend.messaging import BROADCAST_BUTTONS
 from backend.models import BroadcastStatus, Review, Task, UserActivity
 from backend.repository import Repository, utc_now
+from backend.sources import split_visitor
 
 _TMA_URL = "https://app.example.com/?v=2"
 
@@ -378,6 +379,36 @@ def test_start_records_user_and_clears_bot_block(db_url: str) -> None:
             await record_start(database, telegram_user)
             async with database.session_factory() as session:
                 assert (await Repository(session).get_user(7)).bot_blocked_at is None
+        finally:
+            await database.dispose()
+
+    asyncio.run(run())
+
+
+def test_start_from_the_landing_joins_the_visitor(db_url: str) -> None:
+    assert split_visitor("src_threads") == (None, "src_threads")
+    anon = "0123abcd-0000-1111-2222-333344445555"
+    telegram_user = SimpleNamespace(id=9, username=None, first_name="V", language_code="ru")
+
+    async def run() -> None:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            async with database.session_factory() as session:
+                await Repository(session).add_event("landing_view", anon_id=anon)
+                await session.commit()
+            payload = f"v_{anon.replace('-', '')}_src_threads_post12"
+            await record_start(database, telegram_user, payload)
+            await record_start(database, telegram_user, payload)
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_user(9)
+                assert (user.source, user.source_tag) == ("threads", "post12")
+                events = [event.event for event in await repo.user_events(9, 10, False)]
+                # Шаг на лендинге стал шагом аккаунта, «запустил бота» — один раз.
+                assert events == ["landing_view", "bot_started"]
+                logs = await repo.user_actions_page(9, 0, 10)
+                assert logs[0].detail == "src_threads_post12"
         finally:
             await database.dispose()
 

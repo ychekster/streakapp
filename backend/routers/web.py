@@ -16,6 +16,7 @@ import re
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
 
+from backend.constants import ANON_ID_PATTERN
 from backend.dependencies import (
     Principal,
     RepositoryDep,
@@ -43,6 +44,7 @@ router = APIRouter(tags=["web"])
 _HANDOFF_TOKEN = re.compile(r"[A-Za-z0-9_-]{16,128}")
 # Install source of the landing (`src=threads_post12`, see sources.py).
 _SOURCE = re.compile(r"[a-z0-9_-]{1,32}")
+_ANON_ID = re.compile(ANON_ID_PATTERN)
 
 # Same app as the static manifest of the build (frontend/vite.config.ts — keep the two
 # in step); only start_url differs.
@@ -83,16 +85,21 @@ async def read_web_config(request: Request) -> WebConfig:
 
 
 @router.get("/web/manifest")
-async def read_manifest(h: str = Query(default=""), s: str = Query(default="")) -> JSONResponse:
+async def read_manifest(
+    h: str = Query(default=""), s: str = Query(default=""), v: str = Query(default="")
+) -> JSONResponse:
     """Manifest for an install from an iPhone: the home screen app starts at an address
     with the handoff token (from the Mini App: it logs into that Telegram account on its
     first launch — Safari's storage is not shared with it) and the install source `s`
-    (the link's `src=`, for analytics)."""
+    (the link's `src=`, for analytics) and the device id `v` (the visitor's path in the
+    admin panel goes on from the landing)."""
     start = "/app?pwa=1"
     if _HANDOFF_TOKEN.fullmatch(h):
         start += f"&h={h}"
     if _SOURCE.fullmatch(s):
         start += f"&src={s}"
+    if _ANON_ID.fullmatch(v):
+        start += f"&v={v}"
     return JSONResponse(
         {**_MANIFEST, "start_url": start},
         media_type="application/manifest+json",

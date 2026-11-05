@@ -333,12 +333,13 @@ BROADCAST_UPLOAD_MAX_BYTES = BROADCAST_VIDEO_MAX_BYTES + 64 * 1024
 # --------------------------------------------------------------------------- #
 
 # Funnel steps in order (spec §10). The landing and the app send most of them
-# (`POST /events`); the server adds first_habit_created, first_checkin and
+# (`POST /events`); the server adds bot_started, first_habit_created, first_checkin and
 # account_linked itself. Unknown names are rejected.
 FUNNEL_EVENTS: tuple[str, ...] = (
     "landing_view",
     "desktop_qr_view",
     "choose_telegram",
+    "bot_started",
     "choose_install",
     "inapp_escape_attempt",
     "inapp_hint_shown",
@@ -355,7 +356,41 @@ FUNNEL_EVENTS: tuple[str, ...] = (
     "account_linked",
 )
 # Steps only the server records: a client sending them would skew the funnel.
-SERVER_FUNNEL_EVENTS: tuple[str, ...] = ("first_habit_created", "first_checkin", "account_linked")
+SERVER_FUNNEL_EVENTS: tuple[str, ...] = (
+    "bot_started",
+    "first_habit_created",
+    "first_checkin",
+    "account_linked",
+)
+# A visitor's path from the landing (admin → Funnel → «Путь с сайта»), two branches. A
+# person counts on a step once they reached it or any later one of the branch (steps
+# that only some devices send, like the Android install prompt, are left out). The last
+# two steps are shared by both branches.
+JOURNEY_PATHS: dict[str, tuple[str, ...]] = {
+    "install": (
+        "landing_view",
+        "choose_install",
+        "install_screen_view",
+        "first_standalone_launch",
+        "first_habit_created",
+        "first_checkin",
+    ),
+    "telegram": (
+        "landing_view",
+        "choose_telegram",
+        "bot_started",
+        "first_habit_created",
+        "first_checkin",
+    ),
+}
+# The longest period of the path report and the most people listed behind a step.
+JOURNEY_MAX_DAYS = 366
+JOURNEY_PEOPLE_LIMIT = 200
+# The most events shown for one visitor.
+VISITOR_EVENTS_LIMIT = 500
+# A device's id as the landing makes it (crypto.randomUUID or a fallback) and as links
+# carry it (`v=`, the bot's `start=v_<32 hex>`).
+ANON_ID_PATTERN = r"[0-9A-Za-z-]{16,64}"
 # «Открыл приложение» (POST /events, событие app_open) — откуда: кнопка меню бота,
 # приветствие, напоминание, рассылка, push-уведомление, прямая ссылка на
 # Mini App, иконка веб-приложения. Пишется в ленту действий, не в воронку.

@@ -1180,12 +1180,21 @@ export const dataStore = {
     });
   },
 
-  /** Put a habit into a folder (a habit just created while the folder was open). */
-  addToFolder(id: number, habitId: number): void {
-    const folder = state.folders.find((item) => item.id === id);
-    const picked = folder?.picked ?? folder?.habits ?? [];
-    if (folder && !folder.kind && !picked.includes(habitId)) {
-      dataStore.updateFolder(id, folder.name, [...picked, habitId], folder.types);
+  /** Put a habit into exactly these folders of the user's own (form «Дополнительно» →
+   *  «Папки»): only folders whose hand-picked habits change are sent. Recommended folders
+   *  and those that take the habit in by its type are left as they are. */
+  setHabitFolders(habitId: number, folderIds: number[]): void {
+    for (const folder of state.folders) {
+      if (folder.kind) {
+        continue;
+      }
+      const picked = folder.picked ?? folder.habits;
+      const has = picked.includes(habitId);
+      const wanted = folderIds.includes(folder.id);
+      if (has !== wanted) {
+        const habits = wanted ? [...picked, habitId] : picked.filter((id) => id !== habitId);
+        dataStore.updateFolder(folder.id, folder.name, habits, folder.types);
+      }
     }
   },
 

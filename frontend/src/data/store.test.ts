@@ -382,6 +382,13 @@ describe("dataStore", () => {
     expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([
       { type: "folder_update", key: 7, folder: { name: "Вечер", habits: [1, 2], types: [] } },
     ]);
+    // The habit form's «Папки»: out of the folder, and a folder it is already in is not sent.
+    store.setHabitFolders(1, []);
+    store.setHabitFolders(2, [id]);
+    expect(store.getState().folders[0].habits).toEqual([2]);
+    expect(JSON.parse(localStorage.getItem("streak:changes")!).value).toEqual([
+      { type: "folder_update", key: 7, folder: { name: "Вечер", habits: [2], types: [] } },
+    ]);
     store.deleteFolder(id);
     expect(store.getState().folders).toEqual([]);
     expect(store.getState().allHabitsPosition).toBe(0);

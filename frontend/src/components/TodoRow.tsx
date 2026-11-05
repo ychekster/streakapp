@@ -11,7 +11,9 @@
  * текст и плашки вместе: выбор дня или времени и закрытая клавиатура её не заканчивают —
  * «Готово» на клавиатуре тоже (прячет клавиатуру). Правку заканчивает нажатие мимо строки
  * (не прокрутка) или залитый кружок «Добавить» (плюс) / «Сохранить» (стрелка) на его месте; тогда всё сохраняется
- * разом (`onSave`).
+ * разом (`onSave`). Исключение — новая задача без единого символа: закрылась клавиатура
+ * (кроме ухода в её плашки) — задача не создаётся. В правке всегда одна строка
+ * (`activeEditor`).
  * Задача с датой — подпись под текстом («Завтра в 15:00»), прошедший день у открытой —
  * красным (раньше дня отметки `markDay`: в «Отмечать за вчера» вчерашняя — ещё нет).
  */
@@ -46,6 +48,17 @@ const EDGE_WIDTH = 28;
 /** Сколько ждать click после касания (мс): у нижней навигации — прежде чем закончить
  *  правку без него, у остального — сколько гасить его. */
 const CLICK_WAIT_MS = 400;
+
+/** Клавиатура выросла на столько (px) — она закрылась (Android: «Назад» прячет её без
+ *  потери фокуса). */
+const KEYBOARD_CLOSED_PX = 120;
+/** Касание строки раньше потери фокуса на столько (мс) — фокус ушёл в её плашку. */
+const ROW_TOUCH_MS = 600;
+
+/** Строка, которая сейчас в правке: открывается другая — эта сначала заканчивается. Так
+ *  в правке всегда одна строка, даже если касание мимо (палец сдвинулся) её не закончило,
+ *  а click всё же открыл другую. */
+let activeEditor: { finish: () => void } | null = null;
 
 /** Погасить click, который придёт за этим касанием (правка закончена касанием мимо
  *  строки — нажатое под пальцем не срабатывает). Слушатель не зависит от строки: она
@@ -211,6 +224,61 @@ export function TodoRow({
   const finishRef = useRef(finishEdit);
   finishRef.current = finishEdit;
 
+  // Одна строка в правке: открылась эта — прежняя заканчивается (сохраняется, пустая
+  // новая пропадает).
+  const editor = useRef({ finish: () => finishRef.current() }).current;
+  useEffect(() => {
+    if (!editing) {
+      return undefined;
+    }
+    if (activeEditor && activeEditor !== editor) {
+      activeEditor.finish();
+    }
+    activeEditor = editor;
+    return () => {
+      if (activeEditor === editor) {
+        activeEditor = null;
+      }
+    };
+  }, [editing, editor]);
+
+  // Новая задача, в которой не написано ни символа: клавиатура закрылась (любым способом:
+  // «Готово», касание, «Назад» на Android) — задача не создаётся. Плашки дня, времени и
+  // списка не в счёт: выбрать день можно и до текста.
+  const lastRowTouch = useRef(0);
+  const cancelIfEmpty = (): void => {
+    if (!startEditing || !editingRef.current || latest.current.text.trim() !== "") {
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof Node && active !== textRef.current && rowRef.current?.contains(active)) {
+      return;
+    }
+    if (Date.now() - lastRowTouch.current < ROW_TOUCH_MS) {
+      return;
+    }
+    finishEdit();
+  };
+  const cancelRef = useRef(cancelIfEmpty);
+  cancelRef.current = cancelIfEmpty;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!startEditing || !editing || !viewport) {
+      return undefined;
+    }
+    let lowest = viewport.height;
+    const onResize = (): void => {
+      lowest = Math.min(lowest, viewport.height);
+      if (viewport.height - lowest > KEYBOARD_CLOSED_PX) {
+        lowest = viewport.height;
+        cancelRef.current();
+      }
+    };
+    viewport.addEventListener("resize", onResize);
+    return () => viewport.removeEventListener("resize", onResize);
+  }, [startEditing, editing]);
+
   // Нажатие мимо строки только заканчивает правку: другая задача не открывается, галочка не
   // ставится — само нажатие гасится (swallowNextClick). Палец, который сдвинулся
   // (прокрутка), правку не заканчивает. Исключение — нижняя навигация (вкладки, карандаш):
@@ -320,6 +388,9 @@ export function TodoRow({
       className={`${styles.row} ${color ? styles.colored : ""}`}
       style={color ? habitColorStyle(color) : undefined}
       data-todo={todo.id}
+      onPointerDownCapture={() => {
+        lastRowTouch.current = Date.now();
+      }}
     >
       <button
         type="button"
@@ -397,6 +468,8 @@ export function TodoRow({
               maxLength={TODO_TEXT_MAX_LENGTH}
               enterKeyHint="done"
               onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+              // Фокус ушёл: куда — видно только после события (плашка строки — не в счёт).
+              onBlur={() => window.setTimeout(() => cancelRef.current(), 0)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   // «Готово» на клавиатуре прячет её, правка остаётся (как ✓ над клавиатурой).
@@ -404,6 +477,10 @@ export function TodoRow({
                   event.currentTarget.blur();
                 } else if (event.key === "Escape") {
                   closeEdit();
+                  if (startEditing) {
+                    // Новая задача отменена — строка уходит.
+                    onDelete();
+                  }
                 }
               }}
             />

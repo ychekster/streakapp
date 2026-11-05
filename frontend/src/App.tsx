@@ -639,14 +639,11 @@ export function App() {
 
   // Привычка уже сохранена (на устройстве, сервер — следом): изменённая — возвращаемся на
   // её экран, новая (она в конце списка) — открывается список привычек. Новая, пока
-  // выбрана папка, попадает в неё — иначе её не было бы видно в открывшемся списке.
+  // выбрана папка, по умолчанию попадает в неё (форма: «Дополнительно» → «Папки»).
   // Новая групповая открывает свой экран: там «Добавить участника» и видно, кто
   // присоединился.
   function saveHabit(habit: Habit): void {
     hapticNotification("success");
-    if (editor?.habit == null && activeFolder) {
-      dataStore.addToFolder(activeFolder.id, habit.id);
-    }
     if (editor?.habit == null) {
       // Форма открыта с другой вкладки: та запоминает свою позицию, а список привычек
       // открывается на своей.
@@ -1061,6 +1058,7 @@ export function App() {
           sharedNeedsTelegram={web && account?.is_guest === true}
           onLinkTelegram={linkTelegram}
           onSaved={saveHabit}
+          defaultFolder={activeFolder?.id ?? null}
           advanced={editorAdvanced}
           onOpenAdvanced={showEditorAdvanced}
           leaveRef={editorLeave}

@@ -497,3 +497,45 @@ export interface TimelinePage {
   items: TimelineItem[];
   next_offset: number | null;
 }
+
+/** Порядок ленты: новые сначала или с самого начала (с первого клика). */
+export type TimelineOrder = "new" | "old";
+
+/** Путь с сайта (GET /admin/journey): ветки «установка» и «в бота». */
+export type JourneyPathKey = "install" | "telegram";
+
+export interface JourneyStep {
+  key: string;
+  people: number;
+  from_previous: number | null;
+  from_start: number | null;
+}
+
+export interface JourneyPath {
+  path: JourneyPathKey;
+  steps: JourneyStep[];
+}
+
+export interface JourneyReport {
+  days: number;
+  paths: JourneyPath[];
+}
+
+/** Остановился на шаге (GET /admin/journey/stuck): аккаунт или устройство без него. */
+export interface JourneyPerson {
+  anon_id: string | null;
+  user_id: number | null;
+  name: string | null;
+  last_event: string;
+  last_at: string;
+  platform: string | null;
+  src: string | null;
+}
+
+/** Все шаги устройства посетителя (GET /admin/visitors/{anon_id}). */
+export interface VisitorJourney {
+  anon_id: string;
+  user_id: number | null;
+  name: string | null;
+  items: TimelineItem[];
+}

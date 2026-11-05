@@ -2,8 +2,10 @@
 лента его действий.
 
 Сводка считается теми же определениями, что и вся аналитика (data.Dataset) — на наборе
-из одного пользователя. Лента — записи activity_log, новые сначала, и ещё два события из
-полей пользователя: «пришёл» (с источником) и «впервые открыл приложение».
+из одного пользователя. Лента — записи activity_log, шаги воронки до аккаунта (лендинг,
+установка; events, в том числе с устройств до входа) и ещё два события из полей
+пользователя: «пришёл» (с источником) и «впервые открыл приложение». Новые сначала или с
+самого начала.
 """
 
 from __future__ import annotations
@@ -13,8 +15,8 @@ from datetime import datetime, timedelta
 from backend.analytics.completion import completion_by_day
 from backend.analytics.data import Dataset, TaskRow, UserRow, load_config, ratio, user_today
 from backend.clock import local_day
-from backend.constants import TIMELINE_PAGE_SIZE
-from backend.models import User
+from backend.constants import FUNNEL_EVENTS, SERVER_FUNNEL_EVENTS, TIMELINE_PAGE_SIZE
+from backend.models import Event, User
 from backend.repository import Repository, TaskSchedule
 from backend.schemas import TimelineItem, TimelinePage
 from backend.sources import source_name
@@ -27,6 +29,10 @@ _HABIT_ACTIONS = (
     "group_created", "group_joined", "group_left", "group_unshared", "group_mark_sent",
     "group_mark_failed", "timer_goal_sent", "timer_goal_failed",
 )
+
+# Шаги воронки в ленте. Записанные сервером («запустил бота», первая привычка и отметка,
+# вход) уже есть в ней действиями — их второй раз не показываем.
+_TIMELINE_EVENTS = tuple(event for event in FUNNEL_EVENTS if event not in SERVER_FUNNEL_EVENTS)
 
 
 def user_row(user: User, is_admin: bool) -> UserRow:
@@ -143,14 +149,45 @@ async def user_insights(repo: Repository, user: User, is_admin: bool, now: datet
     }
 
 
-async def timeline(repo: Repository, user: User, offset: int) -> TimelinePage:
-    """Страница ленты действий, новые сначала."""
+def event_item(event: Event) -> TimelineItem:
+    """Шаг воронки строкой ленты: `detail` — «платформа|браузер|источник|приложение»
+    (что из этого известно; приложение — Threads, Instagram… у встроенного браузера)."""
+    props = event.props or {}
+    app = props.get("app")
+    detail = "|".join(
+        (
+            event.platform or "",
+            event.browser_context or "",
+            event.src or "",
+            app if isinstance(app, str) else "",
+        )
+    )
+    return TimelineItem(at=event.created_at, kind=event.event, detail=detail)
+
+
+def _moment(item: TimelineItem) -> datetime:
+    return item.at.replace(tzinfo=None)
+
+
+async def timeline(
+    repo: Repository, user: User, offset: int, newest_first: bool = True
+) -> TimelinePage:
+    """Страница ленты: действия, шаги до аккаунта (лендинг, установка) и «пришёл» / «впервые
+    открыл» — новые сначала или с самого начала (с первого клика)."""
     limit = TIMELINE_PAGE_SIZE
-    logs = await repo.user_actions_page(user.telegram_id, offset, limit + 1)
-    more = len(logs) > limit
-    page = logs[:limit]
+    # Лента склеена из трёх источников: из каждого берётся всё до конца страницы, а
+    # страница вырезается из общего порядка.
+    wanted = offset + limit + 1
+    logs = await repo.user_actions_page(user.telegram_id, 0, wanted, newest_first)
+    events = [
+        event
+        for event in await repo.user_events(
+            user.telegram_id, wanted + len(SERVER_FUNNEL_EVENTS), newest_first
+        )
+        if event.event in _TIMELINE_EVENTS
+    ]
     names = await repo.task_names(
-        [log.ref_id for log in page if log.kind in _HABIT_ACTIONS and log.ref_id is not None]
+        [log.ref_id for log in logs if log.kind in _HABIT_ACTIONS and log.ref_id is not None]
     )
     items = [
         TimelineItem(
@@ -159,25 +196,22 @@ async def timeline(repo: Repository, user: User, offset: int) -> TimelinePage:
             detail=log.detail,
             habit=names.get(log.ref_id) if log.ref_id is not None and log.kind in _HABIT_ACTIONS else None,
         )
-        for log in page
+        for log in logs
     ]
+    items.extend(event_item(event) for event in events)
     # «Пришёл» и «впервые открыл» — из полей пользователя, на своём месте по времени.
     source = source_name(user.source)
-    synthetic = [
+    items.append(
         TimelineItem(
             at=user.created_at,
             kind="joined",
             detail=f"{source}:{user.source_tag}" if user.source_tag else source,
         )
-    ]
+    )
     if user.app_opened_at is not None:
-        synthetic.append(TimelineItem(at=user.app_opened_at, kind="first_open"))
-    newest = page[0].created_at if page and offset else None
-    oldest = page[-1].created_at if page and more else None
-    for item in synthetic:
-        moment = item.at.replace(tzinfo=None)
-        if (newest is None or moment <= newest) and (oldest is None or moment > oldest):
-            items.append(item)
-    items.sort(key=lambda item: item.at, reverse=True)
-    return TimelinePage(items=items, next_offset=offset + limit if more else None)
-
+        items.append(TimelineItem(at=user.app_opened_at, kind="first_open"))
+    items.sort(key=_moment, reverse=newest_first)
+    more = len(items) > offset + limit
+    return TimelinePage(
+        items=items[offset : offset + limit], next_offset=offset + limit if more else None
+    )

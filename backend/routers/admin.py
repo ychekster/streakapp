@@ -13,11 +13,15 @@
     GET    /admin/analytics-config           — пороги активации, данные для ссылок с меткой
     PUT    /admin/analytics-config           — изменить пороги активации
     GET    /admin/funnel?since=&until=       — web app funnel (landing → install → habit)
+    GET    /admin/journey?days=              — путь с сайта: две ветки, сколько дошло до шага
+    GET    /admin/journey/stuck?days=&path=&step= — кто на шаге остановился
+    GET    /admin/visitors/{anon_id}         — все шаги устройства посетителя с начала
     GET    /admin/users?q=&filter=&cursor=&limit= — пользователи (поиск, фильтр, страницы)
     GET    /admin/users/count?q=&filter=     — сколько пользователей под поиском и фильтром
     GET    /admin/users/{id}                 — профиль пользователя с его отзывами
     GET    /admin/users/{id}/habits          — его привычки (как он видит их сам)
-    GET    /admin/users/{id}/timeline?offset= — лента действий, новые сначала
+    GET    /admin/users/{id}/timeline?offset=&order= — лента действий (new — новые
+                                               сначала, old — с самого начала)
     PUT    /admin/users/{id}/block           — заблокировать / разблокировать
     PUT    /admin/users/{id}/test            — тестовый аккаунт (не входит в аналитику)
     DELETE /admin/users/{id}                 — удалить со всеми данными
@@ -46,14 +50,18 @@ from datetime import date, timedelta
 
 from backend import admin as service
 from backend.analytics import service as analytics
+from backend.analytics import journey
 from backend.analytics.profile import timeline
 from backend.funnel import funnel_report
 from backend.constants import (
     ADMIN_PAGE_SIZE,
     ADMIN_PAGE_SIZE_MAX,
     ADMIN_SEARCH_MAX_LENGTH,
+    ANON_ID_PATTERN,
     AUDIENCE_MAX_LENGTH,
     DEFAULT_ANALYTICS_PERIOD,
+    JOURNEY_MAX_DAYS,
+    JOURNEY_PATHS,
     MAX_DB_INT,
 )
 from backend.dependencies import RepositoryDep, get_admin_user, get_bot, get_settings
@@ -88,10 +96,13 @@ from backend.schemas import (
     BroadcastResponse,
     DeliveryResponse,
     FunnelResponse,
+    JourneyPeople,
+    JourneyResponse,
     ReviewReplyResponse,
     SegmentCreate,
     SegmentInfo,
     TimelinePage,
+    VisitorJourney,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_admin_user)])
@@ -225,6 +236,37 @@ async def read_funnel(
     return await funnel_report(repo, first, last)
 
 
+_JourneyDays = Query(30, ge=1, le=JOURNEY_MAX_DAYS, description="Период, дней по сегодня")
+
+
+@router.get("/journey", response_model=JourneyResponse)
+async def read_journey(days: int = _JourneyDays, repo: Repository = RepositoryDep) -> JourneyResponse:
+    """Путь посетителей, открывших лендинг за период: сколько дошло до каждого шага."""
+    return await journey.journey(repo, days)
+
+
+@router.get("/journey/stuck", response_model=JourneyPeople)
+async def read_journey_stuck(
+    days: int = _JourneyDays,
+    path: str = Query(..., max_length=16),
+    step: str = Query(..., max_length=48),
+    repo: Repository = RepositoryDep,
+) -> JourneyPeople:
+    """Кто дошёл до шага ветки и дальше не пошёл."""
+    if step not in JOURNEY_PATHS.get(path, ()):
+        raise ApiError(422, "invalid_step", "Неизвестный шаг")
+    return await journey.stuck(repo, days, path, step)
+
+
+@router.get("/visitors/{anon_id}", response_model=VisitorJourney)
+async def read_visitor(
+    anon_id: str = Path(..., pattern=f"^{ANON_ID_PATTERN}$"),
+    repo: Repository = RepositoryDep,
+) -> VisitorJourney:
+    """Все шаги устройства посетителя с самого начала."""
+    return await journey.visitor(repo, anon_id)
+
+
 # --------------------------------------------------------------------------- #
 #  Пользователи
 # --------------------------------------------------------------------------- #
@@ -278,13 +320,14 @@ async def read_user_habits(
 async def read_user_timeline(
     telegram_id: int = _TelegramId,
     offset: int = Query(0, ge=0, le=1_000_000),
+    order: str = Query("new", pattern="^(new|old)$"),
     repo: Repository = RepositoryDep,
 ) -> TimelinePage:
-    """Лента действий пользователя, новые сначала (страницами)."""
+    """Лента действий пользователя (страницами): новые сначала или с самого начала."""
     user = await repo.get_user(telegram_id)
     if user is None:
         raise ApiError(404, "user_not_found", "Пользователь не найден")
-    return await timeline(repo, user, offset)
+    return await timeline(repo, user, offset, newest_first=order == "new")
 
 
 @router.put("/users/{telegram_id}/test", response_model=AdminUserResponse)

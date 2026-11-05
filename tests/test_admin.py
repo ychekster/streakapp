@@ -864,6 +864,59 @@ def test_app_open_is_logged_with_its_origin(
     assert any(item["kind"] == "app_open" and item["detail"] == "reminder" for item in items)
 
 
+def test_visitor_path_joins_the_account(
+    client: TestClient, user: AuthUser, admin: AuthUser
+) -> None:
+    anon = "0a1b2c3d-1111-2222-3333-444455556666"
+    for event in ("landing_view", "choose_install"):
+        sent = client.post(
+            "/events", json={"event": event, "anon_id": anon, "platform": "ios", "src": "threads"}
+        )
+        assert sent.status_code == 204, sent.text
+    _open_app(client, user)
+    # The app on the same device logged in: the landing's steps become the account's.
+    client.post(
+        "/events", json={"event": "app_open", "anon_id": anon, "props": {"from": "icon"}},
+        headers=user.headers,
+    )
+    # A later step of the known device without a login still belongs to the account.
+    client.post("/events", json={"event": "install_screen_view", "anon_id": anon})
+
+    oldest = client.get(
+        f"/admin/users/{user.id}/timeline", params={"order": "old"}, headers=admin.headers
+    ).json()["items"]
+    kinds = [item["kind"] for item in oldest]
+    assert kinds.index("landing_view") < kinds.index("choose_install") < kinds.index("install_screen_view")
+    assert next(item for item in oldest if item["kind"] == "landing_view")["detail"] == "ios||threads|"
+    newest = client.get(f"/admin/users/{user.id}/timeline", headers=admin.headers).json()["items"]
+    assert [item["kind"] for item in newest] == list(reversed(kinds))
+
+    visitor = client.get(f"/admin/visitors/{anon}", headers=admin.headers).json()
+    assert visitor["user_id"] == user.id
+    assert [item["kind"] for item in visitor["items"]] == [
+        "landing_view", "choose_install", "install_screen_view",
+    ]
+
+    report = client.get("/admin/journey", params={"days": 30}, headers=admin.headers).json()
+    install = next(path for path in report["paths"] if path["path"] == "install")
+    assert [step["key"] for step in install["steps"]][:3] == [
+        "landing_view", "choose_install", "install_screen_view",
+    ]
+    assert install["steps"][2]["people"] >= 1
+    stuck = client.get(
+        "/admin/journey/stuck",
+        params={"days": 30, "path": "install", "step": "install_screen_view"},
+        headers=admin.headers,
+    ).json()["items"]
+    assert any(person["user_id"] == user.id for person in stuck)
+    wrong = client.get(
+        "/admin/journey/stuck",
+        params={"path": "install", "step": "bot_started"},
+        headers=admin.headers,
+    )
+    assert wrong.status_code == 422
+
+
 def test_activation_settings(client: TestClient, admin: AuthUser) -> None:
     config = client.get("/admin/analytics-config", headers=admin.headers).json()
     assert (config["activation_window_days"], config["activation_min_days"]) == (3, 2)

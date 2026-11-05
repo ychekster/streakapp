@@ -99,12 +99,14 @@ import { reminderTimesOf, usesStartDate } from "../data/derive";
 import { reportGroupError } from "../data/groups";
 import { dataStore } from "../data/store";
 import { describeError } from "../errors";
+import { useAppData } from "../hooks/useAppData";
 import { useMainButton } from "../hooks/useMainButton";
 import { useMeta } from "../hooks/useMeta";
 import { useReminderPush } from "../hooks/useReminderPush";
 import { usePlatform } from "../platform";
 import { useStrings } from "../preferences";
-import { hapticNotification, showAlert } from "../telegram/webapp";
+import { hapticNotification, hapticSelection, showAlert } from "../telegram/webapp";
+import type { Folder } from "../types/folder";
 import { habitColorStyle, MAIN_BUTTON_DISABLED, mainButtonHabitColors } from "../theme";
 import type {
   FrequencyType,
@@ -116,6 +118,7 @@ import type {
 } from "../types/habit";
 import { askPermissionUnlessOff, pushPermission, subscribePush } from "../web/push";
 import { weekdayLabel } from "../weekdayLabel";
+import { Check } from "./FolderHabitsScreen";
 import styles from "./HabitFormScreen.module.css";
 
 interface HabitFormScreenProps {
@@ -127,6 +130,8 @@ interface HabitFormScreenProps {
   onLinkTelegram: () => void;
   /** Привычка сохранена (создана или изменена) — на устройстве, сервер узнает следом. */
   onSaved: (habit: Habit) => void;
+  /** Папка, открытая в списке привычек: новая привычка по умолчанию кладётся в неё. */
+  defaultFolder?: number | null;
   /** Открыт экран «Дополнительно» поверх формы. */
   advanced: boolean;
   onOpenAdvanced: () => void;
@@ -139,6 +144,7 @@ export function HabitFormScreen({
   sharedNeedsTelegram = false,
   onLinkTelegram,
   onSaved,
+  defaultFolder = null,
   advanced,
   onOpenAdvanced,
   leaveRef,
@@ -198,6 +204,22 @@ export function HabitFormScreen({
   const [autoMark, setAutoMark] = useState(habit?.auto_mark ?? false);
   // «Сверх плана» — наоборот: помнится при одном разе, сохраняется только при нескольких.
   const [overtime, setOvertime] = useState(habit?.overtime ?? false);
+  // «Папки» в «Дополнительно»: свои папки (не рекомендуемые). Отмечены те, куда привычку
+  // положили руками; у новой — папка, открытая в списке. Папка, которая берёт привычку по
+  // типу, отмечена сама и не снимается.
+  const ownFolders = useAppData().folders.filter((folder) => !folder.kind);
+  const [folderIds, setFolderIds] = useState<Set<number>>(() => {
+    const picked = ownFolders.filter((folder) =>
+      habit ? (folder.picked ?? folder.habits).includes(habit.id) : folder.id === defaultFolder,
+    );
+    return new Set(picked.map((folder) => folder.id));
+  });
+  const initialFolders = useRef(JSON.stringify([...folderIds].sort()));
+  const foldersChanged = JSON.stringify([...folderIds].sort()) !== initialFolders.current;
+  const byType = (folder: Folder): boolean =>
+    habit !== null &&
+    folder.habits.includes(habit.id) &&
+    !(folder.picked ?? folder.habits).includes(habit.id);
   const [submitting, setSubmitting] = useState(false);
   const web = usePlatform() === "web";
   const [permission, setPermission] = useState(pushPermission);
@@ -334,7 +356,14 @@ export function HabitFormScreen({
    *  можно сохранить; нельзя (нет названия, ни одного дня) — форма закрывается без них.
    *  true — привычка сохранена (onSaved уже вызван), иначе форму закрывает App. */
   function leave(): boolean {
-    if (!habit || !valid || JSON.stringify(input) === initialInput.current) {
+    if (!habit || !valid) {
+      return false;
+    }
+    // Папки — свои, не поля привычки: меняются сразу и без пересохранения привычки.
+    if (foldersChanged) {
+      dataStore.setHabitFolders(habit.id, [...folderIds]);
+    }
+    if (JSON.stringify(input) === initialInput.current) {
       return false;
     }
     if (web && reminderOn && permission === "granted") {
@@ -393,7 +422,11 @@ export function HabitFormScreen({
     try {
       // Saved on the device at once (data/store.ts) — checked there as the server would:
       // the habit limit is shown in a system dialog right away.
-      onSaved(dataStore.createHabit(input));
+      const created = dataStore.createHabit(input);
+      if (folderIds.size > 0) {
+        dataStore.setHabitFolders(created.id, [...folderIds]);
+      }
+      onSaved(created);
     } catch (caught) {
       const failed = strings.formCreateFailed;
       submittingRef.current = false;
@@ -613,6 +646,43 @@ export function HabitFormScreen({
     return (
       <Screen key="advanced" title={strings.formAdvanced} withTabBar={false} enterAnimation pinnedTitle>
         <div className={`${styles.form} ${styles.pinned}`} style={habitColorStyle(color)}>
+          {ownFolders.length > 0 ? (
+            <Section
+              variant="form"
+              title={strings.formFoldersHeading}
+              footer={strings.formFoldersFooter}
+            >
+              <Card>
+                {ownFolders.map((folder) => {
+                  const auto = byType(folder);
+                  const on = auto || folderIds.has(folder.id);
+                  return (
+                    <ListItem
+                      key={folder.id}
+                      label={folder.name}
+                      onPress={
+                        auto
+                          ? undefined
+                          : () => {
+                              hapticSelection();
+                              setFolderIds((current) => {
+                                const next = new Set(current);
+                                if (!next.delete(folder.id)) {
+                                  next.add(folder.id);
+                                }
+                                return next;
+                              });
+                            }
+                      }
+                    >
+                      <Check on={on} label={folder.name} />
+                    </ListItem>
+                  );
+                })}
+              </Card>
+            </Section>
+          ) : null}
+
           {!timed && timesPerDay === 1 && !shared ? (
             <Section
               variant="form"
@@ -697,7 +767,7 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {!timed && ((timesPerDay === 1 && !shared) || canSwitchShared) ? (
+        {ownFolders.length > 0 || (!timed && ((timesPerDay === 1 && !shared) || canSwitchShared)) ? (
           <Section variant="form">
             <Card>
               <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>

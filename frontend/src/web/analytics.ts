@@ -43,13 +43,20 @@ function randomId(): string {
   }
 }
 
-/** The device's random analytics id. */
+/** A device id carried in a link (`v=`): the landing's id, brought along when the person
+ *  moves to another browser or the installed iPhone app (their storage is not the
+ *  landing's), so the admin panel sees one path from the first click. */
+const VISITOR_PARAM = "v";
+const VISITOR_ID = /^[0-9A-Za-z-]{16,64}$/;
+
+/** The device's random analytics id (on a new device — the one the link carried). */
 export function anonId(): string {
   const existing = storageGet(ANON_KEY);
   if (existing) {
     return existing;
   }
-  const created = randomId();
+  const carried = new URLSearchParams(window.location.search).get(VISITOR_PARAM);
+  const created = carried && VISITOR_ID.test(carried) ? carried : randomId();
   storageSet(ANON_KEY, created);
   return created;
 }
@@ -146,16 +153,25 @@ export function trackPushOpen(): void {
   track("app_open", { from: "push" });
 }
 
-/** Link to the bot that keeps the install source: `?start=src_<source>` (the bot remembers
- *  it for a new user, backend/sources.py). Without a real source — the plain link. */
+/** Telegram's limit for the `start` parameter. */
+const START_MAX_LENGTH = 64;
+
+/** Link to the bot that keeps the device id and the install source:
+ *  `?start=v_<32 hex>_src_<source>` (the bot joins the landing's steps to the account and
+ *  remembers the source for a new user, backend/sources.py). The source is cut to fit. */
 export function botLinkWithSource(botUrl: string): string {
   const source = installSource();
-  if (!source || source === DEFAULT_SRC) {
+  const hex = anonId().replace(/-/g, "").toLowerCase();
+  const parts = /^[0-9a-f]{32}$/.test(hex) ? [`v_${hex}`] : [];
+  if (source && source !== DEFAULT_SRC) {
+    parts.push(`src_${source}`);
+  }
+  if (parts.length === 0) {
     return botUrl;
   }
   try {
     const url = new URL(botUrl);
-    url.searchParams.set("start", `src_${source}`);
+    url.searchParams.set("start", parts.join("_").slice(0, START_MAX_LENGTH));
     return url.toString();
   } catch {
     return botUrl;

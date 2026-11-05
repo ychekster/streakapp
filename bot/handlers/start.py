@@ -40,7 +40,7 @@ from backend.database import Database
 from backend.messaging import app_url
 from backend.repository import Repository
 from backend.services import language_from_telegram
-from backend.sources import parse_start_param
+from backend.sources import parse_start_param, split_visitor
 
 router = Router(name="start")
 
@@ -65,7 +65,8 @@ async def record_start(database: Database, user: TelegramUser, args: str | None 
     """Записать запустившего бота (язык интерфейса — по языку Telegram, как в API;
     источник — по метке ссылки `args`, только у нового) и снять отметку о блокировке
     бота. Сбой не мешает приветствию."""
-    source = parse_start_param(args)
+    visitor, rest = split_visitor(args)
+    source = parse_start_param(rest)
     try:
         async with database.session_factory() as session:
             repo = Repository(session)
@@ -77,7 +78,14 @@ async def record_start(database: Database, user: TelegramUser, args: str | None 
                 source=source,
             )
             await repo.set_bot_blocked([user.id], blocked=False)
-            await repo.log_action(user.id, "start", detail=args[:64] if args else None)
+            await repo.log_action(user.id, "start", detail=rest[:64] if rest else None)
+            # Путь с сайта: шаги посетителя на лендинге становятся шагами этого аккаунта.
+            if visitor is not None:
+                await repo.claim_anon_events(visitor, user.id)
+            if not await repo.has_event("bot_started", user.id):
+                await repo.add_event(
+                    "bot_started", user_id=user.id, anon_id=visitor, browser_context="telegram"
+                )
             await session.commit()
     except Exception:  # noqa: BLE001 — база недоступна: приветствие всё равно уходит
         logger.exception("Could not record /start of user {}", user.id)

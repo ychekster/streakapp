@@ -24,6 +24,7 @@ import type {
   RetentionBasis,
   RetentionCompare,
 } from "../../types/admin";
+import type { JourneyQuery } from "../components/JourneySection";
 import { Pills } from "./kit";
 import {
   ChurnSection,
@@ -49,9 +50,17 @@ interface AnalyticsScreenProps {
   onViewChange: (view: AnalyticsView) => void;
   onOpenPeople: (query: PeopleQuery, filter: AnalyticsFilter) => void;
   onOpenLinks: () => void;
+  onOpenJourney: (query: JourneyQuery) => void;
 }
 
-export function AnalyticsScreen({ section, view, onViewChange, onOpenPeople, onOpenLinks }: AnalyticsScreenProps) {
+export function AnalyticsScreen({
+  section,
+  view,
+  onViewChange,
+  onOpenPeople,
+  onOpenLinks,
+  onOpenJourney,
+}: AnalyticsScreenProps) {
   const strings = useAdminStrings();
   const an = strings.an;
   const { filter } = view;
@@ -71,6 +80,7 @@ export function AnalyticsScreen({ section, view, onViewChange, onOpenPeople, onO
     filter,
     onOpenPeople: (query: PeopleQuery) => onOpenPeople(query, filter),
     onOpenLinks,
+    onOpenJourney,
   };
 
   return (

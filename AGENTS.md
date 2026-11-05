@@ -126,12 +126,13 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Settings item | models.User, schemas.Settings*, services.py; screens/SettingsScreen.tsx, hooks/useSettings.ts |
 | Reminders | services.due_reminders / due_checkin_reminders, bot/reminders.py (Telegram or push) |
 | Admin panel | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts |
+| Visitor path from the site (one device id `v` through landing → browser → installed app → bot `start=v_<hex>`; drop-off by step, a person's steps from the first click) | backend/analytics/journey.py, profile.timeline (events + activity_log, order), funnel.record_client_event (claim_anon_events), sources.split_visitor, bot/handlers/start.py; frontend web/analytics.ts (anonId, botLinkWithSource), landing/Landing.tsx, admin/components/JourneySection, UserTimeline, screens/AdminJourneyScreen, AdminVisitorScreen |
 | Web app login / accounts | backend/accounts.py, routers/auth.py, bot/handlers/web_login.py; frontend/src/web/ |
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |
 | Install page / funnel | frontend/src/landing/, src/web/analytics.ts; backend/funnel.py, scripts/funnel.py |
 | Bot texts / emoji | bot/constants.py, bot/emoji.py |
 | Archive (hidden from the list and folders, works as usual, no reminders) | models.Task.archived_at, SyncArchive (services.apply_sync), due_reminders; frontend store setArchived, derive.ts (archived), App `listHabits` / `archivedHabits`, screens/ArchiveScreen.tsx, HabitScreen |
-| Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx |
+| Habit folders | models.Folder, services.py (folder ops in apply_sync, list_folders); frontend types/folder.ts, data/derive.ts, screens/Folder*Screen.tsx, components/FolderBar.tsx; habit form «Дополнительно» → «Папки» (store.setHabitFolders) |
 | Shared habits | models.HabitGroup*, backend/groups.py, routers/groups.py, bot/handlers/group_invite.py, bot/profiles.py, reminders (group marks); frontend data/groups.ts, api/groups.ts, derive.ts (isShared, groupFill), components/GroupMembers.tsx, CheckButton (group), screens/HabitScreen.tsx |
 | Schedule history (a past day keeps its schedule, goal, «Сверх плана») | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule / goal_on; frontend derive.ts (scheduleOn, goalOn, isDueOnDay) |
 | Bonus marks (not due / frozen / past a flexible goal: in the grid and «Всего выполнено», not in streaks or the period count) | services.counted_days (compute_streaks, flexible_streaks); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |

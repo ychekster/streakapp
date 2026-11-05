@@ -11,6 +11,8 @@
  *  - Аналитика (обзор) → нажатая цифра → её подробности (OverviewGroupScreen) → люди за
  *    ней (AdminPeopleScreen) → профиль → …;
  *  - Аналитика → раздел подробной аналитики (AnalyticsScreen) → цифра → люди → …;
+ *  - Аналитика → Воронка → «Путь с сайта» → шаг → кто на нём остановился
+ *    (AdminJourneyScreen) → профиль или путь устройства без аккаунта (AdminVisitorScreen);
  *  - Аналитика → Откуда приходят (или Настройки) → «Ссылки с меткой» (AdminLinksScreen);
  *  - Пользователи → «Фильтры» (условия списка, см. AdminUserFiltersScreen);
  *  - Пользователи → профиль → его привычки (тот же список, что он видит сам, только
@@ -54,7 +56,10 @@ import { AdminAddAdminScreen } from "./screens/AdminAddAdminScreen";
 import { AnalyticsScreen, type AnalyticsView } from "./analytics/AnalyticsScreen";
 import { OverviewGroupScreen } from "./analytics/OverviewGroupScreen";
 import { OVERVIEW_FILTER, OverviewScreen } from "./analytics/OverviewScreen";
+import type { JourneyQuery } from "./components/JourneySection";
+import { AdminJourneyScreen } from "./screens/AdminJourneyScreen";
 import { AdminLinksScreen } from "./screens/AdminLinksScreen";
+import { AdminVisitorScreen } from "./screens/AdminVisitorScreen";
 import { AdminPeopleScreen } from "./screens/AdminPeopleScreen";
 import {
   AdminBroadcastScreen,
@@ -91,6 +96,8 @@ type AdminPage =
   | { kind: "people"; query: PeopleQuery; filter: AnalyticsFilter }
   | { kind: "analytics"; section: AnalyticsSection }
   | { kind: "links" }
+  | { kind: "journey"; query: JourneyQuery }
+  | { kind: "visitor"; anonId: string }
   | { kind: "userFilters" }
   | { kind: "user"; id: number; initial: AdminUserRef | null }
   | { kind: "habits"; id: number }
@@ -275,6 +282,24 @@ export function AdminApp({ settings, onSaveSettings, onExit }: AdminAppProps) {
             onViewChange={setAnalyticsView}
             onOpenPeople={(query, filter) => push({ kind: "people", query, filter })}
             onOpenLinks={() => push({ kind: "links" })}
+            onOpenJourney={(query) => push({ kind: "journey", query })}
+          />
+        );
+      case "journey":
+        return (
+          <AdminJourneyScreen
+            key={`journey-${stack.length}`}
+            query={page.query}
+            onOpenUser={(id) => push({ kind: "user", id, initial: null })}
+            onOpenVisitor={(anonId) => push({ kind: "visitor", anonId })}
+          />
+        );
+      case "visitor":
+        return (
+          <AdminVisitorScreen
+            key={`visitor-${stack.length}`}
+            anonId={page.anonId}
+            onOpenUser={(id) => push({ kind: "user", id, initial: null })}
           />
         );
       case "links":
