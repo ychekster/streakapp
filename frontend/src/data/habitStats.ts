@@ -122,31 +122,32 @@ function totals(days: Days, from: string, to: string): Totals {
   return sum;
 }
 
-/** The same date a month before `date` («ГГГГ-ММ-ДД»); a shorter month — its last day. */
-export function monthBefore(date: string): string {
-  const year = Number(date.slice(0, 4));
-  const month = Number(date.slice(5, 7));
-  const previous = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
-  const last = daysInMonth(`${previous}-01`);
-  return `${previous}-${String(Math.min(Number(date.slice(8, 10)), last)).padStart(2, "0")}`;
+/** The same date `months` months before `date` («ГГГГ-ММ-ДД»); a month without that date —
+ *  its last day (31 Mar, a month back — 28 Feb). */
+export function monthsBefore(date: string, months: number): string {
+  const index = Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1 - months;
+  const month = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+  const last = daysInMonth(`${month}-01`);
+  return `${month}-${String(Math.min(Number(date.slice(8, 10)), last)).padStart(2, "0")}`;
 }
 
-/** The last month and the one before it: the day after `day`'s date a month ago to `day`
- *  (5 Nov — 6 Oct to 5 Nov), and the same a month earlier (6 Sep to 5 Oct). No month before
- *  — the habit began inside it. */
-export function monthTotals(
-  habit: Habit,
-  day: string,
-): { current: Totals; previous: Totals | null; from: string } {
+/** The first day of the `months` months that end on `day`: the day after «`months` months
+ *  ago» (monthsBefore). 5 Nov — 6 Oct; 31 Oct — 1 Oct (no 31 Sep: a month ago is 30 Sep). */
+export function periodStart(day: string, months: number): string {
+  return addDays(monthsBefore(day, months), 1);
+}
+
+/** This month and the one before it: every day since «a month ago» up to `day` (5 Nov: 6 Oct
+ *  to 5 Nov), and the same a month earlier (6 Sep to 5 Oct). No month before — the habit
+ *  began inside it. */
+export function monthTotals(habit: Habit, day: string): { current: Totals; previous: Totals | null } {
   const days = daysOf(habit, day);
-  const previousTo = monthBefore(day);
-  const from = addDays(previousTo, 1);
-  const previousFrom = addDays(monthBefore(previousTo), 1);
+  const from = periodStart(day, 1);
+  const previousFrom = periodStart(day, 2);
   const began = days.start !== null && days.start <= previousFrom && days.first <= previousFrom;
   return {
     current: totals(days, from, day),
-    previous: began ? totals(days, previousFrom, previousTo) : null,
-    from,
+    previous: began ? totals(days, previousFrom, monthsBefore(day, 1)) : null,
   };
 }
 
@@ -228,9 +229,10 @@ function scores(days: Days): (number | null)[] {
 }
 
 /**
- * The line chart: the score (scores) on each of the last 30 days (month), 91 (quarter), or
- * at the end of each of the last 52 weeks (year), the last point — `day`. Points before the
- * habit's first day are cut off, but at least MIN_TREND_POINTS stay (null).
+ * The line chart: the score (scores) on each day of the month (quarter: three months) that
+ * ends on `day` (periodStart; 5 Nov: from 6 Oct), or at the end of each of the last
+ * 52 weeks (year), the last point — `day`. Points before the habit's first day are cut off,
+ * but at least MIN_TREND_POINTS stay (null).
  */
 export interface Trend {
   values: (number | null)[];
@@ -242,7 +244,8 @@ const MIN_TREND_POINTS = 4;
 export function trend(habit: Habit, day: string, range: StatsRange): Trend {
   const days = daysOf(habit, day);
   const byDay = scores(days);
-  const points = range === "month" ? 30 : range === "quarter" ? 91 : 52;
+  const points =
+    range === "year" ? 52 : daysBetween(periodStart(day, range === "month" ? 1 : 3), day) + 1;
   const step = range === "year" ? 7 : 1;
   const dates = Array.from({ length: points }, (_, index) => addDays(day, (index + 1 - points) * step));
   const values = dates.map((date) => byDay[daysBetween(days.first, date)] ?? null);

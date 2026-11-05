@@ -8,7 +8,8 @@ import { addDays, daysBetween } from "./dates";
 import {
   bestDay,
   dayBreakdown,
-  monthBefore,
+  monthsBefore,
+  periodStart,
   monthTotals,
   statsKind,
   trend,
@@ -84,23 +85,26 @@ describe("statsKind", () => {
 });
 
 describe("monthTotals", () => {
-  it("compares the month up to today with the month before it", () => {
+  it("compares the month since a month ago with the month before it", () => {
     const day = "2026-11-05";
     // 6 Sep … 5 Oct: two marks; 6 Oct … 5 Nov: 6 Oct and 1 … 5 Nov.
     const marks = ["2026-08-01", "2026-09-06", "2026-10-05", "2026-10-06"];
     const totals = monthTotals(habit(day, [...marks, ...range("2026-11-01", day)]), day);
-    expect(totals.from).toBe("2026-10-06");
     expect(totals.current).toMatchObject({ done: 6, due: 31 });
     expect(totals.previous).toMatchObject({ done: 2, due: 30 });
   });
 
-  it("takes the last day of a shorter month", () => {
-    expect(monthBefore("2026-03-31")).toBe("2026-02-28");
-    expect(monthBefore("2026-01-15")).toBe("2025-12-15");
+  it("starts on the 1st when the month before has no such date", () => {
+    expect(monthsBefore("2026-03-31", 1)).toBe("2026-02-28");
+    expect(monthsBefore("2026-01-15", 1)).toBe("2025-12-15");
+    expect(periodStart("2026-11-05", 1)).toBe("2026-10-06");
+    expect(periodStart("2026-10-30", 1)).toBe("2026-10-01");
+    expect(periodStart("2026-10-31", 1)).toBe("2026-10-01");
     const day = "2026-03-31";
-    const totals = monthTotals(habit(day, ["2026-01-10", ...range("2026-01-29", "2026-02-28")]), day);
-    expect(totals.from).toBe("2026-03-01");
-    expect(totals.previous).toMatchObject({ done: 31, due: 31 });
+    // 1 … 31 Mar (today not done: not due yet), and 1 … 28 Feb before it.
+    const totals = monthTotals(habit(day, ["2026-01-10", ...range("2026-02-01", "2026-02-28")]), day);
+    expect(totals.previous).toMatchObject({ done: 28, due: 28 });
+    expect(totals.current).toMatchObject({ done: 0, due: 30 });
   });
 
   it("has no last month when the habit began after its 1st", () => {
@@ -193,6 +197,13 @@ describe("trend", () => {
       period_times: 3,
     });
     expect(trend(flexible, day, "month").values).toEqual([1, 2, 2, 2, 2, 2, 1, 1]);
+  });
+
+  it("starts the month and the quarter the day after a month (three) ago", () => {
+    const day = "2026-11-05";
+    const kept = habit(day, range("2026-07-01", day));
+    expect(trend(kept, day, "month").dates[0]).toBe("2026-10-06");
+    expect(trend(kept, day, "quarter").dates[0]).toBe("2026-08-06");
   });
 
   it("takes the end of each week for a year", () => {

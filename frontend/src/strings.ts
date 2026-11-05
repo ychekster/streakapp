@@ -412,12 +412,11 @@ const RU = {
   statForecast: "Прогноз на год",
   statForecastNone: "Прогноз",
   statGoalReached: "Цель выполнена",
-  // Экран статистики привычки (HabitStatsScreen.tsx), кнопка — в «Основном». «За месяц» —
-  // с того же числа прошлого месяца по сегодня, сравнивается с месяцем перед ним (стрелка
-  // рядом со значением); даты — под карточкой.
+  // Экран статистики привычки (HabitStatsScreen.tsx), кнопка — в «Основном». «Этот
+  // месяц» — со дня после «месяц назад» по сегодня, сравнивается с месяцем перед ним
+  // (стрелка рядом со значением).
   statsOpen: "Статистика",
-  statsMonthHeading: "За месяц",
-  statsMonthRange: (from: string, to: string) => `С ${from} по ${to}`,
+  statsMonthHeading: "Этот месяц",
   statsAllTimeHeading: "За всё время",
   statsMinutes: "Минут",
   statsTimes: "Повторений",
@@ -1087,8 +1086,7 @@ const EN: Strings = {
   statForecastNone: "Forecast",
   statGoalReached: "Goal reached",
   statsOpen: "Statistics",
-  statsMonthHeading: "Past month",
-  statsMonthRange: (from: string, to: string) => `${from} to ${to}`,
+  statsMonthHeading: "This month",
   statsAllTimeHeading: "All time",
   statsMinutes: "Minutes",
   statsTimes: "Reps",
