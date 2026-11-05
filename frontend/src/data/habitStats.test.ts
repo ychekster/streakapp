@@ -85,26 +85,22 @@ describe("statsKind", () => {
 });
 
 describe("monthTotals", () => {
-  it("compares the month since a month ago with the month before it", () => {
-    const day = "2026-11-05";
-    // 6 Sep … 5 Oct: two marks; 6 Oct … 5 Nov: 6 Oct and 1 … 5 Nov.
-    const marks = ["2026-08-01", "2026-09-06", "2026-10-05", "2026-10-06"];
-    const totals = monthTotals(habit(day, [...marks, ...range("2026-11-01", day)]), day);
-    expect(totals.current).toMatchObject({ done: 6, due: 31 });
-    expect(totals.previous).toMatchObject({ done: 2, due: 30 });
+  it("compares this month so far with the same days of the last one", () => {
+    const day = "2026-10-07";
+    // September: 1…7 done 3 times, the rest of the month does not count.
+    const marks = ["2026-08-20", "2026-09-01", "2026-09-03", "2026-09-05", "2026-09-20"];
+    const { current, previous } = monthTotals(habit(day, [...marks, ...range("2026-10-01", day)]), day);
+    expect(current.done).toBe(7);
+    expect(current.due).toBe(7);
+    expect(previous?.done).toBe(3);
+    expect(previous?.due).toBe(7);
   });
 
-  it("starts on the 1st when the month before has no such date", () => {
-    expect(monthsBefore("2026-03-31", 1)).toBe("2026-02-28");
-    expect(monthsBefore("2026-01-15", 1)).toBe("2025-12-15");
-    expect(periodStart("2026-11-05", 1)).toBe("2026-10-06");
-    expect(periodStart("2026-10-30", 1)).toBe("2026-10-01");
-    expect(periodStart("2026-10-31", 1)).toBe("2026-10-01");
+  it("takes all of a shorter last month", () => {
     const day = "2026-03-31";
-    // 1 … 31 Mar (today not done: not due yet), and 1 … 28 Feb before it.
-    const totals = monthTotals(habit(day, ["2026-01-10", ...range("2026-02-01", "2026-02-28")]), day);
-    expect(totals.previous).toMatchObject({ done: 28, due: 28 });
-    expect(totals.current).toMatchObject({ done: 0, due: 30 });
+    const { previous } = monthTotals(habit(day, ["2026-01-10", ...range("2026-02-01", "2026-02-28")]), day);
+    expect(previous?.due).toBe(28);
+    expect(previous?.done).toBe(28);
   });
 
   it("has no last month when the habit began after its 1st", () => {
@@ -114,13 +110,13 @@ describe("monthTotals", () => {
 
   it("counts the marking day as due only once done", () => {
     const day = "2026-10-03";
-    const { current } = monthTotals(habit(day, ["2026-10-01"]), day);
+    const { current } = monthTotals(habit(day, ["2026-09-01", "2026-10-01"]), day);
     expect(current).toMatchObject({ done: 1, due: 2 });
   });
 
   it("leaves frozen days and days off schedule out of the due ones", () => {
     const day = "2026-10-07"; // Wednesday
-    const weekdays = habit(day, ["2026-10-01"], {
+    const weekdays = habit(day, ["2026-09-01", "2026-10-01"], {
       frequency_type: "specific_days",
       days: ["mon", "tue", "wed", "thu", "fri"],
       frozen: ["2026-10-02"],
@@ -200,6 +196,10 @@ describe("trend", () => {
   });
 
   it("starts the month and the quarter the day after a month (three) ago", () => {
+    expect(monthsBefore("2026-03-31", 1)).toBe("2026-02-28");
+    expect(monthsBefore("2026-01-15", 1)).toBe("2025-12-15");
+    expect(periodStart("2026-10-30", 1)).toBe("2026-10-01");
+    expect(periodStart("2026-10-31", 1)).toBe("2026-10-01");
     const day = "2026-11-05";
     const kept = habit(day, range("2026-07-01", day));
     expect(trend(kept, day, "month").dates[0]).toBe("2026-10-06");

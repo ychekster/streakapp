@@ -137,17 +137,18 @@ export function periodStart(day: string, months: number): string {
   return addDays(monthsBefore(day, months), 1);
 }
 
-/** This month and the one before it: every day since «a month ago» up to `day` (5 Nov: 6 Oct
- *  to 5 Nov), and the same a month earlier (6 Sep to 5 Oct). No month before — the habit
- *  began inside it. */
+/** This month so far and the same days of the last one: the 1st to `day`'s date (a shorter
+ *  last month — all its days). No last month — the habit began after its 1st. */
 export function monthTotals(habit: Habit, day: string): { current: Totals; previous: Totals | null } {
   const days = daysOf(habit, day);
-  const from = periodStart(day, 1);
-  const previousFrom = periodStart(day, 2);
+  const from = `${day.slice(0, 8)}01`;
+  const elapsed = daysBetween(from, day) + 1;
+  const previousFrom = `${addDays(from, -1).slice(0, 8)}01`;
+  const previousTo = addDays(previousFrom, Math.min(elapsed, daysInMonth(previousFrom)) - 1);
   const began = days.start !== null && days.start <= previousFrom && days.first <= previousFrom;
   return {
     current: totals(days, from, day),
-    previous: began ? totals(days, previousFrom, monthsBefore(day, 1)) : null,
+    previous: began ? totals(days, previousFrom, previousTo) : null,
   };
 }
 
