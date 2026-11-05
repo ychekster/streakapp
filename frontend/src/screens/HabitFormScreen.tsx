@@ -356,14 +356,15 @@ export function HabitFormScreen({
    *  можно сохранить; нельзя (нет названия, ни одного дня) — форма закрывается без них.
    *  true — привычка сохранена (onSaved уже вызван), иначе форму закрывает App. */
   function leave(): boolean {
-    if (!habit || !valid) {
+    if (!habit) {
       return false;
     }
-    // Папки — свои, не поля привычки: меняются сразу и без пересохранения привычки.
+    // Папки — свои, не поля привычки: меняются сразу, без пересохранения привычки и даже
+    // если её правку сохранить нельзя.
     if (foldersChanged) {
       dataStore.setHabitFolders(habit.id, [...folderIds]);
     }
-    if (JSON.stringify(input) === initialInput.current) {
+    if (!valid || JSON.stringify(input) === initialInput.current) {
       return false;
     }
     if (web && reminderOn && permission === "granted") {

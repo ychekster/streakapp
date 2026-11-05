@@ -24,7 +24,7 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
                     overview.py, completion.py, people.py (people behind a number), profile.py,
-                    names.py, service.py (entry for routers)
+                    journey.py (path from the site), names.py, service.py (entry for routers)
   auth.py (initData signature)  database.py (engine, sessions)  sources.py  clock.py (Almaty days)
   validation.py schedule.py timezones.py cities.py constants.py errors.py middleware.py ratelimit.py
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids),

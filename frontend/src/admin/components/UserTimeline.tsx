@@ -6,7 +6,7 @@
  * начала».
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchTimeline } from "../../api/admin";
 import { useAdminFormat } from "../adminFormat";
@@ -66,18 +66,33 @@ export function UserTimeline({ telegramId }: { telegramId: number }) {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [order, setOrder] = useState<TimelineOrder>("new");
+  // Порядок, в котором лента грузится сейчас: опоздавшая страница прежнего отбрасывается.
+  const current = useRef(order);
+  current.current = order;
 
   const load = useCallback(
     (offset: number) => {
+      const stale = (): boolean => current.current !== order;
       setLoading(true);
       setFailed(false);
       fetchTimeline(telegramId, offset, order)
         .then((page) => {
-          setItems((current) => (offset === 0 ? page.items : [...current, ...page.items]));
+          if (stale()) {
+            return;
+          }
+          setItems((shown) => (offset === 0 ? page.items : [...shown, ...page.items]));
           setNext(page.next_offset);
         })
-        .catch(() => setFailed(true))
-        .finally(() => setLoading(false));
+        .catch(() => {
+          if (!stale()) {
+            setFailed(true);
+          }
+        })
+        .finally(() => {
+          if (!stale()) {
+            setLoading(false);
+          }
+        });
     },
     [telegramId, order],
   );
