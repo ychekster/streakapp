@@ -436,7 +436,12 @@ const RU = {
   statsTrendInfoFlexible:
     "Линия показывает счёт привычки. За каждую отметку прибавляется 1 очко. Когда период заканчивается, за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
-  statsWeekdaysHeading: "Выполнение по дням недели",
+  statsWeekdaysHeading: "Недельный паттерн",
+  statsWeekdaysInfoLabel: "Что показывает недельный паттерн",
+  statsWeekdaysInfo:
+    "Столбик дня недели показывает, как часто привычка выполнялась в этот день, когда стояла по плану. Так видно, в какие дни держать её легче, а в какие труднее.",
+  statsWeekdaysInfoFlexible:
+    "Столбик дня недели показывает, какая доля всех отметок пришлась на этот день. Так видно, в какие дни вы выполняете привычку чаще.",
   statsDaysHeading: "Итоги по дням",
   // В центре кольца «Итогов по дням», под долей выполненных дней.
   statsPieCenter: "выполнено",
@@ -1105,7 +1110,12 @@ const EN: Strings = {
   statsTrendInfoFlexible:
     "The line shows the habit’s score. Each mark adds 1 point. When a period ends, 1 point is taken away for each mark short of the goal. The score never goes below zero, so the longer you keep the habit, the higher the line.",
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
-  statsWeekdaysHeading: "Completion by weekday",
+  statsWeekdaysHeading: "Weekly pattern",
+  statsWeekdaysInfoLabel: "What the weekly pattern shows",
+  statsWeekdaysInfo:
+    "Each weekday’s bar shows how often the habit was done on that day when it was planned. It shows on which days the habit is easier to keep and on which it’s harder.",
+  statsWeekdaysInfoFlexible:
+    "Each weekday’s bar shows what share of all marks fell on that day. It shows on which days you do the habit more often.",
   statsDaysHeading: "Days summary",
   statsPieCenter: "completed",
   statsSlices: {

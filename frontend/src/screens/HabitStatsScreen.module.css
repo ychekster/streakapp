@@ -47,13 +47,14 @@
   padding: var(--space-card-padding) 0;
 }
 
-/* Неделя / Месяц / Год — сегменты на серой подложке, выбранный — карточкой. */
+/* Неделя / Месяц / Год — сегменты на серой подложке, выбранный — карточкой; края
+   полностью скруглены, как у таблетки папок. */
 .pills {
   display: flex;
   gap: 2px;
   padding: 2px;
   margin-bottom: var(--space-row-gap);
-  border-radius: 9px;
+  border-radius: var(--radius-pill);
   background-color: var(--color-fill);
 }
 
@@ -61,7 +62,7 @@
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: var(--font-size-secondary);
   font-weight: 600;

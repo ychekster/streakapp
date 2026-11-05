@@ -13,7 +13,8 @@
  *    habitStats.trend) сплошной линией с острыми углами за месяц (со дня после «месяц назад»),
  *    3 месяца или год (капсулы над ней), шкала — по видимым значениям; над ней значение
  *    последней точки целым числом, палец на графике — значение и дата выбранной;
- *  - «Выполнение по дням недели» — столбики выполнения (палец — значение над столбиком);
+ *  - «Недельный паттерн» — столбики выполнения по дням недели (палец — значение над
+ *    столбиком), «i» рядом объясняет, что они значат;
  *  - «Итоги по дням» — крупное кольцо с долей выполненных в центре, под ним плитки:
  *    выполнено, частично (только со счётом), пропущено, заморожено (у «Гибкого графика»
  *    нет пропусков — круга нет).
@@ -278,7 +279,17 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
           </Card>
         </Section>
 
-        <Section title={strings.statsWeekdaysHeading}>
+        <Section
+          title={strings.statsWeekdaysHeading}
+          hint={
+            <InfoTip
+              label={strings.statsWeekdaysInfoLabel}
+              text={
+                kind === "flexible" ? strings.statsWeekdaysInfoFlexible : strings.statsWeekdaysInfo
+              }
+            />
+          }
+        >
           <Card padded>
             <div className={styles.chartCard}>
               {enough ? (
