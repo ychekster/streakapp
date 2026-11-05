@@ -14,16 +14,19 @@
  * ссылка «Показать остальные» в самом низу экрана, отдельно от задач; «Назад» возвращает
  * (нижней навигации там нет, как на вложенных экранах).
  *
- * Выполненные сегодня — зачёркнутыми внизу своего блока (списка), до конца дня; назавтра
- * они в «Выполненных» на экране остальных, а здесь — чисто. Отмеченная (или возвращённая)
- * задача не убегает сразу: она стоит на месте (`held`), и через SETTLE_MS после последней
- * галочки плавно переезжает на своё место (FLIP: строки сдвигаются из прежних мест).
- * Промахнулся галочкой — успел вернуть, ничего не сдвинулось. На экране остальных
- * отмеченная стоит на месте, пока он открыт.
+ * Пока смотришь на список, в нём ничего не переставляется (как «Невыполненные» привычек):
+ * отмеченная задача зачёркивается на своём месте (`held`), возвращённая на экране остальных
+ * тоже стоит, где была, а новая встаёт первой в свой блок (`added`). Всё расходится по
+ * местам при следующем заходе (`visit`): другой список (даже с теми же задачами), экран
+ * остальных и обратно, другая вкладка, приложение свернули или открыли заново. Тогда
+ * выполненные уже в «Выполненных» на экране остальных, а новые — на своём месте по дню и
+ * времени. Заход считается в той же отрисовке, что и переключение: ничего не исчезает на
+ * глазах после возврата.
  *
  * Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без остальных и
- * без выполненных (отмеченная уходит через ту же паузу): отметил всё — «Всё выполнено»; «Запланированные» — с датой (новая в них
- * — на сегодня); «Без даты». Кружок задачи — цвета её списка (без списка — серый).
+ * без выполненных (отмеченная уходит со следующим заходом): отметил всё — «Всё выполнено»;
+ * «Запланированные» — с датой (новая в них — на сегодня); «Без даты». Кружок задачи — цвета
+ * её списка (без списка — серый).
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в начале первого блока
  * появляется пустая строка с курсором, пишешь прямо в ней; под текстом плашки дня,
@@ -58,9 +61,6 @@ import type { Todo, TodoFolder, TodoFolderKind } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
 import { playMotion, takeSnapshot, type MotionSnapshot } from "./todoMotion";
 import styles from "./TodosScreen.module.css";
-
-/** Сколько отмеченная задача стоит на месте после последней галочки (мс). */
-const SETTLE_MS = 700;
 
 // Карандаш (App) и открытый экран задач: пустая строка новой задачи и поле, которое
 // получает фокус прямо в нажатии карандаша — иначе iPhone не откроет клавиатуру (фокус
@@ -172,17 +172,41 @@ export function TodosScreen() {
   }, []);
   useHorizontalSwipe(draft === null && !showingRest ? switchList : null);
 
-  // Задачи, отмеченные (или возвращённые) в этом списке: стоят там, где были до отметки, —
-  // как были отмечены тогда. На экране задач — до конца паузы после последней галочки, на
-  // экране остальных — пока он открыт. Другой список или экран — всё по местам.
-  const view = `${shownFolder}:${showingRest}`;
-  const [heldState, setHeldState] = useState<{ view: string; held: Map<number, Todo> }>({
-    view,
-    held: new Map(),
-  });
-  const held = heldState.view === view ? heldState.held : EMPTY_HELD;
+  // Приложение свернули (или ушли из вкладки браузера): по возвращении — новый заход.
+  // Счётчик растёт, пока экран скрыт, — к возвращению список уже на своих местах.
+  const [away, setAway] = useState(0);
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === "hidden") {
+        setAway((count) => count + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  // Заход в список: тот же список и экран, пока не переключились. Номер захода растёт в
+  // той же отрисовке, где сменился вид, — прежние `held` и `added` к новому не относятся,
+  // даже если вернулись в тот же список.
+  const view = `${shownFolder}:${showingRest}:${away}`;
+  const lastView = useRef(view);
+  const visitSeq = useRef(0);
+  if (lastView.current !== view) {
+    lastView.current = view;
+    visitSeq.current += 1;
+  }
+  const visit = visitSeq.current;
+  // За этот заход: отмеченные (или возвращённые) — какими были до галочки, по этому они
+  // стоят на месте; добавленные — новые первыми, в начале своего блока.
+  const [visitState, setVisitState] = useState<{
+    visit: number;
+    held: Map<number, Todo>;
+    added: number[];
+  }>({ visit, held: new Map(), added: [] });
+  const current = visitState.visit === visit ? visitState : null;
+  const held = current?.held ?? EMPTY_HELD;
+  const added = current?.added ?? EMPTY_ADDED;
   const listRef = useRef<HTMLDivElement>(null);
-  const settleTimer = useRef<number | undefined>(undefined);
   // Снимок экрана до перемены (todoMotion): следующая отрисовка плавно переводит из него.
   const motion = useRef<{
     before: MotionSnapshot;
@@ -199,20 +223,10 @@ export function TodosScreen() {
     setMotionTick((tick) => tick + 1);
   };
 
-  useEffect(() => () => window.clearTimeout(settleTimer.current), [view]);
-
   const hold = (todo: Todo): void => {
     if (!held.has(todo.id)) {
-      setHeldState({ view, held: new Map(held).set(todo.id, todo) });
+      setVisitState({ visit, held: new Map(held).set(todo.id, todo), added });
     }
-    if (showingRest) {
-      return;
-    }
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => {
-      prepareMotion();
-      setHeldState({ view, held: new Map() });
-    }, SETTLE_MS);
   };
 
   // Перемена отрисована: строки и блоки плавно едут из прежних мест (todoMotion).
@@ -229,28 +243,27 @@ export function TodosScreen() {
   // наступило (его задачи — в будущих), вчерашние не просрочены. Пересчёт — с каждой
   // отрисовкой.
   const today = settings?.mark_yesterday ? localDate(-1) : localDate();
-  const { groups, later, done } = useMemo(() => {
+  const { groups, later, done, restNow } = useMemo(() => {
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
     // Где задача стоит: отмеченная здесь — по тому, какой была до отметки.
     const doneAt = (todo: Todo): string | null =>
       (held.get(todo.id) ?? todo).done_at;
-    const doneToday = (todo: Todo): boolean => {
-      const at = doneAt(todo);
-      return at !== null && dayOf(at) >= today;
-    };
     const pending = todos.filter((todo) => doneAt(todo) === null && inView(todo));
-    // Сделать сейчас, а под ними — выполненные сегодня: только что отмеченная — первой из них,
-    // сразу под невыполненными (над прежними выполненными).
-    const open = [
-      ...pending.filter((todo) => !isLater(todo)).sort(byWhen),
-      ...(kind === "today"
-        ? []
-        : todos
-            .filter((todo) => doneToday(todo) && inView(todo))
-            .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""))),
-    ];
+    // Сделать сейчас: добавленные за этот заход — первыми (новые выше), остальные по дню и
+    // времени. Выполненные — только на экране остальных.
+    const addedRank = new Map(added.map((id, index) => [id, index]));
+    const open = pending
+      .filter((todo) => !isLater(todo))
+      .sort((a, b) => {
+        const rankA = addedRank.get(a.id);
+        const rankB = addedRank.get(b.id);
+        if (rankA !== undefined || rankB !== undefined) {
+          return (rankA ?? Infinity) - (rankB ?? Infinity);
+        }
+        return byWhen(a, b);
+      });
     // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
     // Будущие — одним блоком, но по спискам (без списка — первыми, дальше списки по порядку,
     // как блоки экрана задач), внутри списка — по дню и времени.
@@ -269,7 +282,7 @@ export function TodosScreen() {
       kind === "today"
         ? []
         : todos
-            .filter((todo) => doneAt(todo) !== null && !doneToday(todo) && inView(todo))
+            .filter((todo) => doneAt(todo) !== null && inView(todo))
             .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
@@ -297,8 +310,15 @@ export function TodosScreen() {
       groups: sections.filter((section) => section.todos.length > 0 || section.target),
       later: upcoming,
       done: checked,
+      // Сколько на экране остальных будет, если открыть его сейчас: отмеченная только что
+      // уже там (ссылка появляется с первой галочкой).
+      restNow:
+        kind === "today"
+          ? 0
+          : todos.filter((todo) => inView(todo) && (todo.done_at !== null || isLater(todo)))
+              .length,
     };
-  }, [todos, todoFolders, shownFolder, kind, today, held, hideListNames]);
+  }, [todos, todoFolders, shownFolder, kind, today, held, added, hideListNames]);
   // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.
@@ -322,6 +342,8 @@ export function TodosScreen() {
     closeDraft(key);
     try {
       const id = dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
+      // До следующего захода — первой в своём блоке, там же, где её писали.
+      setVisitState({ visit, held, added: [id, ...added] });
       // Новая задача едет на своё место из строки ввода (её data-todo — 0).
       if (motion.current) {
         motion.current.alias = { from: "0", to: String(id) };
@@ -417,7 +439,7 @@ export function TodosScreen() {
           />
         ) : null}
         {nowEmpty ? (
-          rest === 0 && kind !== "today" ? (
+          restNow === 0 && kind !== "today" ? (
             <StatusMessage
               icon="check"
               title={strings.todosEmptyTitle}
@@ -459,7 +481,7 @@ export function TodosScreen() {
             </Card>
           </Section>
         ))}
-        {rest > 0 ? (
+        {restNow > 0 ? (
           <button
             type="button"
             className={styles.restLink}
@@ -468,7 +490,7 @@ export function TodosScreen() {
               setRestOpen(true);
             }}
           >
-            {strings.todosShowRest(rest)}
+            {strings.todosShowRest(restNow)}
           </button>
         ) : null}
       </div>
@@ -504,6 +526,7 @@ export function TodosScreen() {
 }
 
 const EMPTY_HELD = new Map<number, Todo>();
+const EMPTY_ADDED: number[] = [];
 
 /** Порядок невыполненных в блоке: без даты — первыми (в порядке добавления), потом по дню
  *  (раньше — выше); в один день без времени — выше, потом по времени. Сортировка
@@ -512,13 +535,6 @@ function byWhen(a: Todo, b: Todo): number {
   const dayA = a.due_date ?? "";
   const dayB = b.due_date ?? "";
   return dayA.localeCompare(dayB) || (a.remind_time ?? "").localeCompare(b.remind_time ?? "");
-}
-
-/** День устройства «ГГГГ-ММ-ДД» момента `iso` (как localDate). */
-function dayOf(iso: string): string {
-  const moment = new Date(iso);
-  const month = String(moment.getMonth() + 1).padStart(2, "0");
-  return `${moment.getFullYear()}-${month}-${String(moment.getDate()).padStart(2, "0")}`;
 }
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
