@@ -2534,6 +2534,11 @@ class Repository:
             )
         )
 
+    async def get_session_by_id(self, session_id: int, now: datetime) -> WebSession | None:
+        """A web session by its row id, if it has not expired."""
+        session = await self.session.get(WebSession, session_id)
+        return session if session is not None and session.expires_at > now else None
+
     async def count_user_sessions(self, user_id: int, now: datetime, since: datetime) -> int:
         """Live web sessions of the account: not expired and started after `since` (older
         ones hit SESSION_MAX_AGE) — the devices logged in to the web app."""

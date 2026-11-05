@@ -47,9 +47,11 @@
   padding: var(--space-card-padding) 0;
 }
 
-/* Неделя / Месяц / Год — сегменты на серой подложке, выбранный — карточкой; края
-   полностью скруглены, как у таблетки папок. */
+/* Месяц / Квартал / Год — сегменты на серой подложке, выбранный — карточкой; края
+   полностью скруглены, как у таблетки папок. Карточка выбранного (.pillThumb) переезжает
+   под нажатый сегмент так же, как подложка папок (--tabbar-anim). */
 .pills {
+  position: relative;
   display: flex;
   gap: 2px;
   padding: 2px;
@@ -58,7 +60,24 @@
   background-color: var(--color-fill);
 }
 
+/* Сегменты равной ширины: ширина и место карточки — от числа сегментов и номера выбранного
+   (--pill-count, --pill-index; поля 2px и промежутки 2px — как у .pills). */
+.pillThumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: calc(
+    2px + var(--pill-index) * ((100% - 2px * (var(--pill-count) + 1)) / var(--pill-count) + 2px)
+  );
+  width: calc((100% - 2px * (var(--pill-count) + 1)) / var(--pill-count));
+  border-radius: var(--radius-pill);
+  background-color: var(--color-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: left var(--tabbar-anim);
+}
+
 .pill {
+  position: relative;
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
@@ -68,12 +87,27 @@
   font-weight: 600;
   color: var(--color-text-primary);
   background: transparent;
-  transition: background-color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.pill[aria-pressed="true"] {
-  background-color: var(--color-card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+.chartSwap {
+  animation: chart-swap 260ms ease-out;
+}
+
+@keyframes chart-swap {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pillThumb {
+    transition: none;
+  }
+
+  .chartSwap {
+    animation: none;
+  }
 }
 
 /* Значение последней (или выбранной) точки крупно; у выбранной — её дата рядом. */
@@ -93,11 +127,5 @@
   font-size: var(--font-size-secondary);
   font-weight: 400;
   letter-spacing: 0;
-  color: var(--color-text-secondary);
-}
-
-.tooEarly {
-  font-size: var(--font-size-body);
-  line-height: 1.35;
   color: var(--color-text-secondary);
 }

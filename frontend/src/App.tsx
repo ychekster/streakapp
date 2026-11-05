@@ -106,6 +106,7 @@ import { FolderHabitsScreen } from "./screens/FolderHabitsScreen";
 import { FoldersScreen, HABIT_FOLDERS, habitFoldersTexts } from "./screens/FoldersScreen";
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
+import { AdminDeviceScreen } from "./screens/AdminDeviceScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
 import {
   closeTodoRest,
@@ -359,7 +360,9 @@ export function App() {
       : (folders.find((folder) => String(folder.id) === activeFolderTab) ?? null);
   // «Невыполненные»: отмеченная привычка не пропадает из открытой папки сразу — её можно
   // снять обратно (и открыть привычку или форму новой); уходит, когда сменили папку —
-  // в том числе на «Все привычки» — или вкладку.
+  // в том числе на «Все привычки» — или вкладку. Задерживается только отмеченная на этом
+  // устройстве: выполненная по ответу сервера (отметили на телефоне, а здесь сперва
+  // показались данные с прошлого открытия) уходит сразу.
   const keptInFolder = useRef({ key: "", ids: new Set<number>() });
   const shownHabits = useMemo(() => {
     if (!activeFolder) {
@@ -373,7 +376,9 @@ export function App() {
     }
     const ids = keptInFolder.current.ids;
     const shown = listHabits.filter(
-      (habit) => activeFolder.habits.includes(habit.id) || ids.has(habit.id),
+      (habit) =>
+        activeFolder.habits.includes(habit.id) ||
+        (ids.has(habit.id) && dataStore.changedHere(habit.id)),
     );
     if (activeFolder.kind === "unfinished") {
       shown.forEach((habit) => ids.add(habit.id));
@@ -588,6 +593,16 @@ export function App() {
     pendingScroll.current = 0;
     setAdminMode(true);
   }, []);
+
+  // Веб: устройство разрешено в боте — админ-панель открывается, а выход из неё ведёт в
+  // Настройки, не на экран ожидания. Настройки перечитываются: вход больше не спросит.
+  const enterAllowedAdmin = useCallback(() => {
+    setSettingsPage(null);
+    refresh();
+    scrollUnderAdmin.current = scrollUnderSettingsPage.current;
+    pendingScroll.current = 0;
+    setAdminMode(true);
+  }, [refresh]);
 
   // Выход из админ-панели — на экран настроек, откуда в неё вошли.
   const exitAdmin = useCallback(() => {
@@ -1266,12 +1281,17 @@ export function App() {
       if (settingsPage === "install") {
         return <InstallFromTelegramScreen src="settings" />;
       }
+      if (settingsPage === "adminDevice") {
+        return <AdminDeviceScreen onAllowed={enterAllowedAdmin} />;
+      }
       return (
         <SettingsScreen
           state={settingsState}
           onSave={(patch) => void saveSettings(patch)}
           onOpen={showSettingsPage}
-          onOpenAdmin={enterAdmin}
+          onOpenAdmin={
+            settings?.admin_confirm ? () => showSettingsPage("adminDevice") : enterAdmin
+          }
           install={telegramAvailable ? install : null}
           account={
             !web
@@ -1334,6 +1354,7 @@ export function App() {
         onAdd={tab === "todos" ? startNewTodo : () => showEditor(null)}
         addLabel={tab === "todos" ? strings.todosNew : strings.addHabit}
         addIcon={tab === "todos" ? <PencilIcon /> : undefined}
+        stretched={showTodos}
       />
       {/* «Сверх плана»: плашка «Отменить» после серии нажатий и окно счёта (удержание). */}
       <UndoToast aboveTabBar={!tabBarHidden} />

@@ -9,7 +9,9 @@
  * админ-панель — пять вкладок без «+»: тогда таблетка занимает всю ширину, а вкладки
  * делят её по длине подписей (каждой — её подпись и поровну свободного места), чтобы
  * длинная подпись («Пользователи») помещалась целиком. На совсем узком экране подпись
- * обрезается многоточием.
+ * обрезается многоточием. С вкладкой «Задачи» (три вкладки и «+») таблетка растянута:
+ * вместе с кнопкой — почти во всю ширину, как таб-бар Telegram на iOS 26 (`stretched`),
+ * а за навигацией — едва заметная дымка от её середины к низу экрана.
  *
  * Подложка ставится по измеренному положению и ширине активной вкладки — поэтому
  * вкладкам не обязательно быть одной ширины, а смена языка (другие подписи) её не сбивает.
@@ -44,6 +46,8 @@ interface TabBarProps<K extends string> {
   addLabel?: string;
   /** Иконка кнопки вместо «+» (на вкладке «Задачи» — карандаш). */
   addIcon?: ReactNode;
+  /** Таблетка с кнопкой — почти во всю ширину, за ними дымка (включены «Задачи»). */
+  stretched?: boolean;
 }
 
 /** Положение подложки внутри таблетки: края вкладки от левого и правого края таблетки, px. */
@@ -62,11 +66,17 @@ export function TabBar<K extends string>({
   onAdd,
   addLabel,
   addIcon,
+  stretched = false,
 }: TabBarProps<K>) {
   const pillRef = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<Thumb | null>(null);
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === active));
-  const className = [styles.bar, hidden ? styles.hidden : "", onAdd ? "" : styles.wide]
+  const className = [
+    styles.bar,
+    hidden ? styles.hidden : "",
+    onAdd ? "" : styles.wide,
+    stretched && onAdd ? styles.stretched : "",
+  ]
     .filter(Boolean)
     .join(" ");
 

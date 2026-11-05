@@ -84,7 +84,8 @@ export type SettingsPage =
   | "privacy"
   | "terms"
   | "install"
-  | "account";
+  | "account"
+  | "adminDevice";
 
 /** The account in the «Аккаунт» row (in the Mini App: always known, never a guest). */
 export interface AccountState {

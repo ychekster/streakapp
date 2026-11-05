@@ -353,6 +353,11 @@
   --tabbar-thumb-overhang: 4px; /* на сколько подложка выходит за края вкладки */
   --tabbar-wide-max-width: 460px; /* таблетка без «+» (админ-панель) — во всю ширину, не шире */
   --tabbar-wide-tab-pad: 2px; /* поля вкладки в широкой таблетке (свободное место — поровну) */
+  /* С вкладкой «Задачи»: таблетка и «+» вместе почти во всю ширину (эталон: таб-бар
+     Telegram на iOS 26, 20pt от краёв экрана), за ними едва заметная дымка. */
+  --tabbar-stretched-x: 20px;
+  --tabbar-stretched-max-width: 460px;
+  --tabbar-haze-opacity: 0.55;
   --tabbar-thumb: rgba(118, 118, 128, 0.16); /* серая подложка активной вкладки */
   --tabbar-icon-size: 26px;
   --tabbar-label-size: 10px;

@@ -18,11 +18,10 @@
  *  - «Итоги по дням» — крупное кольцо с долей выполненных в центре, под ним плитки:
  *    выполнено, частично (только со счётом), пропущено, заморожено (у «Гибкого графика»
  *    нет пропусков — круга нет).
- * Дни недели и круг — только когда привычке хотя бы MIN_DAYS дней: раньше в них нечего
- * читать.
+ * Дни недели и круг — с первого дня привычки, по тем дням, что уже есть.
  */
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { BarChart } from "../components/charts/BarChart";
 import { LineChart } from "../components/charts/LineChart";
@@ -38,7 +37,6 @@ import { WEEKDAYS } from "../constants";
 import {
   bestDay,
   dayBreakdown,
-  daysGoing,
   monthTotals,
   statsKind,
   trend,
@@ -53,9 +51,6 @@ import { habitColorStyle } from "../theme";
 import type { Habit } from "../types/habit";
 import habitStyles from "./HabitScreen.module.css";
 import styles from "./HabitStatsScreen.module.css";
-
-/** С какого дня привычки показываются дни недели и круг. */
-const MIN_DAYS = 14;
 
 const RANGES: StatsRange[] = ["month", "quarter", "year"];
 
@@ -117,6 +112,8 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   const day = useGridView().day ?? localDate();
   const kind = statsKind(habit);
   const [range, setRange] = useState<StatsRange>("month");
+  // Проявление графика — только при смене периода, не при открытии экрана.
+  const [rangeSwitched, setRangeSwitched] = useState(false);
   const [point, setPoint] = useState<number | null>(null);
   const [weekday, setWeekday] = useState<number | null>(null);
 
@@ -125,7 +122,6 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   const line = useMemo(() => trend(habit, day, range), [habit, day, range]);
   const rates = useMemo(() => weekdayRates(habit, day), [habit, day]);
   const breakdown = useMemo(() => dayBreakdown(habit, day), [habit, day]);
-  const enough = daysGoing(habit, day) >= MIN_DAYS;
   const { current, previous } = month;
   const counts = kind === "time" || kind === "times";
 
@@ -245,7 +241,18 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
         >
           <Card padded>
             <div className={styles.chartCard}>
-              <div className={styles.pills} role="group" aria-label={strings.statsTrendHeading}>
+              <div
+                className={styles.pills}
+                role="group"
+                aria-label={strings.statsTrendHeading}
+                style={
+                  {
+                    "--pill-count": RANGES.length,
+                    "--pill-index": RANGES.indexOf(range),
+                  } as CSSProperties
+                }
+              >
+                <span className={styles.pillThumb} aria-hidden="true" />
                 {RANGES.map((option) => (
                   <button
                     key={option}
@@ -254,6 +261,7 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                     aria-pressed={option === range}
                     onClick={() => {
                       setRange(option);
+                      setRangeSwitched(true);
                       setPoint(null);
                     }}
                   >
@@ -265,16 +273,19 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                 {shownValue === null ? "—" : Math.round(shownValue)}
                 {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
               </p>
-              <LineChart
-                values={line.values}
-                labels={labels}
-                fit
-                tickCount={3}
-                formatTick={String}
-                selected={point}
-                onSelect={setPoint}
-                label={strings.statsTrendHeading}
-              />
+              {/* Другой период — график проявляется заново, а не подменяется рывком. */}
+              <div key={range} className={rangeSwitched ? styles.chartSwap : undefined}>
+                <LineChart
+                  values={line.values}
+                  labels={labels}
+                  fit
+                  tickCount={3}
+                  formatTick={String}
+                  selected={point}
+                  onSelect={setPoint}
+                  label={strings.statsTrendHeading}
+                />
+              </div>
             </div>
           </Card>
         </Section>
@@ -292,19 +303,15 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
         >
           <Card padded>
             <div className={styles.chartCard}>
-              {enough ? (
-                <BarChart
-                  values={rates}
-                  labels={WEEKDAYS.map((key) => strings.weekdays[key].short)}
-                  max={100}
-                  formatTick={(value) => `${value}%`}
-                  selected={weekday}
-                  onSelect={setWeekday}
-                  label={strings.statsWeekdaysHeading}
-                />
-              ) : (
-                <p className={styles.tooEarly}>{strings.statsTooEarly}</p>
-              )}
+              <BarChart
+                values={rates}
+                labels={WEEKDAYS.map((key) => strings.weekdays[key].short)}
+                max={100}
+                formatTick={(value) => `${value}%`}
+                selected={weekday}
+                onSelect={setWeekday}
+                label={strings.statsWeekdaysHeading}
+              />
             </div>
           </Card>
         </Section>
@@ -313,15 +320,11 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
           <Section title={strings.statsDaysHeading}>
             <Card padded>
               <div className={styles.chartCard}>
-                {enough ? (
-                  <PieChart
-                    slices={slices}
-                    centerLabel={strings.statsPieCenter}
-                    label={strings.statsDaysHeading}
-                  />
-                ) : (
-                  <p className={styles.tooEarly}>{strings.statsTooEarly}</p>
-                )}
+                <PieChart
+                  slices={slices}
+                  centerLabel={strings.statsPieCenter}
+                  label={strings.statsDaysHeading}
+                />
               </div>
             </Card>
           </Section>

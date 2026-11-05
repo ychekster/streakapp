@@ -174,12 +174,6 @@ export function bestDay(habit: Habit, day: string): { amount: number; date: stri
   return best;
 }
 
-/** How many days the habit has been going (from its first day to `day`), 0 — not begun. */
-export function daysGoing(habit: Habit, day: string): number {
-  const start = startOf(habit, day);
-  return start === null ? 0 : daysBetween(start, day) + 1;
-}
-
 /**
  * The habit's score — what the line chart («Динамика») draws: it grows while the habit is
  * kept and falls when it is not, so a habit done every day is a rising line, not a flat

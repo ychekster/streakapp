@@ -52,7 +52,12 @@ async def sync(
     return SyncResponse(
         results=outcome.results,
         habits=await list_habits(repo, db_user),
-        settings=await read_settings(repo, db_user, via_telegram=principal.telegram is not None),
+        settings=await read_settings(
+            repo,
+            db_user,
+            via_telegram=principal.telegram is not None,
+            admin_trusted=principal.admin_trusted,
+        ),
         folders=await list_folders(repo, db_user),
         all_habits_position=await all_habits_position(repo, db_user),
         today=user_today(db_user),

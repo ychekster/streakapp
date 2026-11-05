@@ -1733,12 +1733,16 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
 
 
 async def read_settings(
-    repo: Repository, user: User, *, via_telegram: bool
+    repo: Repository, user: User, *, via_telegram: bool, admin_trusted: bool = False
 ) -> SettingsResponse:
-    """Настройки пользователя (для `GET /settings`). Вход в админ-панель виден только в
-    Mini App (`via_telegram`): веб-сессия админку не открывает (см. get_admin_user)."""
-    is_admin = via_telegram and await repo.is_admin(user.telegram_id)
-    return serialize_settings(user, is_admin)
+    """Настройки пользователя (для `GET /settings`). Вход в админ-панель виден
+    администратору и в Mini App, и в веб-приложении; в вебе, пока устройство не
+    разрешено в боте (`admin_trusted`), вход сначала просит подтверждения
+    (`admin_confirm`, см. get_admin_user)."""
+    is_admin = await repo.is_admin(user.telegram_id)
+    response = serialize_settings(user, is_admin)
+    response.admin_confirm = is_admin and not via_telegram and not admin_trusted
+    return response
 
 
 async def update_settings(repo: Repository, user: User, payload: SettingsUpdate) -> None:

@@ -376,10 +376,18 @@ function mergeTodoUpdates(earlier: TodoUpdate, later: TodoUpdate): TodoUpdate {
   return merged;
 }
 
+/** Habits (ids on screen) changed on this device since the app opened: marked, frozen,
+ *  edited, timed. «Невыполненные» keeps only these after they are done (App); a habit
+ *  that turns done in the server's answer (marked on another device) leaves at once. */
+const changedHere = new Set<number>();
+
 /** Add `op` to the unsent part of the queue, merged with what it makes pointless: the
  *  same day marked again, a habit edited twice, a habit created and deleted before
  *  sending, settings changed several times. */
 function enqueue(op: Operation): void {
+  if ("task" in op && op.task !== null) {
+    changedHere.add(displayIdOfKey(op.task));
+  }
   const sent = ops.slice(0, sending);
   let unsent = ops.slice(sending);
   if (op.type === "mark" || op.type === "note") {
@@ -861,6 +869,11 @@ export const dataStore = {
 
   getState(): DataState {
     return state;
+  },
+
+  /** Was the habit changed on this device since the app opened (marked, edited…). */
+  changedHere(id: number): boolean {
+    return changedHere.has(id);
   },
 
   /** Mark or unmark the habit for the marking day. A habit done several times a day

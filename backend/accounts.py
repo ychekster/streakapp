@@ -40,12 +40,15 @@ PROVIDER_TELEGRAM = "telegram"
 # One-time code kinds (auth_codes.kind).
 CODE_HANDOFF = "handoff"  # Telegram Mini App → browser → installed app, same account
 CODE_TELEGRAM_LOGIN = "tg_login"  # "log in via Telegram" through the bot
+CODE_ADMIN_DEVICE = "admin_device"  # admin panel on a web device, allowed in the bot
 
 # Lifetimes of codes that are not configurable.
 TELEGRAM_LOGIN_TTL = timedelta(minutes=10)
 # The bot accepts «Подтвердить вход» only this soon after the app asked: a login link
 # sent to someone else goes stale before they could be talked into confirming it.
 TELEGRAM_LOGIN_CONFIRM_WINDOW = timedelta(minutes=3)
+# «Разрешить» under the bot's admin panel request works this long.
+ADMIN_DEVICE_TTL = timedelta(minutes=10)
 
 # A session's expiry is pushed forward at most this often (not on every request).
 _SESSION_REFRESH_INTERVAL = timedelta(hours=12)
@@ -340,3 +343,80 @@ def confirmed_telegram(code: AuthCode) -> LoginProfile | None:
     if not isinstance(data, dict) or not isinstance(data.get("id"), int):
         return None
     return telegram_profile(data["id"], data.get("username"), data.get("first_name"))
+
+
+# --------------------------------------------------------------------------- #
+#  Admin panel on a web device
+# --------------------------------------------------------------------------- #
+#
+# A web session lives long and sits in the browser, so on its own it gives no admin
+# rights. An administrator allows the panel once per device: the app asks
+# (`POST /auth/admin-device`), the bot writes to the administrator's Telegram naming the
+# device, and «Разрешить» marks that one session (`web_sessions.admin_trusted_at`).
+# Logging out (on the device or «на всех устройствах») ends the permission with it.
+
+
+def device_label(user_agent: str | None) -> str:
+    """«Chrome, Windows»: browser and system by User-Agent, for the bot's question."""
+    agent = (user_agent or "").lower()
+    if "iphone" in agent:
+        system = "iPhone"
+    elif "ipad" in agent:
+        system = "iPad"
+    elif "android" in agent:
+        system = "Android"
+    elif "windows" in agent:
+        system = "Windows"
+    elif "mac os" in agent or "macintosh" in agent:
+        system = "macOS"
+    elif "linux" in agent:
+        system = "Linux"
+    else:
+        system = ""
+    if "yabrowser" in agent:
+        browser = "Yandex Browser"
+    elif "edg/" in agent:
+        browser = "Edge"
+    elif "opr/" in agent or "opera" in agent:
+        browser = "Opera"
+    elif "firefox" in agent or "fxios" in agent:
+        browser = "Firefox"
+    elif "chrome" in agent or "crios" in agent:
+        browser = "Chrome"
+    elif "safari" in agent:
+        browser = "Safari"
+    else:
+        browser = ""
+    return ", ".join(part for part in (browser, system) if part)
+
+
+async def confirm_admin_device(
+    repo: Repository, settings: Settings, code: str, telegram_id: int
+) -> bool:
+    """The bot's «Разрешить»: the session that asked may open the admin panel. Only the
+    administrator the request was sent to, only once and while the code is live. False:
+    nothing changed (stale, someone else's, no longer an administrator)."""
+    found = await find_code(repo, settings, code, CODE_ADMIN_DEVICE)
+    if found is None or found.user_id != telegram_id or not await repo.is_admin(telegram_id):
+        return False
+    session_id = code_payload(found).get("session")
+    now = utc_now()
+    session = (
+        await repo.get_session_by_id(session_id, now) if isinstance(session_id, int) else None
+    )
+    if session is None or session.user_id != telegram_id:
+        return False
+    if not await repo.use_code(found, now):
+        return False
+    session.admin_trusted_at = now
+    await repo.log_action(telegram_id, "admin_device", detail=device_label(session.user_agent))
+    return True
+
+
+async def decline_admin_device(
+    repo: Repository, settings: Settings, code: str, telegram_id: int
+) -> None:
+    """The bot's «Отклонить»: the request is spent, the app stops waiting."""
+    found = await find_code(repo, settings, code, CODE_ADMIN_DEVICE)
+    if found is not None and found.user_id == telegram_id:
+        await repo.use_code(found, utc_now())

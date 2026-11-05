@@ -287,6 +287,15 @@ const RU = {
   checkinReminderTime: "Время",
   // Вход в админ-панель — виден только администраторам.
   settingsAdminPanel: "Админ-панель",
+  // Веб: первый вход в админ-панель на устройстве подтверждается в боте (AdminDeviceScreen).
+  adminDeviceWaitTitle: "Подтвердите в Telegram",
+  adminDeviceWaitDescription:
+    "Бот прислал вам сообщение. Нажмите в нём «Разрешить», и админ-панель откроется. На этом устройстве подтверждать больше не придётся.",
+  adminDeviceExpiredTitle: "Не подтверждено",
+  adminDeviceExpiredDescription: "Запрос отклонили или он устарел.",
+  adminDeviceFailedTitle: "Не удалось отправить запрос",
+  adminDeviceFailed: "Проверьте связь и попробуйте ещё раз.",
+  adminDeviceRetry: "Отправить ещё раз",
 
   // --- Web app (PWA): install, account, notifications ---
   settingsInstall: "Добавить на рабочий стол",
@@ -451,7 +460,6 @@ const RU = {
     missed: "Пропущено",
     frozen: "Заморожено",
   },
-  statsTooEarly: "Пока мало данных: загляните через пару недель.",
   // Календарь экрана привычки (HabitCalendar.tsx).
   calendarHeading: "Календарь",
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
@@ -678,8 +686,6 @@ const RU = {
   formAdvanced: "Дополнительно",
   // «Папки» в «Дополнительно»: свои папки с галочками.
   formFoldersHeading: "Папки",
-  formFoldersFooter:
-    "Привычка будет во вкладках отмеченных папок. Папки, которые собирают привычки по типу, отмечаются сами.",
   formAutoMarkHeading: "Автоотметка",
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
@@ -762,6 +768,7 @@ const RU = {
     handoff_invalid: "Ссылка устарела. Откройте её заново из Telegram",
     stale_init_data: "Закройте и откройте приложение заново: ссылка выдаётся только сразу после открытия",
     login_expired: "Вход устарел. Попробуйте ещё раз",
+    bot_unreachable: "Бот не может вам написать. Откройте его в Telegram, нажмите «Старт» и попробуйте ещё раз.",
     account_conflict: "Этот вход уже привязан к другому аккаунту Telegram",
     telegram_already_linked: "К аккаунту уже привязан другой Telegram",
     invalid_telegram_login: "Telegram не подтвердил вход. Попробуйте ещё раз.",
@@ -986,6 +993,14 @@ const EN: Strings = {
   checkinReminderToggle: "Remind Me to Check In",
   checkinReminderTime: "Time",
   settingsAdminPanel: "Admin Panel",
+  adminDeviceWaitTitle: "Confirm in Telegram",
+  adminDeviceWaitDescription:
+    "The bot has sent you a message. Tap “Allow” there and the admin panel will open. You won’t need to confirm on this device again.",
+  adminDeviceExpiredTitle: "Not Confirmed",
+  adminDeviceExpiredDescription: "The request was declined or has expired.",
+  adminDeviceFailedTitle: "Couldn’t Send the Request",
+  adminDeviceFailed: "Check your connection and try again.",
+  adminDeviceRetry: "Send Again",
 
   settingsInstall: "Add to Home Screen",
   settingsAccount: "Account",
@@ -1124,7 +1139,6 @@ const EN: Strings = {
     missed: "Missed",
     frozen: "Frozen",
   },
-  statsTooEarly: "Not enough data yet: check back in a couple of weeks.",
   calendarHeading: "Calendar",
   groupHistoryHeading: "Group’s last 364 days",
   groupHistoryCalendarHeading: "Group’s last 8 months",
@@ -1315,8 +1329,6 @@ const EN: Strings = {
   formThemeHeading: "Color",
   formAdvanced: "Advanced",
   formFoldersHeading: "Folders",
-  formFoldersFooter:
-    "The habit shows up in the tabs of the checked folders. Folders that collect habits by type are checked on their own.",
   formAutoMarkHeading: "Auto Check-Off",
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:
@@ -1390,6 +1402,7 @@ const EN: Strings = {
     handoff_invalid: "This link has expired. Open it again from Telegram",
     stale_init_data: "Close and reopen the app: the link is only issued right after opening it",
     login_expired: "The login has expired. Please try again",
+    bot_unreachable: "The bot can’t message you. Open it in Telegram, tap “Start” and try again.",
     account_conflict: "This login is already linked to another Telegram account",
     telegram_already_linked: "Another Telegram account is already linked",
     invalid_telegram_login: "Telegram didn’t confirm the login. Please try again.",

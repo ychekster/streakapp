@@ -106,6 +106,22 @@ LOGIN_DONE_TEXT = "Готово! Вход выполнен, вернитесь �
 LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
 LOGIN_CANCELLED_TEXT = "Вход отменён."
 
+# The admin panel on a web device (bot/handlers/admin_device.py): the API asks the
+# administrator (backend/messaging.py, send_admin_device_request); the bot answers a press
+# by replacing the question with one of these (by the administrator's language).
+ADMIN_DEVICE_ALLOWED_TEXT = {
+    "ru": "Готово! Админ-панель на этом устройстве разрешена, вернитесь в приложение.",
+    "en": "Done! The admin panel is allowed on this device, go back to the app.",
+}
+ADMIN_DEVICE_DECLINED_TEXT = {
+    "ru": "Запрос отклонён. Если это были не вы, выйдите на всех устройствах в настройках приложения.",
+    "en": "Request declined. If this wasn't you, log out on all devices in the app's settings.",
+}
+ADMIN_DEVICE_EXPIRED_TEXT = {
+    "ru": "Запрос устарел. Откройте админ-панель в приложении ещё раз.",
+    "en": "This request has expired. Open the admin panel in the app again.",
+}
+
 # --------------------------------------------------------------------------- #
 #  Совместные привычки (bot/handlers/group_invite.py, bot/reminders.py)
 # --------------------------------------------------------------------------- #

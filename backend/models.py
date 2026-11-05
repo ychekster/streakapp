@@ -859,6 +859,9 @@ class WebSession(Base):
     )
     last_used_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # The admin panel on this device: the administrator allowed it in the bot (a button
+    # under the bot's message). NULL — the session gives no admin rights.
+    admin_trusted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class AuthCode(Base):

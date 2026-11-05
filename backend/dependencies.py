@@ -136,6 +136,10 @@ class Principal:
     user_id: int
     telegram: TelegramUser | None = None
     session_token: str | None = None
+    # Web only: the session's row id and whether the administrator allowed the admin
+    # panel on this device (accounts.confirm_admin_device).
+    session_id: int | None = None
+    admin_trusted: bool = False
 
 
 async def get_principal(
@@ -153,7 +157,12 @@ async def get_principal(
     if session is None:
         raise ApiError(401, "invalid_session", "Сессия устарела — войдите снова")
     _rate_limit(request, session.user_id)
-    return Principal(user_id=session.user_id, session_token=token)
+    return Principal(
+        user_id=session.user_id,
+        session_token=token,
+        session_id=session.id,
+        admin_trusted=session.admin_trusted_at is not None,
+    )
 
 
 async def get_optional_principal(
@@ -220,10 +229,12 @@ async def get_admin_user(
 ) -> User:
     """Текущий пользователь, если он администратор; иначе 403. Нужна каждому /admin/*.
 
-    Админ-панель открывается только из Mini App — каждый её запрос подписан Telegram
-    (initData). Сессия веб-приложения живёт долго и хранится в браузере, поэтому прав
-    администратора не даёт, даже если аккаунт — администратора.
+    В Mini App каждый запрос подписан Telegram (initData). Сессия веб-приложения живёт
+    долго и хранится в браузере, поэтому сама по себе прав не даёт: только если
+    администратор разрешил админ-панель на этом устройстве кнопкой в боте
+    (accounts.confirm_admin_device).
     """
-    if principal.telegram is None or not await repo.is_admin(db_user.telegram_id):
+    allowed = principal.telegram is not None or principal.admin_trusted
+    if not allowed or not await repo.is_admin(db_user.telegram_id):
         raise ApiError(403, "admin_required", "Нужны права администратора")
     return db_user

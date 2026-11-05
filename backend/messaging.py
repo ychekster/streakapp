@@ -206,6 +206,52 @@ async def send_text(bot: Bot, chat_id: int, text: str) -> Undelivered | None:
     return result if isinstance(result, str) else None
 
 
+# «Админ-панель» in the web app: the bot asks the administrator to allow this device
+# (routers/auth.py); the buttons are handled by the bot (bot/handlers/admin_device.py).
+ADMIN_DEVICE_ALLOW = "admindev:ok:"
+ADMIN_DEVICE_DECLINE = "admindev:no:"
+ADMIN_DEVICE_TEXTS: dict[str, str] = {
+    "ru": (
+        "Открыть админ-панель Knot на этом устройстве?\n\n"
+        "{device}\n\n"
+        "Если это не вы, нажмите «Отклонить» и выйдите на всех устройствах в настройках "
+        "приложения."
+    ),
+    "en": (
+        "Open the Knot admin panel on this device?\n\n"
+        "{device}\n\n"
+        "If this wasn't you, tap “Decline” and log out on all devices in the app's settings."
+    ),
+}
+ADMIN_DEVICE_UNKNOWN: dict[str, str] = {"ru": "Устройство не определено", "en": "Unknown device"}
+ADMIN_DEVICE_BUTTONS: dict[str, tuple[str, str]] = {
+    "ru": ("Разрешить", "Отклонить"),
+    "en": ("Allow", "Decline"),
+}
+
+
+async def send_admin_device_request(
+    bot: Bot, chat_id: int, language: str, device: str, code: str
+) -> Undelivered | None:
+    """The bot's question «open the admin panel on this device?» with «Разрешить» and
+    «Отклонить». None — delivered."""
+    if chat_id < 0:
+        return "chat_not_found"
+    lang = language if language in ADMIN_DEVICE_TEXTS else DEFAULT_LANGUAGE
+    allow, decline = ADMIN_DEVICE_BUTTONS[lang]
+    text = ADMIN_DEVICE_TEXTS[lang].format(device=device or ADMIN_DEVICE_UNKNOWN[lang])
+    markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=allow, callback_data=f"{ADMIN_DEVICE_ALLOW}{code}")],
+            [InlineKeyboardButton(text=decline, callback_data=f"{ADMIN_DEVICE_DECLINE}{code}")],
+        ]
+    )
+    result = await _send(
+        lambda: bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+    )
+    return result if isinstance(result, str) else None
+
+
 async def send_document(
     bot: Bot, chat_id: int, file_name: str, content: bytes, caption: str
 ) -> Undelivered | None:

@@ -24,13 +24,16 @@ from tests.helpers import TEST_BOT_TOKEN, sign_init_data
 from backend.accounts import (
     SESSION_MAX_AGE,
     TELEGRAM_LOGIN_CONFIRM_WINDOW,
+    confirm_admin_device,
     confirm_telegram_login,
+    decline_admin_device,
     telegram_login_request,
 )
 from backend.config import load_settings
 from backend.constants import MAX_PUSH_SUBSCRIPTIONS_PER_USER, SEED_ADMIN_IDS
 from backend.database import Database
 from backend.funnel import _client_props
+from backend.messaging import ADMIN_DEVICE_ALLOW, ADMIN_DEVICE_DECLINE
 from backend.models import FrequencyType
 from backend.ratelimit import RateLimiter
 from backend.repository import Repository, utc_now
@@ -291,19 +294,81 @@ def test_a_guest_or_the_mini_app_cannot_log_out(client: TestClient, user: AuthUs
     assert mini_app.json()["error"]["code"] == "web_only"
 
 
-def test_admin_panel_opens_only_in_telegram(client: TestClient) -> None:
+def _admin_web_session(client: TestClient) -> tuple[AuthUser, dict[str, str]]:
+    """The seed administrator and their own web session (via a handoff link)."""
     admin = auth_user(SEED_ADMIN_IDS[0])
-    assert client.get("/settings", headers=admin.headers).json()["is_admin"] is True
     token = client.post("/auth/handoff", json={}, headers=admin.headers).json()["token"]
     redeemed = client.post("/auth/handoff/redeem", json={"token": token})
-    session = _bearer(redeemed.json()["session"]["token"])
-    # The admin's own web session: an ordinary account, no admin panel.
-    assert client.get("/settings", headers=session).json()["is_admin"] is False
-    assert client.post("/sync", json={"ops": []}, headers=session).json()["settings"]["is_admin"] is False
+    return admin, _bearer(redeemed.json()["session"]["token"])
+
+
+def _press(telegram: FakeTelegram, button: int) -> str:
+    """The callback data of a button under the bot's last message (0 — «Разрешить»)."""
+    markup = telegram.sent[-1].extra["reply_markup"]
+    return markup.inline_keyboard[button][0].callback_data
+
+
+def test_admin_panel_on_the_web_needs_the_device_allowed_in_the_bot(
+    client: TestClient, telegram: FakeTelegram
+) -> None:
+    admin, session = _admin_web_session(client)
+    assert client.get("/settings", headers=admin.headers).json()["admin_confirm"] is False
+    # The admin's web session sees the entry, but the device is not allowed yet.
+    settings = client.get("/settings", headers=session).json()
+    assert settings["is_admin"] is True and settings["admin_confirm"] is True
+    synced = client.post("/sync", json={"ops": []}, headers=session).json()["settings"]
+    assert synced["admin_confirm"] is True
     response = client.get("/admin/funnel", headers=session)
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "admin_required"
-    assert client.get("/admin/funnel", headers=admin.headers).status_code == 200
+
+    started = client.post(
+        "/auth/admin-device",
+        headers={**session, "User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0"},
+    )
+    assert started.status_code == 200, started.text
+    assert started.json()["status"] == "pending"
+    token = started.json()["token"]
+    sent = telegram.sent[-1]
+    assert sent.chat_id == admin.id
+    assert "Chrome, Windows" in (sent.text or "")
+    poll = client.post("/auth/admin-device/poll", json={"token": token}, headers=session)
+    assert poll.json()["status"] == "pending"
+
+    code = _press(telegram, 0)[len(ADMIN_DEVICE_ALLOW):]
+    # Someone else pressing it changes nothing.
+    assert not _run(lambda repo: confirm_admin_device(repo, load_settings(), code, admin.id + 1))
+    assert _run(lambda repo: confirm_admin_device(repo, load_settings(), code, admin.id))
+    assert not _run(lambda repo: confirm_admin_device(repo, load_settings(), code, admin.id))
+
+    poll = client.post("/auth/admin-device/poll", json={"token": token}, headers=session)
+    assert poll.json()["status"] == "done"
+    assert client.get("/settings", headers=session).json()["admin_confirm"] is False
+    assert client.get("/admin/funnel", headers=session).status_code == 200
+    again = client.post("/auth/admin-device", headers=session)
+    assert again.json()["status"] == "done"
+
+    # Another web session of the same account is not allowed by this one.
+    _, other = _admin_web_session(client)
+    assert client.get("/admin/funnel", headers=other).status_code == 403
+
+
+def test_admin_device_declined_or_asked_by_a_non_admin(
+    client: TestClient, telegram: FakeTelegram
+) -> None:
+    admin, session = _admin_web_session(client)
+    token = client.post("/auth/admin-device", headers=session).json()["token"]
+    code = _press(telegram, 1)[len(ADMIN_DEVICE_DECLINE):]
+    _run(lambda repo: decline_admin_device(repo, load_settings(), code, admin.id))
+    poll = client.post("/auth/admin-device/poll", json={"token": token}, headers=session)
+    assert poll.json()["status"] == "expired"
+    assert client.get("/admin/funnel", headers=session).status_code == 403
+
+    guest = client.post("/auth/admin-device", headers=_guest(client))
+    assert guest.status_code == 403
+    assert guest.json()["error"]["code"] == "admin_required"
+    mini_app = client.post("/auth/admin-device", headers=admin.headers)
+    assert mini_app.json()["error"]["code"] == "web_only"
 
 
 def test_handoff_is_created_only_in_telegram(client: TestClient) -> None:

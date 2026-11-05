@@ -527,6 +527,11 @@ class SettingsResponse(BaseModel):
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
+    admin_confirm: bool = Field(
+        False,
+        description="Веб: админ-панель на этом устройстве ещё не разрешена в боте "
+        "(вход сначала просит подтвердить, `POST /auth/admin-device`)",
+    )
 
 
 class CheckinReminderUpdate(BaseModel):
@@ -1682,6 +1687,21 @@ class TelegramLoginPoll(BaseModel):
 
     status: Literal["pending", "done"]
     result: LinkResult | None = None
+
+
+class AdminDeviceStart(BaseModel):
+    """`POST /auth/admin-device`: `pending` — the bot asked the administrator, poll with
+    `token`; `done` — the panel is already allowed on this device."""
+
+    status: Literal["pending", "done"]
+    token: str | None = None
+
+
+class AdminDevicePoll(BaseModel):
+    """`POST /auth/admin-device/poll`: `done` — allowed in the bot; `expired` — declined
+    or too late (ask again)."""
+
+    status: Literal["pending", "done", "expired"]
 
 
 class TelegramWidgetLogin(BaseModel):

@@ -112,6 +112,7 @@ export type ApiErrorCode =
   | "invalid_telegram_login"
   | "web_only"
   | "telegram_only"
+  | "bot_unreachable"
   | "stale_init_data"
   | "guest_logout"
   | "invalid_event"

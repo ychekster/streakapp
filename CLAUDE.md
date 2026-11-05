@@ -30,6 +30,7 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
 bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, constants.py (texts, emoji ids),
                     profiles.py (shared habits: members' names and photos)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py,
+                    admin_device.py (web admin panel: «Разрешить» for a device),
                     group_invite.py (/start join_<code>)
 frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
@@ -44,7 +45,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0043)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0044)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -125,7 +126,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Offline / sync | routers/sync.py, services.apply_sync; frontend src/data/, api/sync.ts, sw.ts, web/bootstrap.ts |
 | Settings item | models.User, schemas.Settings*, services.py; screens/SettingsScreen.tsx, hooks/useSettings.ts |
 | Reminders | services.due_reminders / due_checkin_reminders, bot/reminders.py (Telegram or push) |
-| Admin panel | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts |
+| Admin panel | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts. In the web app: device allowed once in the bot (accounts.confirm_admin_device, routers/auth `/auth/admin-device`, bot/handlers/admin_device.py, WebSession.admin_trusted_at; frontend screens/AdminDeviceScreen.tsx, settings `admin_confirm`) |
 | Visitor path from the site (one device id `v` through landing → browser → installed app → bot `start=v_<hex>`; drop-off by step, a person's steps from the first click) | backend/analytics/journey.py, profile.timeline (events + activity_log, order), funnel.record_client_event (claim_anon_events), sources.split_visitor, bot/handlers/start.py; frontend web/analytics.ts (anonId, botLinkWithSource), landing/Landing.tsx, admin/components/JourneySection, UserTimeline, screens/AdminJourneyScreen, AdminVisitorScreen |
 | Web app login / accounts | backend/accounts.py, routers/auth.py, bot/handlers/web_login.py; frontend/src/web/ |
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |

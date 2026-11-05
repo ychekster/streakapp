@@ -73,6 +73,16 @@ export const pollTelegramLogin = (code: string) =>
     "/auth/telegram/poll",
     post({ token: code }),
   );
+/** «Админ-панель» on a device not allowed yet: the bot asks the administrator. */
+export const requestAdminDevice = () =>
+  apiRequest<{ status: "pending" | "done"; token: string | null }>("/auth/admin-device", {
+    method: "POST",
+  });
+export const pollAdminDevice = (token: string) =>
+  apiRequest<{ status: "pending" | "done" | "expired" }>(
+    "/auth/admin-device/poll",
+    post({ token }),
+  );
 export const savePushSubscription = (subscription: PushSubscriptionJSON) =>
   apiRequest<{ subscribed: boolean }>("/web/push/subscribe", post(subscription));
 export const removePushSubscription = (endpoint: string) =>

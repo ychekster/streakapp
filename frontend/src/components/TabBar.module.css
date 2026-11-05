@@ -84,6 +84,32 @@
   padding: 0 var(--tabbar-wide-tab-pad);
 }
 
+/* С вкладкой «Задачи»: таблетка забирает всё место рядом с «+», вместе они — во всю ширину
+   с полями --tabbar-stretched-x (как таб-бар Telegram на iOS 26), но не шире
+   --tabbar-stretched-max-width. Вкладки по-прежнему равной ширины. */
+.stretched {
+  padding: 0 var(--tabbar-stretched-x);
+}
+
+.stretched .pill {
+  flex: 1;
+  max-width: calc(var(--tabbar-stretched-max-width) - var(--tabbar-height) - var(--tabbar-gap));
+}
+
+/* Дымка за навигацией: от её середины до низа экрана фон приложения едва проступает
+   поверх списка. Внутри .bar — поэтому уезжает вниз вместе с навигацией. */
+.stretched::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  bottom: calc(-1 * var(--tabbar-offset));
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, var(--color-background), transparent);
+  opacity: var(--tabbar-haze-opacity);
+  pointer-events: none;
+}
+
 /* relative — чтобы вкладка рисовалась поверх абсолютно позиционированной подложки. */
 .tab {
   position: relative;
@@ -138,7 +164,9 @@
   height: var(--tabbar-icon-size);
 }
 
+/* relative — кнопка рисуется поверх дымки (.stretched::before). */
 .add {
+  position: relative;
   width: var(--tabbar-height);
   height: var(--tabbar-height);
   border-radius: 50%;

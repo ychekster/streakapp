@@ -9,6 +9,8 @@
     POST   /auth/telegram/start       — app: "log in via Telegram" through the bot
     POST   /auth/telegram/poll        — app: has the bot confirmed it?
     POST   /auth/telegram/widget      — app: Telegram web login result (hash-checked)
+    POST   /auth/admin-device         — app: allow the admin panel on this device (the bot asks)
+    POST   /auth/admin-device/poll    — app: has the administrator allowed it?
 
 Logins always attach to the account the request is made from; linking may switch to
 or merge with another account (see accounts.py). The web app then gets a new session,
@@ -24,6 +26,8 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, Request, Response
 
 from backend.accounts import (
+    ADMIN_DEVICE_TTL,
+    CODE_ADMIN_DEVICE,
     CODE_HANDOFF,
     CODE_TELEGRAM_LOGIN,
     TELEGRAM_LOGIN_TTL,
@@ -31,6 +35,7 @@ from backend.accounts import (
     confirmed_telegram,
     create_code,
     create_guest,
+    device_label,
     end_all_sessions,
     end_other_sessions,
     end_session,
@@ -49,11 +54,14 @@ from backend.dependencies import (
     get_settings,
 )
 from backend.errors import ApiError
+from backend.messaging import send_admin_device_request
 from backend.models import User
 from backend.ratelimit import RateLimiter, retry_after_header
 from backend.repository import Repository, utc_now
 from backend.schemas import (
     AccountResponse,
+    AdminDevicePoll,
+    AdminDeviceStart,
     HandoffCreate,
     HandoffResponse,
     LinkResult,
@@ -357,3 +365,64 @@ async def telegram_widget_login(
     profile = telegram_profile(telegram.id, telegram.username, telegram.first_name)
     account = await link_login(repo, await _current_user(repo, principal), profile)
     return await _result(request, repo, principal, account)
+
+
+# --------------------------------------------------------------------------- #
+#  Admin panel on a web device (accounts.confirm_admin_device)
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/admin-device", response_model=AdminDeviceStart)
+async def request_admin_device(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> AdminDeviceStart:
+    """«Админ-панель» in the web app on a device not allowed yet: the bot asks the
+    administrator in Telegram (naming the device), and the app polls
+    `/auth/admin-device/poll`. Once allowed, the panel opens on this device right away."""
+    _require_web(principal)
+    if not await repo.is_admin(db_user.telegram_id):
+        raise ApiError(403, "admin_required", "Нужны права администратора")
+    if principal.admin_trusted:
+        return AdminDeviceStart(status="done")
+    limit(request, request.app.state.user_data_limiter, f"admin-device:{db_user.telegram_id}")
+    code = await create_code(
+        repo,
+        get_settings(request),
+        CODE_ADMIN_DEVICE,
+        db_user.telegram_id,
+        ADMIN_DEVICE_TTL,
+        {"session": principal.session_id},
+        short=True,
+    )
+    chat_id, language = db_user.telegram_id, db_user.language
+    await repo.commit()  # the code is saved before the bot's message can be pressed
+    undelivered = await send_admin_device_request(
+        request.app.state.bot,
+        chat_id,
+        language,
+        device_label(request.headers.get("user-agent")),
+        code,
+    )
+    if undelivered is not None:
+        raise ApiError(409, "bot_unreachable", "Бот не может написать вам, откройте его в Telegram")
+    return AdminDeviceStart(status="pending", token=code)
+
+
+@router.post("/admin-device/poll", response_model=AdminDevicePoll)
+async def poll_admin_device(
+    payload: TokenRequest,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    repo: Repository = RepositoryDep,
+) -> AdminDevicePoll:
+    """Pending until the administrator presses a button under the bot's message."""
+    _require_web(principal)
+    if principal.admin_trusted:
+        return AdminDevicePoll(status="done")
+    code = await find_code(repo, get_settings(request), payload.token, CODE_ADMIN_DEVICE)
+    if code is None or code.user_id != principal.user_id:
+        return AdminDevicePoll(status="expired")
+    return AdminDevicePoll(status="pending")

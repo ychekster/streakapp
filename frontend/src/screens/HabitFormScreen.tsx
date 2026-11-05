@@ -651,7 +651,6 @@ export function HabitFormScreen({
             <Section
               variant="form"
               title={strings.formFoldersHeading}
-              footer={strings.formFoldersFooter}
             >
               <Card>
                 {ownFolders.map((folder) => {

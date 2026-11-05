@@ -27,7 +27,12 @@ async def read_settings(
     repo: Repository = RepositoryDep,
 ) -> SettingsResponse:
     """Вернуть текущие настройки пользователя."""
-    return await build_settings(repo, db_user, via_telegram=principal.telegram is not None)
+    return await build_settings(
+        repo,
+        db_user,
+        via_telegram=principal.telegram is not None,
+        admin_trusted=principal.admin_trusted,
+    )
 
 
 @router.put("", response_model=SettingsResponse)
@@ -39,4 +44,9 @@ async def write_settings(
 ) -> SettingsResponse:
     """Обновить настройки (передаются только меняемые поля) и вернуть актуальные."""
     await update_settings(repo, db_user, payload)
-    return await build_settings(repo, db_user, via_telegram=principal.telegram is not None)
+    return await build_settings(
+        repo,
+        db_user,
+        via_telegram=principal.telegram is not None,
+        admin_trusted=principal.admin_trusted,
+    )
