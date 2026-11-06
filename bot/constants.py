@@ -198,8 +198,8 @@ GROUP_MARK_TEXTS: dict[str, str] = {
 # «Цель по времени»: идущий таймер набрал цель дня. {name} — название привычки, {goal} —
 # цель (TIMER_HOURS / TIMER_MINUTES).
 TIMER_GOAL_TEXTS: dict[str, str] = {
-    "ru": "«{name}»: {goal} — цель выполнена",
-    "en": "“{name}”: {goal} — goal done",
+    "ru": "«{name}»: цель {goal} выполнена",
+    "en": "“{name}”: {goal} goal done",
 }
 # Напоминание задачи (бета; день и время задачи): после 🔔 — сам текст задачи.
 TODO_REMINDER_TEXTS: dict[str, str] = {"ru": "{text}", "en": "{text}"}

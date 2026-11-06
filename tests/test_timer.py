@@ -189,7 +189,7 @@ def test_goal_notice_comes_once(db_url: str) -> None:
 
     sent, left = asyncio.run(run())
     assert [(item.chat_id, item.text) for item in sent] == [
-        (1, "«Учёба»: 45 мин — цель выполнена")
+        (1, "«Учёба»: цель 45 мин выполнена")
     ]
     assert left == []
 
