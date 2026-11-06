@@ -483,14 +483,14 @@ def test_merge_keeps_one_recommended_list_of_a_kind(client: TestClient, user: Au
         ops.append({"type": "todo_create", "ref": "t", "text": "Хлеб", "folder": "f0"})
         assert client.post("/sync", json={"ops": ops}, headers=headers).status_code == 200
 
-    lists(user.headers, ("Работа", None), ("Невыполненные", "today"))
+    lists(user.headers, ("Работа", None), ("Без даты", "undated"))
     guest = _guest(client)
-    lists(guest, ("Дом", None), ("Невыполненные", "today"), ("Запланированные", "scheduled"))
+    lists(guest, ("Дом", None), ("Без даты", "undated"), ("Запланированные", "scheduled"))
 
     result = _bot_login(client, guest, user)
     state = client.post("/sync", json={"ops": []}, headers=_bearer(result["session"]["token"])).json()
     assert [(item["name"], item.get("kind")) for item in state["todo_folders"]] == [
-        ("Работа", None), ("Невыполненные", "today"), ("Дом", None),
+        ("Работа", None), ("Без даты", "undated"), ("Дом", None),
         ("Запланированные", "scheduled"),
     ]
     assert len(state["todos"]) == 2

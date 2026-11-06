@@ -13,6 +13,7 @@ import {
   HISTORY_DAYS,
   MAX_DAY_SECONDS,
   OVERTIME_MAX_COUNT,
+  TODO_FOLDER_KINDS,
   WEEKDAYS,
 } from "../constants";
 import type { Folder, FolderHabitType, FolderKind } from "../types/folder";
@@ -1522,12 +1523,15 @@ export function deriveTodos(
     name: string;
     kind: TodoFolderKind | null;
     color: HabitColor | null;
-  }[] = (snapshot.todo_folders ?? []).map((folder) => ({
-    key: folder.id,
-    name: folder.name,
-    kind: folder.kind ?? null,
-    color: folder.color ?? null,
-  }));
+  }[] = (snapshot.todo_folders ?? [])
+    // A list of a kind the app no longer has (kept on the device from an older version).
+    .filter((folder) => !folder.kind || TODO_FOLDER_KINDS.includes(folder.kind))
+    .map((folder) => ({
+      key: folder.id,
+      name: folder.name,
+      kind: folder.kind ?? null,
+      color: folder.color ?? null,
+    }));
   let todos: {
     key: TodoKey;
     text: string;

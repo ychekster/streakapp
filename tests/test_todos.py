@@ -312,15 +312,25 @@ def test_recommended_todo_list_keeps_its_kind_once(client: TestClient, user: Aut
     data = _sync(
         client,
         user,
-        {"type": "todo_folder_create", "ref": "a", "name": "Сегодня", "kind": "today"},
-        {"type": "todo_folder_create", "ref": "b", "name": "Снова", "kind": "today"},
+        {"type": "todo_folder_create", "ref": "a", "name": "Сегодня", "kind": "due_today"},
+        {"type": "todo_folder_create", "ref": "b", "name": "Снова", "kind": "due_today"},
         {"type": "todo_folder_create", "ref": "c", "name": "Дом"},
     )
     assert data["results"][1]["error"]["code"] == "todo_folder_kind_taken"
     assert [(item["name"], item["kind"]) for item in data["todo_folders"]] == [
-        ("Сегодня", "today"),
+        ("Сегодня", "due_today"),
         ("Дом", None),
     ]
+
+
+def test_unfinished_todo_list_is_gone(client: TestClient, user: AuthUser) -> None:
+    # «Невыполненные» (kind today) убран: повторял «Все задачи».
+    response = client.post(
+        "/sync",
+        json={"ops": [{"type": "todo_folder_create", "ref": "a", "name": "Н", "kind": "today"}]},
+        headers=user.headers,
+    )
+    assert response.status_code == 422
 
 
 def test_due_today_todo_list_is_a_recommended_kind(client: TestClient, user: AuthUser) -> None:

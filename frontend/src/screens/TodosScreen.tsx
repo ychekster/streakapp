@@ -252,10 +252,8 @@ export function TodosScreen() {
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
     const fresh = (todo: Todo): boolean => added.includes(todo.id);
-    // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных. «На сегодня» —
-    // без будущих, но выполненные сегодняшние на экране остальных есть.
-    const onlyNow = kind === "today";
-    const noLater = onlyNow || kind === "due_today";
+    // «На сегодня» — без будущих, но выполненные сегодняшние на экране остальных есть.
+    const noLater = kind === "due_today";
     // Где задача стоит: отмеченная здесь — по тому, какой была до отметки.
     const doneAt = (todo: Todo): string | null =>
       (held.get(todo.id) ?? todo).done_at;
@@ -278,11 +276,9 @@ export function TodosScreen() {
       : pending
           .filter((todo) => isLater(todo) && !fresh(todo))
           .sort((a, b) => listIndex(a) - listIndex(b) || byWhen(a, b));
-    const checked = onlyNow
-      ? []
-      : todos
-          .filter((todo) => doneAt(todo) !== null && inView(todo))
-          .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
+    const checked = todos
+      .filter((todo) => doneAt(todo) !== null && inView(todo))
+      .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
@@ -311,12 +307,9 @@ export function TodosScreen() {
       done: checked,
       // Сколько на экране остальных будет, если открыть его сейчас: отмеченная только что
       // уже там (ссылка появляется с первой галочкой).
-      restNow: onlyNow
-        ? 0
-        : todos.filter(
-            (todo) =>
-              inView(todo) && (todo.done_at !== null || (isLater(todo) && !fresh(todo))),
-          ).length,
+      restNow: todos.filter(
+        (todo) => inView(todo) && (todo.done_at !== null || (isLater(todo) && !fresh(todo))),
+      ).length,
     };
   }, [todos, todoFolders, shownFolder, kind, today, held, added, hideListNames]);
   // Новая задача в «Запланированных» и «На сегодня» — на сегодня (иначе её там не было бы).
@@ -439,7 +432,7 @@ export function TodosScreen() {
           />
         ) : null}
         {nowEmpty ? (
-          restNow === 0 && kind !== "today" ? (
+          restNow === 0 ? (
             <StatusMessage
               icon="check"
               title={strings.todosEmptyTitle}
@@ -556,12 +549,7 @@ function laterIfMissing(a: string | null, b: string | null): number {
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
 function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
-  // Выполненные «Невыполненным» не нужны — их отсекает разбор выше.
   const date = todo.due_date ?? null;
-  if (kind === "today") {
-    // Без даты — тоже на сегодня: висит, пока не сделана.
-    return date === null || date <= today;
-  }
   if (kind === "due_today") {
     // Ровно на сегодня: ни просроченных, ни без даты.
     return date === today;

@@ -63,10 +63,11 @@ FOLDER_HABIT_TYPES: tuple[str, ...] = ("group", "personal", "frozen", "unschedul
 # MAX_TODO_FOLDERS_PER_USER, MAX_TODOS_PER_USER и TODO_TEXT_MAX_LENGTH во фронтенде и с
 # длиной колонки todos.text). Название папки — не длиннее FOLDER_NAME_MAX_LENGTH.
 MAX_TODO_FOLDERS_PER_USER = 10
-# Рекомендуемые списки задач (настройки → «Задачи» → «Списки»): наполняются сами — today —
-# задачи на сегодня и просроченные, scheduled — все с датой, undated — без даты. Совпадают
+# Рекомендуемые списки задач (настройки → «Задачи» → «Списки»): наполняются сами — due_today —
+# невыполненные на сегодня, scheduled — все с датой, undated — без даты. Совпадают
 # с TODO_FOLDER_KINDS во фронтенде; какие задачи в списке, считает устройство.
-TODO_FOLDER_KINDS: tuple[str, ...] = ("today", "due_today", "scheduled", "undated")
+# («Невыполненные», today, убран в 0045: повторял «Все задачи».)
+TODO_FOLDER_KINDS: tuple[str, ...] = ("due_today", "scheduled", "undated")
 MAX_TODOS_PER_USER = 1000
 TODO_TEXT_MAX_LENGTH = 500
 

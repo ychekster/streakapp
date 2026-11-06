@@ -450,7 +450,10 @@ async def _import_todos(repo: Repository, user: User, data: DataExport, now: dat
             name = validation.validate_folder_name(folder.name)
         except ApiError:
             continue
-        kind = folder.kind if folder.kind in TODO_FOLDER_KINDS else None
+        if folder.kind and folder.kind not in TODO_FOLDER_KINDS:
+            # Рекомендуемый список, которого больше нет («Невыполненные», 0045).
+            continue
+        kind = folder.kind or None
         if kind is not None and kind in kinds:
             continue
         try:

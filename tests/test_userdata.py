@@ -148,6 +148,23 @@ def test_todos_go_through_export_and_import(client: TestClient, user: AuthUser) 
     ]
 
 
+def test_import_skips_the_removed_unfinished_list(client: TestClient, user: AuthUser) -> None:
+    """An older file with «Невыполненные» (kind today): the list is gone, its todos come
+    without a list."""
+    data = {
+        "format": "knot-export",
+        "todo_folders": [
+            {"id": 1, "name": "Невыполненные", "kind": "today"},
+            {"id": 2, "name": "Без даты", "kind": "undated"},
+        ],
+        "todos": [{"id": 1, "text": "Хлеб", "folder": 1, "created_at": "2026-11-01T10:00:00"}],
+    }
+    assert _import(client, user, data)["todos"] == 1
+    state = _sync(client, user)
+    assert [(item["name"], item["kind"]) for item in state["todo_folders"]] == [("Без даты", "undated")]
+    assert [(todo["text"], todo["folder"]) for todo in state["todos"]] == [("Хлеб", None)]
+
+
 def test_import_respects_the_habit_limit(client: TestClient, user: AuthUser) -> None:
     habits = [{"id": index, "name": f"H{index}"} for index in range(MAX_HABITS_PER_USER)]
     _sync(client, user, {"type": "create", "ref": "x", "habit": {"name": "Есть", "frequency_type": "daily"}})
