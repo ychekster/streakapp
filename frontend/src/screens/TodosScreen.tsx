@@ -16,16 +16,19 @@
  *
  * Пока смотришь на список, в нём ничего не переставляется (как «Невыполненные» привычек):
  * отмеченная задача зачёркивается на своём месте (`held`), возвращённая на экране остальных
- * тоже стоит, где была, а новая встаёт первой в свой блок (`added`). Всё расходится по
+ * тоже стоит, где была, а новая сразу плавно едет на своё место (`byWhen`) и до следующего
+ * захода видна, даже если списку не подходит (`added`). Всё расходится по
  * местам при следующем заходе (`visit`): другой список (даже с теми же задачами), экран
  * остальных и обратно, другая вкладка, приложение свернули или открыли заново. Тогда
- * выполненные уже в «Выполненных» на экране остальных, а новые — на своём месте по дню и
- * времени. Заход считается в той же отрисовке, что и переключение: ничего не исчезает на
+ * выполненные уже в «Выполненных» на экране остальных. Порядок в блоке: просроченные (самая
+ * старая выше), сегодняшние, без даты внизу; в один день со временем выше, по времени; равные:
+ * новая поверх прежней. Заход считается в той же отрисовке, что и переключение: ничего не исчезает на
  * глазах после возврата.
  *
  * Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без остальных и
  * без выполненных (отмеченная уходит со следующим заходом): отметил всё — «Всё выполнено»;
- * «Запланированные» — с датой (новая в них — на сегодня); «Без даты». Кружок задачи — цвета
+ * «На сегодня» (`due_today`) — только задачи ровно на сегодня (новая в нём — на сегодня), на
+ * экране остальных — выполненные из них; «Запланированные» — с датой (новая в них — на сегодня); «Без даты». Кружок задачи — цвета
  * её списка (без списка — серый).
  *
  * Новая задача — карандаш в нижней навигации (на месте «+»): в начале первого блока
@@ -197,7 +200,8 @@ export function TodosScreen() {
   }
   const visit = visitSeq.current;
   // За этот заход: отмеченные (или возвращённые) — какими были до галочки, по этому они
-  // стоят на месте; добавленные — новые первыми, в начале своего блока.
+  // стоят на месте; добавленные — видны на своём месте, даже если списку не подходят
+  // (в «На сегодня» сменили дату): уйдут со следующим заходом.
   const [visitState, setVisitState] = useState<{
     visit: number;
     held: Map<number, Todo>;
@@ -247,24 +251,21 @@ export function TodosScreen() {
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
+    const fresh = (todo: Todo): boolean => added.includes(todo.id);
+    // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных. «На сегодня» —
+    // без будущих, но выполненные сегодняшние на экране остальных есть.
+    const onlyNow = kind === "today";
+    const noLater = onlyNow || kind === "due_today";
     // Где задача стоит: отмеченная здесь — по тому, какой была до отметки.
     const doneAt = (todo: Todo): string | null =>
       (held.get(todo.id) ?? todo).done_at;
-    const pending = todos.filter((todo) => doneAt(todo) === null && inView(todo));
-    // Сделать сейчас: добавленные за этот заход — первыми (новые выше), остальные по дню и
-    // времени. Выполненные — только на экране остальных.
-    const addedRank = new Map(added.map((id, index) => [id, index]));
-    const open = pending
-      .filter((todo) => !isLater(todo))
-      .sort((a, b) => {
-        const rankA = addedRank.get(a.id);
-        const rankB = addedRank.get(b.id);
-        if (rankA !== undefined || rankB !== undefined) {
-          return (rankA ?? Infinity) - (rankB ?? Infinity);
-        }
-        return byWhen(a, b);
-      });
-    // «Невыполненные» — только «сделать сейчас»: ни будущих, ни выполненных.
+    const pending = todos.filter(
+      (todo) => doneAt(todo) === null && (inView(todo) || fresh(todo)),
+    );
+    // Сделать сейчас: просроченные, сегодняшние, без даты (byWhen); новая сразу на своём
+    // месте (и до следующего захода — здесь, даже на будущий день). Выполненные — только на
+    // экране остальных.
+    const open = pending.filter((todo) => !isLater(todo) || fresh(todo)).sort(byWhen);
     // Будущие — одним блоком, но по спискам (без списка — первыми, дальше списки по порядку,
     // как блоки экрана задач), внутри списка — по дню и времени.
     const listOrder = new Map(
@@ -272,18 +273,16 @@ export function TodosScreen() {
     );
     const listIndex = (todo: Todo): number =>
       todo.folder === null ? 0 : (listOrder.get(todo.folder) ?? 0);
-    const upcoming =
-      kind === "today"
-        ? []
-        : pending
-            .filter(isLater)
-            .sort((a, b) => listIndex(a) - listIndex(b) || byWhen(a, b));
-    const checked =
-      kind === "today"
-        ? []
-        : todos
-            .filter((todo) => doneAt(todo) !== null && inView(todo))
-            .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
+    const upcoming = noLater
+      ? []
+      : pending
+          .filter((todo) => isLater(todo) && !fresh(todo))
+          .sort((a, b) => listIndex(a) - listIndex(b) || byWhen(a, b));
+    const checked = onlyNow
+      ? []
+      : todos
+          .filter((todo) => doneAt(todo) !== null && inView(todo))
+          .sort((a, b) => (doneAt(b) ?? "").localeCompare(doneAt(a) ?? ""));
     const own = todoFolders.filter((item) => !item.kind);
     const known = new Set(own.map((item) => item.id));
     const loose = open.filter((todo) => todo.folder === null || !known.has(todo.folder));
@@ -312,15 +311,16 @@ export function TodosScreen() {
       done: checked,
       // Сколько на экране остальных будет, если открыть его сейчас: отмеченная только что
       // уже там (ссылка появляется с первой галочкой).
-      restNow:
-        kind === "today"
-          ? 0
-          : todos.filter((todo) => inView(todo) && (todo.done_at !== null || isLater(todo)))
-              .length,
+      restNow: onlyNow
+        ? 0
+        : todos.filter(
+            (todo) =>
+              inView(todo) && (todo.done_at !== null || (isLater(todo) && !fresh(todo))),
+          ).length,
     };
   }, [todos, todoFolders, shownFolder, kind, today, held, added, hideListNames]);
-  // Новая задача в «Запланированных» — на сегодня (иначе её там не было бы).
-  const newDate = kind === "scheduled" ? today : undefined;
+  // Новая задача в «Запланированных» и «На сегодня» — на сегодня (иначе её там не было бы).
+  const newDate = kind === "scheduled" || kind === "due_today" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.
   const lists = useMemo(() => todoFolders.filter((item) => !item.kind), [todoFolders]);
 
@@ -342,9 +342,9 @@ export function TodosScreen() {
     closeDraft(key);
     try {
       const id = dataStore.createTodo(next.text, next.folder, next.due_date, next.remind_time);
-      // До следующего захода — первой в своём блоке, там же, где её писали.
-      setVisitState({ visit, held, added: [id, ...added] });
-      // Новая задача едет на своё место из строки ввода (её data-todo — 0).
+      setVisitState({ visit, held, added: [...added, id] });
+      // Новая задача сразу едет на своё место из строки ввода (её data-todo — 0): видно,
+      // куда она встала.
       if (motion.current) {
         motion.current.alias = { from: "0", to: String(id) };
       }
@@ -501,6 +501,9 @@ export function TodosScreen() {
         tabIndex={-1}
         aria-hidden="true"
         rows={1}
+        autoCorrect="on"
+        autoCapitalize="sentences"
+        spellCheck
       />
     </Screen>
   );
@@ -528,13 +531,27 @@ export function TodosScreen() {
 const EMPTY_HELD = new Map<number, Todo>();
 const EMPTY_ADDED: number[] = [];
 
-/** Порядок невыполненных в блоке: без даты — первыми (в порядке добавления), потом по дню
- *  (раньше — выше); в один день без времени — выше, потом по времени. Сортировка
- *  устойчивая: равные остаются в порядке добавления. */
+/** Порядок невыполненных в блоке: чем старее и точнее, тем выше. По дню (просроченные —
+ *  первыми, самая старая выше всех, потом сегодняшние, будущие по дню), в один день со
+ *  временем — выше (по времени), без времени — под ними; без даты — в самом низу. Равные —
+ *  новая поверх прежней. */
 function byWhen(a: Todo, b: Todo): number {
-  const dayA = a.due_date ?? "";
-  const dayB = b.due_date ?? "";
-  return dayA.localeCompare(dayB) || (a.remind_time ?? "").localeCompare(b.remind_time ?? "");
+  return (
+    laterIfMissing(a.due_date ?? null, b.due_date ?? null) ||
+    laterIfMissing(a.remind_time ?? null, b.remind_time ?? null) ||
+    Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+}
+
+/** Сравнить «ГГГГ-ММ-ДД» / «ЧЧ:ММ»: раньше — выше, не указано — ниже указанного. */
+function laterIfMissing(a: string | null, b: string | null): number {
+  if (a === b) {
+    return 0;
+  }
+  if (a === null || b === null) {
+    return a === null ? 1 : -1;
+  }
+  return a.localeCompare(b);
 }
 
 /** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
@@ -544,6 +561,10 @@ function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
   if (kind === "today") {
     // Без даты — тоже на сегодня: висит, пока не сделана.
     return date === null || date <= today;
+  }
+  if (kind === "due_today") {
+    // Ровно на сегодня: ни просроченных, ни без даты.
+    return date === today;
   }
   return kind === "scheduled" ? date !== null : date === null;
 }

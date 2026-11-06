@@ -248,7 +248,7 @@ export const TODO_TEXT_MAX_LENGTH = 500;
 /** Recommended todo lists (Settings → «Задачи» → «Списки») fill themselves: «today» —
  *  todos for today and overdue ones, «scheduled» — all with a date, «undated» — without
  *  one (TodosScreen). The same as TODO_FOLDER_KINDS on the backend. */
-export const TODO_FOLDER_KINDS = ["today", "scheduled", "undated"] as const;
+export const TODO_FOLDER_KINDS = ["today", "due_today", "scheduled", "undated"] as const;
 
 /** Recommended folders (Settings → «Папки») fill themselves: «unfinished» — habits due
  *  today and not done yet, «today» — all habits due today (data/derive.ts). The same as

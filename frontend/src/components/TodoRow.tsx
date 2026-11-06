@@ -467,6 +467,11 @@ export function TodoRow({
               rows={1}
               maxLength={TODO_TEXT_MAX_LENGTH}
               enterKeyHint="done"
+              // Автоисправление и подсказки клавиатуры — явно: фокус приходит сюда из поля,
+              // державшего клавиатуру (startNewTodo), iPhone берёт настройки у них обоих.
+              autoCorrect="on"
+              autoCapitalize="sentences"
+              spellCheck
               onChange={(event) => setDraft({ ...draft, text: event.target.value })}
               // Фокус ушёл: куда — видно только после события (плашка строки — не в счёт).
               onBlur={() => window.setTimeout(() => cancelRef.current(), 0)}

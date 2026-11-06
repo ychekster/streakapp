@@ -767,7 +767,7 @@ class SyncTodoFolderCreate(BaseModel):
     type: Literal["todo_folder_create"]
     ref: ClientRef
     name: str
-    kind: Literal["today", "scheduled", "undated"] | None = Field(
+    kind: Literal["today", "due_today", "scheduled", "undated"] | None = Field(
         None, description="Рекомендуемый список (TODO_FOLDER_KINDS): наполняется сам"
     )
     color: str | None = Field(None, description="Цвет списка (как у привычки); null — серый")

@@ -226,8 +226,8 @@ function scores(days: Days): (number | null)[] {
 /**
  * The line chart: the score (scores) on each day of the month (quarter: three months) that
  * ends on `day` (periodStart; 5 Nov: from 6 Oct), or at the end of each of the last
- * 52 weeks (year), the last point — `day`. Points before the habit's first day are cut off,
- * but at least MIN_TREND_POINTS stay (null).
+ * 52 weeks (year), the last point — `day`. Points before the habit's first day are cut off
+ * but one, 0 (the line rises from zero), and at least MIN_TREND_POINTS stay (null).
  */
 export interface Trend {
   values: (number | null)[];
@@ -244,7 +244,13 @@ export function trend(habit: Habit, day: string, range: StatsRange): Trend {
   const step = range === "year" ? 7 : 1;
   const dates = Array.from({ length: points }, (_, index) => addDays(day, (index + 1 - points) * step));
   const values = dates.map((date) => byDay[daysBetween(days.first, date)] ?? null);
-  const firstKnown = values.findIndex((value) => value !== null);
+  let firstKnown = values.findIndex((value) => value !== null);
+  // The line starts from zero: the point before the habit's first one (the day before; the
+  // year — the week before) is 0. Not when the gap is just the end of the history.
+  if (firstKnown > 0 && days.start !== null && days.start > days.first) {
+    firstKnown -= 1;
+    values[firstKnown] = 0;
+  }
   const from = Math.min(firstKnown < 0 ? 0 : firstKnown, points - MIN_TREND_POINTS);
   return { values: values.slice(from), dates: dates.slice(from) };
 }

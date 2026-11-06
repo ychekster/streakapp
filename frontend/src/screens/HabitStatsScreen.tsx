@@ -270,7 +270,14 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                 ))}
               </div>
               <p className={styles.chartValue}>
-                {shownValue === null ? "—" : Math.round(shownValue)}
+                {/* Нетронутый график — целое; выбранный день — как есть (0,5, а не 1). */}
+                {shownValue === null
+                  ? "—"
+                  : point === null
+                    ? Math.round(shownValue)
+                    : shownValue.toLocaleString(language === "ru" ? "ru-RU" : "en-US", {
+                        maximumFractionDigits: 2,
+                      })}
                 {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
               </p>
               {/* Другой период — график проявляется заново, а не подменяется рывком. */}

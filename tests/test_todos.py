@@ -323,6 +323,18 @@ def test_recommended_todo_list_keeps_its_kind_once(client: TestClient, user: Aut
     ]
 
 
+def test_due_today_todo_list_is_a_recommended_kind(client: TestClient, user: AuthUser) -> None:
+    data = _sync(
+        client,
+        user,
+        {"type": "todo_folder_create", "ref": "a", "name": "На сегодня", "kind": "due_today"},
+    )
+    assert data["results"][0]["ok"]
+    assert [(item["name"], item["kind"]) for item in data["todo_folders"]] == [
+        ("На сегодня", "due_today"),
+    ]
+
+
 def test_todo_settings_are_off_by_default(client: TestClient, user: AuthUser) -> None:
     settings = _sync(client, user)["settings"]
     assert (settings["todo_folder_swipe"], settings["todo_checks_right"]) == (False, False)

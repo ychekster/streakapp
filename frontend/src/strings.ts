@@ -165,17 +165,25 @@ const RU = {
   todoListsFooter: "Чтобы удалить список или изменить порядок, нажмите «Изменить».",
   todoListsLimitFooter: "Больше списков создать нельзя.",
   todoListsRecommendedHeading: "Рекомендуемые списки",
-  todoListKindNames: { today: "Невыполненные", scheduled: "Запланированные", undated: "Без даты" },
+  todoListKindNames: {
+    today: "Невыполненные",
+    due_today: "На сегодня",
+    scheduled: "Запланированные",
+    undated: "Без даты",
+  },
   todoListKindDescriptions: {
     today: "Невыполненные задачи на сегодня",
+    due_today: "Только задачи с сегодняшней датой",
     scheduled: "Все задачи с датой",
     undated: "Задачи без даты",
   },
   todoListKindFooter: {
     today:
-      "Задачи попадают в этот список сами: невыполненные на сегодня и без даты. Отметили все — список пуст.",
+      "Задачи попадают в этот список сами: невыполненные на сегодня и без даты. Отметили все, и список пуст.",
+    due_today:
+      "Задачи попадают в этот список сами: невыполненные с сегодняшней датой. Новая задача в нём на сегодня. Отметили все, и список пуст.",
     scheduled:
-      "Задачи попадают в этот список сами: все, у которых есть дата. Новая задача в нём — на сегодня.",
+      "Задачи попадают в этот список сами: все, у которых есть дата. Новая задача в нём на сегодня.",
     undated: "Задачи попадают в этот список сами: все без даты.",
   },
   todoListsHideNames: "Скрыть названия списков",
@@ -875,15 +883,23 @@ const EN: Strings = {
   todoListsFooter: "Tap “Edit” to delete lists or change their order.",
   todoListsLimitFooter: "You can’t create more lists.",
   todoListsRecommendedHeading: "Recommended Lists",
-  todoListKindNames: { today: "Unfinished", scheduled: "Scheduled", undated: "No Date" },
+  todoListKindNames: {
+    today: "Unfinished",
+    due_today: "Due Today",
+    scheduled: "Scheduled",
+    undated: "No Date",
+  },
   todoListKindDescriptions: {
     today: "Unfinished tasks for today",
+    due_today: "Only tasks dated today",
     scheduled: "All tasks with a date",
     undated: "Tasks without a date",
   },
   todoListKindFooter: {
     today:
       "Tasks get into this list by themselves: unfinished ones for today and without a date. Check them all and it’s empty.",
+    due_today:
+      "Tasks get into this list by themselves: unfinished ones dated today. A new task here is for today. Check them all and it’s empty.",
     scheduled: "Tasks get into this list by themselves: all with a date. A new task here is for today.",
     undated: "Tasks get into this list by themselves: all without a date.",
   },
