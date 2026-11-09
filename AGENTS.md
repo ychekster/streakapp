@@ -45,7 +45,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0045)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0047)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -126,7 +126,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Offline / sync | routers/sync.py, services.apply_sync; frontend src/data/, api/sync.ts, sw.ts, web/bootstrap.ts |
 | Settings item | models.User, schemas.Settings*, services.py; screens/SettingsScreen.tsx, hooks/useSettings.ts |
 | Reminders | services.due_reminders / due_checkin_reminders, bot/reminders.py (Telegram or push) |
-| Admin panel | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts. In the web app: device allowed once in the bot (accounts.confirm_admin_device, routers/auth `/auth/admin-device`, bot/handlers/admin_device.py, WebSession.admin_trusted_at; frontend screens/AdminDeviceScreen.tsx, settings `admin_confirm`) |
+| Admin panel (broadcasts by Telegram or push: Broadcast.channel, bot/broadcasts push_broadcast_payload; review reply by push or bot; «живые»: analytics/data.is_live, LIVE_MIN_DAYS) | backend/admin.py, analytics/, routers/admin.py; frontend/src/admin/ (analytics/, analyticsCopy.ts), api/admin.ts, types/admin.ts. In the web app: device allowed once in the bot (accounts.confirm_admin_device, routers/auth `/auth/admin-device`, bot/handlers/admin_device.py, WebSession.admin_trusted_at; frontend screens/AdminDeviceScreen.tsx, settings `admin_confirm`) |
 | Visitor path from the site (one device id `v` through landing → browser → installed app → bot `start=v_<hex>`; drop-off by step, a person's steps from the first click) | backend/analytics/journey.py, profile.timeline (events + activity_log, order), funnel.record_client_event (claim_anon_events), sources.split_visitor, bot/handlers/start.py; frontend web/analytics.ts (anonId, botLinkWithSource), landing/Landing.tsx, admin/components/JourneySection, UserTimeline, screens/AdminJourneyScreen, AdminVisitorScreen |
 | Web app login / accounts | backend/accounts.py, routers/auth.py, bot/handlers/web_login.py; frontend/src/web/ |
 | Push | backend/webpush.py, routers/web.py, bot/reminders.py; frontend/src/web/push.ts, src/sw.ts |
@@ -137,7 +137,8 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Shared habits | models.HabitGroup*, backend/groups.py, routers/groups.py, bot/handlers/group_invite.py, bot/profiles.py, reminders (group marks); frontend data/groups.ts, api/groups.ts, derive.ts (isShared, groupFill), components/GroupMembers.tsx, CheckButton (group), screens/HabitScreen.tsx |
 | Schedule history (a past day keeps its schedule, goal, «Сверх плана») | models.TaskSchedulePeriod, schedule.due_check_with_history, services.remember_schedule / goal_on; frontend derive.ts (scheduleOn, goalOn, isDueOnDay) |
 | Bonus marks (not due / frozen / past a flexible goal: in the grid and «Всего выполнено», not in streaks or the period count) | services.counted_days (compute_streaks, flexible_streaks); frontend derive.ts (countedDays, countedHistory), calendarDays.trackedDays, CheckButton `bonus` |
-| Day window (calendar day tap: fix any past day, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onTapDay`; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
+| Day window (calendar day tap: fix any past day except frozen ones, day notes) | components/DaySheet.tsx, BottomSheet.tsx, CountControls.tsx, HabitCalendar `onTapDay`, calendarDays.frozenDay; store markDay / setDayCount / setNote; models.DayNote, SyncNote, repository get_notes / set_note |
+| Name window (calendar day long press: the habit's name and description on that day, days unchanged) | models.TaskNamePeriod, services.remember_name, Habit.name_history; frontend derive.ts (namesOn, draft.names), components/NameSheet.tsx, HabitCalendar `onHoldDay` |
 | «Гибкий график» (N times a week/month/year) | schedule.period_bounds/period_quota, services.flexible_streaks / counted_days / _quota_open, groups (reached, others_reached); frontend derive.ts (periodDoneIn, flexibleState), components/HabitSummary.tsx (flexibleStats) |
 | «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
 | Export / import of all user data (JSON file; import adds habits, shared → ordinary, takes settings) | backend/userdata.py, routers/userdata.py, schemas.DataExport, repository get_task_logs / add_task_history; frontend data/userData.ts, api/userdata.ts, SettingsScreen |

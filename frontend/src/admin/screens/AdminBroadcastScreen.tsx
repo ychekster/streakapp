@@ -1,5 +1,8 @@
 /**
  * Вкладка «Рассылка» админ-панели — форма в стиле формы привычки:
+ *  - Куда — канал: сообщение бота в Telegram или пуш в веб-приложении (тем, у кого там
+ *    включены уведомления, в том числе без Telegram). У пуша — заголовок и текст, без
+ *    медиа, а «кнопка» — куда ведёт нажатие на уведомление; копии автору нет;
  *  - Кому — фильтр получателей, по ряду на признак (AudienceFilterRows; условия
  *    складываются), и сколько получателей под ним сейчас. Из аналитики сюда приходят с
  *    группой людей («Рассылка этим людям») — она стоит первым рядом, её можно убрать;
@@ -41,23 +44,38 @@ import {
   BROADCAST_VIDEO_TYPES,
   CAPTION_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
+  PUSH_TEXT_MAX_LENGTH,
+  PUSH_TITLE_MAX_LENGTH,
 } from "../../constants";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useResource } from "../../hooks/useResource";
 import { confirmAction, hapticNotification } from "../../telegram/webapp";
-import type { Audience, Broadcast, BroadcastButton } from "../../types/admin";
+import type { Audience, Broadcast, BroadcastButton, BroadcastChannel } from "../../types/admin";
 import styles from "./AdminBroadcastScreen.module.css";
 
 /** Черновик рассылки. */
 export interface BroadcastDraft {
   /** Фильтр получателей; пустой — все пользователи. */
   audience: Audience;
+  /** Канал: сообщение бота или пуш веб-приложения. */
+  channel: BroadcastChannel;
+  /** Заголовок пуша (у Telegram не используется). */
+  title: string;
   text: string;
   media: File | null;
   button: BroadcastButton;
 }
 
-export const EMPTY_DRAFT: BroadcastDraft = { audience: {}, text: "", media: null, button: "" };
+export const EMPTY_DRAFT: BroadcastDraft = {
+  audience: {},
+  channel: "telegram",
+  title: "",
+  text: "",
+  media: null,
+  button: "",
+};
+
+const CHANNELS: BroadcastChannel[] = ["telegram", "push"];
 
 const MEDIA_ACCEPT = [...BROADCAST_PHOTO_TYPES, ...BROADCAST_VIDEO_TYPES].join(",");
 
@@ -92,9 +110,10 @@ export function AdminBroadcastScreen({
   const format = useAdminFormat();
   // Пока значения фильтра переключают подряд, получатели не пересчитываются на каждое.
   const settledAudience = useDebouncedValue(draft.audience, AUDIENCE_COUNT_DELAY_MS);
+  const push = draft.channel === "push";
   const recipients = useResource(
-    () => fetchRecipients(settledAudience),
-    audienceParam(settledAudience),
+    () => fetchRecipients(settledAudience, draft.channel),
+    `${draft.channel}:${audienceParam(settledAudience)}`,
   );
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -141,12 +160,19 @@ export function AdminBroadcastScreen({
     recipients.status === "ready"
       ? recipients.data
       : null;
-  const limit = draft.media ? CAPTION_MAX_LENGTH : MESSAGE_MAX_LENGTH;
+  const limit = push
+    ? PUSH_TEXT_MAX_LENGTH
+    : draft.media
+      ? CAPTION_MAX_LENGTH
+      : MESSAGE_MAX_LENGTH;
   const length = draft.text.trim().length;
+  const titleLength = draft.title.trim().length;
   const valid =
     counted !== null &&
     counted > 0 &&
-    (draft.media !== null || length > 0) &&
+    (push
+      ? length > 0 && titleLength > 0 && titleLength <= PUSH_TITLE_MAX_LENGTH
+      : draft.media !== null || length > 0) &&
     length <= limit;
 
   function chooseMedia(file: File | undefined): void {
@@ -178,7 +204,10 @@ export function AdminBroadcastScreen({
     setSendError(null);
     const confirmed = await confirmAction({
       title: strings.sendDialogTitle,
-      message: strings.sendDialogMessage(counted, audienceText),
+      message: (push ? strings.pushDialogMessage : strings.sendDialogMessage)(
+        counted,
+        audienceText,
+      ),
       confirmLabel: strings.sendDialogConfirm,
       cancelLabel: strings.cancel,
     });
@@ -191,12 +220,19 @@ export function AdminBroadcastScreen({
         draft.audience,
         draft.text.trim(),
         draft.button,
-        draft.media,
+        push ? null : draft.media,
+        draft.channel,
+        push ? draft.title.trim() : "",
       );
       hapticNotification("success");
       onBroadcastChange(broadcast);
-      // Текст и медиа — на новую рассылку; кому и с какой кнопкой — как в этой.
-      onDraftChange({ ...EMPTY_DRAFT, audience: draft.audience, button: draft.button });
+      // Текст и медиа — на новую рассылку; кому, куда и с какой кнопкой — как в этой.
+      onDraftChange({
+        ...EMPTY_DRAFT,
+        audience: draft.audience,
+        channel: draft.channel,
+        button: draft.button,
+      });
       recipients.reload();
     } catch (error) {
       setSendError(describeAdminError(strings, error, strings.broadcastFailed));
@@ -209,13 +245,22 @@ export function AdminBroadcastScreen({
   return <Screen title={strings.broadcastTitle}>{renderContent()}</Screen>;
 
   function renderContent() {
-    const buttonOptions = BROADCAST_BUTTONS.map((button) => ({
-      value: button,
-      label: strings.buttonNames[button],
+    const buttonOptions = push
+      ? BROADCAST_BUTTONS.filter((button) => button !== "").map((button) => ({
+          value: button,
+          label: strings.pushTargets[button],
+        }))
+      : BROADCAST_BUTTONS.map((button) => ({
+          value: button,
+          label: strings.buttonNames[button],
+        }));
+    const channelOptions = CHANNELS.map((channel) => ({
+      value: channel,
+      label: strings.channelNames[channel],
     }));
     const recipientsFooter =
       counted !== null ? (
-        strings.recipients(counted)
+        (push ? strings.pushRecipients : strings.recipients)(counted)
       ) : recipients.status === "error" && !recipients.refreshing ? (
         <span className={styles.over}>
           {describeAdminError(strings, recipients.error, strings.recipientsFailed)}
@@ -226,6 +271,23 @@ export function AdminBroadcastScreen({
     return (
       <div className={styles.form}>
         {lastBroadcast ? <Progress broadcast={lastBroadcast} /> : null}
+
+        <Section
+          variant="form"
+          title={strings.channelSection}
+          footer={strings.channelFooters[draft.channel]}
+        >
+          <Card>
+            <ListItem label={strings.channelRow}>
+              <MenuSelect
+                options={channelOptions}
+                value={draft.channel}
+                onChange={(channel) => onDraftChange({ ...draft, channel })}
+                label={strings.channelRow}
+              />
+            </ListItem>
+          </Card>
+        </Section>
 
         <Section
           variant="form"
@@ -258,91 +320,105 @@ export function AdminBroadcastScreen({
           title={strings.messageSection}
           footer={
             <span className={length > limit ? styles.over : undefined}>
-              {strings.characters(length, limit, draft.media !== null)}
+              {strings.characters(length, limit, !push && draft.media !== null)}
             </span>
           }
         >
           <Card>
+            {push ? (
+              <ListItem>
+                <input
+                  className={styles.title}
+                  value={draft.title}
+                  maxLength={PUSH_TITLE_MAX_LENGTH}
+                  onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
+                  placeholder={strings.pushTitlePlaceholder}
+                  aria-label={strings.pushTitlePlaceholder}
+                />
+              </ListItem>
+            ) : null}
             <ListItem>
               <textarea
                 ref={textRef}
                 className={styles.text}
                 value={draft.text}
                 onChange={(event) => onDraftChange({ ...draft, text: event.target.value })}
-                placeholder={strings.broadcastPlaceholder}
-                aria-label={strings.broadcastPlaceholder}
+                placeholder={push ? strings.pushTextPlaceholder : strings.broadcastPlaceholder}
+                aria-label={push ? strings.pushTextPlaceholder : strings.broadcastPlaceholder}
                 rows={4}
               />
             </ListItem>
           </Card>
         </Section>
 
-        <Section
-          variant="form"
-          title={strings.mediaSection}
-          footer={
-            mediaError ? <span className={styles.over}>{mediaError}</span> : strings.mediaFooter
-          }
-        >
-          <Card>
-            {draft.media && preview ? (
-              <>
-                <ListItem>
-                  <span className={styles.media}>
-                    {isVideo(draft.media) ? (
-                      <video className={styles.preview} src={preview} muted playsInline />
-                    ) : (
-                      <img className={styles.preview} src={preview} alt="" />
-                    )}
-                    <span className={styles.mediaInfo}>
-                      <span className={styles.mediaName}>{draft.media.name}</span>
-                      <span className={styles.mediaSize}>{format.bytes(draft.media.size)}</span>
+        {push ? null : (
+          <Section
+            variant="form"
+            title={strings.mediaSection}
+            footer={
+              mediaError ? <span className={styles.over}>{mediaError}</span> : strings.mediaFooter
+            }
+          >
+            <Card>
+              {draft.media && preview ? (
+                <>
+                  <ListItem>
+                    <span className={styles.media}>
+                      {isVideo(draft.media) ? (
+                        <video className={styles.preview} src={preview} muted playsInline />
+                      ) : (
+                        <img className={styles.preview} src={preview} alt="" />
+                      )}
+                      <span className={styles.mediaInfo}>
+                        <span className={styles.mediaName}>{draft.media.name}</span>
+                        <span className={styles.mediaSize}>{format.bytes(draft.media.size)}</span>
+                      </span>
                     </span>
-                  </span>
-                </ListItem>
+                  </ListItem>
+                  <ListItem
+                    icon={<TrashIcon />}
+                    label={strings.removeMedia}
+                    destructive
+                    onPress={() => onDraftChange({ ...draft, media: null })}
+                  />
+                </>
+              ) : (
                 <ListItem
-                  icon={<TrashIcon />}
-                  label={strings.removeMedia}
-                  destructive
-                  onPress={() => onDraftChange({ ...draft, media: null })}
+                  icon={<PhotoIcon />}
+                  iconColor="green"
+                  label={strings.addMedia}
+                  accent
+                  onPress={() => fileInputRef.current?.click()}
                 />
-              </>
-            ) : (
-              <ListItem
-                icon={<PhotoIcon />}
-                iconColor="green"
-                label={strings.addMedia}
-                accent
-                onPress={() => fileInputRef.current?.click()}
-              />
-            )}
-          </Card>
-          <input
-            ref={fileInputRef}
-            className={styles.file}
-            type="file"
-            accept={MEDIA_ACCEPT}
-            tabIndex={-1}
-            aria-hidden="true"
-            onChange={(event) => {
-              chooseMedia(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-        </Section>
+              )}
+            </Card>
+            <input
+              ref={fileInputRef}
+              className={styles.file}
+              type="file"
+              accept={MEDIA_ACCEPT}
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(event) => {
+                chooseMedia(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </Section>
+        )}
 
         <Section
           variant="form"
           title={strings.buttonSection}
-          footer={strings.buttonFooters[draft.button]}
+          footer={push ? strings.pushButtonFooter : strings.buttonFooters[draft.button]}
         >
           <Card>
-            <ListItem label={strings.buttonRow}>
+            <ListItem label={push ? strings.pushButtonRow : strings.buttonRow}>
               <MenuSelect
                 options={buttonOptions}
-                value={draft.button}
+                value={push && draft.button === "" ? "open_app" : draft.button}
                 onChange={(button) => onDraftChange({ ...draft, button })}
-                label={strings.buttonRow}
+                label={push ? strings.pushButtonRow : strings.buttonRow}
               />
             </ListItem>
           </Card>
@@ -398,7 +474,7 @@ function Progress({ broadcast }: { broadcast: Broadcast }) {
           </div>
           <p className={styles.progressResult}>
             {strings.broadcastResult(broadcast.sent, broadcast.failed)}
-            {broadcast.status === "done" ? "" : ` · ${strings.broadcastTotal(broadcast.total)}`}
+            {broadcast.status === "done" ? "" : `, ${strings.broadcastTotal(broadcast.total)}`}
           </p>
         </div>
       </Card>

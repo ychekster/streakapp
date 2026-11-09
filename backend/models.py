@@ -457,6 +457,28 @@ class TaskSchedulePeriod(Base):
     )
 
 
+class TaskNamePeriod(Base):
+    """Прежние название и описание привычки: действовали до дня `until` (не включая его —
+    с него действуют следующие). Записываются при смене в форме (services.remember_name),
+    как TaskSchedulePeriod; текущие — в самой `Task`. По ним окно дня в календаре
+    показывает, как привычка называлась в тот день и сколько дней уже так называлась."""
+
+    __tablename__ = "task_name_periods"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    until: Mapped[date] = mapped_column(Date, nullable=False)
+    name: Mapped[str] = mapped_column(String(HABIT_NAME_MAX_LENGTH), nullable=False)
+    description: Mapped[str | None] = mapped_column(
+        String(HABIT_DESCRIPTION_MAX_LENGTH), nullable=True
+    )
+
+
 class RunningTimer(Base):
     """Идущий таймер привычки «Цель по времени»: у пользователя — не больше одного.
     Время с `started_at` пишется в день `day` (день старта), когда таймер останавливают:
@@ -813,6 +835,13 @@ class Broadcast(Base):
     audience: Mapped[str] = mapped_column(
         String(AUDIENCE_MAX_LENGTH), default="", server_default="", nullable=False
     )
+    # Канал (constants.BROADCAST_CHANNELS): telegram — сообщение бота, push — уведомление
+    # веб-приложения (получатели — у кого есть push-подписка).
+    channel: Mapped[str] = mapped_column(
+        String(16), default="telegram", server_default="telegram", nullable=False
+    )
+    # Заголовок push; у рассылки в Telegram — None.
+    title: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Кнопка под сообщением (constants.BROADCAST_BUTTONS); None — без кнопки.
     button: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Текст сообщения или подпись к медиа; None — медиа без подписи.

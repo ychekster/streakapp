@@ -22,6 +22,12 @@
 или заблокировали бота после рассылки. Признаки фильтра, которые считает аналитика
 («активирован», «группа»…), считаются один раз на рассылку.
 
+Push-рассылка (`channel` "push") уходит уведомлением веб-приложения на все устройства
+получателя (у кого есть push-подписка, в том числе аккаунтам без Telegram): заголовок,
+текст и нажатие — в приложение (на экран кнопки, если она выбрана), с пометкой «из
+рассылки N». Исчезнувшие подписки удаляются; без ключей VAPID рассылка закрывается
+недоставленной.
+
 Кнопка под рассылкой («Открыть приложение», «Написать отзыв» или «Добавить привычку»)
 подписана на языке получателя и открывает приложение с пометкой «из рассылки N». Если Telegram не принял сообщение с анимированной иконкой
 на кнопке (у владельца бота кончился Premium), оно отправляется ещё раз без иконки (см.
@@ -50,9 +56,11 @@ from bot.pacing import Pacer
 from backend.audience import Audience, AudienceIds, parse_audience, resolve_audience
 from backend.database import Database
 from backend.errors import ApiError
-from backend.messaging import broadcast_keyboard
+from backend.messaging import APP_SCREEN_PARAM, BROADCAST_BUTTONS, broadcast_keyboard
 from backend.models import Broadcast
-from backend.repository import Repository
+from backend.repository import Repository, utc_now
+from backend.webpush import PushTarget, notification, push_to_devices
+from bot.reminders import PushConfig
 
 # Как часто проверять, нет ли новой рассылки, в секундах.
 POLL_SECONDS = 3.0
@@ -83,6 +91,8 @@ class _Job:
     media_file_id: str | None
     button: str | None
     cursor: int
+    channel: str = "telegram"
+    title: str | None = None
 
     @classmethod
     def of(cls, broadcast: Broadcast) -> _Job:
@@ -97,10 +107,14 @@ class _Job:
             media_file_id=broadcast.media_file_id,
             button=broadcast.button,
             cursor=broadcast.cursor,
+            channel=broadcast.channel or "telegram",
+            title=broadcast.title,
         )
 
 
-async def run_broadcasts(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> None:
+async def run_broadcasts(
+    bot: Bot, database: Database, pacer: Pacer, tma_url: str, push: PushConfig | None = None
+) -> None:
     """Бесконечный цикл: разослать поставленные в очередь рассылки.
 
     Ошибка (база недоступна и т.п.) логируется и не останавливает цикл — рассылка
@@ -109,14 +123,16 @@ async def run_broadcasts(bot: Bot, database: Database, pacer: Pacer, tma_url: st
     logger.info("Broadcasts started")
     while True:
         try:
-            while await _deliver_next_batch(bot, database, pacer, tma_url):
+            while await _deliver_next_batch(bot, database, pacer, tma_url, push):
                 pass
         except Exception:  # noqa: BLE001 — цикл рассылок не должен падать
             logger.exception("Broadcast delivery failed")
         await asyncio.sleep(POLL_SECONDS)
 
 
-async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_url: str) -> bool:
+async def _deliver_next_batch(
+    bot: Bot, database: Database, pacer: Pacer, tma_url: str, push: PushConfig | None = None
+) -> bool:
     """Отправить следующую пачку самой ранней неразосланной рассылки. False — рассылать
     нечего."""
     # Сессии — только на чтение очереди и на запись итогов: отправка по сети не держит
@@ -138,8 +154,28 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
         if job.id not in _resolved:
             _resolved[job.id] = await resolve_audience(repo, job.audience, job.created_at)
         cursor = max(job.cursor, _sent_through.get(job.id, job.cursor))
+        is_push = job.channel == "push"
         recipients = await repo.recipients_after(
-            job.audience, job.created_at, job.created_by, cursor, BATCH_SIZE, _resolved[job.id]
+            job.audience,
+            job.created_at,
+            None if is_push else job.created_by,
+            cursor,
+            BATCH_SIZE,
+            _resolved[job.id],
+            job.channel,
+        )
+        if is_push and recipients and push is None:
+            logger.error("Broadcast {} skipped: Web Push is off (no VAPID key)", job.id)
+            await repo.record_broadcast_progress(
+                broadcast, cursor=cursor, sent=0, failed=broadcast.total - broadcast.sent
+            )
+            await repo.finish_broadcast(broadcast)
+            await session.commit()
+            return True
+        subscriptions = (
+            await repo.push_subscriptions_for([user_id for user_id, _ in recipients])
+            if is_push
+            else {}
         )
         if not recipients:
             _resolved.pop(job.id, None)
@@ -151,18 +187,38 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
             )
             return True
 
-    outcomes = await asyncio.gather(
-        *(
-            _send(
-                bot,
-                pacer,
-                job,
-                chat_id,
-                broadcast_keyboard(job.button, language, tma_url, broadcast_id=job.id),
+    delivered: list[str] = []
+    gone: list[str] = []
+    if is_push:
+        assert push is not None
+        data = push_broadcast_payload(job, push.base_url)
+
+        async def deliver(user_id: int) -> _Outcome:
+            targets = [
+                PushTarget(item.endpoint, item.p256dh, item.auth)
+                for item in subscriptions.get(user_id, [])
+            ]
+            ok, lost = await push_to_devices(targets, data, push.keys)
+            delivered.extend(ok)
+            gone.extend(lost)
+            return "sent" if ok else "failed"
+
+        outcomes = list(await asyncio.gather(*(deliver(user_id) for user_id, _ in recipients)))
+    else:
+        outcomes = list(
+            await asyncio.gather(
+                *(
+                    _send(
+                        bot,
+                        pacer,
+                        job,
+                        chat_id,
+                        broadcast_keyboard(job.button, language, tma_url, broadcast_id=job.id),
+                    )
+                    for chat_id, language in recipients
+                )
             )
-            for chat_id, language in recipients
         )
-    )
     _sent_through[job.id] = recipients[-1][0]
     blocked = [
         chat_id
@@ -181,11 +237,15 @@ async def _deliver_next_batch(bot: Bot, database: Database, pacer: Pacer, tma_ur
         )
         if blocked:
             await repo.set_bot_blocked(blocked, blocked=True)
+        if is_push:
+            await repo.delete_push_subscriptions(gone)
+            await repo.mark_push_delivered(delivered, utc_now())
         for (chat_id, _), outcome in zip(recipients, outcomes):
             await repo.log_action(
                 chat_id,
                 "broadcast_sent" if outcome == "sent" else "broadcast_failed",
                 ref_id=job.id,
+                detail="push" if is_push else None,
             )
         await session.commit()
     return True
@@ -246,3 +306,13 @@ async def _send_content(
         )
     else:
         await bot.send_message(chat_id=chat_id, text=job.text or "", reply_markup=markup)
+
+
+def push_broadcast_payload(job: _Job, base_url: str) -> dict[str, object]:
+    """Push-рассылка: заголовок и текст; нажатие открывает веб-приложение с пометкой «из
+    рассылки N» — на экране кнопки рассылки (отзыв, новая привычка), без неё — главный."""
+    screen = BROADCAST_BUTTONS[job.button].screen if job.button else None
+    url = f"{base_url}/app?pwa=1&from=broadcast&b={job.id}"
+    if screen:
+        url += f"&{APP_SCREEN_PARAM}={screen}"
+    return notification(job.title or "", job.text or "", url, tag=f"broadcast-{job.id}")

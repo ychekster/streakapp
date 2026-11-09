@@ -139,7 +139,9 @@ async def main() -> None:
         asyncio.create_task(
             run_reminders(bot, database, pacer, config.tma_url, push_config(config))
         ),
-        asyncio.create_task(run_broadcasts(bot, database, pacer, config.tma_url)),
+        asyncio.create_task(
+            run_broadcasts(bot, database, pacer, config.tma_url, push_config(config))
+        ),
         asyncio.create_task(run_profile_refresh(bot, database, pacer)),
         asyncio.create_task(run_photo_refresh(bot, database, pacer)),
     ]

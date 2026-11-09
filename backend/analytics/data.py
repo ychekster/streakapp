@@ -11,12 +11,15 @@
   разных дней (N и M — в настройках панели);
 - **активный за день** — открыл приложение в этот день (user_activity), **отмечающий** —
   отметил хотя бы одну привычку (checkin_days); дни — по Алматы;
-- **живой на день D** — пришёл не позже D − LIVE_WINDOW_DAYS (прожил хотя бы полную
-  неделю), есть хоть одна привычка, и за LIVE_WINDOW_DAYS закончившихся дней перед D
-  (D−7…D−1) он сам отмечал привычку или — если у него есть привычка с автоотметкой или
-  «раз в месяц» — заходил в приложение. Заведённая привычка живым не делает. Блокировка
-  бота не важна (может пользоваться веб-приложением), заблокированный администратором — не
-  живой (автоотметки бота отметками не считаются: в checkin_days их нет);
+- **живой на день D** — действительно пользуется: пришёл не позже D − LIVE_WINDOW_DAYS
+  (прожил хотя бы полную неделю), есть хоть одна привычка, и за LIVE_WINDOW_DAYS
+  закончившихся дней перед D (D−7…D−1) сам отмечал привычки хотя бы в LIVE_MIN_DAYS разных
+  днях; если по его расписанию отмечать было меньше дней (привычка «по субботам»,
+  «2 раза в неделю»), хватает стольких, но не меньше одного. Если у него есть привычка с
+  автоотметкой или «раз в месяц», дни захода в приложение тоже считаются. Заведённая
+  привычка и разовый заход живым не делают. Блокировка бота не важна (может пользоваться
+  веб-приложением), заблокированный администратором — не живой (автоотметки бота
+  отметками не считаются: в checkin_days их нет);
 - **новичок** — пришёл меньше LIVE_WINDOW_DAYS дней назад: живым ещё быть не может;
 - **ушёл** — открывал приложение, но не заходит CHURN_DAYS дней (бота не блокировал);
 - **вероятно удалил веб-приложение** — аккаунт только веб-приложения (без Telegram) не
@@ -39,6 +42,7 @@ from backend.constants import (
     CHURN_DAYS,
     DEFAULT_ACTIVATION_MIN_DAYS,
     DEFAULT_ACTIVATION_WINDOW_DAYS,
+    LIVE_MIN_DAYS,
     LIVE_WINDOW_DAYS,
 )
 from backend.models import FrequencyType
@@ -238,6 +242,7 @@ class Dataset:
     _streaks: dict[int, tuple[int, int]] | None = None
     _gone_push: dict[int, datetime] | None = None
     _tasks_by_user: dict[int, list[TaskRow]] | None = None
+    _due_checks: dict[int, Callable[[date], bool]] = field(default_factory=dict)
 
     # --- Выборки ---
 
@@ -296,12 +301,44 @@ class Dataset:
             return False
         first, last = day - timedelta(days=LIVE_WINDOW_DAYS), day - timedelta(days=1)
 
-        def within(days: list[date] | None) -> bool:
-            return bool(days) and bisect_right(days, last) > bisect_left(days, first)  # type: ignore[arg-type]
+        def days_within(days: list[date] | None) -> set[date]:
+            if not days:
+                return set()
+            return set(days[bisect_left(days, first) : bisect_right(days, last)])
 
-        if within(self.checkins.get(user_id)):
-            return True
-        return any(task.opens_count for task in habits) and within(self.activity.get(user_id))
+        active = days_within(self.checkins.get(user_id))
+        if any(task.opens_count for task in habits):
+            active |= days_within(self.activity.get(user_id))
+        if not active:
+            return False
+        return len(active) >= self._live_need(habits, first, last)
+
+    def _live_need(self, habits: list[TaskRow], first: date, last: date) -> int:
+        """Сколько разных активных дней нужно живому за окно first…last: LIVE_MIN_DAYS, а
+        если по расписанию отмечать было меньше дней — столько (не меньше одного).
+        «Гибкий график» — его цель, разложенная на неделю (3 раза в месяц — 1 день). Только
+        привычки с автоотметкой или «раз в месяц» — LIVE_MIN_DAYS дней захода."""
+        due_days: set[date] = set()
+        expected = 0
+        if all(task.opens_count for task in habits):
+            return LIVE_MIN_DAYS
+        for task in habits:
+            if task.opens_count:
+                continue
+            if task.frequency_type == FrequencyType.flexible:
+                times = task.period_times or 1
+                length = {"week": 7, "month": 30, "year": 365}.get(task.period or "week", 7)
+                expected = max(expected, -(-times * LIVE_WINDOW_DAYS // length))
+                continue
+            check = self._due_checks.get(task.id)
+            if check is None:
+                check = self._due_checks[task.id] = due_on(task)
+            day = first
+            while day <= last:
+                if task.exists_on(day) and check(day):
+                    due_days.add(day)
+                day += timedelta(days=1)
+        return max(1, min(LIVE_MIN_DAYS, max(len(due_days), expected)))
 
     def live_count(self, end: date | None = None) -> int:
         return sum(1 for user_id in self.users if self.is_live(user_id, end))

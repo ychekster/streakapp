@@ -255,12 +255,17 @@ export function trend(habit: Habit, day: string, range: StatsRange): Trend {
   return { values: values.slice(from), dates: dates.slice(from) };
 }
 
-/** Each weekday (Monday first): completion (%) — counted days of the due ones; flexible —
- *  the share of all marks made on it. Null — no due day (no mark) on that weekday. */
+/** Each weekday (Monday first): completion (%) — counted days of the due ones; a weekday
+ *  never due but done on some days — the share of its known days that were done (a bar for
+ *  every weekday the habit was done on); flexible — the share of all marks made on it.
+ *  Null — no due day and no mark on that weekday. */
 export function weekdayRates(habit: Habit, day: string): (number | null)[] {
   const days = daysOf(habit, day);
   const done = Array<number>(7).fill(0);
   const due = Array<number>(7).fill(0);
+  // Days off the schedule: done ones and all known ones (the bar of a weekday never due).
+  const offDone = Array<number>(7).fill(0);
+  const offKnown = Array<number>(7).fill(0);
   for (let date = days.first; date <= day; date = addDays(date, 1)) {
     if (!known(days, date)) {
       continue;
@@ -271,6 +276,9 @@ export function weekdayRates(habit: Habit, day: string): (number | null)[] {
     } else if (dueOn(days, date)) {
       due[weekday] += 1;
       done[weekday] += days.counted[daysBetween(days.first, date)] ? 1 : 0;
+    } else if (date < days.day || amountOn(days, date) > 0) {
+      offKnown[weekday] += 1;
+      offDone[weekday] += amountOn(days, date) > 0 ? 1 : 0;
     }
   }
   if (days.kind === "flexible") {
@@ -278,7 +286,11 @@ export function weekdayRates(habit: Habit, day: string): (number | null)[] {
     return done.map((count) => (marks > 0 ? Math.round((count / marks) * 100) : null));
   }
   return done.map((count, weekday) =>
-    due[weekday] > 0 ? Math.round((count / due[weekday]) * 100) : null,
+    due[weekday] > 0
+      ? Math.round((count / due[weekday]) * 100)
+      : offDone[weekday] > 0
+        ? Math.round((offDone[weekday] / offKnown[weekday]) * 100)
+        : null,
   );
 }
 

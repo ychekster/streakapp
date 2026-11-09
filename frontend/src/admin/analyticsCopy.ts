@@ -120,7 +120,7 @@ export const ANALYTICS_RU = {
   // --- Сводка ---
   liveTitle: "Живые пользователи",
   liveInfo:
-    "Пришли больше недели назад, есть хоть одна привычка, и за 7 прошедших дней (без сегодня) человек сам отмечал привычку или — если у него автоотметка или привычка раз в месяц — заходил в приложение. Просто завести привычку мало. Заблокировавшие бота считаются, если продолжают отмечать.",
+    "Те, кто действительно пользуется приложением. Пришли больше недели назад, есть хоть одна привычка, и за 7 прошедших дней (без сегодня) сами отмечали привычки хотя бы в 3 разных днях. Если по расписанию отмечать было меньше (привычка по субботам), хватает стольких дней. У автоотметки и привычки раз в месяц считаются и дни захода. Завести привычку или зайти один раз мало. Заблокировавшие бота считаются, если продолжают отмечать.",
   liveCompare: "к неделе назад",
   liveWeeks: "8 недель",
   newTitle: "Новые пользователи",
@@ -602,7 +602,7 @@ export const ANALYTICS_EN: AnalyticsCopy = {
 
   liveTitle: "Live users",
   liveInfo:
-    "Joined over a week ago, has at least one habit and in the past 7 days (not counting today) checked one off or — with auto check-off or a monthly habit — opened the app. Just adding a habit isn’t enough. People who blocked the bot count if they keep checking off.",
+    "People who really use the app. Joined over a week ago, have at least one habit and in the past 7 days (not counting today) checked off habits on at least 3 different days. If fewer days were planned (a Saturday habit), that many are enough. With auto check-off or a monthly habit, days the app was opened count too. Adding a habit or opening the app once isn’t enough. People who blocked the bot count if they keep checking off.",
   liveCompare: "vs a week ago",
   liveWeeks: "8 weeks",
   newTitle: "New users",

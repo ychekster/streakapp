@@ -23,16 +23,21 @@ from backend import messaging, validation
 from backend.analytics.profile import user_insights, uses_telegram, uses_web
 from backend.audience import audience_key, parse_audience, resolve_audience
 from backend.constants import (
+    BROADCAST_CHANNELS,
     BROADCAST_PHOTO_MAX_BYTES,
     BROADCAST_PHOTO_TYPES,
     BROADCAST_VIDEO_MAX_BYTES,
     BROADCAST_VIDEO_TYPES,
     CAPTION_MAX_LENGTH,
+    DEFAULT_LANGUAGE,
     MESSAGE_MAX_LENGTH,
+    PUSH_TEXT_MAX_LENGTH,
+    PUSH_TITLE_MAX_LENGTH,
 )
 from backend.errors import ApiError
 from backend.models import Broadcast, Review, User
 from backend.repository import Repository, utc_now
+from backend.webpush import PushTarget, VapidKeys, notification, push_to_devices
 from backend.schemas import (
     AdminEntry,
     AdminReview,
@@ -58,6 +63,12 @@ from backend.timezones import selected_city, timezone_display
 # --------------------------------------------------------------------------- #
 
 
+# Заголовок push с ответом на отзыв (текст под ним — сам ответ); на языке автора отзыва.
+REVIEW_REPLY_PUSH_TITLES: dict[str, str] = {
+    "ru": "Ответ на ваш отзыв",
+    "en": "Reply to your review",
+}
+
 def _user_ref(user: User) -> AdminUserRef:
     return AdminUserRef(
         telegram_id=user.telegram_id, first_name=user.first_name, username=user.username
@@ -79,6 +90,7 @@ def _broadcast(broadcast: Broadcast) -> BroadcastInfo:
     return BroadcastInfo(
         id=broadcast.id,
         audience=broadcast.audience,
+        channel=broadcast.channel,
         button=broadcast.button,
         status=broadcast.status.value,
         total=broadcast.total,
@@ -273,19 +285,49 @@ async def get_review(repo: Repository, review_id: int) -> AdminReview:
 
 
 async def reply_to_review(
-    repo: Repository, bot: Bot, admin: User, review_id: int, text: str
+    repo: Repository,
+    bot: Bot,
+    admin: User,
+    review_id: int,
+    text: str,
+    push: tuple[VapidKeys, str] | None = None,
 ) -> ReviewReplyResponse:
-    """Ответить на отзыв сообщением бота; дошедший ответ запоминается у отзыва."""
+    """Ответить на отзыв. Ответ запоминается у отзыва всегда: автор видит его в приложении
+    на экране отзыва. Уведомление — как у напоминаний: push на устройства веб-приложения,
+    если там включены уведомления (`push` — ключи VAPID и адрес приложения), иначе (или
+    если ни одно устройство не приняло) — сообщение бота с цитатой отзыва."""
     review = await _get_review(repo, review_id)
     body = validation.validate_message(text, MESSAGE_MAX_LENGTH)
-    await repo.commit()  # не держать транзакцию БД, пока идёт отправка (см. Repository.commit)
-    reason = await messaging.send_review_reply(
-        bot, review.user_id, review.user.language, review.text, body
+    user_id, language, quoted = review.user_id, review.user.language, review.text
+    await repo.set_review_reply(review, body, admin.telegram_id)
+    subscriptions = (
+        (await repo.push_subscriptions_for([user_id])).get(user_id, []) if push else []
     )
-    if reason is None:
-        await repo.set_review_reply(review, body, admin.telegram_id)
-    elif reason == "bot_blocked":
-        await repo.set_bot_blocked([review.user_id], blocked=True)
+    await repo.commit()  # не держать транзакцию БД, пока идёт отправка (см. Repository.commit)
+    delivered: list[str] = []
+    gone: list[str] = []
+    if push is not None and subscriptions:
+        keys, base_url = push
+        title = REVIEW_REPLY_PUSH_TITLES.get(language, REVIEW_REPLY_PUSH_TITLES[DEFAULT_LANGUAGE])
+        delivered, gone = await push_to_devices(
+            [PushTarget(item.endpoint, item.p256dh, item.auth) for item in subscriptions],
+            notification(
+                title,
+                body,
+                f"{base_url}/app?pwa=1&from=push&open=review",
+                tag=f"review-{review_id}",
+            ),
+            keys,
+        )
+    reason = None
+    if not delivered:
+        reason = await messaging.send_review_reply(bot, user_id, language, quoted, body)
+        if reason == "bot_blocked":
+            await repo.set_bot_blocked([user_id], blocked=True)
+    await repo.delete_push_subscriptions(gone)
+    if delivered:
+        await repo.mark_push_delivered(delivered, utc_now())
+    review = await _get_review(repo, review_id)
     return ReviewReplyResponse(delivered=reason is None, reason=reason, review=_review(review))
 
 
@@ -333,15 +375,32 @@ async def remove_admin(repo: Repository, viewer: User, telegram_id: int) -> Admi
 # --------------------------------------------------------------------------- #
 
 
+def _channel(value: str | None) -> str:
+    """Канал рассылки (constants.BROADCAST_CHANNELS); пусто — Telegram."""
+    channel = value or "telegram"
+    if channel not in BROADCAST_CHANNELS:
+        raise ApiError(422, "invalid_channel", "Неизвестный канал рассылки")
+    return channel
+
+
+def _exclude(channel: str, admin: User) -> int | None:
+    """Кого не считать получателем: в Telegram автору приходит копия, у push копии нет."""
+    return admin.telegram_id if channel == "telegram" else None
+
+
 async def broadcast_recipients(
-    repo: Repository, viewer: User, audience: str | None
+    repo: Repository, viewer: User, audience: str | None, channel: str | None = None
 ) -> BroadcastRecipients:
-    """Сколько получателей у рассылки с фильтром сейчас (без автора: ему приходит копия)."""
+    """Сколько получателей у рассылки с фильтром сейчас по каналу (в Telegram — без
+    автора: ему приходит копия; push — у кого включены уведомления веб-приложения)."""
     filters = parse_audience(audience, broadcast=True)
+    kind = _channel(channel)
     moment = utc_now()
     ids = await resolve_audience(repo, filters, moment)
     return BroadcastRecipients(
-        recipients=await repo.count_recipients(filters, moment, viewer.telegram_id, ids)
+        recipients=await repo.count_recipients(
+            filters, moment, _exclude(kind, viewer), ids, kind
+        )
     )
 
 
@@ -371,10 +430,21 @@ async def create_broadcast(
     button: str,
     media: UploadFile | None,
     tma_url: str | None,
+    channel: str | None = None,
+    title: str = "",
+    push_enabled: bool = False,
 ) -> BroadcastInfo:
     """Поставить рассылку в очередь бота: текст, фото или видео (с подписью или без),
-    под ним — необязательная кнопка. `audience` — фильтр получателей (audience.py)."""
+    под ним — необязательная кнопка. `audience` — фильтр получателей (audience.py).
+
+    Push (`channel` "push"): заголовок и текст без медиа тем, у кого включены уведомления
+    веб-приложения; кнопка — куда ведёт нажатие (без неё — в приложение). Копии автору
+    нет; без ключей VAPID (`push_enabled` False) — 503."""
     filters = parse_audience(audience, broadcast=True)
+    if _channel(channel) == "push":
+        return await _create_push_broadcast(
+            repo, admin, filters, title, text, button, media, push_enabled
+        )
     button_key = validation.validate_broadcast_button(button)
     if button_key is not None and not tma_url:
         raise ApiError(503, "app_url_missing", "Не задан адрес приложения (TMA_URL)")
@@ -411,6 +481,46 @@ async def create_broadcast(
         media_file_id=file_id,
         button=button_key,
         total=total,
+    )
+    return _broadcast(broadcast)
+
+
+async def _create_push_broadcast(
+    repo: Repository,
+    admin: User,
+    filters: dict[str, str],
+    title: str,
+    text: str,
+    button: str,
+    media: UploadFile | None,
+    push_enabled: bool,
+) -> BroadcastInfo:
+    """Push-рассылка: проверить заголовок и текст, посчитать получателей и поставить в
+    очередь бота (он и рассылает уведомления, bot/broadcasts.py)."""
+    if not push_enabled:
+        raise ApiError(503, "push_unavailable", "Push-уведомления не настроены (VAPID)")
+    if media is not None:
+        raise ApiError(422, "invalid_media", "К push нельзя приложить фото или видео")
+    heading = validation.validate_caption(title, PUSH_TITLE_MAX_LENGTH)
+    if heading is None:
+        raise ApiError(422, "invalid_title", "Введите заголовок уведомления")
+    body = validation.validate_message(text, PUSH_TEXT_MAX_LENGTH)
+    button_key = validation.validate_broadcast_button(button)
+    moment = utc_now()
+    ids = await resolve_audience(repo, filters, moment)
+    total = await repo.count_recipients(filters, moment, None, ids, "push")
+    if total == 0:
+        raise ApiError(409, "no_recipients", "Под этот фильтр не попал ни один получатель")
+    broadcast = await repo.create_broadcast(
+        created_by=admin.telegram_id,
+        audience=audience_key(filters),
+        text=body,
+        media_type=None,
+        media_file_id=None,
+        button=button_key,
+        total=total,
+        channel="push",
+        title=heading,
     )
     return _broadcast(broadcast)
 

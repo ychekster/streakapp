@@ -291,7 +291,7 @@ def test_todo_push_opens_the_app() -> None:
         task_id=None, user_id=1, habit_name="Банк", language="ru", todo_id=7
     )
     payload = bot_reminders.push_payload(reminder, "https://example.com")
-    assert payload["title"] == "Банк" and payload["body"] == "Напоминание о задаче"
+    assert payload["title"] == "Напоминание о задаче" and payload["body"] == "Пора выполнить «Банк»"
     assert payload["tag"] == "todo-7"
 
 

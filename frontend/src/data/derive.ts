@@ -24,6 +24,7 @@ import type {
   HabitColor,
   HabitGroup,
   HabitInput,
+  NamePeriod,
   Period,
   SchedulePeriod,
 } from "../types/habit";
@@ -385,6 +386,47 @@ export function myDay(
   return { done, count: Number(done) };
 }
 
+/** What the habit was called on `day` (name_history, as scheduleOn) and since when each
+ *  of the name and the description had been as they were: the first day of the run of
+ *  periods with the same value (the first period — from `created_on`; null — unknown). */
+export interface NamesOnDay {
+  name: string;
+  description: string | null;
+  nameSince: string | null;
+  descriptionSince: string | null;
+}
+
+export function namesOn(
+  habit: Pick<Habit, "name" | "description" | "name_history" | "created_on">,
+  day: string,
+): NamesOnDay {
+  const periods = habit.name_history ?? [];
+  const values = [
+    ...periods.map((period) => ({ name: period.name, description: period.description ?? null })),
+    { name: habit.name, description: habit.description ?? null },
+  ];
+  const startOf = (index: number): string | null =>
+    index === 0 ? (habit.created_on ?? null) : periods[index - 1].until;
+  let index = periods.findIndex((period) => day < period.until);
+  if (index === -1) {
+    index = periods.length;
+  }
+  const sinceOf = (same: (other: (typeof values)[number]) => boolean): string | null => {
+    let first = index;
+    while (first > 0 && same(values[first - 1])) {
+      first -= 1;
+    }
+    return startOf(first);
+  };
+  const { name, description } = values[index];
+  return {
+    name,
+    description,
+    nameSince: sinceOf((other) => other.name === name),
+    descriptionSince: sinceOf((other) => other.description === description),
+  };
+}
+
 /** Was the habit due on `day` by the schedule in force on that day. */
 export function isDueOnDay(habit: ScheduleWithHistory, day: string): boolean {
   return isDueOn(scheduleOn(habit)(day), day);
@@ -689,6 +731,8 @@ interface Draft {
   archived?: boolean;
   /** Past schedules after a change on the device; none — as on the server. */
   periods?: SchedulePeriod[];
+  /** Past names and descriptions after a change on the device; none — as on the server. */
+  names?: NamePeriod[];
   /** Calendar day whose unchecked record auto check-off turned on here has forgotten
    *  (services.update_habit) — applyAutoMark may mark it again. */
   autoMarkFresh?: string;
@@ -1130,6 +1174,7 @@ function buildHabit(
     created_on: base ? base.created_on : calendarToday,
     started_on: base ? base.started_on : null,
     schedule_history: scheduleHistory,
+    name_history: draft.names ?? base?.name_history ?? [],
     notes: notesOf(base, draft.notes, today),
     group: group ? { ...group, fill_history: fillHistory } : group,
   };
@@ -1254,6 +1299,23 @@ export function deriveView(
               overtime: before.overtime === true && before.times_per_day > 1,
               goal_unit: before.goal_unit ?? "times",
             },
+          ];
+        }
+        // As the server (services.remember_name): the name and description before the
+        // marking day are kept — the day window shows what the habit was called then.
+        const names = draft.names ?? draft.base?.name_history ?? [];
+        const beforeName = before?.name ?? draft.base?.name;
+        const beforeDescription = before ? before.description : (draft.base?.description ?? null);
+        if (
+          beforeName !== undefined &&
+          (beforeName !== draft.fields.name ||
+            (beforeDescription ?? null) !== (draft.fields.description ?? null)) &&
+          (createdOn == null || createdOn < today) &&
+          !names.some((period) => period.until >= today)
+        ) {
+          draft.names = [
+            ...names,
+            { until: today, name: beforeName, description: beforeDescription ?? null },
           ];
         }
         // As the server (services.update_habit): auto check-off turned on means «mark

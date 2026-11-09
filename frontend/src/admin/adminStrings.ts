@@ -9,7 +9,12 @@ import { ApiRequestError, type ApiErrorCode } from "../api/client";
 import { ANALYTICS_EN, ANALYTICS_RU } from "./analyticsCopy";
 import { OVERVIEW_EN, OVERVIEW_RU } from "./overviewCopy";
 import { useLanguage } from "../preferences";
-import type { AudienceKey, BroadcastButton, UndeliveredReason } from "../types/admin";
+import type {
+  AudienceKey,
+  BroadcastButton,
+  BroadcastChannel,
+  UndeliveredReason,
+} from "../types/admin";
 import type { Language } from "../types/settings";
 
 /** Число по-русски: «1 234». */
@@ -274,10 +279,11 @@ const RU = {
   reply: "Ответить",
   replyAgain: "Ответить ещё раз",
   replyTitle: "Ответ на отзыв",
-  replyDescription: "Бот пришлёт ответ автору в Telegram вместе с цитатой отзыва.",
+  replyDescription:
+    "Ответ придёт автору пушем, если в веб-приложении у него включены уведомления, иначе сообщением бота в Telegram с цитатой отзыва. Ещё он виден в приложении на экране отзыва.",
   replyPlaceholder: "Ваш ответ",
   replySentTitle: "Ответ отправлен",
-  replySentMessage: "Он в чате автора с ботом.",
+  replySentMessage: "Автор получит уведомление и увидит ответ на экране отзыва.",
   replyFailed: "Не удалось отправить ответ. Попробуйте ещё раз.",
   sentOn: (date: string) => `Отправлено ${date}`,
 
@@ -292,7 +298,7 @@ const RU = {
   messageSection: "Сообщение",
   broadcastPlaceholder: "Текст сообщения",
   characters: (count: number, limit: number, caption: boolean) =>
-    `${ru(count)} / ${ru(limit)}${caption ? " · подпись" : ""}`,
+    `${ru(count)} / ${ru(limit)}${caption ? ", подпись" : ""}`,
   mediaSection: "Фото или видео",
   addMedia: "Добавить фото или видео",
   removeMedia: "Убрать",
@@ -314,6 +320,30 @@ const RU = {
     new_habit:
       "Открывает приложение сразу на форме новой привычки. Подпись — на языке получателя.",
   } as Record<BroadcastButton, string>,
+  channelSection: "Куда",
+  channelRow: "Канал",
+  channelNames: { telegram: "Telegram", push: "Пуш в веб-приложении" } as Record<
+    BroadcastChannel,
+    string
+  >,
+  channelFooters: {
+    telegram: "Сообщение от бота в Telegram: текст, фото или видео и кнопка.",
+    push: "Уведомление на телефон или компьютер тем, у кого в веб-приложении включены уведомления. Без фото и видео.",
+  } as Record<BroadcastChannel, string>,
+  pushRecipients: (count: number) =>
+    `${ru(count)} ${plural(count, "получатель", "получателя", "получателей")}. Условия складываются. Получат те, у кого включены уведомления веб-приложения, в том числе без Telegram.`,
+  pushTitlePlaceholder: "Заголовок",
+  pushTextPlaceholder: "Текст уведомления",
+  pushButtonRow: "Нажатие откроет",
+  pushTargets: {
+    "": "Приложение",
+    open_app: "Приложение",
+    review: "Экран отзыва",
+    new_habit: "Новую привычку",
+  } as Record<BroadcastButton, string>,
+  pushButtonFooter: "Куда попадёт человек, нажав на уведомление.",
+  pushDialogMessage: (count: number, audience: string) =>
+    `Отправить уведомление ${ru(count)} ${plural(count, "получателю", "получателям", "получателям")} (${audience})?`,
   sendBroadcast: "Отправить рассылку",
   sendDialogTitle: "Отправить рассылку",
   sendDialogMessage: (count: number, audience: string) =>
@@ -325,7 +355,7 @@ const RU = {
   broadcastProgress: (sent: number, total: number) => `Отправка… ${ru(sent)} из ${ru(total)}`,
   broadcastDone: "Разослано",
   broadcastResult: (sent: number, failed: number) =>
-    `Доставлено: ${ru(sent)}${failed ? ` · не доставлено: ${ru(failed)}` : ""}`,
+    `Доставлено: ${ru(sent)}${failed ? `, не доставлено: ${ru(failed)}` : ""}`,
   broadcastProgressLabel: "Ход рассылки",
   broadcastTotal: (total: number) => `всего ${ru(total)}`,
 
@@ -351,8 +381,10 @@ const RU = {
 
   // --- Причины недоставки ---
   undelivered: {
-    bot_blocked: "Не доставлено — пользователь заблокировал бота.",
-    chat_not_found: "Не доставлено — пользователь ни разу не запускал бота.",
+    bot_blocked:
+      "Уведомление не дошло: пользователь заблокировал бота, а уведомления веб-приложения у него выключены. Ответ виден в приложении на экране отзыва.",
+    chat_not_found:
+      "Уведомление не дошло: пользователь не запускал бота, а уведомления веб-приложения у него выключены. Ответ виден в приложении на экране отзыва.",
   } as Record<UndeliveredReason, string>,
 
   // Ошибки API по кодам; кода нет в списке — текст про само действие.
@@ -380,6 +412,9 @@ const RU = {
     media_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
     payload_too_large: "Файл слишком большой: фото — до 10 МБ, видео — до 50 МБ",
     no_recipients: "Под эти фильтры никто не подходит",
+    push_unavailable: "На сервере не настроены пуши (ключи VAPID)",
+    invalid_title: "Введите заголовок уведомления (до 60 символов)",
+    invalid_channel: "Такого канала нет, обновите приложение",
     admin_chat_unavailable: "Сначала запустите бота — копия каждой рассылки приходит вам",
     telegram_rejected: "Telegram не принял это сообщение",
     telegram_busy: "Telegram просит подождать — попробуйте через минуту",
@@ -614,10 +649,11 @@ const EN: AdminStrings = {
   reply: "Reply",
   replyAgain: "Send Another Reply",
   replyTitle: "Reply to Review",
-  replyDescription: "The bot sends your reply to them in Telegram, quoting their review.",
+  replyDescription:
+    "They get your reply as a push if notifications are on in the web app, otherwise as a bot message in Telegram quoting their review. It’s also shown in the app on the review screen.",
   replyPlaceholder: "Your reply",
   replySentTitle: "Reply Sent",
-  replySentMessage: "It’s in their Telegram chat with the bot.",
+  replySentMessage: "They’ll get a notification and see the reply on the review screen.",
   replyFailed: "Couldn’t send the reply. Please try again.",
   sentOn: (date: string) => `Sent ${date}`,
 
@@ -631,7 +667,7 @@ const EN: AdminStrings = {
   messageSection: "Message",
   broadcastPlaceholder: "Text of the message",
   characters: (count: number, limit: number, caption: boolean) =>
-    `${en(count)} / ${en(limit)}${caption ? " · caption" : ""}`,
+    `${en(count)} / ${en(limit)}${caption ? ", caption" : ""}`,
   mediaSection: "Photo or Video",
   addMedia: "Add Photo or Video",
   removeMedia: "Remove",
@@ -653,6 +689,27 @@ const EN: AdminStrings = {
     new_habit:
       "Opens the app right on the new habit form. The label is in the recipient’s language.",
   },
+  channelSection: "Where",
+  channelRow: "Channel",
+  channelNames: { telegram: "Telegram", push: "Web App Push" },
+  channelFooters: {
+    telegram: "A bot message in Telegram: text, a photo or video and a button.",
+    push: "A notification on the phone or computer of people with notifications on in the web app. No photos or videos.",
+  },
+  pushRecipients: (count: number) =>
+    `${en(count)} ${count === 1 ? "recipient" : "recipients"}. Conditions combine. Everyone with web app notifications on gets it, including people without Telegram.`,
+  pushTitlePlaceholder: "Title",
+  pushTextPlaceholder: "Notification text",
+  pushButtonRow: "Tapping Opens",
+  pushTargets: {
+    "": "The App",
+    open_app: "The App",
+    review: "Review Screen",
+    new_habit: "New Habit",
+  },
+  pushButtonFooter: "Where people land when they tap the notification.",
+  pushDialogMessage: (count: number, audience: string) =>
+    `Send this notification to ${en(count)} ${count === 1 ? "person" : "people"} (${audience})?`,
   sendBroadcast: "Send Broadcast",
   sendDialogTitle: "Send Broadcast",
   sendDialogMessage: (count: number, audience: string) =>
@@ -664,7 +721,7 @@ const EN: AdminStrings = {
   broadcastProgress: (sent: number, total: number) => `Sending… ${en(sent)} of ${en(total)}`,
   broadcastDone: "Sent",
   broadcastResult: (sent: number, failed: number) =>
-    `Delivered to ${en(sent)}${failed ? ` · ${en(failed)} not delivered` : ""}`,
+    `Delivered to ${en(sent)}${failed ? `, ${en(failed)} not delivered` : ""}`,
   broadcastProgressLabel: "Broadcast progress",
   broadcastTotal: (total: number) => `${en(total)} total`,
 
@@ -687,8 +744,10 @@ const EN: AdminStrings = {
   returnToApp: "Return to App",
 
   undelivered: {
-    bot_blocked: "Not delivered — this person has blocked the bot.",
-    chat_not_found: "Not delivered — this person has never started the bot.",
+    bot_blocked:
+      "The notification didn’t reach them: they blocked the bot and web app notifications are off. The reply is shown in the app on the review screen.",
+    chat_not_found:
+      "The notification didn’t reach them: they never started the bot and web app notifications are off. The reply is shown in the app on the review screen.",
   },
 
   apiErrors: {
@@ -715,6 +774,9 @@ const EN: AdminStrings = {
     media_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",
     payload_too_large: "This file is too large: photos up to 10 MB, videos up to 50 MB",
     no_recipients: "No one matches these filters",
+    push_unavailable: "Push isn’t set up on the server (VAPID keys)",
+    invalid_title: "Enter a notification title (up to 60 characters)",
+    invalid_channel: "This channel doesn’t exist, please update the app",
     admin_chat_unavailable: "Start the bot first — you get a copy of every broadcast",
     telegram_rejected: "Telegram didn’t accept this message",
     telegram_busy: "Telegram asked us to slow down — try again in a minute",

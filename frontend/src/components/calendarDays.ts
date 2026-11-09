@@ -161,6 +161,13 @@ function partOf(habit: Habit, index: number, date: string): number {
   return total > 1 ? Math.min((habit.history_counts?.[index] ?? 0) / total, 1) : 0;
 }
 
+/** Заморожена ли привычка в день `date` истории (`day` — день отметки): такой день задним
+ *  числом не отмечается (календарь, окно дня). */
+export function frozenDay(habit: Habit, date: string, day: string): boolean {
+  const index = daysBetween(addDays(day, 1 - habit.frozen_history.length), date);
+  return date <= day && index >= 0 && (habit.frozen_history[index] ?? false);
+}
+
 /** Что было в день `date`; `day` — день отметки, `start` — первый день привычки (startOf). */
 export function stateOf(habit: Habit, date: string, day: string, start: string | null): CalendarDayState {
   const total = habit.times_per_day;

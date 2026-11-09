@@ -22,7 +22,22 @@
   color: var(--color-text-primary);
 }
 
-.text::placeholder {
+/* Заголовок пуша: одна строка, тот же шрифт, что у текста. */
+.title {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-habit-name);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.text::placeholder,
+.title::placeholder {
   color: var(--color-placeholder);
 }
 

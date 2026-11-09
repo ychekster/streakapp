@@ -239,6 +239,19 @@ describe("weekdayRates", () => {
     // Sunday Oct 4 missed; today (Oct 11) not done yet — not due.
     expect(rates[6]).toBe(0);
   });
+
+  it("shows a bar for a weekday off the schedule when the habit was done on it", () => {
+    const day = "2026-10-11"; // Sunday
+    // Weekdays only; done every weekday and on Saturday Oct 3 (one of two Saturdays).
+    const marks = [...range("2026-09-28", "2026-10-02"), "2026-10-03", ...range("2026-10-05", "2026-10-09")];
+    const rates = weekdayRates(
+      habit(day, marks, { frequency_type: "specific_days", days: ["mon", "tue", "wed", "thu", "fri"] }),
+      day,
+    );
+    expect(rates.slice(0, 5)).toEqual([100, 100, 100, 100, 100]);
+    expect(rates[5]).toBe(50);
+    expect(rates[6]).toBeNull();
+  });
 });
 
 describe("dayBreakdown", () => {

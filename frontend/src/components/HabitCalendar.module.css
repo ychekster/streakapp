@@ -83,7 +83,9 @@
 /* День, который можно отметить или открыть в окне дня (тап): кнопка, выглядит как
    обычный день — состояния ниже перекрывают фон. Без выделения и системного меню под
    пальцем. */
-.pickable {
+/* День нажимается (тап — отметка) или только держится (замороженный: окно названия). */
+.pickable,
+.holdable {
   padding: 0;
   border: none;
   background-color: transparent;
@@ -93,6 +95,10 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.holdable {
+  cursor: default;
 }
 
 .done {

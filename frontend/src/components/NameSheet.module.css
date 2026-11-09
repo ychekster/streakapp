@@ -1,0 +1,43 @@
+/* Окно названия (NameSheet): название и описание дня под шапкой окна (BottomSheet) —
+   плашками, как поле заметки окна дня (та же заливка и скругление). */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--day-sheet-note-top);
+}
+
+.row {
+  padding: var(--day-sheet-note-padding);
+  border-radius: var(--count-sheet-button-radius);
+  background: var(--count-sheet-button-fill);
+}
+
+.title {
+  margin: 0 0 4px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.value {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--day-sheet-note-font-size);
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--color-text-secondary);
+}
+
+.caption {
+  margin: 6px 0 0;
+  color: rgb(var(--habit-rgb));
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}

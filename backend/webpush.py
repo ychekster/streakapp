@@ -104,6 +104,22 @@ class VapidKeys:
     subject: str
 
 
+def vapid_keys(private_key: str | None, subject: str) -> VapidKeys | None:
+    """VAPID keys from the settings; None — no private key, push is off."""
+    return VapidKeys(private_key, subject) if private_key else None
+
+
+async def push_to_devices(
+    targets: list[PushTarget], data: dict[str, Any], keys: VapidKeys
+) -> tuple[list[str], list[str]]:
+    """Deliver one notification to every device of an account, in parallel. Returns the
+    delivered and the gone endpoints (the caller deletes the gone subscriptions)."""
+    outcomes = await asyncio.gather(*(send_push(target, data, keys) for target in targets))
+    delivered = [t.endpoint for t, o in zip(targets, outcomes) if o == PushOutcome.sent]
+    gone = [t.endpoint for t, o in zip(targets, outcomes) if o == PushOutcome.gone]
+    return delivered, gone
+
+
 def notification(title: str, body: str, url: str, tag: str | None = None) -> dict[str, Any]:
     """Payload the service worker shows (frontend/src/sw.ts)."""
     data: dict[str, Any] = {"title": title, "body": body, "url": url}

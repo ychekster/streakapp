@@ -131,6 +131,8 @@ const RU = {
   todosNew: "Новая задача",
   todosAnyDay: "Без срока",
   todosRemind: "Напоминание",
+  todosClearDate: "Убрать дату",
+  todosClearRemind: "Убрать напоминание",
   todosNoList: "Без списка",
   todosList: "Список",
   // День и время задачи под её текстом: «Завтра в 15:00» (без «·» — см. CLAUDE.md).
@@ -443,16 +445,16 @@ const RU = {
   statsTrendHeading: "Динамика",
   statsTrendInfoLabel: "Что показывает динамика",
   statsTrendInfo:
-    "Линия показывает счёт привычки. За каждый выполненный по плану день прибавляется 1 очко, за пропущенный отнимается 1. Сегодня тоже считается: пока привычка не отмечена, линия смотрит вниз. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
+    "Каждый выполненный по плану день добавляет к счёту 1 очко, пропущенный отнимает 1. Ниже нуля счёт не опускается, поэтому чем дольше держите привычку, тем выше линия.",
   statsTrendInfoAmount:
-    "Линия показывает счёт привычки. День по плану без выполнения отнимает 1 очко, выполненная цель прибавляет 1. Неполный день считается по доле: половина цели даёт 0, три четверти дают 0,5. Сверх цели счёт растёт дальше: вдвое больше цели даёт 2. Сегодня тоже считается и меняется с каждой отметкой. Ниже нуля счёт не опускается.",
+    "Выполненная цель добавляет к счёту 1 очко, пропущенный день отнимает 1, неполный считается по доле цели. Ниже нуля счёт не опускается, поэтому чем дольше держите привычку, тем выше линия.",
   statsTrendInfoFlexible:
-    "Линия показывает счёт привычки. За каждую отметку прибавляется 1 очко. Когда период заканчивается, за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается, поэтому чем дольше вы держите привычку, тем выше линия.",
+    "Каждая отметка добавляет к счёту 1 очко. В конце периода за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается.",
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
   statsWeekdaysHeading: "Недельный паттерн",
   statsWeekdaysInfoLabel: "Что показывает недельный паттерн",
   statsWeekdaysInfo:
-    "Столбик дня недели показывает, как часто привычка выполнялась в этот день, когда стояла по плану. Так видно, в какие дни держать её легче, а в какие труднее.",
+    "Столбик показывает, как часто привычка выполнялась в этот день недели. Так видно, в какие дни держать её легче, а в какие труднее.",
   statsWeekdaysInfoFlexible:
     "Столбик дня недели показывает, какая доля всех отметок пришлась на этот день. Так видно, в какие дни вы выполняете привычку чаще.",
   statsDaysHeading: "Итоги по дням",
@@ -632,6 +634,15 @@ const RU = {
   daySheetNote: "Заметка к дню",
   // Подпись окна для скринридеров; свайп влево-вправо — соседний день.
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Свайпом можно перейти на соседний день`,
+  // Замороженный день (свайпом в окне дня): отметить его задним числом нельзя.
+  daySheetFrozen: "День заморожен, отметить его нельзя",
+  // --- Окно названия (долгое нажатие на день в календаре): как привычка называлась в тот
+  // день и сколько дней уже так называлась ---
+  nameSheetName: "Название",
+  nameSheetDescription: "Описание",
+  nameSheetNoDescription: "Без описания",
+  nameSheetSince: (count: number) => `Без изменений ${count} ${ruDays(count)}`,
+  nameSheetLabel: (name: string, date: string) => `${name}, ${date}`,
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
@@ -848,6 +859,8 @@ const EN: Strings = {
   todosNew: "New Task",
   todosAnyDay: "Anytime",
   todosRemind: "Reminder",
+  todosClearDate: "Remove date",
+  todosClearRemind: "Remove reminder",
   todosNoList: "No list",
   todosList: "List",
   todosDateTime: (day: string, time: string) => `${day} at ${time}`,
@@ -1127,16 +1140,16 @@ const EN: Strings = {
   statsTrendHeading: "Trend",
   statsTrendInfoLabel: "What the trend shows",
   statsTrendInfo:
-    "The line shows the habit’s score. Each day done as planned adds 1 point, each missed day takes 1 away. Today counts too: until the habit is checked, the line points down. The score never goes below zero, so the longer you keep the habit, the higher the line.",
+    "Each day done as planned adds 1 point to the score, each missed day takes 1 away. The score never goes below zero, so the longer you keep the habit, the higher the line.",
   statsTrendInfoAmount:
-    "The line shows the habit’s score. A planned day with nothing done takes 1 point away, a reached goal adds 1. A partial day counts by its share: half the goal gives 0, three quarters give 0.5. Past the goal the score keeps growing: twice the goal gives 2. Today counts too and changes with every mark. The score never goes below zero.",
+    "A reached goal adds 1 point to the score, a missed day takes 1 away, a partial day counts by its share of the goal. The score never goes below zero, so the longer you keep the habit, the higher the line.",
   statsTrendInfoFlexible:
-    "The line shows the habit’s score. Each mark adds 1 point. When a period ends, 1 point is taken away for each mark short of the goal. The score never goes below zero, so the longer you keep the habit, the higher the line.",
+    "Each mark adds 1 point to the score. At the end of a period, 1 point is taken away for each mark short of the goal. The score never goes below zero.",
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
   statsWeekdaysHeading: "Weekly pattern",
   statsWeekdaysInfoLabel: "What the weekly pattern shows",
   statsWeekdaysInfo:
-    "Each weekday’s bar shows how often the habit was done on that day when it was planned. It shows on which days the habit is easier to keep and on which it’s harder.",
+    "Each bar shows how often the habit was done on that weekday. It shows on which days the habit is easier to keep and on which it’s harder.",
   statsWeekdaysInfoFlexible:
     "Each weekday’s bar shows what share of all marks fell on that day. It shows on which days you do the habit more often.",
   statsDaysHeading: "Days summary",
@@ -1290,6 +1303,12 @@ const EN: Strings = {
   daySheetUnmark: "Unmark",
   daySheetNote: "Note for the day",
   daySheetLabel: (name: string, date: string) => `${name}, ${date}. Swipe for the next day`,
+  daySheetFrozen: "This day is frozen and can’t be marked",
+  nameSheetName: "Name",
+  nameSheetDescription: "Description",
+  nameSheetNoDescription: "No description",
+  nameSheetSince: (count: number) => `Unchanged for ${count} ${count === 1 ? "day" : "days"}`,
+  nameSheetLabel: (name: string, date: string) => `${name}, ${date}`,
   undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 

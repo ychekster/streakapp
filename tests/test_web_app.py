@@ -821,8 +821,9 @@ def test_reminder_goes_to_push_or_to_the_bot_never_both(db_url: str) -> None:
         ["https://push.example/web", "https://push.example/tg", gone_endpoint]
     )
     payload = pushed[0][1]
-    # The habit is the title, what to do — the text under it. Plain text, no emoji.
-    assert payload["title"] == "Вода" and payload["body"] == "Пора выполнить привычку"
+    # What it is in the title, the habit in the text under it. Plain text, no emoji.
+    assert payload["title"] == "Напоминание о привычке"
+    assert payload["body"] == "Пора выполнить «Вода»"
     assert "/app?pwa=1&from=push&habit=" in payload["url"]
     # The gone subscription is deleted.
     assert 503 not in left and len(left) == 2

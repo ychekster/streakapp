@@ -5,7 +5,8 @@
  * Каждая плашка — подпись с иконкой, а выбор делает нативное поле, прозрачное и растянутое
  * на неё (как DateField / TimeField): <input type="date">, <input type="time">, <select>.
  * Не выбрано — серая подпись («Без срока», «Напоминание», «Без списка»), выбрано —
- * акцентная. «Сбросить» в системном выборе (пустое значение) убирает день или напоминание.
+ * акцентная. Крестик на выбранной плашке (или «Сбросить» в системном выборе) убирает день
+ * или напоминание.
  * Напоминание — в день задачи: без дня оно ставит «сегодня» (день отметки `today`), убранный день убирает и его.
  * Список — только свои (рекомендуемые наполняются сами); нет своих — плашки нет.
  */
@@ -56,6 +57,8 @@ export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
       <Chip
         set={value.due_date !== null}
         icon={calendarIcon}
+        clearLabel={strings.todosClearDate}
+        onClear={() => onChange({ ...value, due_date: null, remind_time: null })}
         label={
           value.due_date ? formatTodoDate(value.due_date, strings, language) : strings.todosAnyDay
         }
@@ -75,6 +78,8 @@ export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
       <Chip
         set={value.remind_time !== null}
         icon={clockIcon}
+        clearLabel={strings.todosClearRemind}
+        onClear={() => onChange({ ...value, remind_time: null })}
         label={value.remind_time ?? strings.todosRemind}
       >
         <input
@@ -126,11 +131,16 @@ function Chip({
   set,
   icon,
   label,
+  clearLabel,
+  onClear,
   children,
 }: {
   set: boolean;
   icon: ReactNode;
   label: string;
+  /** Крестик на выбранной плашке: убрать выбор. */
+  clearLabel?: string;
+  onClear?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -138,9 +148,28 @@ function Chip({
       {icon}
       <span className={styles.label}>{label}</span>
       {children}
+      {set && onClear ? (
+        <button
+          type="button"
+          className={styles.clear}
+          aria-label={clearLabel}
+          // Фокус остаётся в поле текста: правка задачи не заканчивается.
+          onPointerDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onClear}
+        >
+          {clearIcon}
+        </button>
+      ) : null}
     </span>
   );
 }
+
+const clearIcon = (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
 
 const calendarIcon = (
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

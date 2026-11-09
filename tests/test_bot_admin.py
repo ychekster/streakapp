@@ -336,7 +336,7 @@ def test_analytics_definitions(db_url: str) -> None:
             user.app_opened_at, user.last_seen_at = ago(opened), ago(seen)
         repo.session.add(Task(user_id=1, name="Бег", frequency_type="daily", created_at=ago(20)))
         repo.session.add(Task(user_id=2, name="Сон", frequency_type="daily", created_at=ago(20)))
-        for user_id, days_ago in ((1, 20), (1, 19), (1, 0), (1, 2), (1, 4), (2, 20)):
+        for user_id, days_ago in ((1, 20), (1, 19), (1, 0), (1, 2), (1, 4), (1, 5), (2, 20)):
             repo.session.add(CheckinDay(user_id=user_id, day=today - timedelta(days=days_ago)))
         await repo.session.flush()
 
@@ -458,8 +458,9 @@ def test_activity_is_recorded_once_a_minute_and_once_a_day(db_url: str) -> None:
 
 
 def test_live_users(db_url: str) -> None:
-    """«Живой» на день D: пришёл не позже D−7, есть привычка и за D−7…D−1 — своя отметка или
-    (у привычек с автоотметкой и «раз в месяц») заход в приложение. Новая привычка и
+    """«Живой» на день D: пришёл не позже D−7, есть привычка и за D−7…D−1 — свои отметки
+    хотя бы в 3 разных днях (меньше — если по расписанию было меньше дней) или (у привычек
+    с автоотметкой и «раз в месяц») заходы в приложение. Новая привычка, разовая отметка и
     сегодняшняя отметка не считаются; блокировка бота не важна, блокировка админом — важна."""
     from backend.analytics.data import load_dataset
     from backend.analytics.overview import groups
@@ -470,11 +471,13 @@ def test_live_users(db_url: str) -> None:
         now = utc_now()
         today = local_day(now)
         ago = lambda days: now - timedelta(days=days)  # noqa: E731
+        saturday = today - timedelta(days=(today.weekday() - 5) % 7 or 7)
         habits = {
             21: {}, 22: {}, 23: {"auto_mark": True}, 24: {"auto_mark": True},
             25: {"created": 2}, 26: {"deleted": 1}, 27: {},
             28: {"frequency_type": "monthly", "start_date": today},
-            29: {}, 30: {"joined": 3, "created": 3}, 31: {},
+            29: {}, 30: {"joined": 3, "created": 3}, 31: {}, 32: {},
+            33: {"frequency_type": "specific_days", "days": "sat"},
         }
         for user_id, options in habits.items():
             user = await repo.get_or_create_user(user_id, None, "U", language="ru")
@@ -485,6 +488,7 @@ def test_live_users(db_url: str) -> None:
                     user_id=user_id,
                     name="Привычка",
                     frequency_type=options.get("frequency_type", "daily"),
+                    days=options.get("days"),
                     start_date=options.get("start_date"),
                     auto_mark=options.get("auto_mark", False),
                     created_at=ago(options.get("created", 20)),
@@ -492,12 +496,16 @@ def test_live_users(db_url: str) -> None:
                     deleted_at=ago(deleted) if deleted is not None else None,
                 )
             )
-        # Отметки: 21, 26, 27 и 31 — 3 дня назад, 22 — 8 дней назад, 29 — только сегодня,
-        # 30 (новичок) — вчера.
-        for user_id, days_ago in ((21, 3), (22, 8), (26, 3), (27, 3), (29, 0), (30, 1), (31, 3)):
+        # Отметки: 21, 26, 27 и 31 — 3, 4 и 5 дней назад, 22 — 8–10 дней назад, 29 — только
+        # сегодня, 30 (новичок) — вчера, 32 — один раз, 33 (по субботам) — в субботу.
+        checkins = [(user_id, days) for user_id in (21, 26, 27, 31) for days in (3, 4, 5)]
+        checkins += [(22, 8), (22, 9), (22, 10), (29, 0), (30, 1), (32, 2)]
+        checkins += [(33, (today - saturday).days)]
+        for user_id, days_ago in checkins:
             repo.session.add(CheckinDay(user_id=user_id, day=today - timedelta(days=days_ago)))
-        # Заходы: 22, 23 и 28 — недавно, 24 — 10 дней назад.
-        for user_id, days_ago in ((22, 1), (23, 2), (24, 10), (28, 1)):
+        # Заходы: 22 — недавно, 23 и 28 — 3 дня за неделю, 24 — 10 дней назад.
+        visits = [(22, 1), (24, 10)] + [(user_id, days) for user_id in (23, 28) for days in (1, 2, 3)]
+        for user_id, days_ago in visits:
             repo.session.add(UserActivity(user_id=user_id, day=today - timedelta(days=days_ago)))
         (await repo.get_user(27)).bot_blocked_at = ago(1)
         (await repo.get_user(31)).blocked_at = ago(1)
@@ -507,10 +515,11 @@ def test_live_users(db_url: str) -> None:
         live = {user_id for user_id in habits if ds.is_live(user_id)}
         # 22 заходит, но не отмечает обычную привычку; 24 не заходит с автоотметкой;
         # 25 только завёл привычку; 26 удалил привычку; 29 отметил лишь сегодня;
-        # 30 — новичок; 31 заблокирован администратором. 27 заблокировал бота, но отмечает.
-        assert live == {21, 23, 27, 28}
-        # Неделю назад 22 ещё отмечал (8 дней назад — в окне); 26 — живой, пока привычка была.
-        assert ds.is_live(22, today - timedelta(days=7))
+        # 30 — новичок; 31 заблокирован администратором; 32 отметил всего один день.
+        # 27 заблокировал бота, но отмечает; 33 отмечать было только в субботу.
+        assert live == {21, 23, 27, 28, 33}
+        # 4 дня назад 22 ещё был живым (8–10 дней назад — в окне); 26 — живой, пока привычка была.
+        assert ds.is_live(22, today - timedelta(days=4))
         assert ds.is_live(26, today - timedelta(days=2))
         # Новичок станет живым только на 7-й день после прихода.
         assert ds.is_newcomer(ds.users[30]) and not ds.is_newcomer(ds.users[29])
@@ -534,3 +543,110 @@ def test_platform_seen_is_recorded_per_platform(db_url: str) -> None:
         assert user.telegram_seen_at == morning  # реже раза в минуту — не пишется
 
     asyncio.run(_with_repo(db_url, check))
+
+
+def test_push_broadcast_goes_to_devices_with_push(
+    db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Push-рассылка: всем под фильтром с push-подпиской (и аккаунтам без Telegram), кроме
+    заблокированных администратором; бот не пишет в Telegram, нажатие ведёт на экран кнопки."""
+    from backend import webpush
+    from backend.webpush import PushOutcome, VapidKeys
+    from bot.reminders import PushConfig
+
+    pushed: list[tuple[str, dict]] = []
+
+    async def sender(target, data, keys) -> PushOutcome:
+        pushed.append((target.endpoint, data))
+        return PushOutcome.gone if target.endpoint.endswith("gone") else PushOutcome.sent
+
+    monkeypatch.setattr(webpush, "send_push", sender)
+    telegram = FakeTelegram()
+
+    async def setup(repo: Repository) -> tuple[int, int, int]:
+        await repo.get_or_create_user(1, None, "Автор", language="ru")
+        await repo.get_or_create_user(2, None, "Без push", language="ru")
+        await repo.get_or_create_user(4, None, "Заблокирован", language="ru")
+        web = await repo.create_web_user("ru", utc_now())
+        await repo.set_blocked(await repo.get_user(4), blocked=True)
+        for user_id, endpoint in (
+            (1, "https://push.example/1"),
+            (1, "https://push.example/gone"),
+            (4, "https://push.example/4"),
+            (web.telegram_id, "https://push.example/web"),
+        ):
+            await repo.save_push_subscription(user_id, endpoint, "k", "a", None)
+        total = await repo.count_recipients({}, utc_now(), None, channel="push")
+        broadcast = await repo.create_broadcast(
+            created_by=1, audience="", text="Загляните", media_type=None, media_file_id=None,
+            button="review", total=total, channel="push", title="Новое",
+        )
+        return total, broadcast.id, web.telegram_id
+
+    total, broadcast_id, web_id = asyncio.run(_with_repo(db_url, setup))
+    assert total == 2
+    push = PushConfig(VapidKeys("key", "mailto:x@example.com"), "https://app.example")
+    database = Database(db_url)
+
+    async def deliver() -> None:
+        try:
+            while await bot_broadcasts._deliver_next_batch(
+                telegram, database, Pacer(1000), _TMA_URL, push
+            ):
+                pass
+        finally:
+            await database.dispose()
+
+    asyncio.run(deliver())
+    assert telegram.sent == []
+    assert sorted(endpoint for endpoint, _ in pushed) == [
+        "https://push.example/1", "https://push.example/gone", "https://push.example/web",
+    ]
+    payload = pushed[0][1]
+    assert (payload["title"], payload["body"]) == ("Новое", "Загляните")
+    assert payload["url"] == f"https://app.example/app?pwa=1&from=broadcast&b={broadcast_id}&open=review"
+
+    async def result(repo: Repository) -> tuple[object, list]:
+        left = await repo.push_subscriptions_for([1, web_id])
+        return await repo.get_broadcast(broadcast_id), [s.endpoint for s in left[1]]
+
+    broadcast, left = asyncio.run(_with_repo(db_url, result))
+    assert broadcast.status == BroadcastStatus.done and (broadcast.sent, broadcast.failed) == (2, 0)
+    # Исчезнувшая подписка удалена.
+    assert left == ["https://push.example/1"]
+
+
+def test_review_reply_goes_by_push_to_a_web_account(
+    db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ответ на отзыв аккаунту без Telegram приходит push-уведомлением и запоминается."""
+    from backend import admin as service
+    from backend import webpush
+    from backend.webpush import PushOutcome, VapidKeys
+
+    pushed: list[dict] = []
+
+    async def sender(target, data, keys) -> PushOutcome:
+        pushed.append(data)
+        return PushOutcome.sent
+
+    monkeypatch.setattr(webpush, "send_push", sender)
+    telegram = FakeTelegram()
+
+    async def run(repo: Repository):
+        admin = await repo.get_or_create_user(1, None, "Админ", language="ru")
+        web = await repo.create_web_user("ru", utc_now())
+        await repo.save_push_subscription(web.telegram_id, "https://push.example/w", "k", "a", None)
+        review = Review(user_id=web.telegram_id, text="Хочу тёмную тему")
+        repo.session.add(review)
+        await repo.session.flush()
+        keys = VapidKeys("key", "mailto:x@example.com")
+        return await service.reply_to_review(
+            repo, telegram, admin, review.id, "Уже есть!", push=(keys, "https://app.example")
+        )
+
+    reply = asyncio.run(_with_repo(db_url, run))
+    assert reply.delivered and reply.review.reply_text == "Уже есть!"
+    assert telegram.sent == []
+    assert pushed[0]["title"] == "Ответ на ваш отзыв" and pushed[0]["body"] == "Уже есть!"
+    assert pushed[0]["url"].endswith("/app?pwa=1&from=push&open=review")

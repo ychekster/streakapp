@@ -65,6 +65,14 @@ class SchedulePeriod(BaseModel):
     )
 
 
+class NamePeriod(BaseModel):
+    """Прежние название и описание привычки: действовали до дня `until` (не включая его)."""
+
+    until: date = Field(..., description="Первый день следующих названия и описания")
+    name: str
+    description: str | None = None
+
+
 class GroupMember(BaseModel):
     """Участник совместной привычки — как он выглядит в списке «Участники»."""
 
@@ -363,6 +371,14 @@ class Habit(BaseModel):
             "Прежние расписания по возрастанию `until`: каждое — с `until` предыдущего (первое"
             " — с самого начала). Прошлые дни оцениваются по расписанию того дня; после "
             "последнего — текущее"
+        ),
+    )
+    name_history: list[NamePeriod] = Field(
+        default_factory=list,
+        description=(
+            "Прежние названия и описания по возрастанию `until`: каждые — с `until` "
+            "предыдущих (первые — со дня создания); после последних — текущие. Окно дня в "
+            "календаре показывает по ним, как привычка называлась в тот день"
         ),
     )
     notes: dict[date, str] = Field(
@@ -1155,6 +1171,9 @@ class BroadcastInfo(BaseModel):
 
     id: int
     audience: str = Field(..., description="Фильтр получателей; пустой — все")
+    channel: Literal["telegram", "push"] = Field(
+        "telegram", description="Сообщение бота или push веб-приложения"
+    )
     button: Literal["open_app", "review", "new_habit"] | None
     status: Literal["pending", "sending", "done"]
     total: int = Field(..., description="Получателей на момент создания")

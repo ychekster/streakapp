@@ -184,6 +184,10 @@ export const AUDIENCE_COUNT_DELAY_MS = 150;
 export const BROADCAST_BUTTONS = ["", "open_app", "review", "new_habit"] as const;
 
 /** Пределы Bot API: текст сообщения и подпись к фото или видео (как на бэкенде). */
+/** Push-рассылка: заголовок и текст (PUSH_TITLE_MAX_LENGTH / PUSH_TEXT_MAX_LENGTH на
+ *  бэкенде). */
+export const PUSH_TITLE_MAX_LENGTH = 60;
+export const PUSH_TEXT_MAX_LENGTH = 300;
 export const MESSAGE_MAX_LENGTH = 4096;
 export const CAPTION_MAX_LENGTH = 1024;
 

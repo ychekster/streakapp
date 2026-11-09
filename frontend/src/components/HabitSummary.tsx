@@ -39,6 +39,7 @@ import { dataStore } from "../data/store";
 import { hapticSelection } from "../telegram/webapp";
 import { closeDaySheet, openDaySheet } from "./DaySheet";
 import { HabitCalendar } from "./HabitCalendar";
+import { closeNameSheet, openNameSheet } from "./NameSheet";
 import { Card, Section } from "./Section";
 import { StatCard } from "./StatCard";
 import {
@@ -187,6 +188,7 @@ export function HabitSummary({
   const markDay = gridView.day;
   // Ушли с экрана привычки («Назад») — окно её дня закрывается вместе с ним.
   useEffect(() => closeDaySheet, []);
+  useEffect(() => closeNameSheet, []);
   const days = markDay ? trackedDays(habit, markDay) : 0;
   // День отметки ещё неизвестен (нет настроек) — сегодня на устройстве.
   const flexible = flexibleStats(habit, markDay ?? localDate(), strings, language);
@@ -300,6 +302,8 @@ export function HabitSummary({
                     }
                   : undefined
               }
+              // Долгое нажатие — окно названия: как привычка называлась в тот день.
+              onHoldDay={onToggle ? (date) => openNameSheet(habit.id, date) : undefined}
             />
           </Card>
           {children}

@@ -231,8 +231,8 @@ def test_review_reply_flow(
     ).json()
     assert undelivered["delivered"] is False
     assert undelivered["reason"] == "bot_blocked"
-    # Недошедший ответ не запоминается, а блокировка бота — отмечается.
-    assert undelivered["review"]["reply_text"] == "Спасибо!"
+    # Ответ запоминается и без уведомления (виден в приложении), блокировка бота отмечается.
+    assert undelivered["review"]["reply_text"] == "Ещё"
     assert _profile(client, admin, user.id)["bot_blocked_at"] is not None
 
     # The user sees their reviews with the reply in the app, newest first.
@@ -240,7 +240,7 @@ def test_review_reply_flow(
     history = client.get("/reviews", headers=user.headers).json()["reviews"]
     assert [item["text"] for item in history] == ["Второй", "Отличное\nприложение"]
     assert history[0]["reply_text"] is None
-    assert history[1]["reply_text"] == "Спасибо!" and history[1]["replied_at"].endswith("Z")
+    assert history[1]["reply_text"] == "Ещё" and history[1]["replied_at"].endswith("Z")
     assert client.get("/reviews", headers=admin.headers).json()["reviews"] == []
 
 
@@ -621,6 +621,24 @@ def test_broadcast_with_filter_and_button(
     )
     assert nobody.status_code == 409
     assert nobody.json()["error"]["code"] == "no_recipients"
+
+
+def test_push_broadcast_needs_a_title(
+    client: TestClient, admin: AuthUser, telegram: FakeTelegram
+) -> None:
+    count = client.get(
+        "/admin/broadcasts/recipients", params={"channel": "push"}, headers=admin.headers
+    )
+    assert count.status_code == 200 and isinstance(count.json()["recipients"], int)
+    data = {"channel": "push", "title": "Новое", "text": "Загляните"}
+    untitled = client.post("/admin/broadcasts", data={**data, "title": " "}, headers=admin.headers)
+    assert untitled.json()["error"]["code"] == "invalid_title"
+    unknown = client.post(
+        "/admin/broadcasts", data={**data, "channel": "fax"}, headers=admin.headers
+    )
+    assert unknown.json()["error"]["code"] == "invalid_channel"
+    # Копия автору в Telegram у push не приходит.
+    assert all(message.text != "Загляните" for message in telegram.sent)
 
 
 def test_broadcast_copy_falls_back_without_button_icon(

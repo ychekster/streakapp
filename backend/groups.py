@@ -378,6 +378,7 @@ async def _apply_shared_fields(repo: Repository, user: User, task: Task, source:
         repo, user, task, source.frequency_type, source.days, source.start_date,
         source.times_per_day, source.period, source.period_times, source.overtime,
     )
+    await services.remember_name(repo, user, task, source.name, source.description)
     await repo.set_task_shared_fields(
         task,
         source.name,

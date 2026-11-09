@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     vapid_subject: str = Field(default="mailto:admin@example.com", alias="VAPID_SUBJECT")
 
     @property
+    def vapid_private(self) -> str | None:
+        """VAPID private key; None — push is off."""
+        if self.vapid_private_key is None:
+            return None
+        return self.vapid_private_key.get_secret_value() or None
+
+    @property
     def web_base_url(self) -> str:
         """Public base URL of the web app, without a trailing slash."""
         return (self.public_base_url or self.tma_url or "").rstrip("/")

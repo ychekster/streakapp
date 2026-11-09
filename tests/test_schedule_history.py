@@ -162,3 +162,43 @@ def test_past_day_is_marked_by_its_own_goal(db_url: str) -> None:
     assert counts == [1, 1, 1]
     assert history == [True, True, False]
     assert (periods[0]["times_per_day"], periods[0]["overtime"]) == (1, False)
+
+
+def test_update_remembers_the_previous_name(db_url: str) -> None:
+    # Название и описание до сегодняшнего дня запоминаются (окно дня в календаре); вторая
+    # смена за день записи не добавляет, у привычки, созданной сегодня, прошлого нет.
+    async def run() -> tuple[list, list]:
+        database = Database(db_url)
+        await database.create_tables()
+        try:
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_or_create_user(1, None, "U", language="en")
+                old = await repo.create_task(1, "Бег", FrequencyType.daily)
+                old.created_at = utc_now() - timedelta(days=7)
+                fresh = await repo.create_task(1, "Чтение", FrequencyType.daily)
+                await session.commit()
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_user(1)
+                old = await repo.get_active_task(old.id, 1)
+                fresh = await repo.get_active_task(fresh.id, 1)
+                await update_habit(repo, user, old, _form(name="Пробежка", description="5 км"))
+                await update_habit(repo, user, old, _form(name="Бег утром", description="5 км"))
+                await update_habit(repo, user, fresh, HabitCreate(name="Книга", frequency_type="daily"))
+                await session.commit()
+            async with database.session_factory() as session:
+                repo = Repository(session)
+                user = await repo.get_user(1)
+                habits = {habit.id: habit for habit in await list_habits(repo, user)}
+                return (
+                    [p.model_dump() for p in habits[old.id].name_history],
+                    habits[fresh.id].name_history,
+                )
+        finally:
+            await database.dispose()
+
+    old_history, fresh_history = asyncio.run(run())
+    assert len(old_history) == 1
+    assert old_history[0]["name"] == "Бег" and old_history[0]["description"] is None
+    assert fresh_history == []

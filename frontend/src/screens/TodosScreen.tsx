@@ -124,7 +124,8 @@ export function TodosScreen() {
   const checksRight = settings?.todo_checks_right ?? false;
   // «Скрыть названия списков»: в «Все задачи» и рекомендуемых — блоки без заголовков.
   const hideListNames = settings?.todo_hide_list_names ?? false;
-  const [active, setActive] = useState<number | null>(null);
+  // undefined — список ещё не выбирали: раздел открывается на самой левой вкладке.
+  const [active, setActive] = useState<number | null | undefined>(undefined);
   const showingRest = useTodoRestOpen();
   // Прокрутка списка под экраном «остальных»: «Назад» возвращает на неё.
   const scrollUnderRest = useRef(0);
@@ -152,8 +153,11 @@ export function TodosScreen() {
     window.scrollTo(0, showingRest ? 0 : scrollUnderRest.current);
   }, [showingRest]);
 
-  // Выбранной папки больше нет (удалили на другом устройстве) — «Все задачи».
-  const folder = active === null ? null : (todoFolders.find((item) => item.id === active) ?? null);
+  // Пока список не выбран — самый левый; выбранного больше нет (удалили на другом
+  // устройстве) — «Все задачи».
+  const leftmost = todoAllPosition > 0 && todoFolders.length > 0 ? todoFolders[0].id : null;
+  const chosen = active === undefined ? leftmost : active;
+  const folder = chosen === null ? null : (todoFolders.find((item) => item.id === chosen) ?? null);
   const shownFolder = folder?.id ?? null;
   const kind = folder?.kind ?? null;
   // Список, куда встаёт новая задача: свой — он, рекомендуемый и «Все задачи» — без списка.

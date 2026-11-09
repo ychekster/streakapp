@@ -204,22 +204,25 @@ TIMER_GOAL_TEXTS: dict[str, str] = {
 # Напоминание задачи (бета; день и время задачи): после 🔔 — сам текст задачи.
 TODO_REMINDER_TEXTS: dict[str, str] = {"ru": "{text}", "en": "{text}"}
 
-# Push веб-приложения (bot/reminders.push_payload): короткий заголовок — о чём (название
-# привычки, текст задачи), под ним — текст. Длинный заголовок iOS и Android обрезают,
-# текст под ним виден целиком. Сообщения бота — тексты выше.
-PUSH_REMINDER_BODY: dict[str, str] = {
-    "ru": "Пора выполнить привычку",
-    "en": "Time to do this habit",
+# Push веб-приложения (bot/reminders.push_payload): заголовок — что это за уведомление
+# («Напоминание о привычке», «Напоминание о задаче»), под ним — «Пора выполнить «…»» с
+# названием привычки или текстом задачи (текст под заголовком виден целиком). Сообщения
+# бота — тексты выше.
+PUSH_REMINDER_TITLE: dict[str, str] = {
+    "ru": "Напоминание о привычке",
+    "en": "Habit reminder",
 }
+PUSH_REMINDER_BODY: dict[str, str] = REMINDER_TEXTS
 PUSH_CHECKIN_TITLE: dict[str, str] = CHECKIN_REMINDER_TEXTS
 PUSH_CHECKIN_BODY: dict[str, str] = {
     "ru": "Отметьте, что уже успели выполнить",
     "en": "Check off what you’ve already done",
 }
-PUSH_TODO_BODY: dict[str, str] = {
+PUSH_TODO_TITLE: dict[str, str] = {
     "ru": "Напоминание о задаче",
     "en": "Task reminder",
 }
+PUSH_TODO_BODY: dict[str, str] = REMINDER_TEXTS
 # {actor} — @username или имя участника совместной привычки.
 PUSH_GROUP_MARK_BODY: dict[str, str] = {
     "ru": "Отметка от {actor}",

@@ -133,8 +133,12 @@ export interface AdminEntry extends AdminUserRef {
 
 export type BroadcastStatus = "pending" | "sending" | "done";
 
+/** Канал рассылки: сообщение бота или push веб-приложения (BROADCAST_CHANNELS). */
+export type BroadcastChannel = "telegram" | "push";
+
 export interface Broadcast {
   id: number;
+  channel?: BroadcastChannel;
   /** Фильтр получателей строкой «признак:значение,…»; пустая — все. */
   audience: string;
   button: Exclude<BroadcastButton, ""> | null;

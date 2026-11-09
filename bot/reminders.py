@@ -80,8 +80,10 @@ from bot.constants import (
     PUSH_CHECKIN_TITLE,
     PUSH_GROUP_MARK_BODY,
     PUSH_REMINDER_BODY,
+    PUSH_REMINDER_TITLE,
     PUSH_TIMER_GOAL_BODY,
     PUSH_TODO_BODY,
+    PUSH_TODO_TITLE,
     REMINDER_BUTTONS,
     REMINDER_EMOJI,
     REMINDER_TEXTS,
@@ -462,16 +464,17 @@ def _localized(texts: Mapping[str, str], language: str) -> str:
 
 
 def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
-    """Push notification of a reminder: a short title — what it is about (the habit's
-    name, the todo's text) — and the text under it (bot/constants PUSH_*): a long title is
-    cut off by iOS and Android, the text under it is shown in full. A tap opens the habit
-    in the app (the check-in reminder — the habit list; a todo — the app, the Tasks tab is
-    where it opens when todos are on). Plain text, without the bot message's 🔔."""
+    """Push notification of a reminder: the title says what it is («Habit reminder»,
+    «Task reminder»), the text under it — «Time to do “…”» with the habit's name or the
+    todo's text (bot/constants PUSH_*; the text is shown in full, a long title is cut off).
+    A tap opens the habit in the app (the check-in reminder — the habit list; a todo — the
+    app, the Tasks tab is where it opens when todos are on). Plain text, without the bot
+    message's 🔔. Group marks and «goal done» keep the habit's name as the title."""
     language = reminder.language
     if reminder.todo_id is not None:
         return notification(
-            reminder.habit_name or "",
-            _localized(PUSH_TODO_BODY, language),
+            _localized(PUSH_TODO_TITLE, language),
+            _localized(PUSH_TODO_BODY, language).format(name=reminder.habit_name or ""),
             f"{base_url}/app?pwa=1&from=push",
             tag=f"todo-{reminder.todo_id}",
         )
@@ -492,8 +495,8 @@ def push_payload(reminder: DueReminder, base_url: str) -> dict[str, object]:
             tag=f"mark-{reminder.task_id}",
         )
     return notification(
-        reminder.habit_name or "",
-        _localized(PUSH_REMINDER_BODY, language),
+        _localized(PUSH_REMINDER_TITLE, language),
+        _localized(PUSH_REMINDER_BODY, language).format(name=reminder.habit_name or ""),
         f"{base_url}/app?pwa=1&from=push&habit={reminder.task_id}",
         tag=f"habit-{reminder.task_id}",
     )

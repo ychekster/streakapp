@@ -62,6 +62,7 @@ import { fetchAccount, type Account } from "./api/web";
 import { SCROLL_RESTORED_EVENT, type ScrollRestoredDetail } from "./components/CollapsingHeader";
 import { closeCountSheet, CountSheet, useCountSheetHabit } from "./components/CountSheet";
 import { DaySheet } from "./components/DaySheet";
+import { NameSheet } from "./components/NameSheet";
 import { GridViewContext } from "./components/gridLayout";
 import { StatusMessage } from "./components/StatusMessage";
 import { TabBar, type TabItem } from "./components/TabBar";
@@ -1364,6 +1365,7 @@ export function App() {
       <CountSheet />
       {/* Окно дня: нажатие на день в календаре привычки. */}
       <DaySheet />
+      <NameSheet />
       {web ? <WebChrome /> : <TelegramChrome />}
     </PreferencesContext.Provider>
   );

@@ -58,3 +58,26 @@
   appearance: none;
   -webkit-appearance: none;
 }
+
+/* Крестик выбранной плашки — поверх нативного поля, чтобы нажатие не открывало выбор. */
+.clear {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px -6px -2px -2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.chip .clear svg {
+  width: 16px;
+  height: 16px;
+}

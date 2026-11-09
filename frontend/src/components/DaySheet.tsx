@@ -8,8 +8,10 @@
  * отметка по настройкам того дня (goalOn: цель и «Сверх плана», сменили — у прошлых дней
  * прежние): у «несколько раз в день» — счёт за день (CountControls, до цели того дня;
  * выше и быстрые прибавки — у «Сверх плана»), а у дня, когда привычка была «раз в день»
- * (до неё дошли свайпом), — одна кнопка (отметить / снять). В совместной — моя часть. Не запланированный в тот день (или замороженный) — тоже можно: отметка
- * бонусная, в сериях её нет (data/derive.ts, countedDays). Ниже — заметка к дню (пока
+ * (до неё дошли свайпом), — одна кнопка (отметить / снять). В совместной — моя часть. Не
+ * запланированный в тот день — тоже можно: отметка бонусная, в сериях её нет
+ * (data/derive.ts, countedDays). Замороженный день задним числом не отмечается: вместо
+ * отметки — «День заморожен» (если в нём уже что-то отмечено, снять можно). Ниже — заметка к дню (пока
  * скрыта, SHOW_NOTE): сохраняется, когда поле теряет фокус, при смене дня и при закрытии.
  *
  * Свайп влево — следующий день, вправо — предыдущий: карточка дня целиком уезжает вбок, а
@@ -31,6 +33,7 @@ import { dayMost, goalOn, myDay } from "../data/derive";
 import { dataStore } from "../data/store";
 import { useAppData } from "../hooks/useAppData";
 import { useStrings } from "../preferences";
+import type { Strings } from "../strings";
 import { hapticImpact, hapticSelection } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import {
@@ -41,6 +44,7 @@ import {
   type SheetTurn,
 } from "./BottomSheet";
 import { useRunningTimer } from "../hooks/useTimer";
+import { frozenDay } from "./calendarDays";
 import { CountControls } from "./CountControls";
 import styles from "./DaySheet.module.css";
 
@@ -75,6 +79,21 @@ export function closeDaySheet(): void {
     opened = null;
     emit();
   }
+}
+
+/** Подпись дня в шапке окна: «Сегодня», «Вчера» или «Пн, 14 октября». */
+export function dayLabel(strings: Strings, on: string, today: string): string {
+  if (on === today) {
+    return strings.countSheetToday;
+  }
+  if (addDays(on, 1) === today) {
+    return strings.countSheetYesterday;
+  }
+  return strings.daySheetDate(
+    strings.weekdays[WEEKDAYS[weekdayIndex(on)]].abbr,
+    Number(on.slice(8, 10)),
+    strings.monthNamesOf[Number(on.slice(5, 7)) - 1],
+  );
 }
 
 function useOpenDay(): OpenDay | null {
@@ -139,20 +158,7 @@ export function DaySheet() {
     closeDaySheet();
   }
 
-  /** Подпись дня в шапке: «Сегодня», «Вчера» или «Пн, 14 октября». */
-  function labelOf(on: string): string {
-    if (on === today) {
-      return strings.countSheetToday;
-    }
-    if (addDays(on, 1) === today) {
-      return strings.countSheetYesterday;
-    }
-    return strings.daySheetDate(
-      strings.weekdays[WEEKDAYS[weekdayIndex(on)]].abbr,
-      Number(on.slice(8, 10)),
-      strings.monthNamesOf[Number(on.slice(5, 7)) - 1],
-    );
-  }
+  const labelOf = (on: string): string => dayLabel(strings, on, today);
 
   /** Карточка дня `on`: шапка, отметка и заметка `noteText`. */
   function card(on: string, noteText: string) {
@@ -164,7 +170,9 @@ export function DaySheet() {
     return (
       <>
         <SheetHeader day={labelOf(on)} name={habit!.name} onClose={close} />
-        {goal > 1 ? (
+        {frozenDay(habit!, on, day) && !mine.done && mine.count === 0 ? (
+          <p className={styles.frozen}>{strings.daySheetFrozen}</p>
+        ) : goal > 1 ? (
           <div className={styles.count}>
             <CountControls
               count={

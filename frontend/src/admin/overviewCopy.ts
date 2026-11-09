@@ -101,7 +101,7 @@ export const OVERVIEW_RU = {
   } as Record<OverviewGroup, string>,
   // --- Пояснения на «Обзоре» (под блоками) ---
   aliveNote:
-    "Живые — пришли больше недели назад и сами отмечали привычки за прошедшие 7 дней. Новички — пришли меньше недели назад. Нажмите на любую цифру — откроются подробности.",
+    "Живые действительно пользуются: пришли больше недели назад и за прошедшие 7 дней отмечали привычки хотя бы в 3 разных днях (или во все дни по расписанию, если их было меньше). Новички пришли меньше недели назад. Нажмите на любую цифру, откроются подробности.",
   joinedNote:
     "Впервые нажали /start в боте или открыли приложение. «За всё время» — все пользователи. Администраторы и тестовые аккаунты нигде не считаются.",
   whereNote: "«Только бот» — нажали /start, но приложение ни разу не открыли.",
@@ -159,11 +159,11 @@ export const OVERVIEW_RU = {
   /** Кто эти люди — одной-двумя фразами, простыми словами. */
   explain: {
     alive:
-      "Пришли больше недели назад и сами отмечали хотя бы одну привычку за 7 прошедших дней (сегодня не считается — день ещё идёт). У кого привычка с автоотметкой или «раз в месяц» — достаточно заходить в приложение. Заблокировали бота, но отмечают — тоже живые.",
+      "Пришли больше недели назад и за 7 прошедших дней сами отмечали привычки хотя бы в 3 разных днях (сегодня не считается, день ещё идёт). Если по расписанию отмечать было меньше, хватает стольких дней. У автоотметки и привычки раз в месяц считаются дни захода в приложение. Заблокировали бота, но отмечают: тоже живые.",
     newcomers:
       "Пришли меньше недели назад и завели привычку. Через 7 дней станут живыми, если будут отмечать, иначе попадут в «перестали».",
     stopped:
-      "Привычки есть, но за 7 прошедших дней сами ничего не отмечали. Сюда же — заблокированные администратором.",
+      "Привычки есть, но за 7 прошедших дней отмечали их реже, чем нужно живым (меньше 3 разных дней), или не отмечали вовсе. Сюда же попадают заблокированные администратором.",
     new_today: "Впервые появились сегодня: нажали /start в боте или открыли приложение. Дни — по Алматы.",
     new_yesterday: "Впервые появились вчера: нажали /start в боте или открыли приложение. Дни — по Алматы.",
     new_week: "Впервые появились за последние 7 дней, включая сегодня.",
@@ -300,7 +300,7 @@ export const OVERVIEW_EN: OverviewCopy = {
     without_habits: "No habits",
   },
   aliveNote:
-    "Active — joined over a week ago and checked off habits themselves in the past 7 days. New — joined less than a week ago. Tap any number for details.",
+    "Active users really use the app: joined over a week ago and checked off habits on at least 3 different days in the past 7 (or on every planned day, if there were fewer). New users joined less than a week ago. Tap any number for details.",
   joinedNote:
     "First pressed /start in the bot or opened the app. “All time” is every user. Admins and test accounts are never counted.",
   whereNote: "“Only started the bot” — pressed /start but never opened the app.",
@@ -356,11 +356,11 @@ export const OVERVIEW_EN: OverviewCopy = {
   otherSources: "Others",
   explain: {
     alive:
-      "Joined over a week ago and checked off at least one habit themselves in the past 7 days (today doesn’t count yet). With auto check-off or a monthly habit, opening the app is enough. People who blocked the bot but keep checking off count too.",
+      "Joined over a week ago and checked off habits themselves on at least 3 different days in the past 7 (today doesn’t count yet). If fewer days were planned, that many are enough. With auto check-off or a monthly habit, days the app was opened count. People who blocked the bot but keep checking off count too.",
     newcomers:
       "Joined less than a week ago and added a habit. In 7 days they become active if they keep checking off, otherwise they move to “Stopped”.",
     stopped:
-      "Have habits but didn’t check anything off themselves in the past 7 days. Also people blocked by an admin.",
+      "Have habits but in the past 7 days checked them off less often than active users do (on fewer than 3 different days) or not at all. Also people blocked by an admin.",
     new_today: "First showed up today: pressed /start in the bot or opened the app. Days are in Almaty time.",
     new_yesterday: "First showed up yesterday: pressed /start in the bot or opened the app. Days are in Almaty time.",
     new_week: "First showed up in the last 7 days, today included.",

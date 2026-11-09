@@ -59,3 +59,13 @@
 .note::placeholder {
   color: var(--color-text-secondary);
 }
+
+/* Замороженный день: отметки нет, только пояснение. */
+.frozen {
+  margin: var(--day-sheet-mark-top) 0 0;
+  padding: 0 4px;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 20px;
+  text-align: center;
+}

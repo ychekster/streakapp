@@ -17,6 +17,7 @@ import type {
   Audience,
   Broadcast,
   BroadcastButton,
+  BroadcastChannel,
   Delivery,
   JourneyPathKey,
   JourneyPerson,
@@ -292,8 +293,11 @@ export async function removeAdmin(telegramId: number): Promise<AdminEntry[]> {
 }
 
 /** Сколько получателей у рассылки с фильтром сейчас (без автора — ему приходит копия). */
-export async function fetchRecipients(audience: Audience): Promise<number> {
-  const params = new URLSearchParams({ audience: audienceParam(audience) });
+export async function fetchRecipients(
+  audience: Audience,
+  channel: BroadcastChannel = "telegram",
+): Promise<number> {
+  const params = new URLSearchParams({ audience: audienceParam(audience), channel });
   const data = await apiRequest<{ recipients: number }>(`/admin/broadcasts/recipients?${params}`, {
     method: "GET",
   });
@@ -302,18 +306,22 @@ export async function fetchRecipients(audience: Audience): Promise<number> {
 
 /** Поставить рассылку в очередь: текст, фото или видео (с подписью или без) и кнопка под
  *  ним. Копия приходит автору сразу; медиа загружается вместе с запросом, поэтому таймаут
- *  длиннее. */
+ *  длиннее. Push (`channel`): заголовок и текст, кнопка ведёт по нажатию. */
 export async function createBroadcast(
   audience: Audience,
   text: string,
   button: BroadcastButton,
   media: File | null,
+  channel: BroadcastChannel = "telegram",
+  title = "",
 ): Promise<Broadcast> {
   const form = new FormData();
   form.set("audience", audienceParam(audience));
+  form.set("channel", channel);
+  form.set("title", title);
   form.set("text", text);
   form.set("button", button);
-  if (media) {
+  if (media && channel === "telegram") {
     form.set("media", media);
   }
   const data = await apiRequest<{ broadcast: Broadcast }>(

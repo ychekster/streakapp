@@ -28,12 +28,12 @@
     POST   /admin/users/{id}/message         — личное сообщение от бота
     GET    /admin/reviews?cursor=&limit=     — отзывы всех пользователей (страницы)
     GET    /admin/reviews/{id}               — отзыв
-    POST   /admin/reviews/{id}/reply         — ответить на отзыв сообщением бота
+    POST   /admin/reviews/{id}/reply         — ответить на отзыв (push или сообщение бота)
     GET    /admin/admins                     — администраторы
     POST   /admin/admins                     — добавить администратора по id Telegram
     DELETE /admin/admins/{id}                — убрать администратора (не себя)
     GET    /admin/broadcasts/recipients?audience= — сколько получателей у фильтра
-    POST   /admin/broadcasts                 — рассылка (multipart: audience, text, button,
+    POST   /admin/broadcasts                 — рассылка (multipart: audience, channel, title, text, button,
                                                media)
     GET    /admin/broadcasts/{id}            — ход рассылки
 
@@ -69,6 +69,7 @@ from backend.routers.auth import bot_username
 from backend.errors import ApiError
 from backend.models import User
 from backend.repository import Repository, utc_now
+from backend.webpush import vapid_keys
 from backend.schemas import (
     AdminBlockUpdate,
     AdminCreate,
@@ -401,14 +402,21 @@ async def read_review(
 
 @router.post("/reviews/{review_id}/reply", response_model=ReviewReplyResponse)
 async def reply_to_review(
+    request: Request,
     payload: AdminMessage,
     review_id: int = _ReviewId,
     admin: User = Depends(get_admin_user),
     repo: Repository = RepositoryDep,
     bot: Bot = Depends(get_bot),
 ) -> ReviewReplyResponse:
-    """Ответить на отзыв: сообщение от бота с цитатой отзыва."""
-    return await service.reply_to_review(repo, bot, admin, review_id, payload.text)
+    """Ответить на отзыв: push в веб-приложение (если там включены уведомления) или
+    сообщение от бота с цитатой отзыва."""
+    settings = get_settings(request)
+    keys = vapid_keys(settings.vapid_private, settings.vapid_subject)
+    return await service.reply_to_review(
+        repo, bot, admin, review_id, payload.text,
+        push=(keys, settings.web_base_url) if keys is not None else None,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -451,11 +459,13 @@ async def delete_admin(
 @router.get("/broadcasts/recipients", response_model=BroadcastRecipients)
 async def read_recipients(
     audience: str | None = _Audience,
+    channel: str | None = Query(None, max_length=16),
     admin: User = Depends(get_admin_user),
     repo: Repository = RepositoryDep,
 ) -> BroadcastRecipients:
-    """Сколько получателей у рассылки с фильтром `audience` сейчас."""
-    return await service.broadcast_recipients(repo, admin, audience)
+    """Сколько получателей у рассылки с фильтром `audience` сейчас по каналу `channel`
+    (`telegram` — по умолчанию, или `push`)."""
+    return await service.broadcast_recipients(repo, admin, audience, channel)
 
 
 @router.post("/broadcasts", response_model=BroadcastResponse, status_code=201)
@@ -476,7 +486,7 @@ async def create_broadcast(
     открыть запись, и SQLite держал бы блокировку всё время загрузки файла.
     """
     await repo.commit()
-    async with request.form(max_files=1, max_fields=4) as form:
+    async with request.form(max_files=1, max_fields=6) as form:
         media = form.get("media")
         if media is not None and not isinstance(media, UploadFile):
             raise ApiError(422, "invalid_media", "Поле media — файл")
@@ -489,6 +499,9 @@ async def create_broadcast(
             button=str(form.get("button") or ""),
             media=media,
             tma_url=get_settings(request).tma_url,
+            channel=str(form.get("channel") or ""),
+            title=str(form.get("title") or ""),
+            push_enabled=get_settings(request).vapid_private is not None,
         )
     return BroadcastResponse(broadcast=broadcast)
 

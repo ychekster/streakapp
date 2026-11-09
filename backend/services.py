@@ -39,6 +39,7 @@ from backend.models import (
     Review,
     RunningTimer,
     Task,
+    TaskNamePeriod,
     TaskSchedulePeriod,
     TaskStatus,
     TodoFolder,
@@ -59,6 +60,7 @@ from backend.schemas import (
     Habit,
     HabitCreate,
     MetaResponse,
+    NamePeriod,
     SchedulePeriod,
     ReviewCreate,
     ReviewsResponse,
@@ -343,6 +345,7 @@ def build_habit(
     periods: Sequence[TaskSchedulePeriod] = (),
     group: groups.ViewerGroup | None = None,
     notes: Mapping[date, str] | None = None,
+    name_periods: Sequence[TaskNamePeriod] = (),
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -358,7 +361,8 @@ def build_habit(
     «Отмечать за вчера»), см. `Habit.next_day_done`. `created_on` — день создания
     привычки в поясе пользователя (`created_day`). `periods` — прежние расписания
     (Repository.get_schedule_periods). `notes` — заметки к дням истории
-    (Repository.get_notes).
+    (Repository.get_notes). `name_periods` — прежние названия и описания
+    (Repository.get_name_periods).
 
     Совместная привычка (`group`): сетка, серии и `total_done` — по дням, выполненным
     всеми (мои отметки и `group.others_done`), а `done_today` и `today_count` — моя часть
@@ -479,6 +483,10 @@ def build_habit(
             )
             for period in periods
         ],
+        name_history=[
+            NamePeriod(until=period.until, name=period.name, description=period.description)
+            for period in name_periods
+        ],
         notes=dict(notes or {}),
         group=group.view if group is not None else None,
     )
@@ -551,6 +559,7 @@ async def _build_habits(
     done = await repo.get_done_dates(task_ids, calendar)
     freezes = await repo.get_freezes(task_ids)
     periods = await repo.get_schedule_periods(task_ids)
+    names = await repo.get_name_periods(task_ids)
     # Счёт по дням нужен только привычкам «несколько раз в день» (сейчас или раньше).
     counts = await repo.get_history_counts(
         [task.id for task in tasks if counts_by_day(task, periods[task.id])],
@@ -581,6 +590,7 @@ async def _build_habits(
             periods[task.id],
             group_of(task),
             notes[task.id],
+            names[task.id],
         )
         for task in tasks
     ]
@@ -778,13 +788,13 @@ async def update_habit(
         fields.times_per_day, fields.period, fields.period_times, fields.overtime,
         fields.goal_unit,
     )
+    description = fields.description if payload.description is not None else task.description
+    await remember_name(repo, user, task, fields.name, description)
     await repo.update_task(
         task,
         name=fields.name,
         # Старые клиенты описания не присылают — оно остаётся прежним.
-        description=(
-            fields.description if payload.description is not None else task.description
-        ),
+        description=description,
         frequency_type=fields.frequency_type,
         days=fields.days,
         start_date=fields.start_date,
@@ -970,6 +980,17 @@ async def remember_schedule(
     today = user_today(user)
     if changed and created_day(task, user) < today:
         await repo.add_schedule_period(task, today)
+
+
+async def remember_name(
+    repo: Repository, user: User, task: Task, name: str, description: str | None
+) -> None:
+    """Название или описание задачи меняется — запомнить прежние как действовавшие до дня
+    отметки (как remember_schedule). У привычки, созданной в этот же день, прошлого нет."""
+    changed = task.name != name or (task.description or None) != (description or None)
+    today = user_today(user)
+    if changed and created_day(task, user) < today:
+        await repo.add_name_period(task, today)
 
 
 async def delete_habit(repo: Repository, user: User, task: Task) -> None:

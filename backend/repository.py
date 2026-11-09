@@ -64,6 +64,7 @@ from backend.models import (
     TaskFreeze,
     TaskLog,
     TaskReminder,
+    TaskNamePeriod,
     TaskSchedulePeriod,
     TaskStatus,
     Todo,
@@ -83,6 +84,11 @@ _IN_BATCH_SIZE = 500
 # its fake users — removing them can never touch a real account.
 _WEB_ID_MAX = 10**12 - 1
 _WEB_ID_ATTEMPTS = 5
+
+
+# Начальный курсор push-рассылки: меньше любого id (у аккаунтов только веб-приложения id
+# отрицательные), но помещается в BigInteger.
+PUSH_CURSOR_START = -(2**62)
 
 
 def _batches(values: Iterable[int], size: int = _IN_BATCH_SIZE) -> Iterator[list[int]]:
@@ -238,12 +244,23 @@ def _recipient_condition(
     moment: datetime,
     exclude_user_id: int | None,
     ids: Mapping[str, Collection[int]],
+    channel: str = "telegram",
 ) -> Any:
     """Получатели рассылки: пользователи под фильтром, уже зарегистрированные к `moment`
     (пришедшие во время долгой рассылки её не получают — как и не посчитаны в ней), кроме
     заблокировавших бота (Telegram сообщает о разблокировке, поэтому отметка точна),
     выключивших уведомления в Mini App, заблокированных администратором и автора
-    рассылки (ему копия уже пришла)."""
+    рассылки (ему копия уже пришла).
+
+    Push (`channel` "push"): все под фильтром с хотя бы одной push-подпиской (уведомления
+    веб-приложения включены), кроме заблокированных администратором; копии автору нет."""
+    if channel == "push":
+        return and_(
+            _audience_condition(audience, moment, ids),
+            exists().where(PushSubscription.user_id == User.telegram_id),
+            User.created_at <= moment,
+            User.blocked_at.is_(None),
+        )
     condition = and_(
         _audience_condition(audience, moment, ids),
         # Web-only accounts (negative ids) have no Telegram chat to send to.
@@ -563,6 +580,7 @@ class Repository:
             TaskLog,
             TaskFreeze,
             TaskSchedulePeriod,
+            TaskNamePeriod,
             TaskReminder,
             Task,
             Folder,
@@ -1226,6 +1244,44 @@ class Repository:
             for period in result.scalars():
                 periods[period.task_id].append(period)
         return periods
+
+    async def get_name_periods(
+        self, task_ids: Collection[int]
+    ) -> dict[int, list[TaskNamePeriod]]:
+        """Прежние названия и описания задач: id задачи → периоды по возрастанию `until`."""
+        periods: dict[int, list[TaskNamePeriod]] = {task_id: [] for task_id in task_ids}
+        for batch in _batches(periods):
+            result = await self.session.execute(
+                select(TaskNamePeriod)
+                .where(TaskNamePeriod.task_id.in_(batch))
+                .order_by(TaskNamePeriod.until, TaskNamePeriod.id)
+            )
+            for period in result.scalars():
+                periods[period.task_id].append(period)
+        return periods
+
+    async def add_name_period(self, task: Task, until: date) -> bool:
+        """Запомнить текущие название и описание задачи как действовавшие до дня `until`.
+        Если в этот день их уже меняли, запись уже есть (то, что было до этого дня), —
+        вторая не добавляется (как add_schedule_period). True — запись добавлена."""
+        exists_already = await self.session.scalar(
+            select(TaskNamePeriod.id).where(
+                TaskNamePeriod.task_id == task.id, TaskNamePeriod.until >= until
+            ).limit(1)
+        )
+        if exists_already is not None:
+            return False
+        self.session.add(
+            TaskNamePeriod(
+                task_id=task.id,
+                user_id=task.user_id,
+                until=until,
+                name=task.name,
+                description=task.description,
+            )
+        )
+        await self.session.flush()
+        return True
 
     async def add_schedule_period(self, task: Task, until: date) -> bool:
         """Запомнить текущее расписание задачи как действовавшее до дня `until`. Если в
@@ -2200,13 +2256,14 @@ class Repository:
         moment: datetime,
         exclude_user_id: int | None = None,
         ids: Mapping[str, Collection[int]] | None = None,
+        channel: str = "telegram",
     ) -> int:
         """Сколько получателей у рассылки с фильтром `audience` в момент `moment` (`ids` —
-        см. _audience_condition)."""
+        см. _audience_condition) по каналу `channel`."""
         return await self.session.scalar(
             select(func.count())
             .select_from(User)
-            .where(_recipient_condition(audience, moment, exclude_user_id, ids or {}))
+            .where(_recipient_condition(audience, moment, exclude_user_id, ids or {}, channel))
         ) or 0
 
     async def recipients_after(
@@ -2217,13 +2274,15 @@ class Repository:
         after_id: int,
         limit: int,
         ids: Mapping[str, Collection[int]] | None = None,
+        channel: str = "telegram",
     ) -> list[tuple[int, str]]:
         """Следующие получатели рассылки по возрастанию id — после `after_id`: (id, язык
-        интерфейса — на нём подпись кнопки под рассылкой)."""
+        интерфейса — на нём подпись кнопки под рассылкой). У push id бывают отрицательными
+        (аккаунты только веб-приложения), поэтому курсор push начинается не с 0."""
         result = await self.session.execute(
             select(User.telegram_id, User.language)
             .where(
-                _recipient_condition(audience, moment, exclude_user_id, ids or {}),
+                _recipient_condition(audience, moment, exclude_user_id, ids or {}, channel),
                 User.telegram_id > after_id,
             )
             .order_by(User.telegram_id)
@@ -2241,11 +2300,17 @@ class Repository:
         media_file_id: str | None,
         button: str | None,
         total: int,
+        channel: str = "telegram",
+        title: str | None = None,
     ) -> Broadcast:
         """Поставить рассылку в очередь бота (`audience` — строка фильтра, audience.py)."""
         broadcast = Broadcast(
             created_by=created_by,
             audience=audience,
+            channel=channel,
+            title=title,
+            # Push: среди получателей есть отрицательные id (только веб-приложение).
+            cursor=PUSH_CURSOR_START if channel == "push" else 0,
             text=text,
             media_type=media_type,
             media_file_id=media_file_id,
@@ -2437,7 +2502,8 @@ class Repository:
                     .execution_options(synchronize_session=False)
                 )
         for model in (
-            Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskReminder, Folder, Review,
+            Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskNamePeriod, TaskReminder, Folder,
+            Review,
             WebSession, PushSubscription, Event, ActivityLog, DayNote, Todo, TodoFolder,
         ):
             await self.session.execute(

@@ -17,6 +17,7 @@ import {
   isDueOn,
   isShared,
   myDay,
+  namesOn,
   periodBounds,
   periodQuota,
   reuseUnchanged,
@@ -632,6 +633,54 @@ describe("schedule history", () => {
       { type: "mark", task: 1, date: addDays(TODAY, -1), done: true },
     ]);
     expect(again.habits[0].current_streak).toBe(4);
+  });
+});
+
+describe("name history", () => {
+  const update = (name: string, description?: string): Operation => ({
+    type: "update",
+    task: 1,
+    habit: {
+      name,
+      description,
+      frequency_type: "daily",
+      days: [],
+      start_date: null,
+      reminder_time: null,
+      color: "blue",
+      times_per_day: 1,
+      auto_mark: false,
+    },
+  });
+
+  it("keeps the name before the marking day, once a day", () => {
+    const base = habit({ name: "Бег", created_on: addDays(TODAY, -10) });
+    const result = view(snapshot([base]), [update("Пробежка"), update("Бег утром")]);
+    const [changed] = result.habits;
+    expect(changed.name_history).toEqual([{ until: TODAY, name: "Бег", description: null }]);
+    expect(namesOn(changed, addDays(TODAY, -1))).toMatchObject({
+      name: "Бег",
+      nameSince: addDays(TODAY, -10),
+    });
+    expect(namesOn(changed, TODAY)).toMatchObject({ name: "Бег утром", nameSince: TODAY });
+  });
+
+  it("counts an unchanged description across name changes", () => {
+    const base = habit({
+      name: "В",
+      description: "5 км",
+      created_on: addDays(TODAY, -10),
+      name_history: [
+        { until: addDays(TODAY, -6), name: "А", description: "5 км" },
+        { until: addDays(TODAY, -3), name: "Б", description: "5 км" },
+      ],
+    });
+    expect(namesOn(base, addDays(TODAY, -4))).toEqual({
+      name: "Б",
+      description: "5 км",
+      nameSince: addDays(TODAY, -6),
+      descriptionSince: addDays(TODAY, -10),
+    });
   });
 });
 
