@@ -10,7 +10,7 @@
  *    потом блоки с заголовками списков по порядку;
  *  - свой список — одним блоком.
  * Остальное (задачи на будущие дни — «Не запланированы на сегодня», по дню и времени, и
- * «Выполненные») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
+ * «Выполненные сегодня», затем «Выполненные ранее») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
  * ссылка «Показать остальные» в самом низу экрана, отдельно от задач; «Назад» возвращает
  * (нижней навигации там нет, как на вложенных экранах).
  *
@@ -251,7 +251,7 @@ export function TodosScreen() {
   // наступило (его задачи — в будущих), вчерашние не просрочены. Пересчёт — с каждой
   // отрисовкой.
   const today = settings?.mark_yesterday ? localDate(-1) : localDate();
-  const { groups, later, done, restNow } = useMemo(() => {
+  const { groups, later, doneToday, done, restNow } = useMemo(() => {
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
@@ -305,10 +305,14 @@ export function TodosScreen() {
         });
       }
     }
+    // Выполненные сегодня (по календарю устройства) — своим блоком над остальными.
+    const calendarToday = localDate();
+    const doneOnToday = (todo: Todo): boolean => localDateOf(doneAt(todo)) === calendarToday;
     return {
       groups: sections.filter((section) => section.todos.length > 0 || section.target),
       later: upcoming,
-      done: checked,
+      doneToday: checked.filter(doneOnToday),
+      done: checked.filter((todo) => !doneOnToday(todo)),
       // Сколько на экране остальных будет, если открыть его сейчас: отмеченная только что
       // уже там (ссылка появляется с первой галочкой).
       restNow: todos.filter(
@@ -389,7 +393,7 @@ export function TodosScreen() {
   });
 
   const nowEmpty = draft === null && groups.every((group) => group.todos.length === 0);
-  const rest = later.length + done.length;
+  const rest = later.length + doneToday.length + done.length;
   const shownGroups = groups.filter(
     (group) => group.todos.length > 0 || (group.target && draft !== null),
   );
@@ -410,6 +414,11 @@ export function TodosScreen() {
           {later.length > 0 ? (
             <Section title={strings.todosLater} variant="form" motionKey="later">
               <Card>{later.map(renderRow)}</Card>
+            </Section>
+          ) : null}
+          {doneToday.length > 0 ? (
+            <Section title={strings.todosDoneToday} variant="form" motionKey="doneToday">
+              <Card>{doneToday.map(renderRow)}</Card>
             </Section>
           ) : null}
           {done.length > 0 ? (
@@ -523,6 +532,16 @@ export function TodosScreen() {
       />
     );
   }
+}
+
+/** День устройства («ГГГГ-ММ-ДД») момента `iso`; null — нет момента. */
+function localDateOf(iso: string | null): string | null {
+  if (iso === null) {
+    return null;
+  }
+  const at = new Date(iso);
+  const month = String(at.getMonth() + 1).padStart(2, "0");
+  return `${at.getFullYear()}-${month}-${String(at.getDate()).padStart(2, "0")}`;
 }
 
 const EMPTY_HELD = new Map<number, Todo>();

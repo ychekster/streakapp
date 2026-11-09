@@ -8,6 +8,14 @@
   flex-direction: column;
 }
 
+/* Блоки и строки, которые плавно едут (todoMotion), держат свой слой отрисовки всегда.
+   Иначе WebKit (iPhone, Telegram) заводит слой в начале переезда и убирает в конце, и на
+   эти кадры карточка остаётся без фона: в тёмной теме мигает чёрным. */
+.todos [data-section],
+.todos [data-todo] {
+  will-change: transform;
+}
+
 /* «Скрыть названия списков»: блоки без заголовков стоят как группы в настройках. */
 .todos[data-plain] > section + section {
   margin-top: var(--space-list-gap);
