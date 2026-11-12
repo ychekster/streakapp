@@ -14,11 +14,13 @@
  * показывает только дни с начала текущего «листа», остальные кружки — пустые, а в кружке
  * сегодня точка (он не в углу сетки, и иначе его не найти). В виде "calendar" вместо
  * сетки — календарь по месяцам и дням недели (CalendarGrid), пока известен день отметки.
+ * В виде "large" — та же сетка со сдвигом, но крупнее: `largeColumns` в ряд,
+ * `largeRows` рядов.
  */
 
 import { memo, useMemo } from "react";
 
-import { GRID_COLUMNS, GRID_DAYS } from "../constants";
+import { GRID_COLUMNS, GRID_DAYS, LARGE_GRID_COLUMNS, LARGE_GRID_ROWS } from "../constants";
 import { groupFill, historyGoals, isTimed } from "../data/derive";
 import { endBurst } from "../hooks/useToggle";
 import { useStrings } from "../preferences";
@@ -43,6 +45,9 @@ interface HabitBlockProps {
   gridColumns?: number;
   /** Рядов месяцев в виде "calendar". */
   calendarRows?: number;
+  /** Кружков в ряду и рядов в виде "large". */
+  largeColumns?: number;
+  largeRows?: number;
   onToggle?: (taskId: number) => void;
   /** Открыть экран привычки по нажатию на блок. */
   onOpen?: (taskId: number) => void;
@@ -54,14 +59,19 @@ export const HabitBlock = memo(function HabitBlock({
   gridDays = GRID_DAYS,
   gridColumns = GRID_COLUMNS,
   calendarRows = 1,
+  largeColumns = LARGE_GRID_COLUMNS,
+  largeRows = LARGE_GRID_ROWS,
   onToggle,
   onOpen,
 }: HabitBlockProps) {
   const strings = useStrings();
   // Сколько последних дней истории показать: всю сетку или начало листа ("fixed").
   const gridView = useGridView();
-  const fill = fixedGridFill(gridView, habit, gridDays);
-  const shown = fill ?? gridDays;
+  const large = gridView.layout === "large";
+  const columns = large ? largeColumns : gridColumns;
+  const cells = large ? largeRows * largeColumns : gridDays;
+  const fill = fixedGridFill(gridView, habit, cells);
+  const shown = fill ?? cells;
   // Неполный день закрашивается по цели того дня (цель меняли — у дней своя).
   const day = gridView.day;
   const goals = useMemo(() => (day ? historyGoals(habit, day) : null), [habit, day]);
@@ -108,11 +118,10 @@ export const HabitBlock = memo(function HabitBlock({
           countUp={habit.overtime}
           // Отмечать можно — удержание открывает окно счёта («несколько раз в день»).
           onLongPress={onToggle ? () => openSheet(habit.id) : undefined}
-          // «Несколько раз в день» на цели: нажатие уже не прибавляет и не обнуляет день, а
-          // открывает окно счёта.
+          // «Несколько раз в день»: нажатие сразу открывает окно счёта (и до цели, и на ней).
           onToggle={() =>
-            habit.times_per_day > 1 && habit.today_count >= habit.times_per_day
-              ? openSheet(habit.id)
+            habit.times_per_day > 1
+              ? onToggle && openSheet(habit.id)
               : onToggle?.(habit.id)
           }
         />
@@ -137,9 +146,10 @@ export const HabitBlock = memo(function HabitBlock({
         total={habit.times_per_day}
         totals={goals?.slice(-shown)}
         fills={groupFill(habit)?.slice(-shown)}
-        columns={gridColumns}
-        cells={gridDays}
+        columns={columns}
+        cells={cells}
         markToday={fill !== null}
+        wide={large}
       />
       )}
     </article>

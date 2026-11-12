@@ -6,7 +6,9 @@
  *
  * Выбор дня — как в «Акциях» iOS: палец, ведущий по графику (или мышь), ставит
  * вертикальную линию на ближайший день и точку на его значении; выбранный день видит
- * родитель (`onSelect`) и показывает его значение в шапке карточки. Стрелки клавиатуры
+ * родитель (`onSelect`) и показывает его значение в шапке карточки, а над точкой —
+ * подпись (`pointLabel`, как значение над столбиком у BarChart; у верха графика — под
+ * точкой, у краёв — не выходит за них). Стрелки клавиатуры
  * делают то же. Вертикальная прокрутка страницы при этом работает (touch-action: pan-y).
  *
  * `null` — у дня нет значения (например, не на что считать долю выполнения): линия
@@ -48,9 +50,15 @@ interface LineChartProps {
   fit?: boolean;
   selected: number | null;
   onSelect: (index: number | null) => void;
+  /** Подпись над выбранной точкой (что в этом дне); нет — без подписи. */
+  pointLabel?: string | null;
   /** Доступное описание графика. */
   label: string;
 }
+
+/** Подпись выбранной точки: над ней на столько (px), у края графика — не ближе этого. */
+const POINT_LABEL_GAP = 12;
+const POINT_LABEL_EDGE = 56;
 
 /** Отступ крайних точек от краёв: точка с кольцом не обрезается. */
 const EDGE = DOT_RADIUS + DOT_RING;
@@ -103,6 +111,7 @@ export function LineChart({
   fit = false,
   selected,
   onSelect,
+  pointLabel = null,
   label,
 }: LineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -260,6 +269,14 @@ export function LineChart({
               strokeWidth={DOT_RING}
             />
           ) : null}
+          {selected !== null && pointLabel && values[selected] !== null ? (
+            <PointLabel
+              x={x(selected)}
+              y={y(values[selected] as number)}
+              width={plotWidth}
+              text={pointLabel}
+            />
+          ) : null}
           <rect
             className={styles.hit}
             x={0}
@@ -275,5 +292,20 @@ export function LineChart({
         </svg>
       ) : null}
     </div>
+  );
+}
+
+/** Подпись над точкой (`x`, `y`): у верха графика — под ней; у левого и правого края
+ *  графика шириной `width` — прижата к краю, а не по центру точки. Обводка цвета карточки
+ *  отделяет текст от линий под ним. */
+function PointLabel({ x, y, width, text }: { x: number; y: number; width: number; text: string }) {
+  const above = y - POINT_LABEL_GAP;
+  const top = above < POINT_LABEL_GAP + 4 ? y + POINT_LABEL_GAP + 10 : above;
+  const anchor = x < POINT_LABEL_EDGE ? "start" : x > width - POINT_LABEL_EDGE ? "end" : "middle";
+  const at = anchor === "start" ? Math.max(0, x - 6) : anchor === "end" ? Math.min(width, x + 6) : x;
+  return (
+    <text className={styles.pointLabel} x={at} y={top} textAnchor={anchor}>
+      {text}
+    </text>
   );
 }

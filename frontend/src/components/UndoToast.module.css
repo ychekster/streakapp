@@ -28,6 +28,11 @@
   bottom: calc(var(--tabbar-offset) + var(--tabbar-height) + var(--undo-toast-gap));
 }
 
+/* Без навигации, но с нижней кнопкой экрана (MainButtonBar) — над кнопкой. */
+:global(:root[data-main-button]) .toast:not(.aboveTabBar) {
+  bottom: calc(var(--web-main-inset) + var(--web-main-height) + var(--undo-toast-gap));
+}
+
 /* Идёт таймер — плашка над его мини-плеером (TimerBar ставит --timer-bar-space). */
 .toast {
   translate: 0 calc(-1 * (var(--timer-bar-space, 0px)));

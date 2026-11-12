@@ -25,6 +25,12 @@
   bottom: calc(var(--tabbar-offset) + var(--tabbar-height) + var(--undo-toast-gap));
 }
 
+/* Без навигации, но с нижней кнопкой экрана (MainButtonBar: «Сохранить», «Создать»…) —
+   над кнопкой, а не поверх неё. */
+:global(:root[data-main-button]) .bar:not(.aboveTabBar) {
+  bottom: calc(var(--web-main-inset) + var(--web-main-height) + var(--undo-toast-gap));
+}
+
 @keyframes bar-in {
   from {
     opacity: 0;

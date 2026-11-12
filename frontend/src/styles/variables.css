@@ -168,6 +168,7 @@
   --count-sheet-action-height: 44px; /* «Сбросить», «Заполнить день» */
   --count-sheet-action-font-size: 14px;
   /* Окно дня (DaySheet): отметка «раз в день», заметка, сдвиг при смене дня. */
+  --new-folder-sheet-submit-top: 24px; /* окно «Новая папка»: от поля (цветов) до «Создать» */
   --day-sheet-mark-top: 22.5px; /* от чипов до кнопки отметки (как полоса прогресса) */
   --day-sheet-note-top: 16px;
   --day-sheet-note-min-height: 44px;
@@ -258,6 +259,7 @@
 
   /* --- Сетка выполнения --- */
   --grid-gap: 2px; /* зазор между кружками */
+  --grid-gap-wide: 4px; /* «Вид сетки» large: крупные кружки */
   --grid-dot-radius: 50%; /* кружки */
   --grid-today-dot: 55%; /* точка в кружке «сегодня» в «Виде сетки» fixed (доля радиуса) */
   /* «Вид сетки» calendar (CalendarGrid): подписи месяцев и дней недели */

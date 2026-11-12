@@ -47,9 +47,17 @@ export const DEFAULT_THEME = "system";
 
 /** «Вид сетки»: "rolling" — сегодня в правом нижнем кружке, дни сдвигаются; "fixed" — с
  *  дня создания привычки от левого верхнего кружка без сдвига; "calendar" — по месяцам,
- *  ряд — день недели, кружок — дата (components/calendarLayout.ts). Совпадают с
- *  GRID_LAYOUTS на бэкенде. */
-export const GRID_LAYOUTS = ["rolling", "fixed", "calendar"] as const;
+ *  ряд — день недели, кружок — дата (components/calendarLayout.ts); "large" — как "rolling",
+ *  но кружки крупнее: LARGE_GRID_COLUMNS в ряд, все ряды полные. Совпадают с GRID_LAYOUTS
+ *  на бэкенде. */
+export const GRID_LAYOUTS = ["rolling", "fixed", "calendar", "large"] as const;
+
+/** «Вид сетки» large: кружков в ряду и рядов в списке (15 × 6 = 90 дней) и на экране
+ *  привычки (18 × 10 = 180 дней: шире и ниже, чем 15 × 12, кружки чуть мельче). */
+export const LARGE_GRID_COLUMNS = 15;
+export const LARGE_GRID_ROWS = 6;
+export const HISTORY_LARGE_COLUMNS = 18;
+export const HISTORY_LARGE_ROWS = 10;
 
 /** «Вид сетки» calendar на экране привычки: рядов месяцев (в списке — один). */
 export const HISTORY_CALENDAR_ROWS = 2;

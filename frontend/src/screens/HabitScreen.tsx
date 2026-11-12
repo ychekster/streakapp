@@ -308,12 +308,14 @@ export function HabitScreen({
               ? {
                   history: strings.groupHistoryHeading,
                   historyCalendar: strings.groupHistoryCalendarHeading,
+                  historyLarge: strings.groupHistoryLargeHeading,
                   main: strings.groupMainHeading,
                   calendar: strings.groupCalendarHeading,
                 }
               : {
                   history: strings.habitHistoryHeading,
                   historyCalendar: strings.habitHistoryCalendarHeading,
+                  historyLarge: strings.habitHistoryLargeHeading,
                   main: strings.habitMainHeading,
                   calendar: strings.calendarHeading,
                 }

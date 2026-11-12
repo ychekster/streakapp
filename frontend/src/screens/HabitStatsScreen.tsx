@@ -12,7 +12,10 @@
  *  - «Динамика» — счёт привычки (растёт, пока её выполняют, падает от пропусков — см.
  *    habitStats.trend) сплошной линией с острыми углами за месяц (со дня после «месяц назад»),
  *    3 месяца или год (капсулы над ней), шкала — по видимым значениям; над ней значение
- *    последней точки целым числом, палец на графике — значение и дата выбранной;
+ *    последней точки целым числом, палец на графике — значение и дата выбранной, справа в
+ *    том же ряду — насколько этот день (у года — неделя) сдвинул счёт («+1», «−0,5»,
+ *    «+0»), а у «Цели по времени» и «несколько раз в день» над точкой — что в нём: время
+ *    («1 ч 30 мин») или повторения («4 раза»), у года — за неделю;
  *  - «Недельный паттерн» — столбики выполнения по дням недели (палец — значение над
  *    столбиком), «i» рядом объясняет, что они значат;
  *  - «Итоги по дням» — крупное кольцо с долей выполненных в центре, под ним плитки:
@@ -33,6 +36,7 @@ import { InfoTip } from "../components/InfoTip";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { StatDelta } from "../components/StatDelta";
+import { duration } from "../components/timerFormat";
 import { WEEKDAYS } from "../constants";
 import {
   bestDay,
@@ -44,6 +48,7 @@ import {
   type StatsKind,
   type StatsRange,
   type Totals,
+  type TrendDetail,
 } from "../data/habitStats";
 import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
@@ -183,6 +188,15 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
   });
   const shownPoint = point ?? lastKnown;
   const shownValue = shownPoint === null ? null : line.values[shownPoint];
+  const detail = point === null ? null : line.details[point];
+  const locale = language === "ru" ? "ru-RU" : "en-US";
+  const delta = detail?.delta ?? null;
+  const deltaText =
+    delta === null
+      ? null
+      : `${delta < 0 ? "−" : "+"}${Math.abs(delta).toLocaleString(locale, {
+          maximumFractionDigits: 2,
+        })}`;
 
   // «Частично» — только у привычек со счётом (раз в день его не бывает): плиток три или четыре.
   const slices: PieSlice[] = (["done", "partial", "missed", "frozen"] as const)
@@ -279,6 +293,20 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                         maximumFractionDigits: 2,
                       })}
                 {point !== null ? <span className={styles.chartDate}>{labels[point]}</span> : null}
+                {deltaText !== null ? (
+                  <span
+                    className={`${styles.chartDelta} ${
+                      delta !== null && delta > 0
+                        ? styles.chartDeltaUp
+                        : delta !== null && delta < 0
+                          ? styles.chartDeltaDown
+                          : ""
+                    }`}
+                    aria-label={strings.statsPointDeltaLabel(deltaText)}
+                  >
+                    {deltaText}
+                  </span>
+                ) : null}
               </p>
               {/* Другой период — график проявляется заново, а не подменяется рывком. */}
               <div key={range} className={rangeSwitched ? styles.chartSwap : undefined}>
@@ -290,6 +318,7 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
                   formatTick={String}
                   selected={point}
                   onSelect={setPoint}
+                  pointLabel={detail ? pointText(kind, detail, strings) : null}
                   label={strings.statsTrendHeading}
                 />
               </div>
@@ -339,4 +368,16 @@ export function HabitStatsScreen({ habit }: HabitStatsScreenProps) {
       </div>
     </Screen>
   );
+}
+
+/** Подпись над выбранной точкой «Динамики»: время или повторения её дня (у года — недели);
+ *  у привычек без счёта подписи нет (что день дал, видно по изменению счёта справа). */
+function pointText(kind: StatsKind, detail: TrendDetail, strings: Strings): string | null {
+  if (kind === "time") {
+    return duration(detail.amount, strings);
+  }
+  if (kind === "times") {
+    return strings.statsPointTimes(detail.amount);
+  }
+  return null;
 }

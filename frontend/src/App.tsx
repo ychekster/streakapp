@@ -117,8 +117,9 @@ import {
   useTodoRestOpen,
 } from "./screens/TodosScreen";
 import { TodoListFormScreen } from "./screens/TodoListFormScreen";
+import { TodoSettingsScreen } from "./screens/TodoSettingsScreen";
 import { ChecklistIcon } from "./components/SettingsIcons";
-import { MAX_TODO_FOLDERS_PER_USER, TODO_FOLDER_KINDS } from "./constants";
+import { GRID_LAYOUTS, MAX_TODO_FOLDERS_PER_USER, TODO_FOLDER_KINDS } from "./constants";
 import type { TodoFolder, TodoFolderKind } from "./types/todo";
 import { isCurrentTimezone, TimezoneScreen } from "./screens/TimezoneScreen";
 import { currentSessionToken } from "./web/session";
@@ -302,6 +303,7 @@ export function App() {
   const scrollUnderEditor = useRef(0);
   const scrollUnderAdvanced = useRef(0);
   const scrollUnderSettingsPage = useRef(0);
+  const scrollUnderTodoSettings = useRef(0);
   const scrollUnderFolderForm = useRef(0);
   const scrollUnderFolderPicker = useRef(0);
   const scrollUnderAdmin = useRef(0);
@@ -327,7 +329,9 @@ export function App() {
   );
   // «Вид сетки» и день отметки для сеток привычек (components/gridLayout.ts).
   // Новый день приходит с пересчётом привычек (data/store.ts) — и с ним новый рендер.
-  const gridLayout = settings?.grid_layout ?? "rolling";
+  // Вид, которого больше нет (сохранён на устройстве старой версией), — "rolling".
+  const savedLayout = settings?.grid_layout;
+  const gridLayout = savedLayout && GRID_LAYOUTS.includes(savedLayout) ? savedLayout : "rolling";
   const gridDay = settings ? markingDay(settings.timezone, settings.mark_yesterday) : null;
   const gridView = useMemo(
     () => ({ layout: gridLayout, day: gridDay }),
@@ -547,6 +551,19 @@ export function App() {
     pendingScroll.current = scrollUnderSettingsPage.current;
     pendingBack.current = true;
     setSettingsPage(null);
+  }, []);
+
+  // «Списки» задач открываются с экрана настроек задач, «Назад» возвращает на него.
+  const showTodoLists = useCallback(() => {
+    scrollUnderTodoSettings.current = window.scrollY;
+    pendingScroll.current = 0;
+    setSettingsPage("todoLists");
+  }, []);
+
+  const hideTodoLists = useCallback(() => {
+    pendingScroll.current = scrollUnderTodoSettings.current;
+    pendingBack.current = true;
+    setSettingsPage("todos");
   }, []);
 
   const showFolderForm = useCallback((folder: Folder | null) => {
@@ -789,9 +806,11 @@ export function App() {
               ? hideFolderForm
               : todoListForm
                 ? hideTodoListForm
-                : settingsPage
-                  ? hideSettingsPage
-                  : null,
+                : settingsPage === "todoLists"
+                  ? hideTodoLists
+                  : settingsPage
+                    ? hideSettingsPage
+                    : null,
   );
 
   // Пояс не выбран (новый пользователь, до этого считалось по UTC) — ставим пояс
@@ -1246,6 +1265,16 @@ export function App() {
           />
         );
       }
+      if (settingsPage === "todos" && settings) {
+        return (
+          <TodoSettingsScreen
+            settings={settings}
+            onSave={(patch) => void saveSettings(patch)}
+            onOpenLists={showTodoLists}
+            listCount={todoFolders.length}
+          />
+        );
+      }
       if (settingsPage === "archive") {
         return (
           <ArchiveScreen
@@ -1303,7 +1332,6 @@ export function App() {
           }
           folderCount={folders.length}
           archiveCount={archivedHabits.length}
-          todoListCount={todoFolders.length}
           onRetryAccount={loadAccount}
           onLinkTelegram={linkTelegram}
         />

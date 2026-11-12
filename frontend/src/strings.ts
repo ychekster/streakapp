@@ -111,7 +111,12 @@ const RU = {
   // «Вид сетки»: ряд настроек и его экран с картинками.
   settingsGridLayout: "Вид сетки",
   gridLayoutTitle: "Вид сетки",
-  gridLayoutNames: { rolling: "Со сдвигом", fixed: "По порядку", calendar: "Календарь" },
+  gridLayoutNames: {
+    rolling: "Со сдвигом",
+    fixed: "По порядку",
+    calendar: "Календарь",
+    large: "Последние 90 дней",
+  },
   gridLayoutFooters: {
     rolling:
       "Сегодняшний день всегда в правом нижнем кружке, а с каждым новым днём сетка сдвигается влево.",
@@ -119,6 +124,8 @@ const RU = {
       "Сетка заполняется день за днём с левого верхнего кружка, а когда кружки закончатся, начинается заново.",
     calendar:
       "Сетка разбита по месяцам и дням недели: у каждой даты своё место, как в календаре.",
+    large:
+      "Как «Со сдвигом», но кружки крупнее. Сегодняшний день в правом нижнем кружке, на экране привычки видно 180 дней.",
   },
   // «Папки»: ряд настроек, список папок, форма папки и выбор привычек в неё.
   settingsFolders: "Папки",
@@ -134,6 +141,7 @@ const RU = {
   todosClearDate: "Убрать дату",
   todosClearRemind: "Убрать напоминание",
   todosNoList: "Без списка",
+  todosNewList: "Новый список…",
   todosList: "Список",
   // День и время задачи под её текстом: «Завтра в 15:00» (без «·» — см. CLAUDE.md).
   todosDateTime: (day: string, time: string) => `${day} в ${time}`,
@@ -145,7 +153,8 @@ const RU = {
   todosTitle: "Задачи",
   todosAll: "Все задачи",
   todosDoneToday: "Выполненные сегодня",
-  todosDone: "Выполненные ранее",
+  todosDone: "Выполненные",
+  todosDoneEarlier: "Выполнены ранее",
   todosDelete: "Удалить",
   todosAdd: "Добавить",
   todosSave: "Сохранить",
@@ -162,6 +171,14 @@ const RU = {
   todoSettingsLists: "Списки",
   todoSettingsChecksRight: "Галочки справа",
   todoSettingsChecksRightFooter: "Кружок отметки задачи будет у правого края, под большим пальцем.",
+  todoSettingsOpenOnFooter: "Приложение будет открываться сразу на вкладке «Задачи».",
+  todoSettingsListsFooter:
+    "Разложите задачи по спискам и переключайтесь между ними свайпом или вкладками сверху.",
+  todoSettingsNew: "Новые задачи",
+  todoSettingsNewPlaces: { top: "Сверху", bottom: "Снизу" },
+  todoSettingsNewFooter:
+    "Где появляется новая задача: в начале блока или в конце. Задачи с датой всё равно стоят по дню и времени.",
+  settingsTodosOff: "Выкл.",
   todoListsDescription:
     "Разделяйте задачи на списки (работа, учёба, дом) и переключайтесь между ними.",
   todoListsCreate: "Создать список",
@@ -396,6 +413,7 @@ const RU = {
   habitHistoryHeading: "Последние 364 дня",
   // То же в «Виде сетки» «Календарь»: месяцы, а не дни (HISTORY_CALENDAR_ROWS × 4).
   habitHistoryCalendarHeading: "Последние 8 месяцев",
+  habitHistoryLargeHeading: "Последние 180 дней",
   habitHistoryLabel: "История выполнения",
   habitMainHeading: "Основное",
   statCurrentStreak: "Текущая серия",
@@ -452,6 +470,10 @@ const RU = {
   statsTrendInfoFlexible:
     "Каждая отметка добавляет к счёту 1 очко. В конце периода за каждую отметку, которой не хватило до цели, отнимается 1. Ниже нуля счёт не опускается.",
   statsRanges: { month: "Месяц", quarter: "3 месяца", year: "Год" },
+  // Палец на графике «Динамика»: над точкой — время или повторения дня (недели), справа в
+  // шапке — насколько он сдвинул счёт.
+  statsPointTimes: (count: number) => `${count} ${ruTimes(count)}`,
+  statsPointDeltaLabel: (delta: string) => `Изменение счёта: ${delta}`,
   statsWeekdaysHeading: "Недельный паттерн",
   statsWeekdaysInfoLabel: "Что показывает недельный паттерн",
   statsWeekdaysInfo:
@@ -472,6 +494,7 @@ const RU = {
   // Те же разделы у групповой привычки — про всю группу (у участника — без «группы»).
   groupHistoryHeading: "Последние 364 дня группы",
   groupHistoryCalendarHeading: "Последние 8 месяцев группы",
+  groupHistoryLargeHeading: "Последние 180 дней группы",
   groupMainHeading: "Основное группы",
   groupCalendarHeading: "Календарь группы",
   calendarPrevMonth: "Предыдущий месяц",
@@ -702,6 +725,7 @@ const RU = {
   formAdvanced: "Дополнительно",
   // «Папки» в «Дополнительно»: свои папки с галочками.
   formFoldersHeading: "Папки",
+  formNewFolder: "Новая папка",
   formAutoMarkHeading: "Автоотметка",
   formAutoMarkToggle: "Отмечать автоматически",
   formAutoMarkFooter:
@@ -845,12 +869,13 @@ const EN: Strings = {
   settingsReview: "Write a Review",
   settingsGridLayout: "Grid Style",
   gridLayoutTitle: "Grid Style",
-  gridLayoutNames: { rolling: "Rolling", fixed: "In Order", calendar: "Calendar" },
+  gridLayoutNames: { rolling: "Rolling", fixed: "In Order", calendar: "Calendar", large: "Last 90 Days" },
   gridLayoutFooters: {
     rolling: "Today is always the bottom-right dot, and the grid shifts left with each new day.",
     fixed:
       "The grid fills day by day from the top-left dot, and starts over once it’s full.",
     calendar: "The grid is split into months and weekdays, so every date has its own spot, like in a calendar.",
+    large: "Like Rolling, but with bigger dots. Today is the bottom-right dot, and the habit screen shows 180 days.",
   },
   settingsFolders: "Folders",
   foldersTitle: "Folders",
@@ -863,6 +888,7 @@ const EN: Strings = {
   todosClearDate: "Remove date",
   todosClearRemind: "Remove reminder",
   todosNoList: "No list",
+  todosNewList: "New list…",
   todosList: "List",
   todosDateTime: (day: string, time: string) => `${day} at ${time}`,
   todosLater: "Not scheduled for today",
@@ -873,7 +899,8 @@ const EN: Strings = {
   todosTitle: "Tasks",
   todosAll: "All Tasks",
   todosDoneToday: "Done today",
-  todosDone: "Done earlier",
+  todosDone: "Done",
+  todosDoneEarlier: "Done earlier",
   todosDelete: "Delete",
   todosAdd: "Add",
   todosSave: "Save",
@@ -889,6 +916,13 @@ const EN: Strings = {
   todoSettingsLists: "Lists",
   todoSettingsChecksRight: "Checkmarks on the Right",
   todoSettingsChecksRightFooter: "The task checkmark sits at the right edge, under your thumb.",
+  todoSettingsOpenOnFooter: "The app opens straight on the Tasks tab.",
+  todoSettingsListsFooter: "Sort tasks into lists and switch between them with a swipe or the tabs on top.",
+  todoSettingsNew: "New Tasks",
+  todoSettingsNewPlaces: { top: "On Top", bottom: "At the Bottom" },
+  todoSettingsNewFooter:
+    "Where a new task appears: at the start of a block or at the end. Tasks with a date still sort by day and time.",
+  settingsTodosOff: "Off",
   todoListsDescription: "Split your tasks into lists (work, study, home) and switch between them.",
   todoListsCreate: "Create a List",
   todoListsFooter: "Tap “Edit” to delete lists or change their order.",
@@ -1103,6 +1137,7 @@ const EN: Strings = {
   openHabit: "Open habit",
   habitHistoryHeading: "Last 364 days",
   habitHistoryCalendarHeading: "Last 8 months",
+  habitHistoryLargeHeading: "Last 180 days",
   habitHistoryLabel: "Completion history",
   habitMainHeading: "Overview",
   statCurrentStreak: "Current streak",
@@ -1148,6 +1183,8 @@ const EN: Strings = {
   statsTrendInfoFlexible:
     "Each mark adds 1 point to the score. At the end of a period, 1 point is taken away for each mark short of the goal. The score never goes below zero.",
   statsRanges: { month: "Month", quarter: "3 months", year: "Year" },
+  statsPointTimes: (count: number) => `${count} ${count === 1 ? "time" : "times"}`,
+  statsPointDeltaLabel: (delta: string) => `Score change: ${delta}`,
   statsWeekdaysHeading: "Weekly pattern",
   statsWeekdaysInfoLabel: "What the weekly pattern shows",
   statsWeekdaysInfo:
@@ -1165,6 +1202,7 @@ const EN: Strings = {
   calendarHeading: "Calendar",
   groupHistoryHeading: "Group’s last 364 days",
   groupHistoryCalendarHeading: "Group’s last 8 months",
+  groupHistoryLargeHeading: "Group’s last 180 days",
   groupMainHeading: "Group overview",
   groupCalendarHeading: "Group calendar",
   calendarPrevMonth: "Previous month",
@@ -1358,6 +1396,7 @@ const EN: Strings = {
   formThemeHeading: "Color",
   formAdvanced: "Advanced",
   formFoldersHeading: "Folders",
+  formNewFolder: "New Folder",
   formAutoMarkHeading: "Auto Check-Off",
   formAutoMarkToggle: "Check Off Automatically",
   formAutoMarkFooter:

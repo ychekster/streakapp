@@ -9,7 +9,7 @@
  *
  * «Гибкий график» — свои карточки (flexibleStats): у недели и месяца серии в периодах
  * («5 нед.»), «Дней выполнено» без «из скольких» и вместо цели серии — сделано в текущем
- * периоде («2 / 3»). У года (yearStats): «121 / 150 — В этом году», сколько раз в неделю
+ * периоде («2 / 3»; сделано сверх цели — тоже видно: «2 / 1»). У года (yearStats): «121 / 150 — В этом году», сколько раз в неделю
  * нужно, чтобы успеть к 31 декабря, сколько сделано на этой неделе и прогноз — к какому
  * дню цель будет набрана в нынешнем темпе (не успевает — сколько выйдет к концу года).
  *
@@ -24,8 +24,14 @@
 
 import { useEffect, type ReactNode, type Ref } from "react";
 
-import { HISTORY_CALENDAR_ROWS, HISTORY_COLUMNS, HISTORY_DAYS } from "../constants";
-import { addDays } from "../data/dates";
+import {
+  HISTORY_CALENDAR_ROWS,
+  HISTORY_COLUMNS,
+  HISTORY_DAYS,
+  HISTORY_LARGE_COLUMNS,
+  HISTORY_LARGE_ROWS,
+} from "../constants";
+import { addDays, daysBetween } from "../data/dates";
 import { flexiblePeriod, goalOn, isTimed, periodBounds, periodQuota, yearStats } from "../data/derive";
 import { localDate } from "./DateField";
 import { useLanguage, useStrings } from "../preferences";
@@ -112,6 +118,17 @@ export function shortDate(day: string, language: string): string {
   return format.format(new Date(Date.UTC(year, month - 1, date)));
 }
 
+/** Отмеченные дни истории с `start` по `day` (последний день истории), кроме дней
+ *  заморозки. */
+function marksSince(habit: Habit, start: string, day: string): number {
+  const last = habit.history.length - 1;
+  let count = 0;
+  for (let back = 0; back <= Math.min(last, daysBetween(start, day)); back += 1) {
+    count += Number(habit.history[last - back] && !habit.frozen_history[last - back]);
+  }
+  return count;
+}
+
 /** Карточки «Основного» у «Гибкого графика»; `day` — день отметки. */
 function flexibleStats(
   habit: Habit,
@@ -125,7 +142,8 @@ function flexibleStats(
   }
   const [start, end] = periodBounds(period, day);
   const quota = periodQuota(habit.period_times ?? 1, start, end);
-  const done = habit.period_done ?? 0;
+  // Сделано в периоде — со всеми отметками, и сверх цели (period_done до неё обрезан).
+  const done = Math.max(habit.period_done ?? 0, marksSince(habit, start, day));
   if (period !== "year") {
     const streak = strings.streakInPeriods[period];
     return [
@@ -161,7 +179,13 @@ interface HabitSummaryProps {
   habit: Habit;
   /** Заголовки разделов: у групповой привычки — «…группы»; `historyCalendar` — истории
    *  в «Виде сетки» calendar (8 месяцев вместо 364 дней). */
-  headings: { history: string; historyCalendar: string; main: string; calendar: string };
+  headings: {
+    history: string;
+    historyCalendar: string;
+    historyLarge: string;
+    main: string;
+    calendar: string;
+  };
   /** Можно ли отмечать выполнение кнопкой в карточке. */
   interactive: boolean;
   onToggle?: (taskId: number) => void;
@@ -196,7 +220,11 @@ export function HabitSummary({
     <>
       <Section
         title={
-          gridView.layout === "calendar" && markDay ? headings.historyCalendar : headings.history
+          gridView.layout === "calendar" && markDay
+            ? headings.historyCalendar
+            : gridView.layout === "large" && markDay
+              ? headings.historyLarge
+              : headings.history
         }
         headingRef={headingRef}
       >
@@ -207,6 +235,8 @@ export function HabitSummary({
             gridDays={HISTORY_DAYS}
             gridColumns={HISTORY_COLUMNS}
             calendarRows={HISTORY_CALENDAR_ROWS}
+            largeColumns={HISTORY_LARGE_COLUMNS}
+            largeRows={HISTORY_LARGE_ROWS}
             onToggle={onToggle}
           />
         </Card>

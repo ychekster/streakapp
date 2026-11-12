@@ -1,0 +1,82 @@
+/* Окно «Новая папка» / «Новый список» (NewFolderSheet): шапка как у окна счёта (заголовок
+   вместо чипов и «×»), поле названия скруглено и высотой как «Название папки» в форме
+   папки (карточка с рядом формы), кнопка как «Отметить» в окне дня (DaySheet .mark), но
+   ниже: с запасом над ней, как в окнах Telegram. */
+
+/* Кнопка ниже, чем в окне счёта: низ кнопки — над полоской «Домой» (как в окнах Telegram),
+   а с открытой клавиатурой — ровное поле над ней. */
+.sheet.sheet {
+  padding-bottom: max(var(--count-sheet-padding-bottom-min), calc(var(--safe-bottom) - 2px));
+}
+
+.sheetAboveKeyboard.sheetAboveKeyboard {
+  padding-bottom: var(--count-sheet-padding-bottom-min);
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 4px;
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--form-row-min-height);
+  margin-top: var(--day-sheet-note-top);
+  padding: 0 var(--space-card-padding);
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--count-sheet-button-fill);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+  caret-color: rgb(var(--habit-rgb));
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.name::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* Цвета — ряд кружков по полям окна (без полей карточки). */
+.colors {
+  --space-card-padding: 0px;
+  margin-top: 12px;
+}
+
+.error {
+  margin: 10px 4px 0;
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.submit {
+  width: 100%;
+  height: var(--web-main-height);
+  margin-top: var(--new-folder-sheet-submit-top);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0.67px 0 var(--web-main-rim), inset 0 -0.67px 0 var(--web-main-rim),
+    inset 0 0 0 0.67px rgba(255, 255, 255, 0.06);
+  background: rgb(var(--habit-rgb));
+  color: var(--color-on-habit);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.submit:disabled {
+  background: var(--main-button-disabled-bg);
+  color: var(--main-button-disabled-text);
+}

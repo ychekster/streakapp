@@ -27,6 +27,11 @@
   width: 100%;
 }
 
+/* «Последние 90 дней» — крупные кружки, зазор как у сетки привычки в этом виде. */
+.previewWide {
+  gap: var(--grid-gap-wide);
+}
+
 .dot {
   aspect-ratio: 1 / 1;
   border-radius: var(--grid-dot-radius);

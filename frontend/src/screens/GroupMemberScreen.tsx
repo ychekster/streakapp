@@ -123,6 +123,7 @@ export function GroupMemberScreen({
               headings={{
                 history: strings.habitHistoryHeading,
                 historyCalendar: strings.habitHistoryCalendarHeading,
+                historyLarge: strings.habitHistoryLargeHeading,
                 main: strings.habitMainHeading,
                 calendar: strings.calendarHeading,
               }}

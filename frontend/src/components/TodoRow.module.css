@@ -72,7 +72,7 @@
 }
 
 /* «Галочки справа»: текст от поля карточки, кружок — у правого края (порядок — CSS), линия
-   между строками — от начала текста. */
+   между строками — от начала текста до кружка (под кружком её нет, как слева). */
 .checkRight {
   padding: 0 var(--todo-check-inset) 0 var(--space-card-padding);
 }
@@ -128,6 +128,7 @@
 }
 
 .row + .row .checkRight::before {
+  right: calc(var(--todo-check-inset) + var(--todo-check-size) + var(--list-row-icon-gap));
   left: var(--space-card-padding);
 }
 
@@ -251,4 +252,9 @@
   background: transparent;
   font-family: inherit;
   caret-color: var(--color-accent);
+}
+
+/* Плашки под полем правки: сворачиваются перед сохранением (TodoRow, collapseChips). */
+.chipsWrap {
+  overflow: hidden;
 }

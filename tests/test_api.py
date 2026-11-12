@@ -289,6 +289,8 @@ def test_grid_layout_setting(client: TestClient, user: AuthUser) -> None:
     assert updated.json()["grid_layout"] == "fixed"
     calendar = client.put("/settings", json={"grid_layout": "calendar"}, headers=user.headers)
     assert calendar.json()["grid_layout"] == "calendar"
+    large = client.put("/settings", json={"grid_layout": "large"}, headers=user.headers)
+    assert large.json()["grid_layout"] == "large"
     invalid = client.put("/settings", json={"grid_layout": "spiral"}, headers=user.headers)
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "invalid_grid_layout"

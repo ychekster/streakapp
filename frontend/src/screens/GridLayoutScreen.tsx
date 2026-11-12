@@ -6,7 +6,8 @@
  * одни и те же дни с редкими пропусками (анимация: день за днём). Под каждой карточкой — что
  * делает этот вид. «Со сдвигом» — сегодня всегда в правом нижнем кружке, «По порядку» —
  * дни с левого верхнего, «Календарь» — последние дни до сегодняшнего по своим датам в
- * календаре по месяцам (CalendarGrid). Выбор сохраняется сразу, как остальные настройки
+ * календаре по месяцам (CalendarGrid), «Последние 90 дней» — как «Со сдвигом», но кружки крупнее
+ * (LARGE_GRID_COLUMNS в ряд). Выбор сохраняется сразу, как остальные настройки
  * (App → useSettings).
  */
 
@@ -15,7 +16,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { CalendarGrid } from "../components/CalendarGrid";
 import { localDate } from "../components/DateField";
 import { Screen } from "../components/Screen";
-import { GRID_COLUMNS, GRID_LAYOUTS } from "../constants";
+import { GRID_COLUMNS, GRID_LAYOUTS, LARGE_GRID_COLUMNS } from "../constants";
 import { addDays } from "../data/dates";
 import { useStrings } from "../preferences";
 import { habitColorStyle } from "../theme";
@@ -29,6 +30,8 @@ import formStyles from "./HabitFormScreen.module.css";
 /** Картинка: столько же кружков в ряду, сколько в сетке списка, четыре ряда. */
 const COLUMNS = GRID_COLUMNS;
 const CELLS = COLUMNS * 4;
+/** «Последние 90 дней»: те же четыре ряда, кружков в ряду меньше. */
+const LARGE_CELLS = LARGE_GRID_COLUMNS * 4;
 /** Сколько дней проходит анимация, прежде чем начаться заново. */
 const DAYS = 38;
 const STEP_MS = 500;
@@ -104,18 +107,21 @@ function Preview({ layout, day }: { layout: GridLayout; day: number }) {
   if (layout === "calendar") {
     return <CalendarPreview day={day} />;
   }
+  const large = layout === "large";
+  const columns = large ? LARGE_GRID_COLUMNS : COLUMNS;
+  const cells = large ? LARGE_CELLS : CELLS;
   // День картинки в каждом кружке (0 — первый); null — кружок без дня.
   const dayAt = (cell: number): number | null => {
-    const index = layout === "fixed" ? cell : day - CELLS + cell;
+    const index = layout === "fixed" ? cell : day - cells + cell;
     return index >= 0 && index < day ? index : null;
   };
   return (
     <span
-      className={styles.preview}
-      style={{ "--preview-columns": COLUMNS } as CSSProperties}
+      className={`${styles.preview} ${large ? styles.previewWide : ""}`}
+      style={{ "--preview-columns": columns } as CSSProperties}
       aria-hidden="true"
     >
-      {Array.from({ length: CELLS }, (_, cell) => {
+      {Array.from({ length: cells }, (_, cell) => {
         const index = dayAt(cell);
         return (
           <span

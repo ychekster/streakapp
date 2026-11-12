@@ -50,6 +50,9 @@ export interface Settings {
   todo_folder_swipe?: boolean;
   todo_checks_right?: boolean;
   todo_hide_list_names?: boolean;
+  /** Задачи: «Новые задачи» снизу блока (true) или сверху. Нет в настройках, сохранённых на
+   *  устройстве до неё: сверху. */
+  todo_new_bottom?: boolean;
   /** Администратор: в настройках виден вход в админ-панель. */
   is_admin: boolean;
   /** Веб: админ-панель на этом устройстве ещё не разрешена в боте, вход сначала просит
@@ -75,6 +78,7 @@ export interface SettingsUpdate {
   todo_folder_swipe?: boolean;
   todo_checks_right?: boolean;
   todo_hide_list_names?: boolean;
+  todo_new_bottom?: boolean;
 }
 
 export interface CheckinReminder {

@@ -88,6 +88,21 @@
 }
 
 /* Значение над выбранным столбиком. */
+/* Подпись выбранной точки линейного графика: как значение столбика, с обводкой цвета
+   карточки (линии под текстом не мешают читать). */
+.pointLabel {
+  font-family: var(--font-family);
+  font-size: var(--font-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-text-primary);
+  stroke: var(--color-card);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  pointer-events: none;
+}
+
 .barValue {
   font-family: var(--font-family);
   font-size: var(--font-size-secondary);

@@ -161,6 +161,10 @@ class User(Base):
     todo_hide_list_names: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # «Новые задачи»: снизу блока (True) или сверху (False, как было).
+    todo_new_bottom: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     # Место «Все задачи» среди списков задач (TodoFolder.position): сколько списков перед ней.
     all_todos_position: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False

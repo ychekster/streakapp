@@ -8,10 +8,17 @@
  * акцентная. Крестик на выбранной плашке (или «Сбросить» в системном выборе) убирает день
  * или напоминание.
  * Напоминание — в день задачи: без дня оно ставит «сегодня» (день отметки `today`), убранный день убирает и его.
- * Список — только свои (рекомендуемые наполняются сами); нет своих — плашки нет.
+ * Список — только свои (рекомендуемые наполняются сами); последний пункт меню — «Новый
+ * список…»: окно снизу (NewFolderSheet в TodoRow, `onNewList`) создаёт его и выбирает.
+ * Своих нет и создать больше нельзя — плашки нет.
+ *
+ * Ленту листает и сам палец (`useStripDrag`): iOS с открытой клавиатурой новой задачи не
+ * всегда листает её сама. Если система листает, лента и так там, где палец, и подстраховка
+ * ничего не делает. Последней в ленте — красный кружок с
+ * корзиной (`onRemove`): удалить задачу.
  */
 
-import type { MouseEvent, ReactNode } from "react";
+import { useRef, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 
 import { useReminderPush } from "../hooks/useReminderPush";
 import { useLanguage, useStrings } from "../preferences";
@@ -33,6 +40,10 @@ interface TodoChipsProps {
   lists: TodoFolder[];
   /** «Сегодня» задач — день отметки (в «Отмечать за вчера» — вчера). */
   today: string;
+  /** «Новый список…» в меню списка; нет — пункта нет (больше списков нельзя). */
+  onNewList?: () => void;
+  /** Удалить задачу (красный кружок с корзиной в конце ленты). */
+  onRemove?: () => void;
 }
 
 function openPickerWithMouse(event: MouseEvent<HTMLInputElement>): void {
@@ -46,14 +57,25 @@ function openPickerWithMouse(event: MouseEvent<HTMLInputElement>): void {
   }
 }
 
-export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
+/** Пункт меню списка «Новый список…». */
+const NEW_LIST = "new";
+
+export function TodoChips({
+  value,
+  onChange,
+  lists,
+  today,
+  onNewList,
+  onRemove,
+}: TodoChipsProps) {
   const strings = useStrings();
   const language = useLanguage();
   const enableReminderPush = useReminderPush();
   const list = lists.find((item) => item.id === value.folder) ?? null;
+  const drag = useStripDrag();
 
   return (
-    <div className={styles.chips}>
+    <div className={styles.chips} {...drag}>
       <Chip
         set={value.due_date !== null}
         icon={calendarIcon}
@@ -101,18 +123,24 @@ export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
           onClick={openPickerWithMouse}
         />
       </Chip>
-      {lists.length > 0 ? (
+      {lists.length > 0 || onNewList ? (
         <Chip set={list !== null} icon={listIcon} label={list ? list.name : strings.todosNoList}>
           <select
             className={styles.native}
             aria-label={strings.todosList}
             value={list ? String(list.id) : ""}
-            onChange={(event) =>
+            onChange={(event) => {
+              if (event.target.value === NEW_LIST) {
+                // Выбор остаётся прежним, пока список не создан.
+                event.target.value = list ? String(list.id) : "";
+                onNewList?.();
+                return;
+              }
               onChange({
                 ...value,
                 folder: event.target.value === "" ? null : Number(event.target.value),
-              })
-            }
+              });
+            }}
           >
             <option value="">{strings.todosNoList}</option>
             {lists.map((item) => (
@@ -120,8 +148,22 @@ export function TodoChips({ value, onChange, lists, today }: TodoChipsProps) {
                 {item.name}
               </option>
             ))}
+            {onNewList ? <option value={NEW_LIST}>{strings.todosNewList}</option> : null}
           </select>
         </Chip>
+      ) : null}
+      {onRemove ? (
+        <button
+          type="button"
+          className={styles.remove}
+          aria-label={strings.todosDelete}
+          // Поле текста не теряет фокус до удаления (клавиатура не прыгает).
+          onPointerDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onRemove}
+        >
+          {trashIcon}
+        </button>
       ) : null}
     </div>
   );
@@ -209,3 +251,61 @@ const listIcon = (
     <circle cx="5" cy="17" r="1.3" fill="currentColor" />
   </svg>
 );
+
+const trashIcon = (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M5 7h14M10 4h4M7 7l.8 11.2a2 2 0 0 0 2 1.8h4.4a2 2 0 0 0 2-1.8L17 7M10.5 11v5M13.5 11v5"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/** Сдвиг пальца (px), после которого понятно направление: вбок — листаем ленту. */
+const DRAG_SLOP = 6;
+
+/** Лента идёт за пальцем вбок: прокрутка ставится туда, где палец, только если система её
+ *  туда не довела (не листает — листаем сами). */
+function useStripDrag() {
+  const start = useRef<{ x: number; y: number; scroll: number; axis: "x" | "y" | null } | null>(
+    null,
+  );
+  return {
+    onTouchStart(event: TouchEvent<HTMLDivElement>): void {
+      const touch = event.touches[0];
+      start.current =
+        touch && event.touches.length === 1
+          ? { x: touch.clientX, y: touch.clientY, scroll: event.currentTarget.scrollLeft, axis: null }
+          : null;
+    },
+    onTouchMove(event: TouchEvent<HTMLDivElement>): void {
+      const state = start.current;
+      const touch = event.touches[0];
+      if (!state || !touch) {
+        return;
+      }
+      const dx = touch.clientX - state.x;
+      const dy = touch.clientY - state.y;
+      if (state.axis === null && Math.hypot(dx, dy) > DRAG_SLOP) {
+        state.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      if (state.axis !== "x") {
+        return;
+      }
+      const strip = event.currentTarget;
+      const wanted = state.scroll - dx;
+      if (Math.abs(strip.scrollLeft - wanted) > 2) {
+        strip.scrollLeft = wanted;
+      }
+    },
+    onTouchEnd(): void {
+      start.current = null;
+    },
+    onTouchCancel(): void {
+      start.current = null;
+    },
+  };
+}

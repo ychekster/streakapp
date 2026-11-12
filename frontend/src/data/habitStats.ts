@@ -228,10 +228,24 @@ function scores(days: Days): (number | null)[] {
  * ends on `day` (periodStart; 5 Nov: from 6 Oct), or at the end of each of the last
  * 52 weeks (year), the last point — `day`. Points before the habit's first day are cut off
  * but one, 0 (the line rises from zero), and at least MIN_TREND_POINTS stay (null).
+ * `details` — what each point is made of (the finger on the chart shows it).
  */
 export interface Trend {
   values: (number | null)[];
   dates: string[];
+  details: TrendDetail[];
+}
+
+/** A point of the line chart, in detail: what its day (year: its week, the 7 days to it)
+ *  brought and how much it moved the score. */
+export interface TrendDetail {
+  /** Score change since the point before (the day before; year: the week before); null —
+   *  no score on the point. */
+  delta: number | null;
+  /** Seconds (time), reps (times) or marks (check, flexible: days done). */
+  amount: number;
+  /** The day as the calendar shows it (month and quarter); null — year (a week). */
+  state: "done" | "partial" | "missed" | "rest" | "frozen" | null;
 }
 
 const MIN_TREND_POINTS = 4;
@@ -252,7 +266,27 @@ export function trend(habit: Habit, day: string, range: StatsRange): Trend {
     values[firstKnown] = 0;
   }
   const from = Math.min(firstKnown < 0 ? 0 : firstKnown, points - MIN_TREND_POINTS);
-  return { values: values.slice(from), dates: dates.slice(from) };
+  const details = dates.map((date, index): TrendDetail => {
+    const value = values[index];
+    const before = byDay[daysBetween(days.first, addDays(date, -step))] ?? 0;
+    let amount = 0;
+    for (let back = 0; back < step; back += 1) {
+      const at = addDays(date, -back);
+      amount += known(days, at) ? amountOn(days, at) : 0;
+    }
+    const state = step === 1 ? stateOf(habit, date, day, days.start) : null;
+    return {
+      delta: value === null ? null : Math.round((value - before) * 100) / 100,
+      amount,
+      state:
+        state === "done" || state === "partial" || state === "missed" || state === "frozen"
+          ? state
+          : state === null
+            ? null
+            : "rest",
+    };
+  });
+  return { values: values.slice(from), dates: dates.slice(from), details: details.slice(from) };
 }
 
 /** Each weekday (Monday first): completion (%) — counted days of the due ones; a weekday

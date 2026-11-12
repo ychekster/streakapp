@@ -42,6 +42,8 @@ interface YearGridProps {
   cells?: number;
   /** Отметить точкой кружок сегодня — последний день истории. */
   markToday?: boolean;
+  /** Крупные кружки (вид "large"): зазор между ними шире. */
+  wide?: boolean;
 }
 
 export function YearGrid({
@@ -54,12 +56,13 @@ export function YearGrid({
   columns = GRID_COLUMNS,
   cells = history.length,
   markToday = false,
+  wide = false,
 }: YearGridProps) {
   const strings = useStrings();
   const today = markToday ? history.length - 1 : -1;
   return (
     <div
-      className={styles.grid}
+      className={`${styles.grid} ${wide ? styles.wide : ""}`}
       style={{ "--grid-columns": columns } as CSSProperties}
       role="img"
       aria-label={strings.habitHistoryLabel}

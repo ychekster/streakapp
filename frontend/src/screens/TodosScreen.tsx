@@ -10,7 +10,8 @@
  *    потом блоки с заголовками списков по порядку;
  *  - свой список — одним блоком.
  * Остальное (задачи на будущие дни — «Не запланированы на сегодня», по дню и времени, и
- * «Выполненные сегодня», затем «Выполненные ранее») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
+ * выполненные: «Выполненные», а если есть выполненные сегодня — «Выполненные сегодня» и под
+ * ними «Выполнены ранее») — на своём экране, чтобы не мозолили глаза: его открывает неприметная серая
  * ссылка «Показать остальные» в самом низу экрана, отдельно от задач; «Назад» возвращает
  * (нижней навигации там нет, как на вложенных экранах).
  *
@@ -22,7 +23,8 @@
  * остальных и обратно, другая вкладка, приложение свернули или открыли заново. Тогда
  * выполненные уже в «Выполненных» на экране остальных. Порядок в блоке: просроченные (самая
  * старая выше), сегодняшние, без даты внизу; в один день со временем выше, по времени; равные:
- * новая поверх прежней. Заход считается в той же отрисовке, что и переключение: ничего не исчезает на
+ * новая поверх прежней, а в «Новые задачи: Снизу» (`todo_new_bottom`) под ней (и пустая
+ * строка новой задачи в конце блока, а не в начале). Заход считается в той же отрисовке, что и переключение: ничего не исчезает на
  * глазах после возврата.
  *
  * Рекомендуемые: «Невыполненные» (вид `today`) — только «сделать сейчас», без остальных и
@@ -124,6 +126,8 @@ export function TodosScreen() {
   const checksRight = settings?.todo_checks_right ?? false;
   // «Скрыть названия списков»: в «Все задачи» и рекомендуемых — блоки без заголовков.
   const hideListNames = settings?.todo_hide_list_names ?? false;
+  // «Новые задачи: Снизу»: равные — новая под прежней, строка новой — в конце блока.
+  const newBottom = settings?.todo_new_bottom ?? false;
   // undefined — список ещё не выбирали: раздел открывается на самой левой вкладке.
   const [active, setActive] = useState<number | null | undefined>(undefined);
   const showingRest = useTodoRestOpen();
@@ -252,6 +256,7 @@ export function TodosScreen() {
   // отрисовкой.
   const today = settings?.mark_yesterday ? localDate(-1) : localDate();
   const { groups, later, doneToday, done, restNow } = useMemo(() => {
+    const byWhen = (a: Todo, b: Todo): number => compareWhen(a, b, newBottom);
     const inView = (todo: Todo): boolean =>
       kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
@@ -319,7 +324,7 @@ export function TodosScreen() {
         (todo) => inView(todo) && (todo.done_at !== null || (isLater(todo) && !fresh(todo))),
       ).length,
     };
-  }, [todos, todoFolders, shownFolder, kind, today, held, added, hideListNames]);
+  }, [todos, todoFolders, shownFolder, kind, today, held, added, hideListNames, newBottom]);
   // Новая задача в «Запланированных» и «На сегодня» — на сегодня (иначе её там не было бы).
   const newDate = kind === "scheduled" || kind === "due_today" ? today : undefined;
   // Свои списки: плашка списка у задачи и цвет её кружка.
@@ -422,7 +427,11 @@ export function TodosScreen() {
             </Section>
           ) : null}
           {done.length > 0 ? (
-            <Section title={strings.todosDone} variant="form" motionKey="done">
+            <Section
+              title={doneToday.length > 0 ? strings.todosDoneEarlier : strings.todosDone}
+              variant="form"
+              motionKey="done"
+            >
               <Card>{done.map(renderRow)}</Card>
             </Section>
           ) : null}
@@ -462,7 +471,8 @@ export function TodosScreen() {
         {shownGroups.map((group) => (
           <Section key={group.key} title={group.title} variant="form" motionKey={group.key}>
             <Card>
-              {/* Новая задача — первой строкой блока. */}
+              {/* Новая задача — первой строкой блока (в «Снизу» — последней). */}
+              {newBottom ? group.todos.map(renderRow) : null}
               {group.target && draft !== null ? (
                 <TodoRow
                   key={`draft-${draft}`}
@@ -483,7 +493,7 @@ export function TodosScreen() {
                   onDelete={() => closeDraft(draft)}
                 />
               ) : null}
-              {group.todos.map(renderRow)}
+              {newBottom ? null : group.todos.map(renderRow)}
             </Card>
           </Section>
         ))}
@@ -550,12 +560,13 @@ const EMPTY_ADDED: number[] = [];
 /** Порядок невыполненных в блоке: чем старее и точнее, тем выше. По дню (просроченные —
  *  первыми, самая старая выше всех, потом сегодняшние, будущие по дню), в один день со
  *  временем — выше (по времени), без времени — под ними; без даты — в самом низу. Равные —
- *  новая поверх прежней. */
-function byWhen(a: Todo, b: Todo): number {
+ *  новая поверх прежней (`newBottom` — под ней). */
+function compareWhen(a: Todo, b: Todo, newBottom: boolean): number {
+  const age = Date.parse(b.created_at) - Date.parse(a.created_at);
   return (
     laterIfMissing(a.due_date ?? null, b.due_date ?? null) ||
     laterIfMissing(a.remind_time ?? null, b.remind_time ?? null) ||
-    Date.parse(b.created_at) - Date.parse(a.created_at)
+    (newBottom ? -age : age)
   );
 }
 

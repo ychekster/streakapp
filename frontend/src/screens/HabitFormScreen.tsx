@@ -44,6 +44,9 @@
  *    экране нет, «Назад» (или свайп) возвращает в форму с ними. Привычку, как всегда,
  *    сохраняет сама форма. Экран рисует сама форма (её поля живут здесь), а открыт ли
  *    он, решает App (`advanced`) — так «Назад» Telegram ведёт с него в форму;
+ *  - Папки — свои папки галочками и последним рядом «Новая папка»: окно снизу
+ *    (NewFolderSheet) создаёт папку сразу, и она отмечена у привычки (папка остаётся, даже
+ *    если форму закрыть без сохранения);
  *  - Автоотметка — переключатель «Отмечать автоматически» с пояснением под ним; та же,
  *    что на экране привычки. Только у привычек «раз в день»: с целью больше одного раза (и
  *    по времени) ряд пропадает; в групповой его нет;
@@ -73,6 +76,7 @@ import { DayPicker } from "../components/DayPicker";
 import { Disclosure } from "../components/Disclosure";
 import { ListItem } from "../components/ListItem";
 import { MenuSelect } from "../components/MenuSelect";
+import { NewFolderSheet } from "../components/NewFolderSheet";
 import { Screen } from "../components/Screen";
 import { Card, Section } from "../components/Section";
 import { Stepper } from "../components/Stepper";
@@ -88,6 +92,7 @@ import {
   GOAL_STEP_SECONDS,
   MIN_GOAL_SECONDS,
   MAX_GOAL_SECONDS,
+  MAX_FOLDERS_PER_USER,
   MAX_REMINDERS_PER_HABIT,
   MAX_TIMES_PER_DAY,
   PERIOD_MAX_TIMES,
@@ -207,7 +212,10 @@ export function HabitFormScreen({
   // «Папки» в «Дополнительно»: свои папки (не рекомендуемые). Отмечены те, куда привычку
   // положили руками; у новой — папка, открытая в списке. Папка, которая берёт привычку по
   // типу, отмечена сама и не снимается.
-  const ownFolders = useAppData().folders.filter((folder) => !folder.kind);
+  const allFolders = useAppData().folders;
+  const ownFolders = allFolders.filter((folder) => !folder.kind);
+  const canCreateFolder = allFolders.length < MAX_FOLDERS_PER_USER;
+  const [folderSheet, setFolderSheet] = useState(false);
   const [folderIds, setFolderIds] = useState<Set<number>>(() => {
     const picked = ownFolders.filter((folder) =>
       habit ? (folder.picked ?? folder.habits).includes(habit.id) : folder.id === defaultFolder,
@@ -647,7 +655,7 @@ export function HabitFormScreen({
     return (
       <Screen key="advanced" title={strings.formAdvanced} withTabBar={false} enterAnimation pinnedTitle>
         <div className={`${styles.form} ${styles.pinned}`} style={habitColorStyle(color)}>
-          {ownFolders.length > 0 ? (
+          {ownFolders.length > 0 || canCreateFolder ? (
             <Section
               variant="form"
               title={strings.formFoldersHeading}
@@ -679,9 +687,28 @@ export function HabitFormScreen({
                     </ListItem>
                   );
                 })}
+                {canCreateFolder ? (
+                  <ListItem
+                    label={strings.formNewFolder}
+                    accent
+                    onPress={() => setFolderSheet(true)}
+                  />
+                ) : null}
               </Card>
             </Section>
           ) : null}
+          <NewFolderSheet
+            open={folderSheet}
+            title={strings.folderCreateTitle}
+            placeholder={strings.folderNamePlaceholder}
+            submit={strings.folderCreateSubmit}
+            failed={strings.folderSaveFailed}
+            onCreate={(name) => {
+              const id = dataStore.createFolder(name, []);
+              setFolderIds((current) => new Set(current).add(id));
+            }}
+            onClose={() => setFolderSheet(false)}
+          />
 
           {!timed && timesPerDay === 1 && !shared ? (
             <Section
@@ -767,7 +794,9 @@ export function HabitFormScreen({
           </fieldset>
         </Section>
 
-        {ownFolders.length > 0 || (!timed && ((timesPerDay === 1 && !shared) || canSwitchShared)) ? (
+        {ownFolders.length > 0 ||
+        canCreateFolder ||
+        (!timed && ((timesPerDay === 1 && !shared) || canSwitchShared)) ? (
           <Section variant="form">
             <Card>
               <ListItem label={strings.formAdvanced} onPress={onOpenAdvanced}>

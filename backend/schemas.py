@@ -540,6 +540,7 @@ class SettingsResponse(BaseModel):
     todo_hide_list_names: bool = Field(
         False, description="Задачи: в «Все задачи» и рекомендуемых — блоки без названий списков"
     )
+    todo_new_bottom: bool = Field(False, description="Задачи: новые снизу блока, а не сверху")
     is_admin: bool = Field(
         False, description="Администратор: в настройках виден вход в админ-панель"
     )
@@ -567,7 +568,7 @@ class SettingsUpdate(BaseModel):
     language: str | None = Field(None, description="Язык интерфейса: ru, en")
     theme: str | None = Field(None, description="Тема оформления: light, dark, system")
     mark_yesterday: bool | None = Field(None, description="Отмечать за вчера")
-    grid_layout: str | None = Field(None, description="Вид серий: rolling, fixed, calendar")
+    grid_layout: str | None = Field(None, description="Вид серий: rolling, fixed, calendar, large")
     checkin_reminder: CheckinReminderUpdate | None = Field(
         None, description="Напоминание «Пора отметить привычки» — время и дни целиком"
     )
@@ -580,6 +581,7 @@ class SettingsUpdate(BaseModel):
     todo_folder_swipe: bool | None = Field(None, description="Задачи: переключение свайпом")
     todo_checks_right: bool | None = Field(None, description="Задачи: галочки справа")
     todo_hide_list_names: bool | None = Field(None, description="Задачи: скрыть названия списков")
+    todo_new_bottom: bool | None = Field(None, description="Задачи: новые снизу")
 
 
 # --------------------------------------------------------------------------- #
@@ -1918,6 +1920,7 @@ class ExportSettings(BaseModel):
     todo_folder_swipe: bool | None = None
     todo_checks_right: bool | None = None
     todo_hide_list_names: bool | None = None
+    todo_new_bottom: bool | None = None
 
 
 class ExportAccount(BaseModel):

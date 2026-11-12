@@ -7,7 +7,14 @@
  * списки. Новая задача (карандаш) — пустая строка, сразу в правке (`startEditing`).
  * Задача списка с цветом — кружок его цвета; без списка — серый.
  *
- * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips). Правка —
+ * Пока задачу пишут, под текстом плашки дня, напоминания и списка (TodoChips), а в конце
+ * их ленты красный кружок с корзиной: удалить задачу (новую не создавать), как и свайпом.
+ * Правка закончилась с текстом: плашки сначала плавно сворачиваются (COLLAPSE_MS), и только
+ * потом задача сохраняется, поэтому строка не схлопывается рывком ни в начале блока, ни в
+ * конце. Открылась клавиатура, и строка оказалась под ней: экран плавно поднимает строку над
+ * клавиатурой (`revealAboveKeyboard`), сразу, ещё до первой буквы. «Новый
+ * список…» в плашке списка открывает окно снизу (NewFolderSheet): созданный список сразу
+ * выбран, правка продолжается (нажатия в окне её не заканчивают, `data-keeps-todo-edit`). Правка —
  * текст и плашки вместе: выбор дня или времени и закрытая клавиатура её не заканчивают —
  * «Готово» на клавиатуре тоже (прячет клавиатуру). Правку заканчивает нажатие мимо строки
  * (не прокрутка) или залитый кружок «Добавить» (плюс) / «Сохранить» (стрелка) на его месте; тогда всё сохраняется
@@ -26,7 +33,9 @@ import {
   type PointerEvent,
 } from "react";
 
-import { TODO_TEXT_MAX_LENGTH } from "../constants";
+import { MAX_TODO_FOLDERS_PER_USER, TODO_TEXT_MAX_LENGTH } from "../constants";
+import { dataStore } from "../data/store";
+import { useAppData } from "../hooks/useAppData";
 import { useLanguage, useStrings } from "../preferences";
 import type { Strings } from "../strings";
 import type { Language } from "../types/settings";
@@ -35,6 +44,7 @@ import { localDate } from "./DateField";
 import { hapticImpact } from "../telegram/webapp";
 import { habitColorStyle } from "../theme";
 import type { Todo, TodoFolder } from "../types/todo";
+import { NewFolderSheet } from "./NewFolderSheet";
 import { TodoChips, type TodoChipsValue } from "./TodoChips";
 import styles from "./TodoRow.module.css";
 
@@ -54,6 +64,15 @@ const CLICK_WAIT_MS = 400;
 const KEYBOARD_CLOSED_PX = 120;
 /** Касание строки раньше потери фокуса на столько (мс) — фокус ушёл в её плашку. */
 const ROW_TOUCH_MS = 600;
+/** Сворачивание плашек перед сохранением правки (мс). */
+const COLLAPSE_MS = 220;
+/** Зазор между строкой в правке и клавиатурой (px). */
+const KEYBOARD_GAP = 12;
+
+/** Открыто окно «Новый список» (или ещё уезжает): правка строки идёт дальше. */
+function listSheetOpen(): boolean {
+  return document.querySelector("[data-keeps-todo-edit]") !== null;
+}
 
 /** Строка, которая сейчас в правке: открывается другая — эта сначала заканчивается. Так
  *  в правке всегда одна строка, даже если касание мимо (палец сдвинулся) её не закончило,
@@ -157,6 +176,11 @@ export function TodoRow({
   const [draft, setDraft] = useState(() => draftOf(todo));
   const [offset, setOffset] = useState(0);
   const [open, setOpen] = useState(false);
+  // Правка сохранена, плашки ещё сворачиваются: на месте «Сохранить» уже кружок отметки.
+  const [collapsing, setCollapsing] = useState(false);
+  // Окно «Новый список» (плашка списка): списков меньше предела — пункт есть.
+  const [listSheet, setListSheet] = useState(false);
+  const canCreateList = useAppData().todoFolders.length < MAX_TODO_FOLDERS_PER_USER;
   const swipe = useRef<{ x: number; y: number; from: number; moving: boolean } | null>(null);
   const moved = useRef(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -172,12 +196,31 @@ export function TodoRow({
   const folder = editing ? draft.folder : todo.folder;
   const color = lists.find((item) => item.id === folder)?.color ?? null;
 
-  // Поле правки растёт по тексту.
+  // Поле правки растёт по тексту. Как поле сообщения в Telegram — вверх: с каждой новой
+  // строкой экран сдвигается ровно на её высоту (стёрли строку — обратно), низ строки стоит
+  // на месте. Только у строки в нижней половине видимой области (над клавиатурой): строка у
+  // верха растёт вниз, как обычно, и не уезжает под шапку.
+  const lastHeight = useRef(0);
   useLayoutEffect(() => {
     const field = textRef.current;
-    if (editing && field) {
-      field.style.height = "0px";
-      field.style.height = `${field.scrollHeight}px`;
+    if (!editing || !field) {
+      lastHeight.current = 0;
+      return;
+    }
+    field.style.height = "0px";
+    field.style.height = `${field.scrollHeight}px`;
+    const height = field.offsetHeight;
+    const grown = lastHeight.current > 0 ? height - lastHeight.current : 0;
+    lastHeight.current = height;
+    const row = rowRef.current;
+    if (grown === 0 || !row) {
+      return;
+    }
+    const viewport = window.visualViewport;
+    const top = viewport ? viewport.offsetTop : 0;
+    const visible = viewport ? viewport.height : window.innerHeight;
+    if (row.getBoundingClientRect().bottom - grown > top + visible / 2) {
+      window.scrollBy(0, grown);
     }
   }, [editing, draft.text]);
 
@@ -189,6 +232,37 @@ export function TodoRow({
       rowRef.current?.scrollIntoView({ block: "nearest" });
       field?.setSelectionRange(field.value.length, field.value.length);
     }
+  }, [editing]);
+
+  // Клавиатура открылась (видимая область стала ниже) и закрыла строку — плавно поднять
+  // строку над ней. Видимая область меняется много раз, пока клавиатура выезжает: поднимаем
+  // один раз, когда она остановилась.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!editing || !viewport) {
+      return undefined;
+    }
+    let timer: number | undefined;
+    const revealAboveKeyboard = (): void => {
+      const row = rowRef.current;
+      if (!row) {
+        return;
+      }
+      const bottom = viewport.offsetTop + viewport.height - KEYBOARD_GAP;
+      const overlap = row.getBoundingClientRect().bottom - bottom;
+      if (overlap > 0) {
+        window.scrollBy({ top: overlap, behavior: "smooth" });
+      }
+    };
+    const onResize = (): void => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(revealAboveKeyboard, 120);
+    };
+    viewport.addEventListener("resize", onResize);
+    return () => {
+      window.clearTimeout(timer);
+      viewport.removeEventListener("resize", onResize);
+    };
   }, [editing]);
 
   const startEdit = (): void => {
@@ -206,19 +280,53 @@ export function TodoRow({
     setEditing(false);
   };
 
-  /** Сохранить правку; false — текст пуст, задача удалена (или новая не создана). */
+  /** Сохранить правку; false — текст пуст, задача удалена (или новая не создана). С
+   *  текстом плашки сначала сворачиваются, правка закрывается и сохраняется после. */
   const finishEdit = (): boolean => {
     if (!editingRef.current) {
       return false;
     }
-    closeEdit();
     const text = latest.current.text.trim();
     if (text === "") {
+      closeEdit();
       onDelete();
       return false;
     }
-    onSave({ ...latest.current, text });
+    editingRef.current = false;
+    textRef.current?.blur();
+    const next = { ...latest.current, text };
+    setCollapsing(true);
+    collapseChips(() => {
+      setCollapsing(false);
+      setEditing(false);
+      onSave(next);
+    });
     return true;
+  };
+
+  /** Удалить задачу кнопкой с корзиной (новая просто не создаётся). */
+  const removeNow = (): void => {
+    closeEdit();
+    onDelete();
+  };
+
+  /** Плавно свернуть плашки (высота и прозрачность), потом `done`. Таймер, а не конец
+   *  анимации: ушли с экрана посреди неё — правка всё равно сохраняется. */
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const collapseChips = (done: () => void): void => {
+    const element = chipsRef.current;
+    if (!element || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      done();
+      return;
+    }
+    element.animate(
+      [
+        { height: `${element.offsetHeight}px`, opacity: 1 },
+        { height: "0px", opacity: 0 },
+      ],
+      { duration: COLLAPSE_MS, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "forwards" },
+    );
+    window.setTimeout(done, COLLAPSE_MS);
   };
 
   const finishRef = useRef(finishEdit);
@@ -247,7 +355,12 @@ export function TodoRow({
   // списка не в счёт: выбрать день можно и до текста.
   const lastRowTouch = useRef(0);
   const cancelIfEmpty = (): void => {
-    if (!startEditing || !editingRef.current || latest.current.text.trim() !== "") {
+    if (
+      !startEditing ||
+      !editingRef.current ||
+      latest.current.text.trim() !== "" ||
+      listSheetOpen()
+    ) {
       return;
     }
     const active = document.activeElement;
@@ -296,8 +409,10 @@ export function TodoRow({
       finishRef.current();
     };
     const onDown = (event: globalThis.PointerEvent): void => {
-      const outside = !(event.target instanceof Node && rowRef.current?.contains(event.target));
-      tap = outside ? { x: event.clientX, y: event.clientY } : null;
+      const inside =
+        event.target instanceof Element &&
+        (rowRef.current?.contains(event.target) || event.target.closest("[data-keeps-todo-edit]"));
+      tap = inside ? null : { x: event.clientX, y: event.clientY };
     };
     const onUp = (event: globalThis.PointerEvent): void => {
       const isTap =
@@ -428,7 +543,7 @@ export function TodoRow({
           }
         }}
       >
-        {editing ? (
+        {editing && !collapsing ? (
           // В правке на месте кружка — залитый кружок «Добавить» (плюс) / «Сохранить»
           // (стрелка вверх, как «отправить»). Пустой текст — нечего.
           <button
@@ -489,11 +604,32 @@ export function TodoRow({
                 }
               }}
             />
-            <TodoChips
-              value={draft}
-              onChange={(value) => setDraft({ ...draft, ...value })}
-              lists={lists}
-              today={markDay}
+            <div ref={chipsRef} className={styles.chipsWrap}>
+              <TodoChips
+                value={draft}
+                onChange={(value) => setDraft({ ...draft, ...value })}
+                lists={lists}
+                today={markDay}
+                onNewList={canCreateList ? () => setListSheet(true) : undefined}
+                onRemove={removeNow}
+              />
+            </div>
+            <NewFolderSheet
+              open={listSheet}
+              title={strings.todoListCreateTitle}
+              placeholder={strings.todoListNameHeading}
+              submit={strings.todoListCreateSubmit}
+              failed={strings.todoListSaveFailed}
+              withColor
+              onCreate={(name, color) => {
+                const id = dataStore.createTodoFolder(name, undefined, color ?? undefined);
+                setDraft((current) => ({ ...current, folder: id }));
+              }}
+              onClose={() => {
+                setListSheet(false);
+                // Курсор — обратно в текст задачи (в том же нажатии: клавиатура остаётся).
+                textRef.current?.focus({ preventScroll: true });
+              }}
             />
           </>
         ) : (

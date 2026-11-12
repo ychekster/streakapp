@@ -353,6 +353,13 @@ def test_todo_settings_are_off_by_default(client: TestClient, user: AuthUser) ->
     assert (settings["todo_folder_swipe"], settings["todo_checks_right"]) == (True, True)
 
 
+def test_new_todos_on_top_by_default(client: TestClient, user: AuthUser) -> None:
+    assert _sync(client, user)["settings"]["todo_new_bottom"] is False
+    patch = {"todo_new_bottom": True}
+    settings = _sync(client, user, {"type": "settings", "patch": patch})["settings"]
+    assert settings["todo_new_bottom"] is True
+
+
 def test_all_todos_place_among_lists(client: TestClient, user: AuthUser) -> None:
     data = _sync(
         client,

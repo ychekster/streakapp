@@ -87,6 +87,8 @@ interface BottomSheetProps {
   label: string;
   /** Цвет привычки (habitColorStyle). */
   style?: CSSProperties;
+  /** Свой класс карточки (например, другие поля снизу). */
+  cardClassName?: string;
   /** Листание (окно дня): ключ карточки — новая въезжает сбоку (`turn`), а прежняя
    *  (`leaving`) одновременно уезжает в другую сторону; уехала — `onLeft`. */
   cardKey?: string;
@@ -105,6 +107,7 @@ export function BottomSheet({
   onGone,
   label,
   style,
+  cardClassName,
   cardKey,
   turn = null,
   leaving = null,
@@ -272,7 +275,7 @@ export function BottomSheet({
         key={cardKey === undefined ? undefined : `in-${cardKey}`}
         className={`${styles.sheet} ${
           turn === "next" ? styles.inFromNext : turn === "previous" ? styles.inFromPrevious : ""
-        } ${flung ? styles.flung : ""}`}
+        } ${flung ? styles.flung : ""} ${cardClassName ?? ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={label}

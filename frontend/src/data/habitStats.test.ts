@@ -155,6 +155,22 @@ describe("trend", () => {
     expect(trend(open, "2026-10-04", "month").values).toEqual([0, 1, 2, 3, 2]);
   });
 
+  it("tells what each point brought and how much it moved the score", () => {
+    const day = "2026-10-07";
+    const missed = habit(day, ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", day]);
+    const { details } = trend(missed, day, "month");
+    expect(details.map((point) => point.delta)).toEqual([0, 1, 1, 1, 1, 1, -1, 1]);
+    expect(details.slice(-2).map((point) => point.state)).toEqual(["missed", "done"]);
+    const timed = habit("2026-10-02", ["2026-10-01"], {
+      times_per_day: 6000,
+      goal_unit: "seconds",
+      started_on: "2026-10-01",
+      counts: { "2026-10-01": 7500, "2026-10-02": 0 },
+    });
+    const point = trend(timed, "2026-10-02", "month").details[2];
+    expect(point).toEqual({ delta: 1.25, amount: 7500, state: "done" });
+  });
+
   it("counts the share of the goal for several times a day", () => {
     const day = "2026-10-03";
     const several = habit(day, ["2026-10-02"], {

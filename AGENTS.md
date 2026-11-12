@@ -45,7 +45,7 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0047)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0048)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
@@ -143,7 +143,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | «Цель по времени» / таймер (goal in seconds, one running timer per user, bot «goal done») | models.Task.goal_unit, RunningTimer; services (SyncTimer `_apply_timer`, `due_timer_goals`), bot/reminders `_send_timer_goals`; frontend data/store.ts (startTimer / stopTimer / tickTimer), derive.ts (deriveTimer, isTimed, dayMost), components/TimerButton, TimerBar, TimerScreen, timerFormat, hooks/useTimer.ts |
 | Export / import of all user data (JSON file; import adds habits, shared → ordinary, takes settings) | backend/userdata.py, routers/userdata.py, schemas.DataExport, repository get_task_logs / add_task_history; frontend data/userData.ts, api/userdata.ts, SettingsScreen |
 | Habit statistics screen (month vs last month, trend line, weekdays, pie) | frontend data/habitStats.ts, screens/HabitStatsScreen.tsx, components/charts/ (LineChart shared with admin), StatDelta, InfoTip (Section `hint`), HabitSummary `onOpenStats` |
-| Задачи (Beta: one-off todos, not habits; `show_todos` → «Задачи» tab first, `open_on_todos` opens on it; lists = todo folders, recommended kinds fill themselves) | models.Todo / TodoFolder / User.show_todos, services._apply_todo_op, repository «Todos», userdata (todos); reminder: services.todo_remind_at / due_todo_reminders, bot/reminders `_send_todo_reminders`; frontend types/todo.ts, data/store.ts (createTodo…, todoAliases), derive.ts (deriveTodos), App (tab, startNewTodo, todoLists page), screens/TodosScreen.tsx (+ todoMotion.ts), TodoListFormScreen, FoldersScreen (shared with habit folders), SettingsScreen (todos group: open_on_todos, todo_checks_right; todo_hide_list_names on the lists screen), components/TodoRow, TodoChips, TabIcons |
+| Задачи (Beta: one-off todos, not habits; `show_todos` → «Задачи» tab first, `open_on_todos` opens on it; lists = todo folders, recommended kinds fill themselves) | models.Todo / TodoFolder / User.show_todos, services._apply_todo_op, repository «Todos», userdata (todos); reminder: services.todo_remind_at / due_todo_reminders, bot/reminders `_send_todo_reminders`; frontend types/todo.ts, data/store.ts (createTodo…, todoAliases), derive.ts (deriveTodos), App (tab, startNewTodo, todoLists page), screens/TodosScreen.tsx (+ todoMotion.ts), TodoListFormScreen, FoldersScreen (shared with habit folders), SettingsScreen «Задачи» row → screens/TodoSettingsScreen.tsx (show_todos, open_on_todos, todo_checks_right, todo_new_bottom; todo_hide_list_names on the lists screen), components/TodoRow, TodoChips, TabIcons |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

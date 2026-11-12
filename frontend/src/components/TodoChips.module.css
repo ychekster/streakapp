@@ -5,7 +5,12 @@
   gap: 8px;
   padding-bottom: 10px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
+  /* Лента листается вбок пальцем и с нативных полей плашек (iOS не всегда отдаёт ей жест,
+     начатый на поле). */
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chips::-webkit-scrollbar {
@@ -57,6 +62,7 @@
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
+  touch-action: pan-x pan-y;
 }
 
 /* Крестик выбранной плашки — поверх нативного поля, чтобы нажатие не открывало выбор. */
@@ -80,4 +86,25 @@
 .chip .clear svg {
   width: 16px;
   height: 16px;
+}
+
+/* Удалить задачу: красный кружок с белой корзиной, высотой с плашку, последним в ленте. */
+.remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(20px + 2 * var(--time-pill-pad-y));
+  height: calc(20px + 2 * var(--time-pill-pad-y));
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--color-danger);
+  color: #fff;
+  cursor: pointer;
+}
+
+.remove svg {
+  width: 18px;
+  height: 18px;
 }
