@@ -308,12 +308,34 @@ def test_bot_login_code_names_the_ai(client: TestClient, user: AuthUser) -> None
 
     assert _run(named) == "Claude"
 
+    async def host(repo):
+        from backend.oauth import login_host
+
+        request = await telegram_login_request(repo, load_settings(), code)
+        return login_host(code_payload(request)) if request is not None else None
+
+    assert _run(host) == "claude.ai"
+
+
+def test_ticket_approves_only_the_ai_confirmed_in_the_bot(
+    client: TestClient, user: AuthUser
+) -> None:
+    """The bot named one AI: its ticket cannot hand the account to another one."""
+    _open_app(client, user)
+    confirmed = _register(client, "Claude")
+    other = _register(client, "Claude")
+    _, challenge = _pkce()
+    ticket = _login(client, user, confirmed)["ticket"]
+    body = {"ticket": ticket, "redirect_uri": REDIRECT, "code_challenge": challenge}
+    assert client.post("/oauth/approve", json={**body, "client_id": other}).status_code == 410
+    assert client.post("/oauth/approve", json={**body, "client_id": confirmed}).status_code == 200
+
 
 def test_wrong_verifier_is_refused(client: TestClient, user: AuthUser) -> None:
     _open_app(client, user)
     client_id = _register(client)
     _, challenge = _pkce()
-    ticket = _login(client, user)["ticket"]
+    ticket = _login(client, user, client_id)["ticket"]
     approved = client.post(
         "/oauth/approve",
         json={"ticket": ticket, "client_id": client_id, "redirect_uri": REDIRECT, "code_challenge": challenge},
@@ -344,7 +366,7 @@ def test_ticket_works_once_and_needs_an_account(client: TestClient) -> None:
     _open_app(client, user)
     client_id = _register(client)
     _, challenge = _pkce()
-    ticket = _login(client, user)["ticket"]
+    ticket = _login(client, user, client_id)["ticket"]
     body = {"ticket": ticket, "client_id": client_id, "redirect_uri": REDIRECT, "code_challenge": challenge}
     assert client.post("/oauth/approve", json=body).status_code == 200
     assert client.post("/oauth/approve", json=body).status_code == 410

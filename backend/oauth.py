@@ -230,18 +230,25 @@ def with_query(url: str, values: dict[str, str | None]) -> str:
 # --------------------------------------------------------------------------- #
 
 
-async def start_login(repo: Repository, settings: Settings, client: OAuthClient) -> str:
+async def start_login(
+    repo: Repository, settings: Settings, client: OAuthClient, redirect_uri: str
+) -> str:
     """A "log in via Telegram" code for the bot (`/start login_<code>`), not tied to any
-    account yet: the consent page has none. The AI's name rides along (`client`), so the
-    bot asks «Подключить Claude к Knot?»: that press is the consent (the page has already
-    shown what the AI will be able to do), and the page finishes by itself."""
+    account yet: the consent page has none. The AI rides along: its name and where its
+    answer goes (the bot asks «Подключить Claude к Knot?» and names the site, since the
+    name is whatever the app registered with), and its id (the consent ticket approves
+    only this AI). That press is the consent, and the page finishes by itself."""
     return await create_code(
         repo,
         settings,
         CODE_TELEGRAM_LOGIN,
         None,
         TELEGRAM_LOGIN_TTL,
-        {"client": client.client_name},
+        {
+            "client": client.client_name,
+            "client_id": client.client_id,
+            "host": urlsplit(redirect_uri).hostname or "",
+        },
         short=True,
     )
 
@@ -250,6 +257,12 @@ def login_client(payload: dict[str, Any]) -> str | None:
     """The AI a bot login code connects (None: an ordinary web app login)."""
     client = payload.get("client")
     return client if isinstance(client, str) and client else None
+
+
+def login_host(payload: dict[str, Any]) -> str:
+    """The site an AI login's answer goes to (claude.ai…); "" if unknown."""
+    host = payload.get("host")
+    return host if isinstance(host, str) else ""
 
 
 async def poll_login(repo: Repository, settings: Settings, code: str) -> OAuthLoginPoll:
@@ -268,7 +281,14 @@ async def poll_login(repo: Repository, settings: Settings, code: str) -> OAuthLo
         raise ApiError(403, "user_blocked", "Доступ к приложению ограничен")
     if not await repo.use_code(found, utc_now()):
         raise ApiError(410, "login_expired", "Вход устарел, попробуйте ещё раз")
-    ticket = await create_code(repo, settings, CODE_OAUTH_CONSENT, user.telegram_id, CONSENT_TTL)
+    ticket = await create_code(
+        repo,
+        settings,
+        CODE_OAUTH_CONSENT,
+        user.telegram_id,
+        CONSENT_TTL,
+        {"client_id": code_payload(found).get("client_id")},
+    )
     return OAuthLoginPoll(
         status="done",
         ticket=ticket,
@@ -299,9 +319,14 @@ async def approve(
     state: str | None,
     admin: bool,
 ) -> Approval:
-    """Create the connection and the code the AI app trades for tokens."""
+    """Create the connection and the code the AI app trades for tokens. The ticket
+    approves only the AI the person confirmed in the bot."""
     found = await find_code(repo, settings, ticket, CODE_OAUTH_CONSENT)
-    if found is None or found.user_id is None:
+    if (
+        found is None
+        or found.user_id is None
+        or code_payload(found).get("client_id") != client_id
+    ):
         raise ApiError(410, "login_expired", "Вход устарел, попробуйте ещё раз")
     client = await client_for(repo, client_id, redirect_uri)
     user = await repo.get_user(found.user_id)

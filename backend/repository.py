@@ -1390,10 +1390,13 @@ class Repository:
         notes: Sequence[tuple[date, str]],
         periods: Sequence[Mapping[str, Any]],
         now: datetime,
+        name_periods: Sequence[Mapping[str, Any]] = (),
+        overrides: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         """Прошлое новой задачи из файла импорта: день создания, заморозка, архив, отметки
-        (день, статус, счёт, когда отмечена), прошедшие заморозки, заметки и прежние
-        расписания (поля TaskSchedulePeriod) — одной вставкой на таблицу."""
+        (день, статус, счёт, когда отмечена), прошедшие заморозки, заметки, прежние
+        расписания (поля TaskSchedulePeriod), прежние названия (TaskNamePeriod) и правки
+        дней (TaskDayOverride) — одной вставкой на таблицу."""
         if created_at is not None:
             task.created_at = created_at
         task.frozen_since = frozen_since
@@ -1421,6 +1424,14 @@ class Repository:
         if periods:
             await self.session.execute(
                 insert(TaskSchedulePeriod), [{**owner, **period} for period in periods]
+            )
+        if name_periods:
+            await self.session.execute(
+                insert(TaskNamePeriod), [{**owner, **period} for period in name_periods]
+            )
+        if overrides:
+            await self.session.execute(
+                insert(TaskDayOverride), [{**owner, **override} for override in overrides]
             )
         await self.session.flush()
 

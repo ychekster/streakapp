@@ -2,8 +2,8 @@
 одним JSON-файлом (schemas.DataExport), и загрузка такого файла обратно.
 
 Экспорт: аккаунт, настройки, привычки (в том числе архивные и замороженные) со всей
-историей — отметки за всё время, заметки, заморозки, прежние расписания, напоминания —,
-папки и отзывы. Не входят служебные данные: сессии входа, push-подписки, аналитика.
+историей — отметки за всё время, заметки, заморозки, прежние расписания и названия, правки
+дней, напоминания —, папки, задачи и отзывы. Не входят служебные данные: сессии входа, push-подписки, аналитика.
 
 Импорт добавляет привычки из файла к текущим (ничего не удаляет): название, которое уже
 есть, получает « (2)». Совместная привычка становится обычной — с отметками самого
@@ -55,8 +55,10 @@ from backend.schemas import (
     ExportTodo,
     ExportTodoFolder,
     ImportResult,
+    NamePeriod,
     SchedulePeriod,
 )
+from backend.schemas import DayOverride as ExportDayOverride
 from backend.services import todo_remind_at, user_today
 
 # Подпись под файлом, который присылает бот (POST /export/telegram), — на языке пользователя.
@@ -109,6 +111,8 @@ async def build_export(repo: Repository, user: User) -> DataExport:
     freezes = await repo.get_freezes(ids)
     notes = await repo.get_notes(ids, date.min, date.max)
     periods = await repo.get_schedule_periods(ids)
+    names = await repo.get_name_periods(ids)
+    overrides = await repo.get_day_overrides(ids)
     members = await repo.members_of_tasks(ids)
     shared: dict[int, ExportShared] = {}
     for task_id, member in members.items():
@@ -154,6 +158,27 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             ],
             marks=[mark for log in logs[task.id] if (mark := _mark(log)) is not None],
             notes=[ExportNote(date=day, text=text) for day, text in sorted(notes[task.id].items())],
+            name_history=[
+                NamePeriod(until=period.until, name=period.name, description=period.description)
+                for period in names[task.id]
+            ],
+            day_overrides=[
+                ExportDayOverride(
+                    date=override.day,
+                    name=override.name,
+                    description=override.description,
+                    description_set=override.description_set,
+                    frequency_type=(
+                        override.frequency_type.value
+                        if override.frequency_type is not None
+                        else None
+                    ),
+                    days=_days(override.days),
+                    start_date=override.start_date,
+                    times_per_day=override.times_per_day,
+                )
+                for override in overrides[task.id]
+            ],
             shared=shared.get(task.id),
         )
         for task in tasks
@@ -317,6 +342,76 @@ def _schedule_rows(habit: ExportHabit, today: date) -> list[dict[str, Any]]:
     return list(rows.values())
 
 
+def _name_rows(habit: ExportHabit) -> list[dict[str, Any]]:
+    """Прежние названия и описания: проверенные, по возрастанию `until`, без повторов дня;
+    непрочитанное пропускается."""
+    rows: dict[date, dict[str, Any]] = {}
+    for period in sorted(habit.name_history, key=lambda item: item.until):
+        try:
+            name = validation.validate_name(period.name)
+            description = (
+                validation.validate_description(period.description)
+                if period.description
+                else None
+            )
+        except ApiError:
+            continue
+        if _FIRST_MARK_DAY <= period.until:
+            rows.setdefault(
+                period.until, {"until": period.until, "name": name, "description": description}
+            )
+    return list(rows.values())
+
+
+def _override_rows(
+    habit: ExportHabit, periods: list[dict[str, Any]], unit: str, today: date
+) -> list[dict[str, Any]]:
+    """Правки прошлых дней (окно дня), проверенные как в /sync (services._apply_day_override);
+    правка, которая не читается, пропускается."""
+    rows: dict[date, dict[str, Any]] = {}
+    for item in habit.day_overrides:
+        if not _FIRST_MARK_DAY <= item.date < today or item.date in rows:
+            continue
+        try:
+            name = validation.validate_name(item.name) if item.name is not None else None
+            description = (
+                validation.validate_description(item.description or "")
+                if item.description_set
+                else None
+            )
+            frequency = FrequencyType(item.frequency_type) if item.frequency_type else None
+            days = (
+                validation.validate_days(item.days)
+                if frequency == FrequencyType.specific_days
+                else None
+            )
+            day_unit = next(
+                (period["goal_unit"] for period in periods if item.date < period["until"]), unit
+            )
+            goal = (
+                validation.validate_times_per_day(item.times_per_day)
+                if item.times_per_day is not None and day_unit == "times"
+                else None
+            )
+        except (ApiError, ValueError):
+            continue
+        if name is None and not item.description_set and frequency is None and goal is None:
+            continue
+        rows[item.date] = {
+            "day": item.date,
+            "name": name,
+            "description": description,
+            "description_set": item.description_set,
+            "frequency_type": frequency,
+            "days": days,
+            "start_date": item.date
+            if frequency in (FrequencyType.every_other_day, FrequencyType.monthly)
+            else None,
+            "times_per_day": goal,
+        }
+    return sorted(rows.values(), key=lambda row: row["day"])
+
+
 def _count_cap(periods: list[dict[str, Any]], unit: str, day: date) -> int:
     """Наибольший счёт дня (как в /sync): время — не больше 23:59:59, разы — до
     OVERTIME_MAX_COUNT. Единица — того расписания, что действовало в тот день."""
@@ -404,6 +499,8 @@ async def _import_habit(
         freezes=freezes,
         notes=sorted(notes.items()),
         periods=periods,
+        name_periods=_name_rows(habit),
+        overrides=_override_rows(habit, periods, unit, today),
         now=now,
     )
     return task

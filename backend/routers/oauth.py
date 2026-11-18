@@ -147,7 +147,7 @@ async def login_start(
     confirms there («Подключить Claude к Knot?»), the page polls `/oauth/login/poll`."""
     limit(request, request.app.state.guest_limiter, f"oauth-login:{client_ip(request)}")
     client = await client_for(repo, payload.client_id, payload.redirect_uri)
-    code = await start_login(repo, get_settings(request), client)
+    code = await start_login(repo, get_settings(request), client, payload.redirect_uri)
     username = await bot_username(request)
     start = f"login_{code}"
     return OAuthLoginStart(

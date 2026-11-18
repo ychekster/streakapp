@@ -76,7 +76,8 @@ are historical names — keep them; renaming breaks the server `.env` and client
   session before any network call (Telegram, push) — see `Repository.commit()` uses.
 - **Schema change = migration.** New column/table → `models.py` + new alembic revision
   (next number) + a line in docs/BACKEND.md «Миграции». API `create_all` does not alter
-  existing tables.
+  existing tables. A table of user data also goes into `Repository.delete_user`,
+  `Repository.move_user_data` (account merge) and export/import (`userdata.py`).
 - **API contract changes** touch `backend/schemas.py` and `frontend/src/types/*` (+
   `frontend/src/api/*`). The app reads and writes habits/settings only through
   `POST /sync` (`src/data/store.ts`); a new habit field or setting also needs

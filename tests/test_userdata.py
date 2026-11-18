@@ -122,6 +122,43 @@ def test_import_into_another_account(client: TestClient, user: AuthUser) -> None
     assert again["Вода"]["marks"][0]["count"] == 2
 
 
+def test_past_names_and_day_edits_go_through_export_and_import(
+    client: TestClient, user: AuthUser
+) -> None:
+    """Прежнее название и правка прошлого дня (окно дня) переезжают с файлом: иначе после
+    импорта прошлые дни судились бы по нынешнему расписанию."""
+    today = _today(client, user)
+    yesterday, before = today - timedelta(days=1), today - timedelta(days=2)
+    weekday = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][yesterday.weekday()]
+    form = {"name": "Бег", "frequency_type": "specific_days", "days": [weekday]}
+    task_id = _sync(client, user, {"type": "create", "ref": "h", "habit": form})["results"][0]["id"]
+    _sync(
+        client,
+        user,
+        {"type": "mark", "task": task_id, "date": before.isoformat(), "done": True},
+        {"type": "mark", "task": task_id, "date": yesterday.isoformat(), "done": True},
+        {"type": "day_override", "task": task_id, "date": before.isoformat(),
+         "frequency_type": "daily", "name": "Утренний бег"},
+    )
+    data = _export(client, user)
+    [habit_file] = data["habits"]
+    assert [item["name"] for item in habit_file["day_overrides"]] == ["Утренний бег"]
+    # Прежнее название (переименование в день создания его не оставляет: пишем в файл).
+    habit_file["name_history"] = [{"until": yesterday.isoformat(), "name": "Бег"}]
+    habit_file["name"] = "Пробежка"
+
+    other = new_user()
+    assert _import(client, other, data)["habits"] == 1
+    [habit] = _sync(client, other)["habits"]
+    assert habit["current_streak"] == 2
+    assert [(item["date"], item["frequency_type"]) for item in habit["day_overrides"]] == [
+        (before.isoformat(), "daily")
+    ]
+    assert [period["name"] for period in habit["name_history"]] == ["Бег"]
+    [again] = _export(client, other)["habits"]
+    assert [period["name"] for period in again["name_history"]] == ["Бег"]
+
+
 def test_todos_go_through_export_and_import(client: TestClient, user: AuthUser) -> None:
     _sync(
         client,

@@ -44,7 +44,7 @@ from bot.handlers.start import record_start
 from backend.accounts import code_payload, confirm_telegram_login, telegram_login_request
 from backend.config import Settings
 from backend.database import Database
-from backend.oauth import login_client
+from backend.oauth import login_client, login_host
 from backend.repository import Repository
 
 router = Router(name="web_login")
@@ -84,7 +84,8 @@ async def start_login(
         if request is None:
             await message.answer(LOGIN_EXPIRED_TEXT)
         else:
-            client = login_client(code_payload(request))
+            payload = code_payload(request)
+            client = login_client(payload)
             markup = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -96,7 +97,11 @@ async def start_login(
                     [InlineKeyboardButton(text=LOGIN_CANCEL_BUTTON, callback_data=_CANCEL)],
                 ]
             )
-            text = AI_LOGIN_CONFIRM_TEXT.format(client=client) if client else LOGIN_CONFIRM_TEXT
+            text = (
+                AI_LOGIN_CONFIRM_TEXT.format(client=client, host=login_host(payload) or "?")
+                if client
+                else LOGIN_CONFIRM_TEXT
+            )
             sent = await message.answer(text, reply_markup=markup)
             _prompts[chat_id] = sent.message_id
     if message.from_user is not None:

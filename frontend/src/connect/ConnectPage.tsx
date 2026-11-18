@@ -10,7 +10,8 @@
  * `access_denied`.
  *
  * The login code is kept for the tab (sessionStorage): a phone that reloads the page
- * after Telegram picks the login up where it was.
+ * after Telegram picks the login up where it was. It belongs to one AI (the bot's
+ * confirmation approves only that one), so another AI's page in the tab starts anew.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -41,16 +42,17 @@ type Step =
   | { kind: "failed"; error: unknown };
 
 interface PendingLogin {
+  clientId: string;
   code: string;
   appUrl: string;
   webUrl: string;
   expires: number;
 }
 
-function readPending(): PendingLogin | null {
+function readPending(clientId: string): PendingLogin | null {
   try {
     const pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) ?? "null") as PendingLogin | null;
-    return pending && pending.expires > Date.now() ? pending : null;
+    return pending && pending.clientId === clientId && pending.expires > Date.now() ? pending : null;
   } catch {
     return null;
   }
@@ -83,7 +85,7 @@ export function ConnectPage() {
     fetchOAuthClient(request.clientId, request.redirectUri).then(
       (info) => {
         setClient(info);
-        const pending = readPending();
+        const pending = readPending(request.clientId);
         setStep(pending ? { kind: "waiting", ...pending } : { kind: "ask" });
       },
       (error: unknown) => setStep({ kind: "failed", error }),
@@ -102,6 +104,7 @@ export function ConnectPage() {
     startOAuthLogin(request.clientId, request.redirectUri).then(
       (start) => {
         const pending = {
+          clientId: request.clientId,
           code: start.code,
           appUrl: start.app_url,
           webUrl: start.web_url,

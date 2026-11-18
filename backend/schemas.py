@@ -1913,6 +1913,9 @@ class ExportHabit(BaseModel):
     )
     marks: list[ExportMark] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
     notes: list[ExportNote] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+    # Not in files made before these existed.
+    name_history: list[NamePeriod] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+    day_overrides: list[DayOverride] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
     shared: ExportShared | None = None
 
 
