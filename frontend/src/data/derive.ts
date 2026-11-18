@@ -18,6 +18,7 @@ import {
 } from "../constants";
 import type { Folder, FolderHabitType, FolderKind } from "../types/folder";
 import type {
+  DayOverride,
   FrequencyType,
   GoalUnit,
   Habit,
@@ -240,6 +241,8 @@ export type ScheduleWithHistory = Schedule & {
   times_per_day: number;
   overtime?: boolean;
   schedule_history?: readonly SchedulePeriod[];
+  /** Past days given their own frequency or goal (the day window). */
+  day_overrides?: readonly DayOverride[];
   /** A shared habit: from this day the day is not over for someone (time zones). */
   open_from?: string | null;
 };
@@ -277,7 +280,37 @@ export function scheduleOn(
   habit: ScheduleWithHistory,
 ): (day: string) => Schedule & { times_per_day: number; overtime?: boolean; goal_unit?: GoalUnit } {
   const periods = habit.schedule_history ?? [];
-  return (day) => periods.find((period) => day < period.until) ?? habit;
+  const overrides = habit.day_overrides ?? [];
+  return (day) => {
+    const own = periods.find((period) => day < period.until) ?? habit;
+    const override = overrides.find((item) => item.date === day);
+    return override ? overridden(own, override) : own;
+  };
+}
+
+/** A day's schedule with its override (schedule.apply_overrides): the frequency (with the
+ *  day as its first day — it is due) and the goal from the override, the rest its own. */
+function overridden<S extends Schedule & { times_per_day: number }>(
+  own: S,
+  override: DayOverride,
+): S {
+  let schedule = own;
+  if (override.frequency_type) {
+    const fromDay =
+      override.frequency_type === "every_other_day" || override.frequency_type === "monthly";
+    schedule = {
+      ...schedule,
+      frequency_type: override.frequency_type,
+      days: override.frequency_type === "specific_days" ? (override.days ?? []) : [],
+      start_date: fromDay ? override.date : null,
+      period: null,
+      period_times: null,
+    };
+  }
+  if (override.times_per_day != null) {
+    schedule = { ...schedule, times_per_day: override.times_per_day };
+  }
+  return schedule;
 }
 
 /** The goal (times a day, or seconds — «Цель по времени»), its unit and «Сверх плана» in
@@ -344,7 +377,9 @@ export function deriveTimer(
  *  past schedule (services.counts_by_day). */
 export function countsByDay(habit: ScheduleWithHistory): boolean {
   return (
-    habit.times_per_day > 1 || (habit.schedule_history ?? []).some((period) => period.times_per_day > 1)
+    habit.times_per_day > 1 ||
+    (habit.schedule_history ?? []).some((period) => period.times_per_day > 1) ||
+    (habit.day_overrides ?? []).some((item) => (item.times_per_day ?? 1) > 1)
   );
 }
 
@@ -352,7 +387,10 @@ export function countsByDay(habit: ScheduleWithHistory): boolean {
  *  by its own goal; null when the goal never changed (then it is `times_per_day`). */
 export function historyGoals(habit: Habit, day: string): number[] | null {
   const periods = habit.schedule_history ?? [];
-  if (periods.every((period) => period.times_per_day === habit.times_per_day)) {
+  if (
+    periods.every((period) => period.times_per_day === habit.times_per_day) &&
+    (habit.day_overrides ?? []).every((item) => item.times_per_day == null)
+  ) {
     return null;
   }
   const on = scheduleOn(habit);
@@ -427,9 +465,62 @@ export function namesOn(
   };
 }
 
+/** A day's real frequency and goal (no override, services' schedule of that day) and
+ *  since which day each stood unchanged (as namesOn); null — before the habit was created. */
+export function scheduleSince(
+  habit: ScheduleWithHistory & { created_on?: string | null },
+  day: string,
+): {
+  schedule: ReturnType<ReturnType<typeof scheduleOn>>;
+  frequencySince: string | null;
+  goalSince: string | null;
+} {
+  const periods = habit.schedule_history ?? [];
+  const values: (Schedule & { times_per_day: number })[] = [...periods, habit];
+  let index = periods.findIndex((period) => day < period.until);
+  if (index === -1) {
+    index = periods.length;
+  }
+  const startOf = (at: number): string | null =>
+    at === 0 ? (habit.created_on ?? null) : periods[at - 1].until;
+  const sinceOf = (same: (other: Schedule & { times_per_day: number }) => boolean): string | null => {
+    let first = index;
+    while (first > 0 && same(values[first - 1])) {
+      first -= 1;
+    }
+    return startOf(first);
+  };
+  const schedule = values[index];
+  const frequencyKey = (item: Schedule): string =>
+    `${item.frequency_type}:${item.days.join(",")}:${item.period ?? ""}:${item.period_times ?? ""}`;
+  return {
+    schedule: scheduleOn({ ...habit, day_overrides: [] })(day),
+    frequencySince: sinceOf((other) => frequencyKey(other) === frequencyKey(schedule)),
+    goalSince: sinceOf((other) => other.times_per_day === schedule.times_per_day),
+  };
+}
+
 /** Was the habit due on `day` by the schedule in force on that day. */
 export function isDueOnDay(habit: ScheduleWithHistory, day: string): boolean {
   return isDueOn(scheduleOn(habit)(day), day);
+}
+
+/** The schedule a day is counted by (services._period_schedule): its own, or, when that
+ *  isn't flexible but the day's week (month, year) runs on «Гибкий график» with that
+ *  period by its end, that flexible schedule: switched to it mid-week, Monday's mark
+ *  already counts toward the week. */
+function periodSchedule<S extends Schedule>(on: (day: string) => S, day: string): S {
+  const own = on(day);
+  if (flexiblePeriod(own) !== null) {
+    return own;
+  }
+  for (const kind of ["week", "month", "year"] as const) {
+    const later = on(periodBounds(kind, day)[1]);
+    if (flexiblePeriod(later) === kind) {
+      return later;
+    }
+  }
+  return own;
 }
 
 /**
@@ -453,7 +544,7 @@ export function countedDays(
     if (!doneOn(day) || frozenOn(day)) {
       continue;
     }
-    const current = on(day);
+    const current = periodSchedule(on, day);
     const period = flexiblePeriod(current);
     if (period !== null) {
       const [start, end] = periodBounds(period, day);
@@ -531,6 +622,9 @@ export function applySettings(settings: Settings, op: Extract<Operation, { type:
   }
   if (patch.folder_swipe !== undefined) {
     next.folder_swipe = patch.folder_swipe;
+  }
+  if (patch.folder_names !== undefined) {
+    next.folder_names = patch.folder_names;
   }
   if (patch.show_todos !== undefined) {
     next.show_todos = patch.show_todos;
@@ -728,6 +822,8 @@ interface Draft {
   counts: Map<string, number>;
   /** Notes to days written on the device («» — removed). */
   notes: Map<string, string>;
+  /** Day overrides changed on the device (null — reset); none — as on the server. */
+  overrides?: Map<string, DayOverride | null>;
   /** Freezes changed on the device; null — as on the server. */
   freezes: Freezes | null;
   /** Moved to the archive or out of it on the device; none — as on the server. */
@@ -979,6 +1075,7 @@ function buildHabit(
     !draft.periods &&
     marks.size === 0 &&
     draft.notes.size === 0 &&
+    !draft.overrides &&
     !draft.freezes &&
     draft.archived === undefined &&
     today === snapshotToday &&
@@ -1059,9 +1156,11 @@ function buildHabit(
   };
   const fillHistory: number[] = [];
   // As the server: counts by day — done several times a day now or in a past schedule.
+  const dayOverrides = overridesOf(draft);
   const severalTimes = countsByDay({
     ...fields,
     schedule_history: draft.periods ?? base?.schedule_history ?? [],
+    day_overrides: dayOverrides,
   });
   const history: boolean[] = [];
   const frozenHistory: boolean[] = [];
@@ -1085,9 +1184,19 @@ function buildHabit(
 
   const scheduleHistory = draft.periods ?? base?.schedule_history ?? [];
   const openFrom = group?.open_from ?? null;
-  const schedule = { ...fields, schedule_history: scheduleHistory, open_from: openFrom };
+  const schedule = {
+    ...fields,
+    schedule_history: scheduleHistory,
+    day_overrides: dayOverrides,
+    open_from: openFrom,
+  };
   const baseSchedule = base
-    ? { ...habitFields(base), schedule_history: base.schedule_history ?? [], open_from: openFrom }
+    ? {
+        ...habitFields(base),
+        schedule_history: base.schedule_history ?? [],
+        day_overrides: base.day_overrides ?? [],
+        open_from: openFrom,
+      }
     : null;
   // «Всего выполнено» — every done day, bonus marks too: the server's count, with the days
   // it knows (its history, up to its day) counted anew as they are here. Older days are as
@@ -1179,7 +1288,70 @@ function buildHabit(
     schedule_history: scheduleHistory,
     name_history: draft.names ?? base?.name_history ?? [],
     notes: notesOf(base, draft.notes, today),
+    day_overrides: dayOverrides,
     group: group ? { ...group, fill_history: fillHistory } : group,
+  };
+}
+
+/** Day overrides: the server's, as changed on the device, by day. */
+function overridesOf(draft: Draft): DayOverride[] {
+  const base = draft.base?.day_overrides ?? [];
+  if (!draft.overrides) {
+    return base;
+  }
+  const byDay = new Map(base.map((item) => [item.date, item]));
+  draft.overrides.forEach((item, day) => {
+    if (item) {
+      byDay.set(day, item);
+    } else {
+      byDay.delete(day);
+    }
+  });
+  return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** A day override changed on the device (services._apply_day_override): the day's goal
+ *  changed — the day is done or not anew by its count (a mark without one — once). */
+function applyDayOverride(
+  draft: Draft,
+  op: Extract<Operation, { type: "day_override" }>,
+  snapshotToday: string,
+): void {
+  const fields = draft.fields ?? (draft.base ? habitFields(draft.base) : null);
+  if (!fields) {
+    return;
+  }
+  const periods = draft.periods ?? draft.base?.schedule_history ?? [];
+  const goalWith = (): ReturnType<typeof goalOn> =>
+    goalOn({ ...fields, schedule_history: periods, day_overrides: overridesOf(draft) }, op.date);
+  const before = goalWith();
+  const { date, name, description, description_set, frequency_type, days, times_per_day } = op;
+  const rest = { date, name, description, description_set, frequency_type, days, times_per_day };
+  const empty =
+    rest.name == null &&
+    rest.frequency_type == null &&
+    rest.times_per_day == null &&
+    !rest.description_set;
+  draft.overrides ??= new Map();
+  draft.overrides.set(op.date, empty ? null : { ...rest, times_per_day: before.unit === "times" ? rest.times_per_day : null });
+  const after = goalWith();
+  if (after.goal === before.goal || before.unit !== "times") {
+    return;
+  }
+  const mark = draft.marks.get(op.date);
+  const done = mark ?? serverDone(draft.base, snapshotToday)(op.date);
+  const kept = draft.counts.get(op.date) ?? serverCount(draft.base, snapshotToday)(op.date);
+  const count = kept > 0 ? kept : Number(done);
+  draft.counts.set(op.date, count);
+  draft.marks.set(op.date, count >= after.goal);
+}
+
+/** Times done on a day by the server's history (`history_counts`; none — 0). */
+function serverCount(base: Habit | null, snapshotToday: string): (day: string) => number {
+  return (day) => {
+    const counts = base?.history_counts ?? [];
+    const index = counts.length - 1 - daysBetween(day, snapshotToday);
+    return index >= 0 && index < counts.length ? counts[index] : 0;
   };
 }
 
@@ -1270,7 +1442,8 @@ export function deriveView(
       op.type === "mark" ||
       op.type === "freeze" ||
       op.type === "archive" ||
-      op.type === "note"
+      op.type === "note" ||
+      op.type === "day_override"
     ) {
       const draft = drafts.find((item) => item.key === op.task);
       if (draft && op.type === "update") {
@@ -1352,7 +1525,7 @@ export function deriveView(
           // only with «Сверх плана» (a press may have waited in the queue).
           const periods = draft.periods ?? draft.base?.schedule_history ?? [];
           const { goal: target, overtime, unit } = fields
-            ? goalOn({ ...fields, schedule_history: periods }, op.date)
+            ? goalOn({ ...fields, schedule_history: periods, day_overrides: overridesOf(draft) }, op.date)
             : { goal: 1, overtime: false, unit: "times" as GoalUnit };
           // A day's time — at most 23:59:59.
           const count = Math.min(
@@ -1364,6 +1537,8 @@ export function deriveView(
         }
       } else if (draft && op.type === "note") {
         draft.notes.set(op.date, cleanNote(op.text));
+      } else if (draft && op.type === "day_override") {
+        applyDayOverride(draft, op, snapshot.today);
       } else if (draft && op.type === "freeze") {
         draft.freezes ??= serverFreezes(draft.base);
         applyFreeze(draft.freezes, op, draft.base);
@@ -1712,4 +1887,15 @@ export function deriveTodos(
     })),
     allPosition: Math.min(position, folders.length),
   };
+}
+
+/** Is a todo in the recommended list `kind` (`today` — the marking day «YYYY-MM-DD»): «На
+ *  сегодня» — dated exactly today (neither overdue nor undated), «Запланированные» — with a
+ *  date, «Без даты» — without. */
+export function inTodoKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
+  const date = todo.due_date ?? null;
+  if (kind === "due_today") {
+    return date === today;
+  }
+  return kind === "scheduled" ? date !== null : date === null;
 }

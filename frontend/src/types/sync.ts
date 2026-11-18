@@ -1,13 +1,16 @@
 /** POST /sync — mirrors the Sync* schemas in backend/schemas.py. */
 
 import type { Folder, FolderInput } from "./folder";
-import type { Habit, HabitColor, HabitInput } from "./habit";
+import type { DayOverride, Habit, HabitColor, HabitInput } from "./habit";
 import type { Settings, SettingsUpdate } from "./settings";
 import type { Todo, TodoFolder, TodoFolderKind } from "./todo";
 
 /** A habit in an operation: its id on the server, or the device's id (`ref`) for a
  *  habit the device created — the server finds it by that too. */
 export type TaskKey = number | string;
+
+/** A day override as sent (SyncDayOverride): the server sets `start_date` itself. */
+export type DayOverrideFields = Omit<DayOverride, "start_date">;
 
 /** One change made on the device, in the order it was made. */
 export type SyncOperation =
@@ -16,6 +19,9 @@ export type SyncOperation =
   | { type: "mark"; task: TaskKey; date: string; done: boolean; count?: number }
   /** A note to the day `date`; empty `text` — remove it. */
   | { type: "note"; task: TaskKey; date: string; text: string }
+  /** A past day's own name, description, frequency and goal (the day window), whole;
+   *  nothing set — «Сбросить»: the day is its own again. */
+  | ({ type: "day_override"; task: TaskKey } & DayOverrideFields)
   /** Freeze the habit from `date` (`frozen: true`) or unfreeze it — `date` is an
    *  ordinary day again. */
   | { type: "freeze"; task: TaskKey; date: string; frozen: boolean }

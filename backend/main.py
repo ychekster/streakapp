@@ -37,6 +37,8 @@ from backend.constants import (
     GZIP_MIN_BYTES,
     IMPORT_MAX_BYTES,
     IMPORT_PATH,
+    TODO_LIST_FILE_MAX_BYTES,
+    TODO_LIST_FILE_PATH,
     MAX_REQUEST_BODY_BYTES,
     SEED_ADMIN_IDS,
     SLOW_REQUEST_SECONDS,
@@ -149,6 +151,7 @@ def create_app() -> FastAPI:
         path_limits={
             BROADCAST_UPLOAD_PATH: BROADCAST_UPLOAD_MAX_BYTES,
             IMPORT_PATH: IMPORT_MAX_BYTES,
+            TODO_LIST_FILE_PATH: TODO_LIST_FILE_MAX_BYTES,
         },
     )
     # Large answers (the time zone catalog, a year of habits) go compressed — several

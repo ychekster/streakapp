@@ -124,6 +124,8 @@
      Сняты со скриншота-эталона iPhone 16 Pro (402pt). */
   --count-sheet-margin: 8px; /* от боковых краёв экрана */
   --count-sheet-margin-bottom: 8.5px; /* от нижнего края экрана (не от безопасной зоны) */
+  /* Высокое окно (окно параметров дня): отступ сверху под безопасной зоной. */
+  --tall-sheet-top-gap: 10px;
   --count-sheet-radius: 37px; /* верхние углы (и нижние на экране без скругления) */
   --count-sheet-radius-bottom: 52px; /* нижние углы — по скруглению экрана iPhone */
   --count-sheet-padding-top: 13px;

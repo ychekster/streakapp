@@ -161,6 +161,12 @@ class User(Base):
     todo_hide_list_names: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # «Названия папок»: во «Все привычки» привычки блоками по папкам с их названиями
+    # (привычка в двух папках — в обоих блоках). Свайп между папками всегда включён,
+    # `folder_swipe` больше не применяется.
+    folder_names: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     # «Новые задачи»: снизу блока (True) или сверху (False, как было).
     todo_new_bottom: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
@@ -481,6 +487,42 @@ class TaskNamePeriod(Base):
     description: Mapped[str | None] = mapped_column(
         String(HABIT_DESCRIPTION_MAX_LENGTH), nullable=True
     )
+
+
+class TaskDayOverride(Base):
+    """Правка одного прошлого дня привычки (окно дня в календаре, удержание дня): какие
+    название, описание, частота и цель у неё были в этот день вместо настоящих (из
+    TaskSchedulePeriod / TaskNamePeriod или самой Task). Пустое поле — не правилось, у дня
+    своё. Частота и цель дня меняют его оценку (запланирован ли, выполнен ли), как если бы
+    в тот день так и стояло (schedule.apply_overrides). «Сбросить» удаляет запись."""
+
+    __tablename__ = "task_day_overrides"
+    __table_args__ = (UniqueConstraint("task_id", "day", name="uq_day_override_task_day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    name: Mapped[str | None] = mapped_column(String(HABIT_NAME_MAX_LENGTH), nullable=True)
+    # Описание правилось (`description_set`): None тогда — «без описания».
+    description: Mapped[str | None] = mapped_column(
+        String(HABIT_DESCRIPTION_MAX_LENGTH), nullable=True
+    )
+    description_set: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    # Частота дня (не «Гибкий график»): None — своя.
+    frequency_type: Mapped[FrequencyType | None] = mapped_column(
+        Enum(FrequencyType, native_enum=False, length=20), nullable=True
+    )
+    days: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Цель дня («раз в день»): None — своя.
+    times_per_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class RunningTimer(Base):

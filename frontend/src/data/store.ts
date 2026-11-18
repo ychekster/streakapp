@@ -50,6 +50,7 @@ import type { Folder, FolderHabitType, FolderInput, FolderKind } from "../types/
 import type { Habit, HabitColor, HabitInput } from "../types/habit";
 import type { Settings, SettingsUpdate } from "../types/settings";
 import type {
+  DayOverrideFields,
   FolderKey,
   SyncOperation,
   SyncResponse,
@@ -69,6 +70,7 @@ import {
   deriveTodos,
   deriveView,
   goalOn,
+  isShared,
   isTimed,
   myDay,
   reminderTimesOf,
@@ -1093,6 +1095,16 @@ export const dataStore = {
     if (cleaned !== (habit.notes?.[date] ?? "")) {
       enqueue({ type: "note", task: keyOf(id), date, text: cleaned });
     }
+  },
+
+  /** A past day's own name, description, frequency and goal (the day window), whole;
+   *  null — «Сбросить»: the day is its own again. Not today, not a shared habit. */
+  setDayOverride(id: number, date: string, fields: DayOverrideFields | null): void {
+    const habit = state.habits.find((item) => item.id === id);
+    if (!habit || isShared(habit) || !dataStore.editableDay(date) || date === viewDay) {
+      return;
+    }
+    enqueue({ type: "day_override", task: keyOf(id), ...(fields ?? {}), date });
   },
 
   /** Freeze the habit from the marking day, or unfreeze it (the marking day is an

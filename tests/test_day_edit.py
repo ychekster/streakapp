@@ -122,3 +122,47 @@ def test_day_notes(client: TestClient, user: AuthUser) -> None:
     assert [result["error"]["code"] for result in data["results"]] == [
         "invalid_note", "invalid_date", "invalid_date",
     ]
+
+
+def _override(task_id: int, day: date, **fields: object) -> dict[str, object]:
+    return {"type": "day_override", "task": task_id, "date": day.isoformat(), **fields}
+
+
+def test_a_past_day_can_get_its_own_parameters(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    yesterday, before = today - timedelta(days=1), today - timedelta(days=2)
+    # По дню недели вчерашнего дня: позавчера не запланировано, отметка в нём бонусная.
+    task_id = _create(
+        client, user, frequency_type="specific_days", days=[WEEKDAYS[yesterday.weekday()]]
+    )
+    habit = _sync(client, user, _mark(task_id, before), _mark(task_id, yesterday))["habits"][0]
+    assert habit["current_streak"] == 1
+    # Позавчера поправили: «каждый день» и своё название — день в серии.
+    habit = _sync(
+        client,
+        user,
+        _override(task_id, before, frequency_type="daily", name="Утренний бег"),
+    )["habits"][0]
+    assert habit["current_streak"] == 2
+    [override] = habit["day_overrides"]
+    assert (override["date"], override["name"], override["frequency_type"]) == (
+        before.isoformat(),
+        "Утренний бег",
+        "daily",
+    )
+    # Цель дня 2: вчера отмечено один раз — день уже не выполнен.
+    habit = _sync(client, user, _override(task_id, yesterday, times_per_day=2))["habits"][0]
+    assert habit["history"][-2] is False
+    # «Сбросить»: дни снова свои.
+    habit = _sync(
+        client, user, _override(task_id, before), _override(task_id, yesterday)
+    )["habits"][0]
+    assert habit["day_overrides"] == []
+    assert (habit["history"][-2], habit["current_streak"]) == (True, 1)
+
+
+def test_today_and_shared_days_are_not_overridden(client: TestClient, user: AuthUser) -> None:
+    today = _today(client, user)
+    task_id = _create(client, user, frequency_type="daily")
+    data = _sync(client, user, _override(task_id, today, times_per_day=2))
+    assert data["results"][0]["error"]["code"] == "invalid_date"

@@ -124,6 +124,8 @@ export interface Habit {
   /** Заметки к дням `history` (окно дня в календаре): «ГГГГ-ММ-ДД» → текст. Нет у
    *  привычек, сохранённых на устройстве до заметок. */
   notes?: Record<string, string>;
+  /** Правки прошлых дней (окно дня). Нет у привычек, сохранённых на устройстве до них. */
+  day_overrides?: DayOverride[];
   /** Совместная привычка (backend/groups.py); null или нет — обычная. В совместной
    *  `history`, серии и `total_done` — по дням, выполненным всеми, а `done_today`,
    *  `today_count` и `history_counts` (при любой цели) — моя часть (её переключает кнопка).
@@ -214,6 +216,20 @@ export interface NamePeriod {
   until: string;
   name: string;
   description: string | null;
+}
+
+/** Правка прошлого дня (окно дня, удержание дня в календаре): что стояло в этот день
+ *  вместо настоящего. null — не правилось, у дня своё. Частота и цель меняют оценку дня. */
+export interface DayOverride {
+  date: string;
+  name?: string | null;
+  /** Описание дня, если `description_set` (null — без описания). */
+  description?: string | null;
+  description_set?: boolean;
+  frequency_type?: Exclude<FrequencyType, "flexible"> | null;
+  days?: string[];
+  start_date?: string | null;
+  times_per_day?: number | null;
 }
 
 /** В чём цель привычки: разы или секунды («Цель по времени»). */

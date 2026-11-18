@@ -89,3 +89,82 @@
     transition: none;
   }
 }
+
+/* Удержание вкладки открывает меню: без системного меню текста и выделения. */
+.tab {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* --- Режим порядка («Изменить порядок») --- */
+
+/* Место таблетки в ленте страницы, пока она стоит над бледным слоем. */
+.placeholder {
+  height: var(--folderbar-height);
+  margin-bottom: var(--space-folderbar-bottom);
+}
+
+/* Всё, кроме таблетки, бледнеет: слой цвета страницы поверх экрана и нижней навигации.
+   Нажатие по нему заканчивает режим. */
+.dim {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background-color: var(--color-background);
+  opacity: 0.72;
+  touch-action: none;
+  animation: dim-in 200ms ease-out;
+}
+
+/* Таблетка над слоем, на прежнем месте (top / left задаёт FolderBar). */
+.reordering {
+  z-index: 35;
+}
+
+/* Ручка вкладки (как у рядов в настройках «Папки»): за неё тянут, палец по ней
+   страницу и ленту не листает. Запас нажатия вокруг — полями, без сдвига соседей. */
+.handle {
+  display: flex;
+  align-items: center;
+  margin: -10px -10px -10px -2px;
+  padding: 10px 10px 10px 8px;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+  touch-action: none;
+  cursor: grab;
+}
+
+.handle svg {
+  width: 16px;
+  height: 12px;
+}
+
+/* Пока вкладку тянут, соседи плавно уступают ей место. */
+.shifting {
+  transition: transform var(--folders-shift-anim);
+}
+
+/* Перетаскиваемая: над соседями, на сплошной карточке с тенью (как ряд, который тянут в
+   настройках «Папки»), за пальцем; соседи под ней не просвечивают. */
+.dragging {
+  z-index: 1;
+  background-color: var(--color-card);
+  box-shadow: var(--folders-drag-shadow);
+}
+
+@keyframes dim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shifting {
+    transition: none;
+  }
+
+  .dim {
+    animation: none;
+  }
+}

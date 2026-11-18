@@ -61,6 +61,7 @@ from backend.models import (
     RunningTimer,
     Segment,
     Task,
+    TaskDayOverride,
     TaskFreeze,
     TaskLog,
     TaskReminder,
@@ -442,6 +443,7 @@ class Repository:
         checkin_reminder: tuple[time | None, str] | None = None,
         telegram_notifications: bool | None = None,
         folder_swipe: bool | None = None,
+        folder_names: bool | None = None,
         show_todos: bool | None = None,
         open_on_todos: bool | None = None,
         todo_folder_swipe: bool | None = None,
@@ -469,6 +471,8 @@ class Repository:
             user.telegram_notifications = telegram_notifications
         if folder_swipe is not None:
             user.folder_swipe = folder_swipe
+        if folder_names is not None:
+            user.folder_names = folder_names
         if show_todos is not None:
             user.show_todos = show_todos
         if open_on_todos is not None:
@@ -580,6 +584,7 @@ class Repository:
         for model in (
             RunningTimer,
             DayNote,
+            TaskDayOverride,
             TaskLog,
             TaskFreeze,
             TaskSchedulePeriod,
@@ -1207,6 +1212,43 @@ class Repository:
             )
         else:
             note.text, note.updated_at = text, now
+        await self.session.flush()
+
+    async def get_day_overrides(
+        self, task_ids: Collection[int]
+    ) -> dict[int, list[TaskDayOverride]]:
+        """Правки дней задач (окно дня): id задачи → правки по возрастанию дня."""
+        overrides: dict[int, list[TaskDayOverride]] = {task_id: [] for task_id in task_ids}
+        for batch in _batches(overrides):
+            result = await self.session.execute(
+                select(TaskDayOverride)
+                .where(TaskDayOverride.task_id.in_(batch))
+                .order_by(TaskDayOverride.day)
+            )
+            for override in result.scalars():
+                overrides[override.task_id].append(override)
+        return overrides
+
+    async def set_day_override(self, task: Task, day: date, **fields: Any) -> None:
+        """Правка дня задачи целиком (поля TaskDayOverride); без единой правки — удалить."""
+        override = await self.session.scalar(
+            select(TaskDayOverride).where(
+                TaskDayOverride.task_id == task.id, TaskDayOverride.day == day
+            )
+        )
+        empty = all(
+            fields.get(key) is None for key in ("name", "frequency_type", "times_per_day")
+        ) and not fields.get("description_set", False)
+        if empty:
+            if override is not None:
+                await self.session.delete(override)
+        elif override is None:
+            self.session.add(
+                TaskDayOverride(task_id=task.id, user_id=task.user_id, day=day, **fields)
+            )
+        else:
+            for key, value in fields.items():
+                setattr(override, key, value)
         await self.session.flush()
 
     async def set_archived(self, task: Task, archived_at: datetime | None) -> None:
@@ -2395,6 +2437,7 @@ class Repository:
             telegram_notifications=source.telegram_notifications,
             all_habits_position=source.all_habits_position,
             folder_swipe=source.folder_swipe,
+            folder_names=source.folder_names,
             show_todos=source.show_todos,
             open_on_todos=source.open_on_todos,
             todo_folder_swipe=source.todo_folder_swipe,
@@ -2508,7 +2551,8 @@ class Repository:
         for model in (
             Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskNamePeriod, TaskReminder, Folder,
             Review,
-            WebSession, PushSubscription, Event, ActivityLog, DayNote, Todo, TodoFolder,
+            WebSession, PushSubscription, Event, ActivityLog, DayNote, TaskDayOverride, Todo,
+            TodoFolder,
         ):
             await self.session.execute(
                 update(model)

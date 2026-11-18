@@ -1,43 +1,38 @@
-/* Окно названия (NameSheet): название и описание дня под шапкой окна (BottomSheet) —
-   плашками, как поле заметки окна дня (та же заливка и скругление). */
+/* Окно параметров дня (NameSheet): высокое окно (BottomSheet tall) с формой, как настройки
+   привычки. Фон окна — фон «Настроек», карточки на нём белые. Листается .scroller, шапка
+   (день, название, «×») стоит сверху поверх прокрутки. */
 
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: var(--day-sheet-note-top);
+.scroller {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 calc(var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 24px);
+  background: var(--color-background);
+  -webkit-user-select: text;
+  user-select: text;
 }
 
-.row {
-  padding: var(--day-sheet-note-padding);
-  border-radius: var(--count-sheet-button-radius);
-  background: var(--count-sheet-button-fill);
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--count-sheet-padding-top) var(--count-sheet-padding-x) 12px;
+  background: linear-gradient(var(--color-background) 80%, transparent);
 }
 
-.title {
-  margin: 0 0 4px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 18px;
+.form {
+  padding: 0 var(--space-screen-x, 16px);
 }
 
 .value {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--day-sheet-note-font-size);
-  line-height: 1.35;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.muted {
   color: var(--color-text-secondary);
 }
 
-.caption {
-  margin: 6px 0 0;
-  color: rgb(var(--habit-rgb));
+.note {
+  margin: 8px var(--space-card-padding) 0;
+  color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 18px;
-  font-weight: 500;
 }

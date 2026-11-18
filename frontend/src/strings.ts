@@ -215,6 +215,36 @@ const RU = {
   todoListCreateSubmit: "Создать список",
   todoListDelete: "Удалить список",
   todoListSaveFailed: "Не удалось сохранить список",
+  // Меню вкладки (удержание вкладки над списком, components/TabMenu) и режим порядка.
+  tabMenuReorder: "Изменить порядок",
+  tabReorderDone: "Готово",
+  folderMenuEdit: "Изменить папку",
+  folderMenuNewHabit: "Новая привычка",
+  folderMenuDelete: "Удалить папку",
+  todoListMenuEdit: "Изменить список",
+  todoListMenuExport: "Экспортировать",
+  todoListMenuImport: "Импортировать",
+  // Задачи в форме списка, экспорт и импорт одного списка (data/todoListFile.ts).
+  todoListTasksHeading: "Задачи в списке",
+  todoListTasksEmpty: "В списке пока нет задач",
+  todoListTaskDone: "Выполнена",
+  todoListExport: "Экспортировать список",
+  todoListImport: "Импортировать в список",
+  todoListFileFooter:
+    "Экспорт сохраняет задачи списка в файл. Импорт добавляет в этот список задачи из такого файла или из файла «Экспорт данных».",
+  todoListShareTitle: (name: string) => `Список задач «${name}»`,
+  todoListImportTitle: "Импортировать задачи?",
+  todoListImportMessage: (count: number, name: string) => `В «${name}» добавится ${ruTodos(count)}.`,
+  todoListImportLimitMessage: (count: number, name: string, left: number) =>
+    `В файле ${ruTodos(count)}, но места хватит на ${left}. В «${name}» добавятся первые ${left}.`,
+  todoListImportFull: "Задач уже столько, сколько можно. Удалите ненужные и попробуйте ещё раз.",
+  todoListImportDoneTitle: "Задачи добавлены",
+  todoListImportDoneMessage: (count: number, name: string) => `В «${name}» добавлено: ${ruTodos(count)}.`,
+  todoListImportEmpty: "В файле нет задач.",
+  todoListImportBadFile:
+    "Этот файл не подходит. Выберите файл списка задач или файл «Экспорт данных».",
+  todoListExportSentMessage:
+    "Сохраните его или перешлите другу. Загрузить задачи можно, удержав список на вкладке «Задачи».",
   // «Экспорт данных» / «Импорт данных» (data/userData.ts).
   settingsExport: "Экспорт данных",
   settingsImport: "Импорт данных",
@@ -300,9 +330,9 @@ const RU = {
     unfinished: "Все привычки на сегодня отмечены",
     today: "Сегодня ни одна привычка не запланирована",
   },
-  foldersSwipe: "Переключение свайпом",
+  foldersSwipe: "Названия папок",
   foldersSwipeFooter:
-    "Свайп влево или вправо по списку привычек открывает соседнюю папку.",
+    "Во «Все привычки» привычки стоят блоками по папкам, у каждого блока название папки.",
   // Напоминание «Пора отметить привычки»: ряд настроек и его экран.
   settingsCheckinReminder: "Напоминание",
   settingsCheckinReminderOff: "Выкл.",
@@ -667,6 +697,15 @@ const RU = {
   nameSheetNoDescription: "Без описания",
   nameSheetSince: (count: number) => `Без изменений ${count} ${ruDays(count)}`,
   nameSheetLabel: (name: string, date: string) => `${name}, ${date}`,
+  // Окно параметров дня (удержание дня в календаре, components/NameSheet.tsx).
+  dayParamsSince: (count: number) => `Так стояло ${count} ${ruDays(count)}`,
+  dayParamsChanged: (real: string) => `Изменено для этого дня. Было: ${real}`,
+  dayParamsNoDescription: "без описания",
+  dayParamsFrequencyFlexible: "Гибкий график",
+  dayParamsReset: "Сбросить к параметрам дня",
+  dayParamsFooter: "Правки меняют только этот день: отметка и серия считаются по ним.",
+  dayParamsShared: "У совместной привычки прошлые дни не правятся.",
+  dayParamsToday: "Параметры сегодняшнего дня меняются в настройках привычки.",
   // Плашка после серии быстрых нажатий: «Вода: +12» — длинное название сокращается, число
   // видно всегда.
   undoTapsSuffix: (taps: number) => `: +${taps}`,
@@ -962,6 +1001,35 @@ const EN: Strings = {
   settingsDataFooter:
     "Save your habits, check-ins, notes, folders and settings to a file. Load it on another account or device with “Import Data”, and the habits are added to your current ones.",
   exportShareTitle: "My Knot data",
+  tabMenuReorder: "Reorder Tabs",
+  tabReorderDone: "Done",
+  folderMenuEdit: "Edit Folder",
+  folderMenuNewHabit: "New Habit",
+  folderMenuDelete: "Delete Folder",
+  todoListMenuEdit: "Edit List",
+  todoListMenuExport: "Export",
+  todoListMenuImport: "Import",
+  todoListTasksHeading: "Tasks in List",
+  todoListTasksEmpty: "No tasks in this list yet",
+  todoListTaskDone: "Done",
+  todoListExport: "Export List",
+  todoListImport: "Import to List",
+  todoListFileFooter:
+    "Export saves the list’s tasks to a file. Import adds tasks to this list from such a file or from an “Export Data” file.",
+  todoListShareTitle: (name: string) => `Task list “${name}”`,
+  todoListImportTitle: "Import Tasks?",
+  todoListImportMessage: (count: number, name: string) =>
+    `${count} ${count === 1 ? "task" : "tasks"} will be added to “${name}”.`,
+  todoListImportLimitMessage: (count: number, name: string, left: number) =>
+    `The file has ${count} ${count === 1 ? "task" : "tasks"}, but there’s room for ${left}. The first ${left} will be added to “${name}”.`,
+  todoListImportFull: "You’ve reached the task limit. Delete some tasks and try again.",
+  todoListImportDoneTitle: "Tasks Added",
+  todoListImportDoneMessage: (count: number, name: string) =>
+    `Added ${count} ${count === 1 ? "task" : "tasks"} to “${name}”.`,
+  todoListImportEmpty: "There are no tasks in the file.",
+  todoListImportBadFile: "This file won’t work. Choose a task list file or an “Export Data” file.",
+  todoListExportSentMessage:
+    "Save it or forward it to a friend. To load the tasks, hold the list on the Tasks tab.",
   exportSentTitle: "File Sent to the Bot Chat",
   exportSentMessage:
     "Save it or forward it to your other account. To load the data: Settings → “Import Data”.",
@@ -1042,8 +1110,8 @@ const EN: Strings = {
     unfinished: "Every habit due today is checked off",
     today: "No habits are due today",
   },
-  foldersSwipe: "Switch by Swiping",
-  foldersSwipeFooter: "Swipe left or right across the habits list to open the next folder.",
+  foldersSwipe: "Folder Names",
+  foldersSwipeFooter: "In All Habits, habits are grouped by folder, each group under its folder name.",
   settingsCheckinReminder: "Reminder",
   settingsCheckinReminderOff: "Off",
   checkinReminderTitle: "Reminder",
@@ -1349,6 +1417,14 @@ const EN: Strings = {
   nameSheetNoDescription: "No description",
   nameSheetSince: (count: number) => `Unchanged for ${count} ${count === 1 ? "day" : "days"}`,
   nameSheetLabel: (name: string, date: string) => `${name}, ${date}`,
+  dayParamsSince: (count: number) => `Set this way for ${count} ${count === 1 ? "day" : "days"}`,
+  dayParamsChanged: (real: string) => `Changed for this day. Was: ${real}`,
+  dayParamsNoDescription: "no description",
+  dayParamsFrequencyFlexible: "Flexible Schedule",
+  dayParamsReset: "Reset to the Day’s Settings",
+  dayParamsFooter: "Changes apply to this day only: its check and streak follow them.",
+  dayParamsShared: "Past days of a shared habit can’t be edited.",
+  dayParamsToday: "Today’s settings are changed in the habit’s settings.",
   undoTapsSuffix: (taps: number) => `: +${taps}`,
   undo: "Undo",
 

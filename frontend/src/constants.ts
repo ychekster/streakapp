@@ -52,10 +52,11 @@ export const DEFAULT_THEME = "system";
  *  на бэкенде. */
 export const GRID_LAYOUTS = ["rolling", "fixed", "calendar", "large"] as const;
 
-/** «Вид сетки» large: кружков в ряду и рядов в списке (15 × 6 = 90 дней) и на экране
- *  привычки (18 × 10 = 180 дней: шире и ниже, чем 15 × 12, кружки чуть мельче). */
-export const LARGE_GRID_COLUMNS = 15;
-export const LARGE_GRID_ROWS = 6;
+/** «Вид сетки» large: кружков в ряду и рядов в списке (18 × 5 = 90 дней) и на экране
+ *  привычки (18 × 10 = 180 дней). Ряд одной длины: кружки в списке того же размера, что
+ *  на экране привычки. */
+export const LARGE_GRID_COLUMNS = 18;
+export const LARGE_GRID_ROWS = 5;
 export const HISTORY_LARGE_COLUMNS = 18;
 export const HISTORY_LARGE_ROWS = 10;
 

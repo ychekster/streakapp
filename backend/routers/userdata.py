@@ -4,21 +4,24 @@
     POST /export/telegram — тот же файл присылает бот в чат пользователя (в Telegram, где
                             нет системного окна «Поделиться»)
     POST /import          — добавить привычки и папки из такого файла, взять настройки
+    POST /export/telegram/todo-list — файл одного списка задач (его строит приложение)
+                            присылает бот в чат пользователя
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, Request, Response
+from pydantic import ValidationError
 
 from backend import userdata
-from backend.constants import IMPORT_PATH
+from backend.constants import IMPORT_PATH, TODO_LIST_FILE_PATH
 from backend.dependencies import RepositoryDep, get_bot, get_db_user
 from backend.errors import ApiError
 from backend.messaging import send_document
 from backend.models import User
 from backend.repository import Repository
 from backend.routers.auth import limit
-from backend.schemas import DataExport, ImportResult
+from backend.schemas import DataExport, ImportResult, TodoListFile
 from backend.services import user_today
 
 router = APIRouter(tags=["userdata"])
@@ -53,6 +56,33 @@ async def send_export(
         userdata.file_name(user_today(db_user)),
         db_user.telegram_id,
         userdata.caption(db_user),
+    )
+    # Сети — только после commit (см. Repository.commit).
+    await repo.commit()
+    if await send_document(get_bot(request), chat_id, name, content, text) is not None:
+        raise ApiError(409, "export_chat_unavailable", "Запустите бота: файл придёт в чат с ним")
+    return Response(status_code=204)
+
+
+@router.post(TODO_LIST_FILE_PATH, status_code=204, response_class=Response)
+async def send_todo_list(
+    request: Request,
+    body: object = Body(...),
+    db_user: User = Depends(get_db_user),
+    repo: Repository = RepositoryDep,
+) -> Response:
+    """Прислать в чат файл одного списка задач. Файл строит приложение; здесь он только
+    проверяется (это файл списка Knot) и уходит самому пользователю."""
+    limit(request, request.app.state.user_data_limiter, str(db_user.telegram_id))
+    try:
+        data = TodoListFile.model_validate(body)
+    except ValidationError as exc:
+        raise ApiError(422, "invalid_import_file", "Это не файл списка задач") from exc
+    content = data.model_dump_json(indent=2, exclude_none=True).encode("utf-8")
+    name, chat_id, text = (
+        userdata.todo_list_file_name(user_today(db_user)),
+        db_user.telegram_id,
+        userdata.todo_list_caption(db_user, data.name),
     )
     # Сети — только после commit (см. Repository.commit).
     await repo.commit()

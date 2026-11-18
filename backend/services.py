@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from typing import Any
 
 import pytz
 
@@ -39,6 +40,7 @@ from backend.models import (
     Review,
     RunningTimer,
     Task,
+    TaskDayOverride,
     TaskNamePeriod,
     TaskSchedulePeriod,
     TaskStatus,
@@ -47,6 +49,8 @@ from backend.models import (
 )
 from backend.repository import Repository, utc_now
 from backend.schedule import (
+    Scheduled,
+    apply_overrides,
     due_check_with_history,
     is_due_on,
     period_bounds,
@@ -54,6 +58,7 @@ from backend.schedule import (
     schedule_at,
     task_days,
 )
+from backend.schemas import DayOverride as DayOverrideView
 from backend.schemas import Folder as FolderView
 from backend.schemas import (
     FolderInput,
@@ -78,6 +83,7 @@ from backend.schemas import (
     SyncArchive,
     SyncFreeze,
     SyncMark,
+    SyncDayOverride,
     SyncNote,
     SyncOperation,
     SyncResult,
@@ -162,6 +168,20 @@ def frozen_check(
     return lambda day: any(start <= day < end for start, end in periods)
 
 
+def _period_schedule(schedule_on: Callable[[date], Scheduled], day: date) -> Scheduled:
+    """Расписание, по которому считается день: его собственное, а если оно не гибкое,
+    но неделя (месяц, год) дня к своему концу идёт по «Гибкому графику» с этим
+    периодом, — тот гибкий график."""
+    own = schedule_on(day)
+    if own.frequency_type == FrequencyType.flexible:
+        return own
+    for kind in ("week", "month", "year"):
+        later = schedule_on(period_bounds(kind, day)[1])
+        if later.frequency_type == FrequencyType.flexible and (later.period or "week") == kind:
+            return later
+    return own
+
+
 def counted_days(
     task: Task,
     done_dates: Collection[date],
@@ -172,6 +192,11 @@ def counted_days(
     (`periods`) привычка была запланирована и не заморожена. У «Гибкого графика» — первые
     дни периода по порядку, пока не набрана его цель. Остальные отметки — бонусные: они в
     сетке, календаре и «всего выполнено», но не в сериях и счёте периода.
+
+    Неделя (месяц, год), которая к своему концу идёт по «Гибкому графику», считается
+    целиком: отметка в ней идёт в цель периода, даже если в свой день была по прежнему
+    графику не запланирована (переключились на гибкий посреди недели — понедельник уже в
+    счёт).
     """
     is_due = due_check_with_history(task, periods)
     schedule_on = schedule_at(task, periods)
@@ -180,7 +205,7 @@ def counted_days(
     for day in sorted(done_dates):
         if is_frozen(day):
             continue
-        schedule = schedule_on(day)
+        schedule = _period_schedule(schedule_on, day)
         if schedule.frequency_type == FrequencyType.flexible:
             kind = schedule.period or "week"
             start, end = period_bounds(kind, day)
@@ -346,6 +371,7 @@ def build_habit(
     group: groups.ViewerGroup | None = None,
     notes: Mapping[date, str] | None = None,
     name_periods: Sequence[TaskNamePeriod] = (),
+    overrides: Sequence[TaskDayOverride] = (),
 ) -> Habit:
     """Собрать схему `Habit`: расписание, отметка за сегодня, история и статистика серий.
 
@@ -362,13 +388,17 @@ def build_habit(
     привычки в поясе пользователя (`created_day`). `periods` — прежние расписания
     (Repository.get_schedule_periods). `notes` — заметки к дням истории
     (Repository.get_notes). `name_periods` — прежние названия и описания
-    (Repository.get_name_periods).
+    (Repository.get_name_periods). `overrides` — правки дней (окно дня,
+    Repository.get_day_overrides): дни оцениваются с ними (schedule.apply_overrides), а
+    в ответ идут отдельно от настоящих расписаний.
 
     Совместная привычка (`group`): сетка, серии и `total_done` — по дням, выполненным
     всеми (мои отметки и `group.others_done`), а `done_today` и `today_count` — моя часть
     (её и переключает кнопка).
     """
     is_frozen = frozen_check(task, freezes, today)
+    # Расписания дней с правками — для оценки; в ответ — настоящие (`periods`).
+    raw_periods, periods = periods, apply_overrides(task, periods, overrides)
     flexible = task.frequency_type == FrequencyType.flexible
     # «Гибкий график» в совместной: у каждого своя цель на период — дни мои, а период
     # группы засчитан, когда цель набрали все (others_reached).
@@ -481,15 +511,34 @@ def build_habit(
                 overtime=period.overtime and period.times_per_day > 1,
                 goal_unit=period.goal_unit or "times",
             )
-            for period in periods
+            for period in raw_periods
         ],
         name_history=[
             NamePeriod(until=period.until, name=period.name, description=period.description)
             for period in name_periods
         ],
         notes=dict(notes or {}),
+        day_overrides=[
+            DayOverrideView(
+                date=override.day,
+                name=override.name,
+                description=override.description,
+                description_set=override.description_set,
+                frequency_type=(
+                    override.frequency_type.value if override.frequency_type is not None else None
+                ),
+                days=_split_days(override.days),
+                start_date=override.start_date,
+                times_per_day=override.times_per_day,
+            )
+            for override in overrides
+        ],
         group=group.view if group is not None else None,
     )
+
+
+def _split_days(value: str | None) -> list[str]:
+    return [code for code in (value or "").split(",") if code]
 
 
 def started_day(
@@ -560,9 +609,15 @@ async def _build_habits(
     freezes = await repo.get_freezes(task_ids)
     periods = await repo.get_schedule_periods(task_ids)
     names = await repo.get_name_periods(task_ids)
-    # Счёт по дням нужен только привычкам «несколько раз в день» (сейчас или раньше).
+    overrides = await repo.get_day_overrides(task_ids)
+    # Счёт по дням нужен только привычкам «несколько раз в день» (сейчас или раньше, и в
+    # поправленный день).
     counts = await repo.get_history_counts(
-        [task.id for task in tasks if counts_by_day(task, periods[task.id])],
+        [
+            task.id
+            for task in tasks
+            if counts_by_day(task, apply_overrides(task, periods[task.id], overrides[task.id]))
+        ],
         _history_start(today),
         calendar,
     )
@@ -591,6 +646,7 @@ async def _build_habits(
             group_of(task),
             notes[task.id],
             names[task.id],
+            overrides[task.id],
         )
         for task in tasks
     ]
@@ -890,7 +946,7 @@ async def _refresh_timer_notice(
     repo: Repository, user: User, task: Task, timer: RunningTimer
 ) -> None:
     """Пересчитать, когда идущий таймер наберёт цель (счёт дня или цель изменились)."""
-    periods = (await repo.get_schedule_periods([task.id]))[task.id]
+    periods = await effective_periods(repo, task)
     log = await repo.get_log(task.id, timer.day)
     done = (log.count or 0) if log is not None else 0
     await repo.set_timer_notify_at(
@@ -930,7 +986,7 @@ async def due_timer_goals(repo: Repository, moment: datetime) -> list[TimerGoalN
         await repo.set_timer_notify_at(timer, None)
         if task.user.blocked_at is not None:
             continue
-        periods = (await repo.get_schedule_periods([task.id]))[task.id]
+        periods = await effective_periods(repo, task)
         notices.append(
             TimerGoalNotice(
                 task_id=task.id,
@@ -942,6 +998,14 @@ async def due_timer_goals(repo: Repository, moment: datetime) -> list[TimerGoalN
             )
         )
     return notices
+
+
+async def effective_periods(repo: Repository, task: Task) -> list[Any]:
+    """Прежние расписания задачи с правками дней (окно дня, schedule.apply_overrides): по
+    ним оценивается любой прошлый день."""
+    periods = (await repo.get_schedule_periods([task.id]))[task.id]
+    overrides = (await repo.get_day_overrides([task.id]))[task.id]
+    return apply_overrides(task, periods, overrides)
 
 
 def counts_by_day(task: Task, periods: Sequence[TaskSchedulePeriod]) -> bool:
@@ -1344,6 +1408,48 @@ async def _apply_todo_op(
     return SyncResult(ok=True)
 
 
+async def _apply_day_override(repo: Repository, user: User, op: SyncDayOverride) -> SyncResult:
+    """Правка прошлого дня (окно дня): название, описание, частота и цель дня целиком; все
+    пустые — «Сбросить». Цель дня сменилась — день заново выполнен или нет по своему счёту
+    (у «раз в день» отметка — один раз). Совместную правит только её день, поэтому нельзя."""
+    task = await _active_task(repo, user, op.task)
+    today = user_today(user)
+    if not today - timedelta(days=HISTORY_DAYS) < op.date < today:
+        raise ApiError(422, "invalid_date", "Поправить можно только прошлый день истории")
+    if (await repo.members_of_tasks([task.id])).get(task.id) is not None:
+        raise ApiError(409, "shared_day_locked", "День совместной привычки не правится")
+    before = await effective_periods(repo, task)
+    goal_before = goal_on(task, before, op.date)[0]
+    frequency = FrequencyType(op.frequency_type) if op.frequency_type is not None else None
+    days = validation.validate_days(op.days) if frequency == FrequencyType.specific_days else None
+    await repo.set_day_override(
+        task,
+        op.date,
+        name=validation.validate_name(op.name) if op.name is not None else None,
+        description=(
+            validation.validate_description(op.description or "") if op.description_set else None
+        ),
+        description_set=op.description_set,
+        frequency_type=frequency,
+        days=days,
+        # «Через день» и «каждый месяц» в правке — от этого дня: он запланирован.
+        start_date=op.date
+        if frequency in (FrequencyType.every_other_day, FrequencyType.monthly)
+        else None,
+        times_per_day=op.times_per_day if unit_on(task, before, op.date) == "times" else None,
+    )
+    goal = goal_on(task, await effective_periods(repo, task), op.date)[0]
+    log = await repo.get_log(task.id, op.date)
+    if goal != goal_before and log is not None and unit_on(task, before, op.date) == "times":
+        count = log.count if log.count is not None else int(log.status == TaskStatus.done)
+        if goal > 1 and log.count is None:
+            await repo.set_log_count(log, count)
+        target = TaskStatus.done if count >= goal else TaskStatus.pending
+        if log.status != target:
+            await repo.set_log_status(log, target)
+    return SyncResult(ok=True)
+
+
 async def _apply_sync_op(
     repo: Repository, user: User, op: SyncOperation, outcome: SyncOutcome
 ) -> SyncResult:
@@ -1359,7 +1465,7 @@ async def _apply_sync_op(
         log = await repo.get_or_create_log(task.id, user.telegram_id, op.date)
         # День — по цели и «Сверх плана», которые действовали в тот день (прошлое не
         # переписывается сменой настроек).
-        periods = (await repo.get_schedule_periods([task.id]))[task.id]
+        periods = await effective_periods(repo, task)
         goal, overtime = goal_on(task, periods, op.date)
         # Больше цели — только у «Сверх плана» (отметка могла ждать в очереди, пока
         # настройку выключили).
@@ -1385,6 +1491,8 @@ async def _apply_sync_op(
         return SyncResult(ok=True)
     if isinstance(op, SyncTimer):
         return await _apply_timer(repo, user, op)
+    if isinstance(op, SyncDayOverride):
+        return await _apply_day_override(repo, user, op)
     if isinstance(op, SyncNote):
         task = await _active_task(repo, user, op.task)
         # День — как у отметки: в пределах истории, не позже дня отметки.
@@ -1483,7 +1591,7 @@ async def _apply_timer(repo: Repository, user: User, op: SyncTimer) -> SyncResul
         return SyncResult(ok=True)
     log = await repo.get_log(task.id, op.date)
     done = (log.count or 0) if log is not None else 0
-    periods = (await repo.get_schedule_periods([task.id]))[task.id]
+    periods = await effective_periods(repo, task)
     await repo.set_timer(
         user.telegram_id,
         task.id,
@@ -1736,6 +1844,7 @@ def serialize_settings(user: User, is_admin: bool) -> SettingsResponse:
         grid_layout=user.grid_layout,
         telegram_notifications=user.telegram_notifications,
         folder_swipe=user.folder_swipe,
+        folder_names=user.folder_names,
         show_todos=user.show_todos,
         open_on_todos=user.open_on_todos,
         todo_folder_swipe=user.todo_folder_swipe,
@@ -1805,6 +1914,7 @@ async def update_settings(repo: Repository, user: User, payload: SettingsUpdate)
         ),
         telegram_notifications=payload.telegram_notifications,
         folder_swipe=payload.folder_swipe,
+        folder_names=payload.folder_names,
         show_todos=payload.show_todos,
         open_on_todos=payload.open_on_todos,
         todo_folder_swipe=payload.todo_folder_swipe,

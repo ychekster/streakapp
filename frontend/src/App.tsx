@@ -70,6 +70,13 @@ import { TimerBar } from "./components/TimerBar";
 import { closeTimerScreen, TimerScreen, useTimerScreenHabit } from "./components/TimerScreen";
 import { UndoToast } from "./components/UndoToast";
 import { HabitsIcon, PencilIcon, SettingsIcon, TodosIcon } from "./components/TabIcons";
+import {
+  AddMenuIcon,
+  DeleteMenuIcon,
+  EditMenuIcon,
+  ReorderMenuIcon,
+  type TabMenuItem,
+} from "./components/TabMenu";
 import { markingDay } from "./data/dates";
 import { isShared } from "./data/derive";
 import { preloadMemberHabits, preloadMemberPhotos } from "./data/groups";
@@ -127,6 +134,7 @@ import { PREFETCH_DELAY_MS } from "./constants";
 import { describeError } from "./errors";
 import { STRINGS } from "./strings";
 import {
+  confirmAction,
   getTelegramUserLabel,
   hapticNotification,
   hapticSelection,
@@ -284,6 +292,9 @@ export function App() {
   const [folderPicker, setFolderPicker] = useState(false);
   // Выбранная вкладка таблетки папок: "all" или id папки; null — первая.
   const [folderTab, setFolderTab] = useState<string | null>(null);
+  // Режим порядка вкладок таблетки («Изменить порядок» в меню вкладки): на какой вкладке
+  // нижней навигации; null — выключен. «Готово» / «Назад» / нажатие мимо таблетки — конец.
+  const [tabReorder, setTabReorder] = useState<"habits" | "todos" | null>(null);
   // The account: in the web app — guest or not («!» on the Settings tab, Settings); in
   // both — what Settings → «Аккаунт» shows. Kept on the device in the web app only.
   const [account, setAccount] = useState<Account | null>(() => (web ? keptAccount() : null));
@@ -390,6 +401,89 @@ export function App() {
     }
     return shown;
   }, [listHabits, activeFolder, tab]);
+  const endTabReorder = useCallback(() => {
+    setTabReorder(null);
+  }, []);
+  // Режим порядка — только на своей вкладке и пока есть вкладки.
+  useEffect(() => {
+    if (tabReorder !== null && tabReorder !== tab) {
+      setTabReorder(null);
+    }
+  }, [tab, tabReorder]);
+
+  /** Удалить папку привычек (пункт меню вкладки) — с подтверждением. */
+  const removeFolder = async (folder: Folder): Promise<void> => {
+    const confirmed = await confirmAction({
+      title: strings.folderDeleteTitle,
+      message: strings.folderDeleteMessage(folder.name),
+      confirmLabel: strings.folderDeleteConfirm,
+      cancelLabel: strings.folderDeleteCancel,
+      destructive: true,
+    });
+    if (confirmed) {
+      hapticNotification("success");
+      dataStore.deleteFolder(folder.id);
+      if (folders.length <= 1) {
+        setTabReorder(null);
+      }
+    }
+  };
+
+  /** Изменить папку из меню вкладки: её форма в Настройках → «Папки» («Назад» — к папкам). */
+  const editFolderFromTab = (folder: Folder): void => {
+    selectTab("settings");
+    setSettingsPage("folders");
+    showFolderForm(folder);
+  };
+
+  /** Меню вкладки таблетки папок (удержание): у «Все привычки» — новая привычка и порядок. */
+  function folderMenu(key: string): TabMenuItem[] {
+    const folder = key === "all" ? null : (folders.find((item) => String(item.id) === key) ?? null);
+    const items: TabMenuItem[] = [];
+    if (folder) {
+      items.push({
+        key: "edit",
+        label: strings.folderMenuEdit,
+        icon: <EditMenuIcon />,
+        onSelect: () => editFolderFromTab(folder),
+      });
+    }
+    items.push({
+      key: "new",
+      label: strings.folderMenuNewHabit,
+      icon: <AddMenuIcon />,
+      onSelect: () => {
+        // Новая привычка — в эту папку: вкладка выбирается, форма берёт её папку.
+        setFolderTab(key);
+        showEditor(null);
+      },
+    });
+    if (folder) {
+      items.push({
+        key: "delete",
+        label: strings.folderMenuDelete,
+        icon: <DeleteMenuIcon />,
+        destructive: true,
+        onSelect: () => void removeFolder(folder),
+      });
+    }
+    items.push({
+      key: "reorder",
+      label: strings.tabMenuReorder,
+      icon: <ReorderMenuIcon />,
+      separated: true,
+      onSelect: () => setTabReorder("habits"),
+    });
+    return items;
+  }
+
+  /** Изменить список задач из меню вкладки: его форма в Настройках → «Задачи» → «Списки». */
+  const editTodoListFromTab = (list: TodoFolder): void => {
+    selectTab("settings");
+    setSettingsPage("todoLists");
+    showTodoListForm(list);
+  };
+
   const folderBar: FolderBarState | null =
     folders.length > 0
       ? {
@@ -403,7 +497,24 @@ export function App() {
           },
           inFolder: activeFolder !== null,
           kind: activeFolder?.kind ?? null,
-          swipe: settings?.folder_swipe ?? true,
+          menuFor: folderMenu,
+          reorder:
+            tabReorder === "habits"
+              ? {
+                  onOrder: (keys) => {
+                    // Открытая вкладка остаётся открытой, даже если первой встала другая.
+                    setFolderTab(activeFolderTab);
+                    dataStore.orderFolders(keys.map((key) => (key === "all" ? null : Number(key))));
+                  },
+                  onDone: endTabReorder,
+                }
+              : null,
+          groups:
+            activeFolder === null && (settings?.folder_names ?? false)
+              ? folders
+                  .filter((folder) => !folder.kind)
+                  .map((folder) => ({ id: folder.id, name: folder.name, habits: folder.habits }))
+              : null,
         }
       : null;
   // In the Mini App Telegram itself says who it is (also before the account loads).
@@ -778,9 +889,13 @@ export function App() {
   const countSheetOpen = useCountSheetHabit() !== null;
 
   // В админ-панели кнопкой «Назад» управляет она сама (AdminApp).
+  // Режим порядка вкладок: «Готово» (в веб-приложении слово на кнопке, в Telegram его
+  // «Назад») заканчивает его.
   useBackButton(
     adminMode
       ? null
+      : tabReorder !== null
+      ? endTabReorder
       : todoRestOpen
       ? closeTodoRest
       : timerScreenOpen
@@ -811,6 +926,7 @@ export function App() {
                   : settingsPage
                     ? hideSettingsPage
                     : null,
+    tabReorder !== null ? strings.tabReorderDone : null,
   );
 
   // Пояс не выбран (новый пользователь, до этого считалось по UTC) — ставим пояс
@@ -1209,8 +1325,8 @@ export function App() {
             onDelete={(folder) => dataStore.deleteFolder(folder.id)}
             onReorder={(order) => dataStore.orderFolders(order)}
             onAddRecommended={addRecommendedFolder}
-            option={settings?.folder_swipe ?? true}
-            onOptionChange={(on) => saveSettings({ folder_swipe: on })}
+            option={settings?.folder_names ?? false}
+            onOptionChange={(on) => saveSettings({ folder_names: on })}
             countOf={(folder) => folder.habits.length}
             texts={habitFoldersTexts(strings)}
             kinds={HABIT_FOLDERS.kinds}
@@ -1338,7 +1454,13 @@ export function App() {
       );
     }
     if (tab === "todos") {
-      return <TodosScreen />;
+      return (
+        <TodosScreen
+          onEditList={editTodoListFromTab}
+          reordering={tabReorder === "todos"}
+          onReorder={(on) => setTabReorder(on ? "todos" : null)}
+        />
+      );
     }
     return (
       <HabitsScreen

@@ -433,6 +433,9 @@ EXPORT_FORMAT = "knot-export"
 EXPORT_VERSION = 1
 USER_DATA_RATE_LIMIT: tuple[int, float] = (5, 0.05)
 IMPORT_PATH = "/import"
+# Один список задач (бета): файл, который присылает бот (POST /export/telegram/todo-list).
+TODO_LIST_FILE_PATH = "/export/telegram/todo-list"
+TODO_LIST_FILE_MAX_BYTES = 2 * 1024 * 1024
 IMPORT_MAX_BYTES = 10 * 1024 * 1024
 IMPORT_MAX_ROWS = 20_000
 # Push subscriptions (devices) per account; a new one beyond this replaces the oldest.

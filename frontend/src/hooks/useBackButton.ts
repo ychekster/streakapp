@@ -8,14 +8,17 @@
  * будет на каждом рендере.
  *
  * Тот же обработчик вызывает свайп слева направо (useSwipeBack).
+ *
+ * `label` — в веб-приложении слово вместо стрелки («Готово» в режиме порядка вкладок); в
+ * Telegram кнопка его собственная, там всегда «Назад».
  */
 
 import { useEffect } from "react";
 
-import { onBackButtonClick, setBackButtonVisible } from "../telegram/webapp";
+import { onBackButtonClick, setBackButtonLabel, setBackButtonVisible } from "../telegram/webapp";
 import { useSwipeBack } from "./useSwipeBack";
 
-export function useBackButton(onBack: (() => void) | null): void {
+export function useBackButton(onBack: (() => void) | null, label: string | null = null): void {
   const visible = onBack !== null;
 
   useSwipeBack(onBack);
@@ -25,4 +28,8 @@ export function useBackButton(onBack: (() => void) | null): void {
   useEffect(() => {
     setBackButtonVisible(visible);
   }, [visible]);
+
+  useEffect(() => {
+    setBackButtonLabel(visible ? label : null);
+  }, [visible, label]);
 }

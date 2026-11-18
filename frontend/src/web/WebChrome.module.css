@@ -72,6 +72,18 @@
   z-index: 61;
 }
 
+/* «Готово» (режим порядка вкладок): та же стеклянная кнопка, но таблетка со словом, как
+   «Готово» Telegram на iOS 26. Над бледным слоем режима (FolderBar .dim, 34). */
+.backLabel {
+  z-index: 36;
+  width: auto;
+  min-width: var(--web-back-size);
+  padding: 0 18px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
 .back[data-pressed] {
   transform: scale(0.94);
 }

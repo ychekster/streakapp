@@ -9,6 +9,12 @@
  * всегда с одной и той же постоянной скоростью (как бы его ни тянули и ни бросали), такой,
  * что всё окно уехало бы за FLING_FULL_MS — быстро, как от «×». Это слой поверх экрана, а
  * не переход: кнопки «Назад» у него нет. Что показывать, пока окно уезжает, хранит useSheetContent.
+ *
+ * Высокое окно (`tall`, окно параметров дня): во всю ширину экрана и до самого низа, без
+ * полей по краям, сверху отступ (открыто не до конца). Содержимое листается внутри
+ * (`scrollRef`); смахнуть окно вниз можно, когда оно прокручено до верха: тогда касание
+ * тянет окно, а не листает (браузеру прокрутку не отдаём: preventDefault в своём
+ * слушателе touchmove).
  */
 
 import {
@@ -17,10 +23,12 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   type TouchEvent,
 } from "react";
 
 import { useStrings } from "../preferences";
+import { refreshTopEdge } from "../web/chrome";
 import styles from "./BottomSheet.module.css";
 
 /** Смахнули вниз дальше (px) — закрыть. */
@@ -39,7 +47,10 @@ const AXIS_SLOP_PX = 8;
 interface Drag {
   x: number;
   y: number;
-  axis: "x" | "y" | null;
+  /** "scroll" — высокое окно листается, а не тянется. */
+  axis: "x" | "y" | "scroll" | null;
+  /** Высокое окно было прокручено до верха, когда касание началось. */
+  atTop: boolean;
   dy: number;
   lastY: number;
   lastTime: number;
@@ -98,6 +109,9 @@ interface BottomSheetProps {
   /** Касания карточки (свайп листает). */
   onTouchStart?: (event: TouchEvent) => void;
   onTouchEnd?: (event: TouchEvent) => void;
+  /** Высокое окно во всю ширину и до низа; содержимое листается в `scrollRef`. */
+  tall?: boolean;
+  scrollRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }
 
@@ -114,12 +128,31 @@ export function BottomSheet({
   onLeft,
   onTouchStart,
   onTouchEnd,
+  tall = false,
+  scrollRef,
   children,
 }: BottomSheetProps) {
   const backdropPressed = useRef(false);
   const card = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
+  const shape = tall ? styles.tall : "";
+
+  // Высокое окно: пока его тянут, прокрутку содержимого браузеру не отдаём. Слушатель
+  // свой: у React касания пассивные, preventDefault в них не работает.
+  useEffect(() => {
+    const element = card.current;
+    if (!tall || !element) {
+      return undefined;
+    }
+    const hold = (event: globalThis.TouchEvent): void => {
+      if (drag.current?.axis === "y" && event.cancelable) {
+        event.preventDefault();
+      }
+    };
+    element.addEventListener("touchmove", hold, { passive: false });
+    return () => element.removeEventListener("touchmove", hold);
+  }, [tall]);
   // Смахнули вниз: окно уезжает переходом от пальца, а не анимацией закрытия.
   const [flung, setFlung] = useState(false);
   useEffect(() => {
@@ -153,6 +186,7 @@ export function BottomSheet({
             x: point.clientX,
             y: point.clientY,
             axis: null,
+            atTop: (scrollRef?.current?.scrollTop ?? 0) <= 0,
             dy: 0,
             lastY: point.clientY,
             lastTime: event.timeStamp,
@@ -172,6 +206,10 @@ export function BottomSheet({
     const dy = point.clientY - state.y;
     if (state.axis === null && Math.hypot(dx, dy) > AXIS_SLOP_PX) {
       state.axis = Math.abs(dy) > Math.abs(dx) ? "y" : "x";
+      // Высокое окно тянется вниз только от верха прокрутки; иначе листается.
+      if (tall && state.axis === "y" && (!state.atTop || dy < 0)) {
+        state.axis = "scroll";
+      }
       // Тянут окно — поле ввода не держит фокус (клавиатура уходит).
       if (state.axis === "y" && document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
@@ -257,7 +295,7 @@ export function BottomSheet({
       {leaving ? (
         <div
           key={`out-${leaving.key}`}
-          className={`${styles.sheet} ${styles.leaving} ${
+          className={`${styles.sheet} ${shape} ${styles.leaving} ${
             leaving.turn === "next" ? styles.outToPrevious : styles.outToNext
           }`}
           aria-hidden="true"
@@ -273,7 +311,7 @@ export function BottomSheet({
       <div
         // Свой ключ у въезжающей: вернулись к уехавшему дню — новая карточка, а не та же.
         key={cardKey === undefined ? undefined : `in-${cardKey}`}
-        className={`${styles.sheet} ${
+        className={`${styles.sheet} ${shape} ${
           turn === "next" ? styles.inFromNext : turn === "previous" ? styles.inFromPrevious : ""
         } ${flung ? styles.flung : ""} ${cardClassName ?? ""}`}
         role="dialog"
@@ -288,12 +326,14 @@ export function BottomSheet({
           // Уехало вниз — убрать (анимации внутри сюда не относятся).
           if (closing && !flung && event.target === event.currentTarget) {
             onGone();
+            refreshTopEdge();
           }
         }}
         onTransitionEnd={(event) => {
           // Смахнутое уехало вниз.
           if (closing && flung && event.target === event.currentTarget) {
             onGone();
+            refreshTopEdge();
           }
         }}
       >

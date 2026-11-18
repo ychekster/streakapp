@@ -17,7 +17,9 @@ from backend.constants import (
     DEFAULT_HABIT_COLOR,
     EXPORT_FORMAT,
     EXPORT_VERSION,
+    FOLDER_NAME_MAX_LENGTH,
     HABIT_DESCRIPTION_MAX_LENGTH,
+    HABIT_NAME_MAX_LENGTH,
     HISTORY_DAYS,
     IMPORT_MAX_ROWS,
     MAX_DB_INT,
@@ -71,6 +73,20 @@ class NamePeriod(BaseModel):
     until: date = Field(..., description="Первый день следующих названия и описания")
     name: str
     description: str | None = None
+
+
+class DayOverride(BaseModel):
+    """Правка одного прошлого дня привычки (окно дня): что стояло в этот день вместо
+    настоящего. Поле null — не правилось, у дня своё."""
+
+    date: date
+    name: str | None = None
+    description: str | None = Field(None, description="Описание дня, если `description_set`")
+    description_set: bool = Field(False, description="Описание правилось (null — без описания)")
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] | None = None
+    days: list[str] = Field(default_factory=list, description="Дни недели для specific_days")
+    start_date: date | None = None
+    times_per_day: int | None = Field(None, description="Цель дня («раз в день»)")
 
 
 class GroupMember(BaseModel):
@@ -385,6 +401,13 @@ class Habit(BaseModel):
         default_factory=dict,
         description="Заметки к дням `history` (окно дня в календаре): день → текст",
     )
+    day_overrides: list[DayOverride] = Field(
+        default_factory=list,
+        description=(
+            "Правки прошлых дней (окно дня): название, описание, частота и цель дня вместо "
+            "настоящих; частота и цель меняют оценку дня"
+        ),
+    )
     group: HabitGroupView | None = Field(
         None,
         description=(
@@ -525,7 +548,10 @@ class SettingsResponse(BaseModel):
         description="«Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram",
     )
     folder_swipe: bool = Field(
-        True, description="«Переключение свайпом»: свайп по списку привычек — соседняя папка"
+        True, description="Не применяется: свайп между папками привычек всегда включён"
+    )
+    folder_names: bool = Field(
+        False, description="«Названия папок»: во «Все привычки» блоки по папкам с названиями"
     )
     show_todos: bool = Field(
         False, description="«Показывать задачи» (бета): вкладка «Задачи» перед «Привычками»"
@@ -575,7 +601,8 @@ class SettingsUpdate(BaseModel):
     telegram_notifications: bool | None = Field(
         None, description="Напоминания и рассылки от бота в Telegram"
     )
-    folder_swipe: bool | None = Field(None, description="Переключение папок свайпом")
+    folder_swipe: bool | None = Field(None, description="Не применяется (свайп всегда включён)")
+    folder_names: bool | None = Field(None, description="Названия папок во «Все привычки»")
     show_todos: bool | None = Field(None, description="Вкладка «Задачи» (бета)")
     open_on_todos: bool | None = Field(None, description="Начинать с вкладки «Задачи»")
     todo_folder_swipe: bool | None = Field(None, description="Задачи: переключение свайпом")
@@ -616,6 +643,21 @@ class SyncNote(BaseModel):
     date: date
     # С запасом на пробелы, которые проверка уберёт (validation.validate_note).
     text: str = Field(..., max_length=NOTE_MAX_LENGTH * 2)
+
+
+class SyncDayOverride(BaseModel):
+    """Правка прошлого дня `date` привычки целиком (окно дня). Поле null — у дня своё;
+    все null и `description_set: false` — «Сбросить»: правки дня нет."""
+
+    type: Literal["day_override"]
+    task: TaskRef
+    date: date
+    name: str | None = Field(None, max_length=HABIT_NAME_MAX_LENGTH * 2)
+    description: str | None = Field(None, max_length=HABIT_DESCRIPTION_MAX_LENGTH * 2)
+    description_set: bool = False
+    frequency_type: Literal["daily", "specific_days", "every_other_day", "monthly"] | None = None
+    days: list[str] = Field(default_factory=list, max_length=7)
+    times_per_day: int | None = Field(None, ge=1, le=MAX_TIMES_PER_DAY)
 
 
 class SyncFreeze(BaseModel):
@@ -818,6 +860,7 @@ class SyncTodoFolderOrder(BaseModel):
 SyncOperation = Annotated[
     SyncMark
     | SyncNote
+    | SyncDayOverride
     | SyncFreeze
     | SyncArchive
     | SyncTimer
@@ -1902,6 +1945,26 @@ class ExportTodo(BaseModel):
     remind_time: str | None = None
 
 
+class TodoListFileTodo(BaseModel):
+    """Задача в файле одного списка."""
+
+    text: str = Field(..., max_length=TODO_TEXT_MAX_LENGTH * 2)
+    due_date: date | None = None
+    remind_time: str | None = None
+    done: bool = False
+
+
+class TodoListFile(BaseModel):
+    """Файл одного списка задач (бета): его строит приложение (data/todoListFile.ts), бот
+    присылает его в чат (POST /export/telegram/todo-list)."""
+
+    format: Literal["knot-todo-list"]
+    version: int = Field(..., ge=1)
+    name: str = Field(..., min_length=1, max_length=FOLDER_NAME_MAX_LENGTH * 2)
+    color: str | None = None
+    todos: list[TodoListFileTodo] = Field(default_factory=list, max_length=IMPORT_MAX_ROWS)
+
+
 class ExportSettings(BaseModel):
     """Settings; a missing value is left as it is on import."""
 
@@ -1915,6 +1978,7 @@ class ExportSettings(BaseModel):
     checkin_reminder_days: list[str] = Field(default_factory=list, max_length=7)
     telegram_notifications: bool | None = None
     folder_swipe: bool | None = None
+    folder_names: bool | None = None
     show_todos: bool | None = None
     open_on_todos: bool | None = None
     todo_folder_swipe: bool | None = None

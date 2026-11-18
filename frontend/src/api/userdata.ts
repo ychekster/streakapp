@@ -20,3 +20,8 @@ export async function sendExportToTelegram(): Promise<void> {
 export function importData(text: string): Promise<ImportResult> {
   return apiRequest<ImportResult>("/import", { method: "POST", body: text }, FILE_TIMEOUT_MS);
 }
+
+/** One todo list's file (data/todoListFile.ts), sent by the bot to the user's chat. */
+export async function sendTodoListToTelegram(text: string): Promise<void> {
+  await apiRequest<null>("/export/telegram/todo-list", { method: "POST", body: text }, FILE_TIMEOUT_MS);
+}

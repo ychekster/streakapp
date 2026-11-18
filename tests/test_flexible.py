@@ -209,3 +209,17 @@ def test_reminders_stop_once_the_goal_is_reached(db_url: str) -> None:
 
     assert asyncio.run(run()) == ["open"]
 
+
+
+@pytest.mark.parametrize("old_days", ["tue", "mon"])
+def test_switch_to_flexible_mid_week_counts_the_whole_week(old_days: str) -> None:
+    # По вторникам (или понедельникам), в понедельник отмечено, со среды — раз в неделю:
+    # понедельник идёт в цель этой недели, как бы ни был запланирован по прежнему графику.
+    task = _weekly(1)
+    wednesday = MONDAY + timedelta(days=2)
+    period = SimpleNamespace(
+        until=wednesday, frequency_type=FrequencyType.specific_days, days=old_days,
+        start_date=None, period=None, period_times=None,
+    )
+    streaks = flexible_streaks(task, {MONDAY}, wednesday, periods=[period])  # type: ignore[arg-type]
+    assert (streaks.current, streaks.best, streaks.period_done) == (1, 1, 1)

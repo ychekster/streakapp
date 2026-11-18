@@ -120,6 +120,11 @@ interface TodoRowProps {
    *  него подписи «Сегодня» / «Завтра», раньше него — просрочена (красная подпись). Не
    *  задан — сегодня. */
   markDay?: string;
+  /** Новая задача сверху (первой строкой блока): правка как до «Новые задачи: Снизу». Без
+   *  подстройки под клавиатуру (строка и так у верха), а сохраняется сразу: плашки убирает
+   *  плавный переезд строк экрана (todoMotion), а не своё сворачивание, которое у верха
+   *  дёргало строку. */
+  topDraft?: boolean;
 }
 
 function draftOf(todo: Todo): TodoDraft {
@@ -168,6 +173,7 @@ export function TodoRow({
   checkRight = false,
   lists,
   markDay = localDate(),
+  topDraft = false,
 }: TodoRowProps) {
   const strings = useStrings();
   const language = useLanguage();
@@ -213,7 +219,7 @@ export function TodoRow({
     const grown = lastHeight.current > 0 ? height - lastHeight.current : 0;
     lastHeight.current = height;
     const row = rowRef.current;
-    if (grown === 0 || !row) {
+    if (grown === 0 || !row || topDraft) {
       return;
     }
     const viewport = window.visualViewport;
@@ -222,7 +228,7 @@ export function TodoRow({
     if (row.getBoundingClientRect().bottom - grown > top + visible / 2) {
       window.scrollBy(0, grown);
     }
-  }, [editing, draft.text]);
+  }, [editing, draft.text, topDraft]);
 
   useEffect(() => {
     if (editing) {
@@ -239,7 +245,7 @@ export function TodoRow({
   // один раз, когда она остановилась.
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!editing || !viewport) {
+    if (!editing || !viewport || topDraft) {
       return undefined;
     }
     let timer: number | undefined;
@@ -263,7 +269,7 @@ export function TodoRow({
       window.clearTimeout(timer);
       viewport.removeEventListener("resize", onResize);
     };
-  }, [editing]);
+  }, [editing, topDraft]);
 
   const startEdit = (): void => {
     onEditStart?.();
@@ -291,6 +297,11 @@ export function TodoRow({
       closeEdit();
       onDelete();
       return false;
+    }
+    if (topDraft) {
+      closeEdit();
+      onSave({ ...latest.current, text });
+      return true;
     }
     editingRef.current = false;
     textRef.current?.blur();

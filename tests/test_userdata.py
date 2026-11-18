@@ -227,3 +227,25 @@ def test_export_by_the_bot(client: TestClient, user: AuthUser, telegram: FakeTel
     response = client.post("/export/telegram", headers=user.headers)
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "export_chat_unavailable"
+
+
+def test_todo_list_file_by_the_bot(client: TestClient, user: AuthUser, telegram: FakeTelegram) -> None:
+    file = {
+        "format": "knot-todo-list",
+        "version": 1,
+        "name": "Покупки",
+        "todos": [{"text": "Молоко", "due_date": "2026-11-18", "done": True}],
+    }
+    response = client.post("/export/telegram/todo-list", json=file, headers=user.headers)
+    assert response.status_code == 204, response.text
+    [sent] = telegram.sent
+    assert (sent.kind, sent.chat_id) == ("document", user.id)
+    assert sent.extra["filename"].startswith("knot-list-")
+    assert b'"knot-todo-list"' in sent.media and "Молоко".encode() in sent.media
+    assert "Покупки" in (sent.text or "")
+
+    response = client.post(
+        "/export/telegram/todo-list", json={"format": "knot-export"}, headers=user.headers
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_import_file"

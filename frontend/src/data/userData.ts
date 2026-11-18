@@ -78,7 +78,7 @@ export function prefetchExport(): void {
 
 /** The file for the system share sheet; null — no sheet for files here (or a computer:
  *  its share sheet is no way to keep a file). */
-function shareable({ name, text }: ExportFile): File | null {
+export function shareable({ name, text }: { name: string; text: string }): File | null {
   if (
     devicePlatform() === "desktop" ||
     typeof navigator.share !== "function" ||
@@ -92,7 +92,7 @@ function shareable({ name, text }: ExportFile): File | null {
 
 /** The system share sheet with the file. false — it could not open (not the user's tap
  *  any more): the file is handed over another way. Closed by the user — true. */
-async function shareSheet(file: File, title: string): Promise<boolean> {
+export async function shareSheet(file: File, title: string): Promise<boolean> {
   // As in groups.ts: the app dims behind the sheet on the iPhone (Android's dims it itself).
   const undim = devicePlatform() === "ios" ? dimScreen() : () => undefined;
   const forgetTap = onNextTap(undim);
@@ -107,7 +107,7 @@ async function shareSheet(file: File, title: string): Promise<boolean> {
   }
 }
 
-function download({ name, text }: ExportFile): void {
+export function download({ name, text }: { name: string; text: string }): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;

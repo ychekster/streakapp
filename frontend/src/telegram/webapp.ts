@@ -312,6 +312,14 @@ export function setBackButtonVisible(visible: boolean): void {
   }
 }
 
+/** Веб-приложение: слово вместо стрелки на кнопке «Назад» («Готово» в режиме порядка
+ *  вкладок); null — обычная круглая кнопка. В Telegram кнопка его, слова у неё нет. */
+export function setBackButtonLabel(label: string | null): void {
+  if (!isTelegramAvailable()) {
+    webChrome.setBackLabel(label);
+  }
+}
+
 /**
  * Подписаться на нажатие «Назад» (его же вызывает системный жест «назад» на Android).
  * Возвращает функцию отписки — её удобно вернуть из эффекта как cleanup.

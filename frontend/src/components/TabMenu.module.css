@@ -1,0 +1,90 @@
+/*
+ * Меню вкладки таблетки папок — как меню папки чатов Telegram на iOS 26 (скриншот-эталон):
+ * матовая карточка 26pt скругления, ряды 52pt, значок 24pt в 20pt от края, название 17pt
+ * в 54pt от края; черта перед «Изменить порядок» — во всю ширину с полями.
+ */
+
+/* Слой на весь экран: ловит нажатие мимо меню (оно только закрывает). Над нижней
+   навигацией и режимом порядка, под нижними окнами (BottomSheet, 40). */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.menu {
+  position: fixed;
+  min-width: 240px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 0;
+  border-radius: 26px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.16),
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  color: var(--color-text-primary);
+  /* До замера (TabMenu ставит место) невидимо и без анимации. */
+  visibility: hidden;
+}
+
+.placed {
+  visibility: visible;
+  animation: menu-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  height: 52px;
+  padding: 0 28px 0 20px;
+  color: inherit;
+  font-size: 17px;
+  text-align: left;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item:active {
+  background-color: var(--color-fill);
+}
+
+.icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.destructive {
+  color: var(--color-danger);
+}
+
+.separator {
+  height: 1px;
+  margin: 8px 20px;
+  background-color: var(--color-separator);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed {
+    animation: none;
+  }
+}

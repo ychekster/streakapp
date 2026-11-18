@@ -10,7 +10,8 @@
 
 Прошлые дни оцениваются по расписанию, которое действовало в тот день
 (`models.TaskSchedulePeriod`, см. `due_check_with_history`): смена расписания не
-переписывает прошлое.
+переписывает прошлое. Поправленный в окне дня день (`models.TaskDayOverride`) — по
+своей правке (`apply_overrides`).
 
 У «Гибкого графика» (`flexible`) дней нет — есть цель на период (`period_bounds`,
 `period_quota`): пока она не набрана, привычку можно отмечать в любой день, а пропущенный
@@ -22,8 +23,9 @@ from __future__ import annotations
 
 import calendar
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from backend.constants import WEEKDAYS
 from backend.models import FrequencyType
@@ -134,3 +136,73 @@ def schedule_at(task: Scheduled, periods: Sequence[SchedulePeriod]) -> Callable[
         return task
 
     return at
+
+
+class DayOverride(Protocol):
+    """Правка одного дня (models.TaskDayOverride): частота и цель — None, если своя."""
+
+    day: date
+    frequency_type: FrequencyType | None
+    days: str | None
+    start_date: date | None
+    times_per_day: int | None
+
+
+@dataclass(frozen=True)
+class DaySchedule:
+    """Расписание, собранное для правки дня: как TaskSchedulePeriod, но не из базы."""
+
+    until: date
+    frequency_type: FrequencyType
+    days: str | None
+    start_date: date | None
+    period: str | None
+    period_times: int | None
+    times_per_day: int
+    overtime: bool
+    goal_unit: str
+
+
+def _as_period(schedule: Any, until: date) -> DaySchedule:
+    return DaySchedule(
+        until=until,
+        frequency_type=schedule.frequency_type,
+        days=schedule.days,
+        start_date=schedule.start_date,
+        period=schedule.period,
+        period_times=schedule.period_times,
+        times_per_day=schedule.times_per_day,
+        overtime=getattr(schedule, "overtime", False),
+        goal_unit=getattr(schedule, "goal_unit", None) or "times",
+    )
+
+
+def apply_overrides(
+    task: Any, periods: Sequence[Any], overrides: Sequence[DayOverride]
+) -> list[Any]:
+    """Прежние расписания с правками дней (окно дня): поправленный день получает свой
+    период из одного дня — расписание того дня с частотой и целью из правки. Период, в
+    который он попал, делится на «до дня» и «после», поэтому все, кто читает расписание дня
+    по `periods` (schedule_at, due_check_with_history, goal_on), видят правку без перемен.
+    Правка без частоты и цели (только название) расписание не трогает."""
+    result: list[Any] = list(periods)
+    for override in sorted(overrides, key=lambda item: item.day):
+        if override.frequency_type is None and override.times_per_day is None:
+            continue
+        day = override.day
+        base = schedule_at(task, result)(day)
+        own = _as_period(base, day)
+        if override.frequency_type is not None:
+            own = replace(
+                own,
+                frequency_type=override.frequency_type,
+                days=override.days,
+                start_date=override.start_date,
+                period=None,
+                period_times=None,
+            )
+        if override.times_per_day is not None:
+            own = replace(own, times_per_day=override.times_per_day)
+        index = next((at for at, period in enumerate(result) if day < period.until), len(result))
+        result[index:index] = [_as_period(base, day), replace(own, until=day + timedelta(days=1))]
+    return result

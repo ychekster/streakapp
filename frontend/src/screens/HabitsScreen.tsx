@@ -1,16 +1,17 @@
 /** Экран «Привычки»: две секции (на день отметки — интерактивные, остальные — просмотр).
  *  Сам список — HabitsList: тот же, что показывает админ-панель. Если у пользователя есть
  *  папки, над списком — таблетка папок (FolderBar), и список показывает привычки
- *  выбранной (App отдаёт уже отобранные). С настройкой «Переключение свайпом» свайп по
- *  экрану справа налево — следующая папка (вкладка правее), слева направо — предыдущая; на
- *  крайней вкладке дальше не идёт. */
+ *  выбранной (App отдаёт уже отобранные); во «Все привычки» с «Названиями папок» —
+ *  блоками по папкам (`folderGroups`). Свайп по экрану справа налево — следующая папка
+ *  (вкладка правее), слева направо — предыдущая; на крайней вкладке дальше не идёт. */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
-import { FolderBar, type FolderTab } from "../components/FolderBar";
-import { HabitsList } from "../components/HabitsList";
+import { FolderBar, type FolderBarReorder, type FolderTab } from "../components/FolderBar";
+import { HabitsList, type HabitFolderGroup } from "../components/HabitsList";
 import { Screen } from "../components/Screen";
 import { Skeleton } from "../components/Skeleton";
+import { TabMenu, type TabMenuItem } from "../components/TabMenu";
 import { StatusMessage } from "../components/StatusMessage";
 import { useTimerScreenHabit } from "../components/TimerScreen";
 import { describeError } from "../errors";
@@ -29,8 +30,12 @@ export interface FolderBarState {
   inFolder: boolean;
   /** Выбрана рекомендуемая папка: у пустой — свои слова («Всё выполнено»). */
   kind: FolderKind | null;
-  /** «Переключение свайпом» включено. */
-  swipe: boolean;
+  /** «Названия папок» во «Все привычки»: блоки по папкам; null — одним блоком. */
+  groups: HabitFolderGroup[] | null;
+  /** Пункты меню вкладки (удержание вкладки). */
+  menuFor: (key: string) => TabMenuItem[];
+  /** Режим порядка вкладок; null — выключен. */
+  reorder: FolderBarReorder | null;
 }
 
 interface HabitsScreenProps {
@@ -77,13 +82,30 @@ export function HabitsScreen({
   // папку не листает.
   const timerScreenOpen = useTimerScreenHabit() !== null;
   useHorizontalSwipe(
-    folders?.swipe && status === "ready" && !timerScreenOpen ? switchFolder : null,
+    folders && !folders.reorder && status === "ready" && !timerScreenOpen ? switchFolder : null,
   );
+  // Открытое меню вкладки: какой и где она на экране.
+  const [menu, setMenu] = useState<{ key: string; anchor: DOMRect } | null>(null);
 
   return (
     <Screen title={strings.screenTitle}>
       {folders && status === "ready" ? (
-        <FolderBar tabs={folders.tabs} active={folders.active} onSelect={folders.onSelect} />
+        <FolderBar
+          tabs={folders.tabs}
+          active={folders.active}
+          onSelect={folders.onSelect}
+          onHold={(key, anchor) => setMenu({ key, anchor })}
+          reorder={folders.reorder}
+          menu={
+            menu ? (
+              <TabMenu
+                anchor={menu.anchor}
+                items={folders.menuFor(menu.key)}
+                onClose={() => setMenu(null)}
+              />
+            ) : null
+          }
+        />
       ) : null}
       {renderContent()}
     </Screen>
@@ -138,6 +160,7 @@ export function HabitsScreen({
         interactive
         onToggle={onToggle}
         onOpen={onOpen}
+        folderGroups={folders?.groups ?? null}
       />
     );
   }

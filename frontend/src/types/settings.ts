@@ -35,9 +35,12 @@ export interface Settings {
   checkin_reminder_days: string[];
   /** «Уведомления» в Mini App: бот присылает напоминания и рассылки в Telegram. */
   telegram_notifications: boolean;
-  /** «Переключение свайпом» (Настройки → «Папки»): свайп по списку привычек — соседняя
-   *  папка. Нет в настройках, сохранённых на устройстве до неё: включено, как у новых. */
+  /** Больше не применяется: свайп между папками привычек всегда включён (осталось ради
+   *  старых версий приложения). */
   folder_swipe?: boolean;
+  /** «Названия папок» (Настройки → «Папки»): во «Все привычки» привычки блоками по папкам
+   *  с их названиями. Нет в настройках, сохранённых на устройстве до неё: выключено. */
+  folder_names?: boolean;
   /** «Задачи (бета)»: вкладка «Задачи» перед «Привычками». Нет в настройках, сохранённых
    *  на устройстве до неё: выключено. */
   show_todos?: boolean;
@@ -73,6 +76,7 @@ export interface SettingsUpdate {
   checkin_reminder?: CheckinReminder;
   telegram_notifications?: boolean;
   folder_swipe?: boolean;
+  folder_names?: boolean;
   show_todos?: boolean;
   open_on_todos?: boolean;
   todo_folder_swipe?: boolean;

@@ -49,18 +49,29 @@ import {
 } from "react";
 
 import { FolderBar, type FolderTab } from "../components/FolderBar";
+import {
+  DeleteMenuIcon,
+  EditMenuIcon,
+  ExportMenuIcon,
+  ImportMenuIcon,
+  ReorderMenuIcon,
+  TabMenu,
+  type TabMenuItem,
+} from "../components/TabMenu";
 import { Card, Section } from "../components/Section";
 import { Screen } from "../components/Screen";
 import { StatusMessage } from "../components/StatusMessage";
 import { localDate } from "../components/DateField";
 import { TodoRow, type TodoDraft } from "../components/TodoRow";
+import { inTodoKind } from "../data/derive";
 import { dataStore } from "../data/store";
+import { exportTodoList, importTodoList } from "../data/todoListFile";
 import { describeError } from "../errors";
 import { useAppData } from "../hooks/useAppData";
 import { useHorizontalSwipe, type SwipeDirection } from "../hooks/useHorizontalSwipe";
 import { useStrings } from "../preferences";
-import { hapticImpact, showAlert } from "../telegram/webapp";
-import type { Todo, TodoFolder, TodoFolderKind } from "../types/todo";
+import { confirmAction, hapticImpact, hapticNotification, showAlert } from "../telegram/webapp";
+import type { Todo, TodoFolder } from "../types/todo";
 import formStyles from "./HabitFormScreen.module.css";
 import { playMotion, takeSnapshot, type MotionSnapshot } from "./todoMotion";
 import styles from "./TodosScreen.module.css";
@@ -109,7 +120,7 @@ export function todoListCount(list: TodoFolder, todos: Todo[], markYesterday: bo
   }
   const kind = list.kind;
   const today = markYesterday ? localDate(-1) : localDate();
-  return todos.filter((todo) => todo.done_at === null && inKind(kind, todo, today)).length;
+  return todos.filter((todo) => todo.done_at === null && inTodoKind(kind, todo, today)).length;
 }
 
 /** Карандаш: новая пустая задача первой строкой списка выбранной папки. */
@@ -118,7 +129,15 @@ export function startNewTodo(): void {
   openDraft?.();
 }
 
-export function TodosScreen() {
+interface TodosScreenProps {
+  /** «Изменить список» в меню вкладки: форма списка в настройках. */
+  onEditList: (list: TodoFolder) => void;
+  /** Режим порядка вкладок (App: «Готово» / «Назад» его заканчивают). */
+  reordering: boolean;
+  onReorder: (on: boolean) => void;
+}
+
+export function TodosScreen({ onEditList, reordering, onReorder }: TodosScreenProps) {
   const strings = useStrings();
   const { todos, todoFolders, todoAllPosition, settings } = useAppData();
   const checksRight = settings?.todo_checks_right ?? false;
@@ -179,7 +198,9 @@ export function TodosScreen() {
       setActive(next);
     }
   }, []);
-  useHorizontalSwipe(draft === null && !showingRest ? switchList : null);
+  useHorizontalSwipe(draft === null && !showingRest && !reordering ? switchList : null);
+  // Открытое меню вкладки (удержание): какой и где она на экране.
+  const [menu, setMenu] = useState<{ key: string; anchor: DOMRect } | null>(null);
 
   // Приложение свернули (или ушли из вкладки браузера): по возвращении — новый заход.
   // Счётчик растёт, пока экран скрыт, — к возвращению список уже на своих местах.
@@ -256,7 +277,7 @@ export function TodosScreen() {
   const { groups, later, doneToday, done, restNow } = useMemo(() => {
     const byWhen = (a: Todo, b: Todo): number => compareWhen(a, b, newBottom);
     const inView = (todo: Todo): boolean =>
-      kind ? inKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
+      kind ? inTodoKind(kind, todo, today) : shownFolder === null || todo.folder === shownFolder;
     const isLater = (todo: Todo): boolean => (todo.due_date ?? "") > today;
     const fresh = (todo: Todo): boolean => added.includes(todo.id);
     // «На сегодня» — без будущих, но выполненные сегодняшние на экране остальных есть.
@@ -449,6 +470,30 @@ export function TodosScreen() {
               hapticImpact("light");
               setActive(key === "all" ? null : Number(key));
             }}
+            onHold={(key, anchor) => setMenu({ key, anchor })}
+            reorder={
+              reordering
+                ? {
+                    onOrder: (keys) => {
+                      // Открытый список остаётся открытым, даже если первым встал другой.
+                      setActive(shownFolder);
+                      dataStore.orderTodoFolders(
+                        keys.map((key) => (key === "all" ? null : Number(key))),
+                      );
+                    },
+                    onDone: () => onReorder(false),
+                  }
+                : null
+            }
+            menu={
+              menu ? (
+                <TabMenu
+                  anchor={menu.anchor}
+                  items={listMenu(menu.key)}
+                  onClose={() => setMenu(null)}
+                />
+              ) : null
+            }
           />
         ) : null}
         {nowEmpty ? (
@@ -483,6 +528,7 @@ export function TodosScreen() {
                     due_date: newDate ?? null,
                   }}
                   startEditing
+                  topDraft={!newBottom}
                   checkRight={checksRight}
                   lists={lists}
                   markDay={today}
@@ -521,6 +567,75 @@ export function TodosScreen() {
       />
     </Screen>
   );
+
+  /** Удалить список (пункт меню вкладки) — с подтверждением. Задачи
+   *  остаются во «Все задачи». */
+  async function removeList(list: TodoFolder): Promise<void> {
+    const confirmed = await confirmAction({
+      title: strings.todoListDeleteTitle,
+      message: strings.todoListDeleteMessage(list.name),
+      confirmLabel: strings.folderDeleteConfirm,
+      cancelLabel: strings.folderDeleteCancel,
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    hapticNotification("success");
+    dataStore.deleteTodoFolder(list.id);
+    if (shownFolder === list.id) {
+      setActive(null);
+    }
+    if (todoFolders.length <= 1) {
+      onReorder(false);
+    }
+  }
+
+  /** Меню вкладки (удержание): изменить, экспорт, импорт, удалить, порядок. У «Все
+   *  задачи» — экспорт, импорт (без списка) и порядок. */
+  function listMenu(key: string): TabMenuItem[] {
+    const list = key === "all" ? null : (todoFolders.find((item) => String(item.id) === key) ?? null);
+    const items: TabMenuItem[] = [];
+    if (list) {
+      items.push({
+        key: "edit",
+        label: strings.todoListMenuEdit,
+        icon: <EditMenuIcon />,
+        onSelect: () => onEditList(list),
+      });
+    }
+    items.push(
+      {
+        key: "export",
+        label: strings.todoListMenuExport,
+        icon: <ExportMenuIcon />,
+        onSelect: () => void exportTodoList(list, strings),
+      },
+      {
+        key: "import",
+        label: strings.todoListMenuImport,
+        icon: <ImportMenuIcon />,
+        onSelect: () => importTodoList(list, strings),
+      },
+    );
+    if (list) {
+      items.push({
+        key: "delete",
+        label: strings.todoListDelete,
+        icon: <DeleteMenuIcon />,
+        destructive: true,
+        onSelect: () => void removeList(list),
+      });
+    }
+    items.push({
+      key: "reorder",
+      label: strings.tabMenuReorder,
+      icon: <ReorderMenuIcon />,
+      separated: true,
+      onSelect: () => onReorder(true),
+    });
+    return items;
+  }
 
   function renderRow(todo: Todo) {
     return (
@@ -579,12 +694,3 @@ function laterIfMissing(a: string | null, b: string | null): number {
   return a.localeCompare(b);
 }
 
-/** Задача в рекомендуемом списке `kind` (`today` — день устройства «ГГГГ-ММ-ДД»). */
-function inKind(kind: TodoFolderKind, todo: Todo, today: string): boolean {
-  const date = todo.due_date ?? null;
-  if (kind === "due_today") {
-    // Ровно на сегодня: ни просроченных, ни без даты.
-    return date === today;
-  }
-  return kind === "scheduled" ? date !== null : date === null;
-}

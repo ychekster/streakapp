@@ -13,12 +13,15 @@ export interface ChromeSnapshot {
   backVisible: boolean;
   /** Bumped by every new back handler — each screen level registers its own (WebChrome). */
   backKey: number;
+  /** A word instead of the chevron («Готово» in the folder tabs' reorder mode); null —
+   *  the usual round back button. */
+  backLabel: string | null;
   main: MainButtonState | null;
 }
 
 type Handler = () => void;
 
-let snapshot: ChromeSnapshot = { backVisible: false, backKey: 0, main: null };
+let snapshot: ChromeSnapshot = { backVisible: false, backKey: 0, backLabel: null, main: null };
 const listeners = new Set<Handler>();
 const backHandlers = new Set<Handler>();
 const mainHandlers = new Set<Handler>();
@@ -39,6 +42,11 @@ export const webChrome = {
   setBackVisible(visible: boolean): void {
     if (snapshot.backVisible !== visible) {
       update({ backVisible: visible });
+    }
+  },
+  setBackLabel(label: string | null): void {
+    if (snapshot.backLabel !== label) {
+      update({ backLabel: label });
     }
   },
   onBack(handler: Handler): () => void {
@@ -63,3 +71,12 @@ export const webChrome = {
     mainHandlers.forEach((handler) => handler());
   },
 };
+
+/** Event that asks the web app's top edge strip to be put in anew (WebChrome TopEdge). */
+export const TOP_EDGE_REFRESH = "knot:top-edge";
+
+/** A sheet over the page just went away: the top edge strip is put in anew, so iOS looks
+ *  for it again (WebChrome TopEdge). Nothing listens outside the web app. */
+export function refreshTopEdge(): void {
+  window.dispatchEvent(new Event(TOP_EDGE_REFRESH));
+}

@@ -8,12 +8,12 @@
  * Mini App too (App), so both look the same there; the back button stays Telegram's.
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { useTextFieldFocused } from "../hooks/useTextFieldFocused";
 import { devicePlatform } from "../platform";
 import { useStrings } from "../preferences";
-import { webChrome } from "./chrome";
+import { TOP_EDGE_REFRESH as REFRESH_EVENT, webChrome } from "./chrome";
 import { ScrollIndicator } from "./ScrollIndicator";
 import styles from "./WebChrome.module.css";
 
@@ -62,9 +62,54 @@ function syncHistory(backVisible: boolean): void {
   }
 }
 
+/** After the keyboard, a sheet or a screen change settles (ms). */
+const SETTLE_MS = 350;
+
+/*
+ * The strip that keeps iOS 26 from drawing its scroll edge haze (see .topEdge). WebKit
+ * looks for it once and keeps the answer: when it missed the strip for a moment (a sheet's
+ * backdrop over it, the keyboard moving the visible area), the haze stayed until the app
+ * was opened again. So the strip is put in anew whenever such a moment is over: the app
+ * comes back, the keyboard closes, a sheet goes away, another screen opens. A new box
+ * makes WebKit look again.
+ */
+function TopEdge({ refreshKey }: { refreshKey: number | string }) {
+  const [generation, setGeneration] = useState(0);
+  useEffect(() => {
+    let timer: number | undefined;
+    const refresh = (): void => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setGeneration((value) => value + 1), SETTLE_MS);
+    };
+    const onVisibility = (): void => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    const viewport = window.visualViewport;
+    window.addEventListener(REFRESH_EVENT, refresh);
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener("focusout", refresh);
+    viewport?.addEventListener("resize", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(REFRESH_EVENT, refresh);
+      window.removeEventListener("pageshow", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("focusout", refresh);
+      viewport?.removeEventListener("resize", refresh);
+    };
+  }, []);
+  return <div key={`${refreshKey}:${generation}`} className={styles.topEdge} aria-hidden="true" />;
+}
+
 export function WebChrome() {
   const strings = useStrings();
-  const { backVisible, backKey } = useSyncExternalStore(webChrome.subscribe, webChrome.getSnapshot);
+  const { backVisible, backKey, backLabel } = useSyncExternalStore(
+    webChrome.subscribe,
+    webChrome.getSnapshot,
+  );
 
   // Browser history (see USE_HISTORY): kept in step with the back target — re-checked
   // with every new screen level (backKey).
@@ -85,9 +130,18 @@ export function WebChrome() {
     <>
       {/* Invisible fixed strip on the top edge: keeps iOS from drawing its scroll edge
           haze over the top of the installed app (see .topEdge). */}
-      <div className={styles.topEdge} aria-hidden="true" />
+      <TopEdge refreshKey={backKey} />
       <ScrollIndicator />
-      {backVisible ? (
+      {backVisible && backLabel ? (
+        // A word instead of the chevron: a glass pill of the same height («Готово»).
+        <button
+          type="button"
+          className={`${styles.back} ${styles.backLabel}`}
+          onClick={() => webChrome.pressBack()}
+        >
+          {backLabel}
+        </button>
+      ) : backVisible ? (
         <button
           type="button"
           className={styles.back}

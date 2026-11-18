@@ -216,6 +216,7 @@ async def build_export(repo: Repository, user: User) -> DataExport:
             checkin_reminder_days=_days(user.checkin_reminder_days),
             telegram_notifications=user.telegram_notifications,
             folder_swipe=user.folder_swipe,
+            folder_names=user.folder_names,
             show_todos=user.show_todos,
             open_on_todos=user.open_on_todos,
             todo_folder_swipe=user.todo_folder_swipe,
@@ -234,6 +235,24 @@ async def build_export(repo: Repository, user: User) -> DataExport:
 
 def caption(user: User) -> str:
     return EXPORT_CAPTIONS.get(user.language, EXPORT_CAPTIONS[DEFAULT_LANGUAGE])
+
+
+# Подпись к файлу одного списка задач (бета).
+TODO_LIST_CAPTIONS: dict[str, str] = {
+    "ru": "Список задач «{name}». Чтобы добавить его задачи, удержите список на вкладке "
+    "«Задачи» и выберите «Импортировать».",
+    "en": "Task list “{name}”. To add its tasks, hold a list on the Tasks tab and choose "
+    "“Import”.",
+}
+
+
+def todo_list_caption(user: User, name: str) -> str:
+    text = TODO_LIST_CAPTIONS.get(user.language, TODO_LIST_CAPTIONS[DEFAULT_LANGUAGE])
+    return text.format(name=name)
+
+
+def todo_list_file_name(today: date) -> str:
+    return f"knot-list-{today.isoformat()}.json"
 
 
 # --------------------------------------------------------------------------- #
@@ -426,6 +445,7 @@ async def _import_settings(repo: Repository, user: User, settings: ExportSetting
         checkin_reminder=reminder,
         telegram_notifications=settings.telegram_notifications,
         folder_swipe=settings.folder_swipe,
+        folder_names=settings.folder_names,
         show_todos=settings.show_todos,
         open_on_todos=settings.open_on_todos,
         todo_folder_swipe=settings.todo_folder_swipe,

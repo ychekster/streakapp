@@ -11,9 +11,11 @@ import type { Settings } from "../types/settings";
 import { addDays, markingDay, weekdayIndex } from "./dates";
 import {
   cleanHabitName,
+  countedDays,
   deriveView,
   goalOn,
   groupFill,
+  isDueOnDay,
   isDueOn,
   isShared,
   myDay,
@@ -636,6 +638,26 @@ describe("schedule history", () => {
   });
 });
 
+describe("day overrides", () => {
+  it("judges an overridden day by its own frequency and goal", () => {
+    const schedule = {
+      frequency_type: "specific_days" as const,
+      days: ["mon"],
+      start_date: null,
+      times_per_day: 1,
+      day_overrides: [
+        { date: "2026-10-01", frequency_type: "daily" as const, days: [] },
+        { date: "2026-10-02", times_per_day: 3 },
+      ],
+    };
+    // Thursday 1 October is due by its override, Friday the 2nd keeps its own frequency.
+    expect(isDueOnDay(schedule, "2026-10-01")).toBe(true);
+    expect(isDueOnDay(schedule, "2026-10-02")).toBe(false);
+    expect(goalOn(schedule, "2026-10-02").goal).toBe(3);
+    expect(goalOn(schedule, "2026-10-03").goal).toBe(1);
+  });
+});
+
 describe("name history", () => {
   const update = (name: string, description?: string): Operation => ({
     type: "update",
@@ -857,6 +879,21 @@ describe("flexible schedule", () => {
     expect(periodBounds("year", TODAY)).toEqual(["2026-01-01", "2026-12-31"]);
     expect(periodQuota(31, "2026-02-01", "2026-02-28")).toBe(28);
     expect(isDueOn({ ...flexible("week", 3), days: [], start_date: null }, TODAY)).toBe(false);
+  });
+
+  it("counts a whole week switched to it midweek", () => {
+    // Tuesdays until Wednesday, then once a week: Monday's mark is the week's goal.
+    const schedule = {
+      ...flexible("week", 1),
+      days: [],
+      start_date: null,
+      times_per_day: 1,
+      schedule_history: [
+        { until: "2026-10-07", frequency_type: "specific_days" as const, days: ["tue"], start_date: null, times_per_day: 1 },
+      ],
+    };
+    const counted = countedDays(schedule, TODAY, "2026-10-08", (day) => day === TODAY, () => false);
+    expect([...counted]).toEqual([TODAY]);
   });
 
   it("adds the current period to the streak once its goal is reached", () => {
