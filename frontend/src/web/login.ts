@@ -110,7 +110,7 @@ export function prepareTelegramBotLogin(): void {
 
 /** Open the bot with the login code: `tg://`, and t.me only if the page never left the
  *  screen (no Telegram app). */
-function openTelegram(login: { appUrl: string; webUrl: string }): void {
+export function openTelegram(login: { appUrl: string; webUrl: string }): void {
   let left = false;
   const leave = (): void => {
     left = true;

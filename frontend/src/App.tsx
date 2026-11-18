@@ -115,6 +115,7 @@ import { FoldersScreen, HABIT_FOLDERS, habitFoldersTexts } from "./screens/Folde
 import type { FolderBarState } from "./screens/HabitsScreen";
 import { SettingsScreen, type SettingsPage } from "./screens/SettingsScreen";
 import { AdminDeviceScreen } from "./screens/AdminDeviceScreen";
+import { AiConnectScreen } from "./screens/AiConnectScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
 import {
   closeTodoRest,
@@ -1429,6 +1430,9 @@ export function App() {
       }
       if (settingsPage === "adminDevice") {
         return <AdminDeviceScreen onAllowed={enterAllowedAdmin} />;
+      }
+      if (settingsPage === "ai") {
+        return <AiConnectScreen />;
       }
       return (
         <SettingsScreen

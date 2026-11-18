@@ -43,6 +43,7 @@ from backend.constants import (
 from backend.models import (
     ActivityLog,
     Admin,
+    AiConnection,
     AppConfig,
     AuthCode,
     Broadcast,
@@ -56,6 +57,7 @@ from backend.models import (
     HabitGroupMember,
     HabitGroupMark,
     HabitGroupPeriod,
+    OAuthClient,
     PushSubscription,
     Review,
     RunningTimer,
@@ -569,10 +571,11 @@ class Repository:
 
     async def set_blocked(self, user: User, blocked: bool) -> None:
         """Заблокировать пользователя (или снять блокировку) по решению администратора.
-        Блокировка завершает и все его сессии веб-приложения."""
+        Блокировка завершает и все его сессии веб-приложения и подключения ИИ."""
         user.blocked_at = utc_now() if blocked else None
         if blocked:
             await self.delete_user_sessions(user.telegram_id)
+            await self.delete_ai_connections(user.telegram_id)
         await self.session.flush()
 
     async def delete_user(self, telegram_id: int) -> None:
@@ -600,6 +603,7 @@ class Repository:
             ActivityLog,
             WebSession,
             PushSubscription,
+            AiConnection,
         ):
             await self.session.execute(delete(model).where(model.user_id == telegram_id))
         await self.session.execute(delete(User).where(User.telegram_id == telegram_id))
@@ -2084,6 +2088,38 @@ class Repository:
     #  Analytics: what is read (backend/analytics/)
     # ------------------------------------------------------------------ #
 
+    async def feature_users(self) -> dict[str, set[int]]:
+        """Who uses which feature (the AI's «admin_feature_usage»): feature → user ids.
+        Habits count only while they exist (not deleted)."""
+        live_task = Task.is_active.is_(True)
+        queries = {
+            "todos": select(Todo.user_id),
+            "todos_tab": select(User.telegram_id).where(User.show_todos.is_(True)),
+            "todo_lists": select(TodoFolder.user_id),
+            "habit_folders": select(Folder.user_id),
+            "timer_goal": select(Task.user_id).where(live_task, Task.goal_unit == "seconds"),
+            "several_times_a_day": select(Task.user_id).where(
+                live_task, Task.goal_unit != "seconds", Task.times_per_day > 1
+            ),
+            "flexible_schedule": select(Task.user_id).where(
+                live_task, Task.frequency_type == FrequencyType.flexible
+            ),
+            "archive": select(Task.user_id).where(live_task, Task.archived_at.is_not(None)),
+            "freeze": select(Task.user_id).where(live_task, Task.frozen_since.is_not(None)),
+            "auto_mark": select(Task.user_id).where(live_task, Task.auto_mark.is_(True)),
+            "day_notes": select(DayNote.user_id),
+            "shared_habits": select(HabitGroupMember.user_id).where(
+                HabitGroupMember.active.is_(True)
+            ),
+            "ai_connector": select(AiConnection.user_id).where(
+                AiConnection.refresh_hash.is_not(None)
+            ),
+        }
+        found: dict[str, set[int]] = {}
+        for feature, query in queries.items():
+            found[feature] = set(await self.session.scalars(query.distinct()))
+        return found
+
     async def analytics_users(self) -> list[Any]:
         """Все пользователи — колонки, которые нужны аналитике, и признак администратора."""
         is_admin = exists().where(Admin.telegram_id == User.telegram_id)
@@ -2552,7 +2588,7 @@ class Repository:
             Task, TaskLog, TaskFreeze, TaskSchedulePeriod, TaskNamePeriod, TaskReminder, Folder,
             Review,
             WebSession, PushSubscription, Event, ActivityLog, DayNote, TaskDayOverride, Todo,
-            TodoFolder,
+            TodoFolder, AiConnection,
         ):
             await self.session.execute(
                 update(model)
@@ -2737,6 +2773,139 @@ class Repository:
         )
         code.used_at = now
         return result.rowcount > 0
+
+    # ------------------------------------------------------------------ #
+    #  «Подключить ИИ»: OAuth clients and connections (backend/oauth.py)
+    # ------------------------------------------------------------------ #
+
+    async def create_oauth_client(
+        self, client_id: str, client_name: str, redirect_uris: list[str], now: datetime
+    ) -> OAuthClient:
+        """Register an AI app (dynamic client registration)."""
+        client = OAuthClient(
+            client_id=client_id,
+            client_name=client_name,
+            redirect_uris=redirect_uris,
+            created_at=now,
+        )
+        self.session.add(client)
+        await self.session.flush()
+        return client
+
+    async def get_oauth_client(self, client_id: str) -> OAuthClient | None:
+        return await self.session.scalar(
+            select(OAuthClient).where(OAuthClient.client_id == client_id)
+        )
+
+    async def create_ai_connection(
+        self, user_id: int, client_id: str, client_name: str, now: datetime
+    ) -> AiConnection:
+        """A connection allowed on «Разрешить»; its tokens come when the code is redeemed."""
+        connection = AiConnection(
+            user_id=user_id, client_id=client_id, client_name=client_name, created_at=now
+        )
+        self.session.add(connection)
+        await self.session.flush()
+        return connection
+
+    async def get_ai_connection(self, connection_id: int) -> AiConnection | None:
+        return await self.session.get(AiConnection, connection_id)
+
+    async def ai_connection_by_access(self, access_hash: str, now: datetime) -> AiConnection | None:
+        """The connection of a live access token."""
+        return await self.session.scalar(
+            select(AiConnection).where(
+                AiConnection.access_hash == access_hash, AiConnection.access_expires_at > now
+            )
+        )
+
+    async def ai_connection_by_refresh(self, refresh_hash: str, now: datetime) -> AiConnection | None:
+        """The connection of a live refresh token."""
+        return await self.session.scalar(
+            select(AiConnection).where(
+                AiConnection.refresh_hash == refresh_hash, AiConnection.refresh_expires_at > now
+            )
+        )
+
+    async def set_ai_tokens(
+        self,
+        connection: AiConnection,
+        access_hash: str,
+        access_expires_at: datetime,
+        refresh_hash: str,
+        refresh_expires_at: datetime,
+        expected_refresh: str | None,
+    ) -> bool:
+        """Give the connection a new token pair, only if its refresh token is still
+        `expected_refresh` (compare-and-set: two refreshes at once, one wins). False: it
+        changed meanwhile."""
+        unchanged = (
+            AiConnection.refresh_hash.is_(None)
+            if expected_refresh is None
+            else AiConnection.refresh_hash == expected_refresh
+        )
+        result = await self.session.execute(
+            update(AiConnection)
+            .where(AiConnection.id == connection.id, unchanged)
+            .values(
+                access_hash=access_hash,
+                access_expires_at=access_expires_at,
+                refresh_hash=refresh_hash,
+                refresh_expires_at=refresh_expires_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        connection.access_hash = access_hash
+        connection.access_expires_at = access_expires_at
+        connection.refresh_hash = refresh_hash
+        connection.refresh_expires_at = refresh_expires_at
+        return result.rowcount > 0
+
+    async def list_ai_connections(self, user_id: int, now: datetime) -> list[AiConnection]:
+        """The user's working connections (the AI got its tokens and can still refresh
+        them), newest first. Abandoned ones (code never redeemed, refresh expired) are
+        cleaned up on the way."""
+        await self.session.execute(
+            delete(AiConnection).where(
+                AiConnection.user_id == user_id,
+                (AiConnection.refresh_expires_at <= now)
+                | (
+                    AiConnection.refresh_hash.is_(None)
+                    & (AiConnection.created_at < now - timedelta(days=1))
+                ),
+            )
+        )
+        result = await self.session.scalars(
+            select(AiConnection)
+            .where(AiConnection.user_id == user_id, AiConnection.refresh_hash.is_not(None))
+            .order_by(AiConnection.created_at.desc(), AiConnection.id.desc())
+        )
+        return list(result)
+
+    async def delete_ai_connection(self, user_id: int, connection_id: int) -> bool:
+        """«Отключить»: False, if the user has no such connection."""
+        result = await self.session.execute(
+            delete(AiConnection).where(
+                AiConnection.id == connection_id, AiConnection.user_id == user_id
+            )
+        )
+        return result.rowcount > 0
+
+    async def delete_other_ai_connections(
+        self, user_id: int, client_name: str, keep_id: int
+    ) -> None:
+        """The user's other connections of the AI app with this name (connected again)."""
+        await self.session.execute(
+            delete(AiConnection).where(
+                AiConnection.user_id == user_id,
+                AiConnection.client_name == client_name,
+                AiConnection.id != keep_id,
+            )
+        )
+
+    async def delete_ai_connections(self, user_id: int) -> None:
+        """Every connection of the account ends (blocked by the administrator)."""
+        await self.session.execute(delete(AiConnection).where(AiConnection.user_id == user_id))
 
     # ------------------------------------------------------------------ #
     #  Web app: push subscriptions

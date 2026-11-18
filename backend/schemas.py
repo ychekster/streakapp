@@ -2031,3 +2031,77 @@ class ImportResult(BaseModel):
     habits: int
     folders: int
     todos: int = 0
+
+
+# --------------------------------------------------------------------------- #
+#  «Подключить ИИ»: the consent page (/connect) and Settings (backend/oauth.py)
+# --------------------------------------------------------------------------- #
+
+
+class OAuthClientInfo(BaseModel):
+    """GET /oauth/client: which AI asks for access, to show on the consent page."""
+
+    name: str = Field(..., description="Name the AI app registered with (Claude, ChatGPT…)")
+    redirect_host: str = Field(..., description="Where the answer goes back to (claude.ai…)")
+
+
+class OAuthLoginStartRequest(BaseModel):
+    """POST /oauth/login/start: which AI is being connected (the bot names it)."""
+
+    client_id: str = Field(..., max_length=64)
+    redirect_uri: str = Field(..., max_length=500)
+
+
+class OAuthLoginStart(BaseModel):
+    """POST /oauth/login/start: open the bot with this code, then poll."""
+
+    code: str
+    app_url: str = Field(..., description="tg://resolve?domain=<bot>&start=login_<code>")
+    web_url: str = Field(..., description="https://t.me/<bot>?start=login_<code>")
+    expires_in: int
+
+
+class OAuthLoginPoll(BaseModel):
+    """POST /oauth/login/poll: pending until confirmed in the bot; then a consent ticket."""
+
+    status: Literal["pending", "done"]
+    ticket: str | None = Field(None, description="For POST /oauth/approve (minutes)")
+    name: str | None = Field(None, description="Who logged in (Telegram name)")
+    is_admin: bool = Field(False, description="May ask for app statistics")
+
+
+class OAuthApproveRequest(BaseModel):
+    """POST /oauth/approve: «Разрешить» on the consent page."""
+
+    ticket: str = Field(..., max_length=128)
+    client_id: str = Field(..., max_length=64)
+    redirect_uri: str = Field(..., max_length=500)
+    code_challenge: str = Field(..., min_length=43, max_length=128)
+    state: str | None = Field(None, max_length=500)
+    admin: bool = Field(False, description="The administrator asks for app statistics too")
+
+
+class OAuthApproveResponse(BaseModel):
+    """Where to send the browser: back to the AI with the code."""
+
+    redirect: str
+    admin_pending: bool = Field(
+        False, description="Statistics wait for «Разрешить» under the bot's message"
+    )
+
+
+class AiConnectionView(BaseModel):
+    """One connected AI in Settings → «Подключить ИИ»."""
+
+    id: int
+    client_name: str
+    created_at: UtcDateTime
+    last_used_at: UtcDateTime | None = None
+    admin: bool = Field(False, description="Statistics allowed (administrator)")
+
+
+class AiConnectionsResponse(BaseModel):
+    """GET /ai/connections: the address to paste into the AI and the connections."""
+
+    mcp_url: str
+    connections: list[AiConnectionView]

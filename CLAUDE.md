@@ -18,9 +18,12 @@ backend/            FastAPI app + the data layer for everything (bot imports it 
   schemas.py        API contract (mirrored by frontend/src/types/*)
   dependencies.py   auth (tma initData | Bearer web session), DB session, current user
   routers/          sync (the app's changes, batched), tasks, settings, meta, reviews, admin,
-                    auth (web logins), web (push, events), groups, userdata (export/import)
+                    auth (web logins), web (push, events), groups, userdata (export/import),
+                    oauth (AI apps: /oauth/*, /.well-known, /ai/connections), mcp (/mcp)
   accounts.py webauth.py webpush.py funnel.py   web app: accounts/sessions, Telegram login, push, funnel
   userdata.py       «Экспорт данных» / «Импорт данных»: everything about the user as one JSON file
+  oauth.py mcp.py   «Подключить ИИ»: OAuth for AI apps (login via the bot), MCP endpoint;
+  ai_tools.py ai_admin_tools.py   what Claude/ChatGPT may do (habits, todos; admin statistics)
   admin.py audience.py messaging.py   admin panel logic, bot messages from the API
   analytics/        admin analytics: data.py (terms, dataset), report.py (sections),
                     overview.py, completion.py, people.py (people behind a number), profile.py,
@@ -31,7 +34,7 @@ bot/                main.py (entry), reminders.py, broadcasts.py, pacing.py, con
                     profiles.py (shared habits: members' names and photos)
   handlers/         start.py (/start), web_login.py (/start login_<code>), membership.py,
                     admin_device.py (web admin panel: «Разрешить» for a device),
-                    group_invite.py (/start join_<code>)
+                    group_invite.py (/start join_<code>), ai_admin.py (AI statistics: «Разрешить»)
 frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/main.tsx      picks the mode: Telegram → App | installed PWA → App | else → landing/
   src/App.tsx       app shell: tabs, screen stack, BackButton/MainButton, admin mode (lazy)
@@ -41,16 +44,17 @@ frontend/           React + TS + Vite; vite-plugin-pwa (src/sw.ts)
   src/admin/        admin panel: AdminApp, screens/, components/ (charts, filters), adminStrings
   src/web/          PWA only: session, login, push, analytics, WebChrome
   src/landing/      install page (config.ts: steps, in-app browsers)
+  src/connect/      «Подключить ИИ» consent page at /connect (an AI app opens it to log in)
   src/api/ types/   HTTP client + typed requests per API section; types mirror backend schemas
   src/telegram/webapp.ts  window.Telegram.WebApp wrapper
   src/platform.ts   the ONLY place that decides telegram vs web / installed / device
   src/strings.ts    all app copy, ru + en          src/styles/variables.css  design tokens, dark theme
-alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0050)
+alembic/versions/   migrations <date>_<NNNN>_<slug>.py (latest: 0051)
 scripts/            backup_db.py, funnel.py, generate_vapid_keys.py, build_cities.py,
                     seed_analytics.py (fake users for the local admin panel; --remove)
 tests/              pytest (conftest: temp DB + fake bot token; fake_telegram.py, helpers.py)
 docs/               ARCHITECTURE, BACKEND (endpoints, env, migrations), FRONTEND (screens,
-                    src/ map, Android), BOT, WEB_APP_SETUP, DEPLOYMENT, SCALING
+                    src/ map, Android), BOT, WEB_APP_SETUP, DEPLOYMENT, SCALING, AI_CONNECTOR
 ```
 
 `TMA_*` env names (`TMA_URL`, `TMA_HOST`…) and the `Authorization: tma <initData>` scheme
@@ -146,6 +150,7 @@ Logs: `logs/`. Health: `curl http://127.0.0.1:8000/health`.
 | Habit statistics screen (month vs last month, trend line, weekdays, pie) | frontend data/habitStats.ts, screens/HabitStatsScreen.tsx, components/charts/ (LineChart shared with admin), StatDelta, InfoTip (Section `hint`), HabitSummary `onOpenStats` |
 | Задачи (Beta: one-off todos, not habits; `show_todos` → «Задачи» tab first, `open_on_todos` opens on it; lists = todo folders, recommended kinds fill themselves) | models.Todo / TodoFolder / User.show_todos, services._apply_todo_op, repository «Todos», userdata (todos); reminder: services.todo_remind_at / due_todo_reminders, bot/reminders `_send_todo_reminders`; frontend types/todo.ts, data/store.ts (createTodo…, todoAliases), derive.ts (deriveTodos), App (tab, startNewTodo, todoLists page), screens/TodosScreen.tsx (+ todoMotion.ts), TodoListFormScreen, FoldersScreen (shared with habit folders), SettingsScreen «Задачи» row → screens/TodoSettingsScreen.tsx (show_todos, open_on_todos, todo_checks_right, todo_new_bottom; todo_hide_list_names on the lists screen), components/TodoRow, TodoChips, TabIcons |
 | «Вид сетки» (grid_layout: rolling / fixed / calendar / large) | backend/constants GRID_LAYOUTS ↔ frontend constants.ts (GRID_*, LARGE_GRID_*, HISTORY_*); components/gridLayout.ts, calendarLayout.ts, HabitBlock, YearGrid, HabitSummary (habit screen sizes); screens/GridLayoutScreen.tsx |
+| «Подключить ИИ» (Claude/ChatGPT through MCP; OAuth login via the bot; admin statistics read only, allowed in the bot) | backend/oauth.py, mcp.py, ai_tools.py, ai_admin_tools.py, routers/oauth.py, routers/mcp.py, models.OAuthClient / AiConnection, messaging.send_ai_admin_request, bot/handlers/ai_admin.py; frontend src/connect/, screens/AiConnectScreen.tsx, api/ai.ts, types/ai.ts; nginx and vite proxy `/.well-known/oauth-`; docs/AI_CONNECTOR.md |
 | Theme / tokens / Android tweaks | frontend/src/styles/variables.css (end of file: `data-platform`) |
 
 ## Verifying a change

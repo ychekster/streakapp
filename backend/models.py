@@ -997,3 +997,50 @@ class Event(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False, index=True
     )
+
+
+class OAuthClient(Base):
+    """An AI app that registered itself to connect to Knot (OAuth dynamic client
+    registration, RFC 7591): Claude, ChatGPT… A public client: no secret, PKCE instead."""
+
+    __tablename__ = "oauth_clients"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    client_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Where the authorization result may go: JSON list of URLs.
+    redirect_uris: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class AiConnection(Base):
+    """«Подключить ИИ»: one AI app the user allowed into their account (backend/oauth.py).
+    The AI calls the MCP endpoint with the access token; the refresh token gets a new
+    pair. Only keyed hashes of both are stored, as for web sessions. The row appears on
+    «Разрешить»; the tokens, when the AI redeems the code. Deleting it («Отключить»)
+    ends the access at once."""
+
+    __tablename__ = "ai_connections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True
+    )
+    client_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    client_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    access_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    access_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    refresh_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # The administrator asked for app statistics on «Разрешить»: the admin tools are
+    # offered, and work once allowed in the bot (`admin_trusted_at`; NULL: not yet).
+    admin_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    admin_trusted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -12,6 +12,9 @@ earlier confirmation — the new one takes its place; a repeat of a code already
 is only deleted (not «link expired»). Remembered in memory: after a bot restart the first
 repeat simply asks again.
 
+A login started by «Подключить ИИ» (backend/oauth.py: the code carries the AI's name)
+asks «Подключить Claude к вашему Knot?» with «Разрешить» instead: that press connects it.
+
 This router is included before `start`: its /start filter is narrower.
 """
 
@@ -27,6 +30,9 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from loguru import logger
 
 from bot.constants import (
+    AI_LOGIN_CONFIRM_BUTTON,
+    AI_LOGIN_CONFIRM_TEXT,
+    AI_LOGIN_DONE_TEXT,
     LOGIN_CANCEL_BUTTON,
     LOGIN_CANCELLED_TEXT,
     LOGIN_CONFIRM_BUTTON,
@@ -35,9 +41,10 @@ from bot.constants import (
     LOGIN_EXPIRED_TEXT,
 )
 from bot.handlers.start import record_start
-from backend.accounts import confirm_telegram_login, telegram_login_request
+from backend.accounts import code_payload, confirm_telegram_login, telegram_login_request
 from backend.config import Settings
 from backend.database import Database
+from backend.oauth import login_client
 from backend.repository import Repository
 
 router = Router(name="web_login")
@@ -77,17 +84,20 @@ async def start_login(
         if request is None:
             await message.answer(LOGIN_EXPIRED_TEXT)
         else:
+            client = login_client(code_payload(request))
             markup = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text=LOGIN_CONFIRM_BUTTON, callback_data=f"{_CONFIRM}{code}"
+                            text=AI_LOGIN_CONFIRM_BUTTON if client else LOGIN_CONFIRM_BUTTON,
+                            callback_data=f"{_CONFIRM}{code}",
                         )
                     ],
                     [InlineKeyboardButton(text=LOGIN_CANCEL_BUTTON, callback_data=_CANCEL)],
                 ]
             )
-            sent = await message.answer(LOGIN_CONFIRM_TEXT, reply_markup=markup)
+            text = AI_LOGIN_CONFIRM_TEXT.format(client=client) if client else LOGIN_CONFIRM_TEXT
+            sent = await message.answer(text, reply_markup=markup)
             _prompts[chat_id] = sent.message_id
     if message.from_user is not None:
         await record_start(database, message.from_user)
@@ -111,11 +121,19 @@ async def confirm_login(
     code = (callback.data or "")[len(_CONFIRM):]
     user = callback.from_user
     async with database.session_factory() as session:
+        repo = Repository(session)
+        request = await telegram_login_request(repo, web_settings, code)
+        client = login_client(code_payload(request)) if request is not None else None
         confirmed = await confirm_telegram_login(
-            Repository(session), web_settings, code, user.id, user.username, user.first_name
+            repo, web_settings, code, user.id, user.username, user.first_name
         )
         await session.commit()
-    await _replace(callback, LOGIN_DONE_TEXT if confirmed else LOGIN_EXPIRED_TEXT)
+    if not confirmed:
+        await _replace(callback, LOGIN_EXPIRED_TEXT)
+    elif client:
+        await _replace(callback, AI_LOGIN_DONE_TEXT.format(client=client))
+    else:
+        await _replace(callback, LOGIN_DONE_TEXT)
 
 
 @router.callback_query(F.data == _CANCEL)

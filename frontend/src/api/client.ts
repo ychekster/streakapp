@@ -118,6 +118,11 @@ export type ApiErrorCode =
   | "bot_unreachable"
   | "stale_init_data"
   | "guest_logout"
+  // «Подключить ИИ» (the consent page).
+  | "no_account"
+  | "oauth_client_unknown"
+  | "oauth_redirect_invalid"
+  | "oauth_request_invalid"
   | "invalid_event"
   | "invalid_subscription"
   | "push_unavailable"

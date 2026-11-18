@@ -1,0 +1,89 @@
+/* «Подключить ИИ» consent page: a phone-width column in the app's look (tokens from
+   variables.css), light or dark with the system (main.tsx sets data-theme). */
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 32px) 16px
+    calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+
+.header {
+  padding: 0 var(--space-card-padding);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: var(--font-weight-title);
+  line-height: 1.2;
+}
+
+.lead {
+  margin: 10px 0 0;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.heading {
+  margin: 0 0 8px;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.note {
+  margin: 20px 0 0;
+  padding: 0 var(--space-card-padding);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.primary,
+.secondary {
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.primary:active,
+.secondary:active {
+  opacity: 0.7;
+}

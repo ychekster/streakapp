@@ -4,6 +4,8 @@
  *  - inside Telegram — the Mini App, exactly as before;
  *  - launched from the home screen icon (platform.isInstalled) — the web app, after its
  *    session is ready (web/bootstrap.ts);
+ *  - `/connect` in a browser tab — «Подключить ИИ», the page an AI app opens for access
+ *    (connect/ConnectPage.tsx);
  *  - anything else (a browser tab, Threads, desktop) — the landing and install flow.
  */
 
@@ -81,14 +83,24 @@ function followVisualViewport(): void {
 // The install page is a file of its own: the app (Telegram, installed) never loads it,
 // so it starts with less code.
 const Landing = lazy(() => import("./landing/Landing").then((module) => ({ default: module.Landing })));
+// «Подключить ИИ»: the page an AI app opens for access (connect/), a file of its own too.
+const ConnectPage = lazy(() =>
+  import("./connect/ConnectPage").then((module) => ({ default: module.ConnectPage })),
+);
 
 const container = document.getElementById("root");
 if (!container) {
   throw new Error("Корневой элемент #root не найден в index.html");
 }
 
-type Entry = "telegram" | "web" | "landing";
-const entry: Entry = isTelegram() ? "telegram" : isInstalled() ? "web" : "landing";
+type Entry = "telegram" | "web" | "landing" | "connect";
+const entry: Entry = isTelegram()
+  ? "telegram"
+  : window.location.pathname === "/connect"
+    ? "connect"
+    : isInstalled()
+      ? "web"
+      : "landing";
 document.documentElement.dataset.app = entry;
 
 // The web app lives at its own address (VITE_WEB_APP_URL): the home screen icon belongs
@@ -100,13 +112,15 @@ if (elsewhere) {
   window.location.replace(`${webAppUrl}${window.location.pathname}${window.location.search}`);
 }
 
-if (entry !== "telegram" && !elsewhere) {
+if ((entry === "web" || entry === "landing") && !elsewhere) {
   // Service worker (sw.ts): app shell cache and push notifications. Never inside
   // Telegram — the Mini App works exactly as before.
   registerSW({ immediate: true });
 }
-if (entry === "landing" && !elsewhere) {
-  captureInstallPrompt();
+if ((entry === "landing" && !elsewhere) || entry === "connect") {
+  if (entry === "landing") {
+    captureInstallPrompt();
+  }
   // The landing has no settings: light or dark with the system, switching along with it.
   const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
   const applySystemTheme = (): void => {
@@ -176,6 +190,10 @@ createRoot(container).render(
         <App />
       ) : entry === "web" ? (
         <WebRoot />
+      ) : entry === "connect" ? (
+        <Suspense fallback={null}>
+          <ConnectPage />
+        </Suspense>
       ) : (
         <Suspense fallback={null}>
           <Landing />

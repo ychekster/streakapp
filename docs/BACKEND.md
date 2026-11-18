@@ -95,6 +95,16 @@ FastAPI + uvicorn (async), SQLAlchemy 2.0 (async) + aiosqlite, alembic. Дост
 | `GET` | `/meta/timezones?language=ru&q=питер` | Поиск города (до 50): по названию на любом языке латиницей или кириллицей, с уточнением страны или региона (`портленд орегон`); по названию страны — ещё и её пояса; по смещению (`+3`) — пояса с ним. У одноимённых городов страны есть `region`. |
 | `GET` | `/reviews` | История своих отзывов с последним ответом администратора (`{"reviews": [{id, text, created_at, reply_text, replied_at}]}`), новые сначала. |
 | `POST` | `/reviews` | Отзыв из настроек (`{"text": "…"}`, до 2000 символов, не больше 5 за сутки — иначе `429 review_limit`). Появляется в админ-панели; в ответе — отзыв в форме истории. |
+| `POST` | `/mcp` | «Подключить ИИ»: MCP-сервер для Claude, ChatGPT и других ИИ (`backend/mcp.py`, инструменты — `ai_tools.py`, `ai_admin_tools.py`). Одно сообщение JSON-RPC 2.0 на запрос, ответ — обычный JSON (без SSE и сессий): `initialize`, `ping`, `tools/list`, `tools/call`; уведомления — `202`. Авторизация — `Authorization: Bearer <access token>` из `/oauth/token`; без него — `401` с `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"`. `GET /mcp` — `405`. Подробно — docs/AI_CONNECTOR.md. |
+| `GET` | `/.well-known/oauth-protected-resource[/…]`, `/.well-known/oauth-authorization-server[/…]` | OAuth-метаданные (RFC 9728, RFC 8414): адрес MCP и эндпоинты входа, от `PUBLIC_BASE_URL` (или `TMA_URL`) + `PUBLIC_API_PATH`. Отдаются и под `/api`, и в корне сайта (nginx и Vite проксируют `/.well-known/oauth-` без среза). |
+| `POST` | `/oauth/register` | Регистрация ИИ-приложения (RFC 7591): `{"client_name", "redirect_uris"}` → `201 {"client_id", …}`. Только публичные клиенты (`token_endpoint_auth_method: none`), адреса — https или localhost. Ошибки — в формате OAuth `{"error", "error_description"}`. |
+| `GET` | `/oauth/authorize` | Браузер из ИИ: проверка `client_id`, `redirect_uri`, `code_challenge` (PKCE S256 обязателен) и `302` на страницу разрешения фронтенда `/connect?…`; ошибка — `/connect?error=<code>`. |
+| `GET` | `/oauth/client?client_id=&redirect_uri=` | Страница разрешения: `{"name", "redirect_host"}` — какой ИИ просит и куда вернёт. |
+| `POST` | `/oauth/login/start`, `/oauth/login/poll` | Вход на странице разрешения через бота (`/start login_<code>`, без гостевого аккаунта): `start` → `{"code", "app_url", "web_url", "expires_in"}`; `poll` `{"token"}` → `pending` или `{"status": "done", "ticket", "name", "is_admin"}`. Нет аккаунта Knot у этого Telegram — `404 no_account`. |
+| `POST` | `/oauth/approve` | «Разрешить»: `{"ticket", "client_id", "redirect_uri", "code_challenge", "state"?, "admin"?}` → `{"redirect", "admin_pending"}` (обратно в ИИ с `code` и `state`). Тикет одноразовый. `admin` у администратора — бот спрашивает «Разрешить» доступ к статистике. |
+| `POST` | `/oauth/token` | Форма: `grant_type=authorization_code` (`code`, `client_id`, `redirect_uri`, `code_verifier`) или `refresh_token` → `{"access_token", "token_type": "Bearer", "expires_in": 3600, "refresh_token", "scope"}`. Refresh одноразовый (в ответе следующий), живёт 90 дней. |
+| `GET` | `/ai/connections` | Настройки → «Подключить ИИ»: `{"mcp_url", "connections": [{"id", "client_name", "created_at", "last_used_at", "admin"}]}`. |
+| `DELETE` | `/ai/connections/{id}` | «Отключить»: оба токена подключения перестают работать сразу. `204`. |
 | `GET` | `/health` | Проверка живости сервиса и доступности БД: `200 {"status": "ok"}` или `503 database_unavailable`. Без авторизации. |
 
 `GET /settings` возвращает и `is_admin` — по нему в настройках виден вход в
@@ -533,6 +543,10 @@ NULL — серый). В `todo_folder_create` / `todo_folder_update` — `color`
 
 Миграция `0050` — таблица `task_day_overrides`: правки прошлых дней привычки из окна
 параметров дня (название, описание, частота и цель одного дня; `schedule.apply_overrides`).
+
+Миграция `0051` — таблицы `oauth_clients` (ИИ-приложения, зарегистрированные для входа)
+и `ai_connections` (подключения «Подключить ИИ»: хэши токенов, когда пользовались,
+запрошена и разрешена ли статистика). Без неё API не запустит `/mcp` и `/oauth/*`.
 
 > Перед миграцией сделайте копию базы: `python scripts/backup_db.py` (база в режиме
 > WAL — простое копирование файла на работающих процессах может потерять последние

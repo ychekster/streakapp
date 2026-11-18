@@ -92,6 +92,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      // «Подключить ИИ»: AI apps look for the OAuth metadata at the site's root
+      // (backend/routers/oauth.py); as in nginx, it goes to the API unchanged.
+      "/.well-known/oauth-": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
     },
   },
   build: {

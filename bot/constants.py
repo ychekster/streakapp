@@ -105,6 +105,14 @@ LOGIN_CANCEL_BUTTON = "Отмена"
 LOGIN_DONE_TEXT = "Готово! Вход выполнен, вернитесь в приложение Knot."
 LOGIN_EXPIRED_TEXT = "Ссылка для входа устарела. Начните вход в приложении ещё раз."
 LOGIN_CANCELLED_TEXT = "Вход отменён."
+# «Подключить ИИ»: тот же вход, но его начала страница разрешения ИИ (backend/oauth.py).
+AI_LOGIN_CONFIRM_TEXT = (
+    "Подключить {client} к вашему Knot?\n\n"
+    "{client} сможет смотреть привычки и задачи, отмечать выполненное и создавать задачи. "
+    "Отключить можно в настройках приложения, раздел «Подключить ИИ»."
+)
+AI_LOGIN_CONFIRM_BUTTON = "Разрешить"
+AI_LOGIN_DONE_TEXT = "Готово! {client} подключён к Knot, вернитесь в браузер."
 
 # The admin panel on a web device (bot/handlers/admin_device.py): the API asks the
 # administrator (backend/messaging.py, send_admin_device_request); the bot answers a press
@@ -120,6 +128,18 @@ ADMIN_DEVICE_DECLINED_TEXT = {
 ADMIN_DEVICE_EXPIRED_TEXT = {
     "ru": "Запрос устарел. Откройте админ-панель в приложении ещё раз.",
     "en": "This request has expired. Open the admin panel in the app again.",
+}
+AI_ADMIN_ALLOWED_TEXT = {
+    "ru": "Готово! ИИ видит статистику Knot. Отключить можно в настройках приложения.",
+    "en": "Done! The AI can see Knot statistics. You can disconnect it in the app's settings.",
+}
+AI_ADMIN_DECLINED_TEXT = {
+    "ru": "Запрос отклонён. ИИ работает с вашими привычками и задачами, но без статистики.",
+    "en": "Request declined. The AI works with your habits and todos, but without statistics.",
+}
+AI_ADMIN_EXPIRED_TEXT = {
+    "ru": "Запрос устарел. Подключите ИИ заново и попросите статистику ещё раз.",
+    "en": "This request has expired. Connect the AI again and ask for statistics once more.",
 }
 
 # --------------------------------------------------------------------------- #

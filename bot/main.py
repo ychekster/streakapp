@@ -28,7 +28,7 @@ from loguru import logger
 from bot.broadcasts import run_broadcasts
 from bot.config import Config, load_config
 from bot.constants import LEGACY_COMMAND_LANGUAGES, MENU_BUTTON_TEXT, START_COMMAND_DESCRIPTION
-from bot.handlers import admin_device, group_invite, membership, start, web_login
+from bot.handlers import admin_device, ai_admin, group_invite, membership, start, web_login
 from bot.pacing import SEND_RATE, Pacer
 from bot.profiles import ProfileMiddleware, run_photo_refresh, run_profile_refresh
 from bot.reminders import PushConfig, run_reminders
@@ -123,6 +123,7 @@ async def main() -> None:
     # Before `start`: their /start filters (login and invite deep links) are narrower.
     dp.include_router(web_login.router)
     dp.include_router(admin_device.router)
+    dp.include_router(ai_admin.router)
     dp.include_router(group_invite.router)
     dp.include_router(start.router)
     # Имена участников совместных привычек — свежие из каждого сообщения и нажатия.

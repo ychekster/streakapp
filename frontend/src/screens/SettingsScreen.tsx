@@ -56,6 +56,7 @@ import {
   PersonIcon,
   ShieldIcon,
   SlidersIcon,
+  SparklesIcon,
   StarIcon,
 } from "../components/SettingsIcons";
 import { StatusMessage } from "../components/StatusMessage";
@@ -85,7 +86,8 @@ export type SettingsPage =
   | "terms"
   | "install"
   | "account"
-  | "adminDevice";
+  | "adminDevice"
+  | "ai";
 
 /** The account in the «Аккаунт» row (in the Mini App: always known, never a guest). */
 export interface AccountState {
@@ -346,6 +348,17 @@ export function SettingsScreen({
             iconColor="green"
             label={strings.settingsImport}
             onPress={() => importFromFile(strings)}
+          >
+            <Disclosure />
+          </ListItem>
+        </ListGroup>
+
+        <ListGroup>
+          <ListItem
+            icon={<SparklesIcon />}
+            iconColor="orange"
+            label={strings.settingsAi}
+            onPress={() => onOpen("ai")}
           >
             <Disclosure />
           </ListItem>

@@ -322,3 +322,16 @@ export function SortIcon() {
     </svg>
   );
 }
+
+/** «Подключить ИИ»: искры. */
+export function SparklesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        {...STROKE}
+        d="M10 3.5l1.6 4.4a2 2 0 0 0 1.2 1.2l4.4 1.6-4.4 1.6a2 2 0 0 0-1.2 1.2L10 17.9l-1.6-4.4a2 2 0 0 0-1.2-1.2L2.8 10.7l4.4-1.6a2 2 0 0 0 1.2-1.2L10 3.5z"
+      />
+      <path {...STROKE} d="M18.5 14.5v5M16 17h5" />
+    </svg>
+  );
+}

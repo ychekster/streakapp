@@ -252,6 +252,47 @@ async def send_admin_device_request(
     return result if isinstance(result, str) else None
 
 
+# «Подключить ИИ»: an administrator asked for app statistics on the consent page
+# (backend/oauth.py); the buttons are handled by the bot (bot/handlers/ai_admin.py).
+AI_ADMIN_ALLOW = "aiadmin:ok:"
+AI_ADMIN_DECLINE = "aiadmin:no:"
+AI_ADMIN_TEXTS: dict[str, str] = {
+    "ru": (
+        "{client} просит доступ к статистике Knot: новые и активные люди, удержание, "
+        "функции. Только смотреть, ничего не менять.\n\n"
+        "Если это не вы, нажмите «Отклонить» и отключите ИИ в настройках приложения."
+    ),
+    "en": (
+        "{client} asks for access to Knot statistics: new and active people, retention, "
+        "features. Read only, nothing can be changed.\n\n"
+        "If this wasn't you, tap “Decline” and disconnect the AI in the app's settings."
+    ),
+}
+
+
+async def send_ai_admin_request(
+    bot: Bot, chat_id: int, language: str, client: str, code: str
+) -> Undelivered | None:
+    """The bot's question «let this AI read app statistics?» with «Разрешить» and
+    «Отклонить». None: delivered."""
+    if chat_id < 0:
+        return "chat_not_found"
+    lang = language if language in AI_ADMIN_TEXTS else DEFAULT_LANGUAGE
+    allow, decline = ADMIN_DEVICE_BUTTONS[lang]
+    markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=allow, callback_data=f"{AI_ADMIN_ALLOW}{code}")],
+            [InlineKeyboardButton(text=decline, callback_data=f"{AI_ADMIN_DECLINE}{code}")],
+        ]
+    )
+    result = await _send(
+        lambda: bot.send_message(
+            chat_id=chat_id, text=AI_ADMIN_TEXTS[lang].format(client=client), reply_markup=markup
+        )
+    )
+    return result if isinstance(result, str) else None
+
+
 async def send_document(
     bot: Bot, chat_id: int, file_name: str, content: bytes, caption: str
 ) -> Undelivered | None:

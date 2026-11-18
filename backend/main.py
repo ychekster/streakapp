@@ -53,7 +53,9 @@ from backend.routers import (
     admin,
     auth,
     groups,
+    mcp,
     meta,
+    oauth,
     reviews,
     settings as settings_router,
     sync,
@@ -178,6 +180,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(web.router)
     app.include_router(userdata.router)
+    app.include_router(oauth.router)
+    app.include_router(mcp.router)
 
     @app.get("/health", tags=["meta"], response_model=None)
     async def health(request: Request) -> dict[str, str] | JSONResponse:

@@ -247,6 +247,17 @@ server {
         limit_req_status 429;
     }
 
+    # «Подключить ИИ»: Claude, ChatGPT и другие ИИ ищут OAuth-метаданные в корне сайта
+    # (/.well-known/oauth-authorization-server, …/oauth-protected-resource). Путь
+    # уходит в API как есть, без среза префикса (docs/AI_CONNECTOR.md).
+    location /.well-known/oauth- {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Mini App — одностраничное приложение: неизвестный путь отдаёт index.html.
     location / {
         try_files $uri $uri/ /index.html;
